@@ -54,6 +54,11 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+dependency_overrides:
+  # win32 6.x introduces native build hooks that require MSVC on Windows.
+  # Pinning to 5.x allows unit tests to run without a C compiler.
+  win32: ^5.7.0
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
