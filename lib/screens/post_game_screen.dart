@@ -1,0 +1,266 @@
+import 'package:flutter/material.dart';
+import '../models/game_result.dart';
+import '../widgets/player_avatar.dart';
+
+class PostGameScreen extends StatelessWidget {
+  final GameResult result;
+
+  const PostGameScreen({super.key, required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = List<PlayerResult>.from(result.results)
+      ..sort((a, b) => a.placement.compareTo(b.placement));
+    final winner = sorted.first;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Game Over'),
+        automaticallyImplyLeading: false,
+      ),
+      body: Column(
+        children: [
+          // Winner section
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.amber.withAlpha(40),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.emoji_events, size: 48, color: Colors.amber),
+                const SizedBox(height: 8),
+                PlayerAvatar(
+                  avatarPath: winner.avatarPath,
+                  name: winner.name,
+                  radius: 36,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  winner.name,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Text('Winner!',
+                    style: TextStyle(color: Colors.amber, fontSize: 16)),
+              ],
+            ),
+          ),
+
+          // Stats skipped notice
+          if (result.statsSkipped)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withAlpha(30),
+                border: Border.all(color: Colors.orange.withAlpha(80)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Statistics not recorded (player list changed mid-game)',
+                      style: TextStyle(color: Colors.orange, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Rankings
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: sorted.length,
+              itemBuilder: (context, index) {
+                final pr = sorted[index];
+                return _PlayerResultTile(
+                  result: pr,
+                  gameMode: result.gameMode,
+                );
+              },
+            ),
+          ),
+
+          // Action buttons
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop('undo'),
+                    child: const Text('Undo'),
+                  ),
+                ),
+                if (result.canContinue) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop('continue'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                      ),
+                      child: const Text('Continue'),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop('home'),
+                    child: const Text('Exit'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayerResultTile extends StatelessWidget {
+  final PlayerResult result;
+  final String gameMode;
+
+  const _PlayerResultTile({required this.result, required this.gameMode});
+
+  Color _placementColor(int p) {
+    switch (p) {
+      case 1:
+        return Colors.amber;
+      case 2:
+        return Colors.grey[400]!;
+      case 3:
+        return Colors.brown[300]!;
+      default:
+        return Colors.grey[600]!;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ratingChange = result.ratingChange;
+    final stats = result.stats;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            // Placement badge
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _placementColor(result.placement).withAlpha(40),
+                border: Border.all(
+                  color: _placementColor(result.placement),
+                  width: 2,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '${result.placement}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: _placementColor(result.placement),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Avatar
+            PlayerAvatar(
+              avatarPath: result.avatarPath,
+              name: result.name,
+              radius: 20,
+            ),
+            const SizedBox(width: 12),
+            // Name and stats
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    result.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _buildStats(stats),
+                ],
+              ),
+            ),
+            // Rating change
+            if (ratingChange != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: ratingChange >= 0
+                      ? Colors.green.withAlpha(30)
+                      : Colors.red.withAlpha(30),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${ratingChange >= 0 ? '+' : ''}${ratingChange.toStringAsFixed(1)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: ratingChange >= 0 ? Colors.green : Colors.red,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStats(Map<String, dynamic> stats) {
+    final entries = <String>[];
+
+    switch (gameMode) {
+      case 'x01':
+        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
+        if (stats['avgTurn'] != null) entries.add('Avg: ${(stats['avgTurn'] as double).toStringAsFixed(1)}');
+        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
+        if (stats['checkout'] != null) entries.add('Out: ${stats['checkout']}');
+      case 'cricket':
+        if (stats['points'] != null) entries.add('Pts: ${stats['points']}');
+        if (stats['closed'] != null) entries.add('Closed: ${stats['closed']}');
+      case 'aroundTheClock':
+        if (stats['reached'] != null) entries.add('Reached: ${stats['reached']}');
+        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
+      case 'killer':
+        if (stats['lives'] != null) entries.add('Lives: ${stats['lives']}');
+      case 'halveIt':
+        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
+        if (stats['halved'] != null) entries.add('Halved: ${stats['halved']}');
+    }
+
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Text(
+      entries.join(' | '),
+      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+    );
+  }
+}
