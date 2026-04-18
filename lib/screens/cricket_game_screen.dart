@@ -526,9 +526,14 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     // Calculate column width based on player count
     final screenWidth = MediaQuery.of(context).size.width;
     final targetLabelWidth = 44.0;
-    final buttonsWidth = 160.0; // S/D/T buttons
-    final availableForPlayers = screenWidth - targetLabelWidth - buttonsWidth - 32;
-    final playerColWidth = (availableForPlayers / players.length).clamp(48.0, 80.0);
+    final rowPadding = 16.0; // 8 each side
+    final availableForColumns = screenWidth - targetLabelWidth - rowPadding;
+    // Active player column needs ~158dp (3 buttons auto-sized + gaps)
+    const activePlayerColWidth = 158.0;
+    final inactiveCount = (players.length - 1).clamp(1, 99);
+    final inactivePlayerColWidth =
+        ((availableForColumns - activePlayerColWidth) / inactiveCount)
+            .clamp(32.0, 80.0);
 
     return Scaffold(
       appBar: AppBar(
@@ -694,15 +699,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                 SizedBox(width: targetLabelWidth),
                 ...List.generate(players.length, (pi) {
                   final isCurrent = pi == currentPlayerIndex;
+                  final colWidth = isCurrent ? activePlayerColWidth : inactivePlayerColWidth;
                   return SizedBox(
-                    width: playerColWidth,
+                    width: colWidth,
                     child: Center(
                       child: Text(
-                        players[pi].name.length > 6
-                            ? players[pi].name.substring(0, 6)
+                        players[pi].name.length > 8
+                            ? players[pi].name.substring(0, 8)
                             : players[pi].name,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: isCurrent ? 12 : 11,
                           fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                           color: playerColor(pi),
                         ),
@@ -789,6 +795,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
                 final target = targets[index];
                 final closedByAll = _isClosedByAll(target);
+                final isBull = target == 25;
+                final maxMarks = isBull ? 2 : 3;
 
                 return Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
@@ -798,14 +806,14 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                         : const Color(0xFF1E1E1E),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(
                     children: [
                       // Target label
                       SizedBox(
                         width: targetLabelWidth,
                         child: Text(
-                          target == 25 ? 'Bull' : '$target',
+                          isBull ? 'Bull' : '$target',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -813,23 +821,70 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           ),
                         ),
                       ),
-                      // Player progress columns with vertical dividers
+                      // Player columns — active player gets buttons, others get progress bars
                       ...List.generate(players.length, (pi) {
+                        final isCurrent = pi == currentPlayerIndex;
                         final m = marks[pi][target] ?? 0;
                         final closed = _isClosed(target, pi);
-                        final fillFraction = (m.clamp(0, 3) / 3.0);
                         final color = closed ? Colors.green : playerColor(pi);
 
+                        // Active player: show mark dots + hit buttons
+                        if (isCurrent && isGameActive && !closedByAll) {
+                          return SizedBox(
+                            width: activePlayerColWidth,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Mark dots
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 3),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ...List.generate(maxMarks, (i) => Padding(
+                                        padding: const EdgeInsets.only(right: 3),
+                                        child: Icon(
+                                          i < m ? Icons.circle : Icons.circle_outlined,
+                                          size: 10,
+                                          color: m >= maxMarks ? Colors.green : playerColor(pi),
+                                        ),
+                                      )),
+                                      if (m >= maxMarks) ...[
+                                        const SizedBox(width: 2),
+                                        Icon(Icons.check, size: 11, color: Colors.green[400]),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                // Hit buttons — fill the active column
+                                Row(
+                                  children: isBull
+                                      ? [
+                                          Expanded(child: _inlineHitButton(target, 1)),
+                                          const SizedBox(width: 3),
+                                          Expanded(child: _inlineHitButton(target, 2)),
+                                        ]
+                                      : [
+                                          Expanded(child: _inlineHitButton(target, 1)),
+                                          const SizedBox(width: 3),
+                                          Expanded(child: _inlineHitButton(target, 2)),
+                                          const SizedBox(width: 3),
+                                          Expanded(child: _inlineHitButton(target, 3)),
+                                        ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        // Inactive player or game not active: progress bar
+                        final colWidth = isCurrent ? activePlayerColWidth : inactivePlayerColWidth;
+                        final fillFraction = (m.clamp(0, maxMarks) / maxMarks.toDouble());
                         return Container(
-                          width: playerColWidth,
+                          width: colWidth,
                           decoration: BoxDecoration(
                             border: pi < players.length - 1
-                                ? Border(
-                                    right: BorderSide(
-                                      color: Colors.grey[800]!,
-                                      width: 1,
-                                    ),
-                                  )
+                                ? Border(right: BorderSide(color: Colors.grey[800]!, width: 1))
                                 : null,
                           ),
                           child: Center(
@@ -837,26 +892,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                               fillFraction: fillFraction,
                               color: color,
                               markCount: m,
-                              width: playerColWidth - 12,
+                              width: colWidth - 12,
                             ),
                           ),
                         );
                       }),
-                      // S/D/T buttons — only show if target not closed by all
-                      // and current player hasn't closed it
-                      const Spacer(),
-                      if (isGameActive && !closedByAll) ...[
-                        _hitButton(target, 1, () => _registerHit(target, 1)),
-                        const SizedBox(width: 4),
-                        _hitButton(target, 2, () => _registerHit(target, 2)),
-                        if (target != 25) ...[
-                          const SizedBox(width: 4),
-                          _hitButton(target, 3, () => _registerHit(target, 3)),
-                        ],
-                      ] else ...[
-                        // Closed by all — empty space for alignment
-                        SizedBox(width: target != 25 ? 192 : 128),
-                      ],
                     ],
                   ),
                 );
@@ -920,36 +960,35 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     );
   }
 
-  Widget _hitButton(int target, int multiplier, VoidCallback onTap) {
+  /// Inline hit button used inside the active player's column in each target row.
+  Widget _inlineHitButton(int target, int multiplier) {
     final bg = switch (multiplier) {
       1 => Colors.blueGrey[700]!,
       2 => Colors.orange[800]!,
       3 => Colors.red[800]!,
       _ => Colors.grey[700]!,
     };
+    final isBull = target == 25;
     final prefix = switch (multiplier) {
       2 => 'D',
       3 => 'T',
       _ => '',
     };
-    final label = target == 25
+    final label = isBull
         ? (multiplier == 2 ? 'Bull' : 'S.Bull')
         : '$prefix$target';
     return SizedBox(
-      width: 60,
-      height: 46,
+      height: 42,
       child: ElevatedButton(
-        onPressed: onTap,
+        onPressed: () => _registerHit(target, multiplier),
         style: ElevatedButton.styleFrom(
           backgroundColor: bg,
           foregroundColor: Colors.white,
           padding: EdgeInsets.zero,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
         ),
         child: Text(label,
-            style:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
       ),
     );
   }

@@ -68,17 +68,20 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     super.initState();
     players = widget.players;
     rounds = widget.config.generateRounds();
-    totalScores = List.filled(players.length, 0);
+    totalScores = List.filled(players.length, 40);
     roundScores = List.generate(
         rounds.length, (_) => List.filled(players.length, null));
+    for (final p in players) {
+      p.score = 40;
+    }
     _announcer.init();
     _meme.init();
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
     _log.logGameStart(
-      gameMode: 'Halve It',
+      gameMode: 'Splitscore',
       playerNames: players.map((p) => p.name).toList(),
-      playerScores: List.filled(players.length, 0),
+      playerScores: List.filled(players.length, 40),
       config: {
         'rounds': rounds.map((r) => r.label).toList(),
         'isRandom': widget.config.isRandom,
@@ -483,7 +486,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-            'Halve It - Round ${currentRoundIndex + 1}/${rounds.length}'),
+            'Splitscore - Round ${currentRoundIndex + 1}/${rounds.length}'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: _confirmExit,
@@ -786,93 +789,198 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
     switch (round.type) {
       case HalveItRoundType.number:
-        final n = round.targetNumber!;
-        return _buttonGrid([
-          _targetButton('S$n', () => _onDartHit(n, 1), Colors.blue),
-          _targetButton('D$n', () => _onDartHit(n, 2), Colors.green),
-          _targetButton('T$n', () => _onDartHit(n, 3), Colors.orange),
-          _targetButton('Miss', _onMiss, Colors.grey[700]!),
-        ]);
+        return _buildNumberButtons(round.targetNumber!);
 
       case HalveItRoundType.anyDouble:
         final buttons = <Widget>[];
         for (int i = 1; i <= 20; i++) {
-          buttons.add(_targetButton(
-              'D$i', () => _onDartHit(i, 2), Colors.green, compact: true));
+          buttons.add(_compactButton(
+              'D$i', () => _onDartHit(i, 2), Colors.orange[800]!));
         }
-        buttons.add(_targetButton(
-            'D-Bull', () => _onDartHit(25, 2), Colors.red[700]!, compact: true));
-        buttons.add(
-            _targetButton('Miss', _onMiss, Colors.grey[700]!, compact: true));
-        return _compactButtonGrid(buttons);
+        buttons.add(_compactButton(
+            'D-Bull', () => _onDartHit(25, 2), Colors.red[800]!));
+        return _compactButtonGrid(buttons, includeMiss: true);
 
       case HalveItRoundType.anyTriple:
         final buttons = <Widget>[];
         for (int i = 1; i <= 20; i++) {
-          buttons.add(_targetButton(
-              'T$i', () => _onDartHit(i, 3), Colors.orange, compact: true));
+          buttons.add(_compactButton(
+              'T$i', () => _onDartHit(i, 3), Colors.red[800]!));
         }
-        buttons.add(
-            _targetButton('Miss', _onMiss, Colors.grey[700]!, compact: true));
-        return _compactButtonGrid(buttons);
+        return _compactButtonGrid(buttons, includeMiss: true);
 
       case HalveItRoundType.bull:
-        return _buttonGrid([
-          _targetButton('Bull', () => _onDartHit(25, 1), Colors.green),
-          _targetButton('D-Bull', () => _onDartHit(25, 2), Colors.red[700]!),
-          _targetButton('Miss', _onMiss, Colors.grey[700]!),
-        ]);
+        return _buildNumberButtons(null); // null = Bull mode
     }
   }
 
-  Widget _targetButton(String label, VoidCallback onTap, Color color,
-      {bool compact = false}) {
+  /// Big buttons for a specific target number (or Bull if n == null).
+  Widget _buildNumberButtons(int? n) {
+    final isBull = n == null;
+    final halfScore = totalScores[currentPlayerIndex] ~/ 2;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Hit buttons row
+          Row(
+            children: isBull
+                ? [
+                    Expanded(child: _scoreButton('S.Bull', '+25', () => _onDartHit(25, 1), Colors.blueGrey[700]!)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _scoreButton('Bull', '+50', () => _onDartHit(25, 2), Colors.orange[800]!)),
+                  ]
+                : [
+                    Expanded(child: _scoreButton('S$n', '+$n', () => _onDartHit(n, 1), Colors.blueGrey[700]!)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _scoreButton('D$n', '+${n * 2}', () => _onDartHit(n, 2), Colors.orange[800]!)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _scoreButton('T$n', '+${n * 3}', () => _onDartHit(n, 3), Colors.red[800]!)),
+                  ],
+          ),
+          const SizedBox(height: 12),
+          // Miss button — shows what the score halves to
+          SizedBox(
+            height: 62,
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _onMiss,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey[800],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Miss', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text('score halves to $halfScore',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Denied button
+          SizedBox(
+            height: 62,
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _onMiss,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFB71C1C),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Denied',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _scoreButton(String label, String points, VoidCallback onTap, Color color) {
     return SizedBox(
-      height: compact ? 54 : 64,
+      height: 86,
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
-          backgroundColor: color.withAlpha(180),
+          backgroundColor: color,
           foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(
-              horizontal: compact ? 8 : 10, vertical: compact ? 6 : 10),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(compact ? 8 : 12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: EdgeInsets.zero,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(points, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _compactButton(String label, VoidCallback onTap, Color color) {
+    return SizedBox(
+      height: 58,
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: Text(label,
-            style: TextStyle(
-                fontSize: compact ? 17 : 20, fontWeight: FontWeight.bold)),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  Widget _buttonGrid(List<Widget> buttons) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Center(
-        child: Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          alignment: WrapAlignment.center,
-          children:
-              buttons.map((b) => SizedBox(width: 140, child: b)).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _compactButtonGrid(List<Widget> buttons) {
-    // Aim for 4-5 buttons per row — use wider buttons
+  Widget _compactButtonGrid(List<Widget> buttons, {bool includeMiss = false}) {
+    final halfScore = totalScores[currentPlayerIndex] ~/ 2;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Center(
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children:
-              buttons.map((b) => SizedBox(width: 88, child: b)).toList(),
-        ),
+      child: Column(
+        children: [
+          Expanded(
+            child: Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              alignment: WrapAlignment.center,
+              children: buttons.map((b) => SizedBox(width: 82, child: b)).toList(),
+            ),
+          ),
+          if (includeMiss) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _onMiss,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[800],
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Miss', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text('halves to $halfScore', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SizedBox(
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _onMiss,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFB71C1C),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Denied',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
+        ],
       ),
     );
   }

@@ -18,7 +18,7 @@ extension GameModeLabel on GameMode {
       case GameMode.killer:
         return 'Killer';
       case GameMode.halveIt:
-        return 'Halve It';
+        return 'Splitscore';
     }
   }
 }

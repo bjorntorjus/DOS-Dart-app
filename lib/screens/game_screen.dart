@@ -1038,10 +1038,15 @@ class _GameScreenState extends State<GameScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
-              color: playerColor(currentPlayerIndex).withAlpha(40),
+              color: playerColor(currentPlayerIndex).withAlpha(55),
               border: Border(
                 bottom: BorderSide(
-                  color: playerColor(currentPlayerIndex).withAlpha(80),
+                  color: playerColor(currentPlayerIndex).withAlpha(160),
+                  width: 1,
+                ),
+                left: BorderSide(
+                  color: playerColor(currentPlayerIndex),
+                  width: 4,
                 ),
               ),
             ),
@@ -1054,8 +1059,11 @@ class _GameScreenState extends State<GameScreen> {
                     children: [
                       Text(
                         currentPlayer.name,
-                        style: const TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: playerColor(currentPlayerIndex),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -1063,18 +1071,18 @@ class _GameScreenState extends State<GameScreen> {
                           Text(
                             'Dart ${dartsInTurn + 1} of 3',
                             style: TextStyle(
-                                color: Colors.grey[400], fontSize: 16),
+                                color: Colors.grey[400], fontSize: 14),
                           ),
-                          const SizedBox(width: 8),
-                          // Dart indicators
+                          const SizedBox(width: 10),
+                          // Dart indicators — larger, player-colored
                           ...List.generate(3, (i) {
                             return Padding(
-                              padding: const EdgeInsets.only(right: 4),
+                              padding: const EdgeInsets.only(right: 6),
                               child: Icon(
                                 i < dartsInTurn
                                     ? Icons.circle
                                     : Icons.circle_outlined,
-                                size: 12,
+                                size: 16,
                                 color: playerColor(currentPlayerIndex),
                               ),
                             );
