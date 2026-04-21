@@ -1,7 +1,9 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/saved_player.dart';
+import '../models/game_history.dart';
 import '../services/player_storage.dart';
+import '../services/game_history_service.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/heatmap_board.dart';
 
@@ -15,6 +17,7 @@ class StatsScreen extends StatefulWidget {
 class _StatsScreenState extends State<StatsScreen>
     with SingleTickerProviderStateMixin {
   List<SavedPlayer> _players = [];
+  List<GameHistoryEntry> _history = [];
   bool _isLoading = true;
   late TabController _tabController;
   String? _heatmapPlayer1Id;
@@ -32,8 +35,10 @@ class _StatsScreenState extends State<StatsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2 + _modes.length, vsync: this);
+    // Players + 5 modes + Heatmap + History = 9 tabs
+    _tabController = TabController(length: 3 + _modes.length, vsync: this);
     _loadPlayers();
+    _loadHistory();
   }
 
   @override
@@ -48,6 +53,11 @@ class _StatsScreenState extends State<StatsScreen>
       _players = players;
       _isLoading = false;
     });
+  }
+
+  Future<void> _loadHistory() async {
+    final history = await GameHistoryService.load();
+    if (mounted) setState(() => _history = history);
   }
 
   Future<void> _deletePlayer(SavedPlayer player) async {
@@ -90,6 +100,7 @@ class _StatsScreenState extends State<StatsScreen>
             const Tab(text: 'Players'),
             ..._modes.map((m) => Tab(text: m.$2)),
             const Tab(text: 'Heatmap'),
+            const Tab(text: 'History'),
           ],
         ),
       ),
@@ -121,6 +132,7 @@ class _StatsScreenState extends State<StatsScreen>
                     _buildPlayersTab(),
                     ..._modes.map((m) => _buildModeTab(m.$1, m.$2)),
                     _buildHeatmapTab(),
+                    _buildHistoryTab(),
                   ],
                 ),
     );
@@ -815,6 +827,187 @@ class _StatsScreenState extends State<StatsScreen>
       counters: segCounters,
       playerName: player.name,
     );
+  }
+
+  // ──────────────────────────────────────────
+  // HISTORY TAB
+  // ──────────────────────────────────────────
+
+  static const _modeLabels = {
+    'x01': 'X01',
+    'cricket': 'Cricket',
+    'cricket_cutthroat': 'Cricket CT',
+    'aroundTheClock': 'Clock',
+    'killer': 'Killer',
+    'halveIt': 'Halve It',
+  };
+
+  Widget _buildHistoryTab() {
+    if (_history.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history, size: 64, color: Colors.grey[700]),
+            const SizedBox(height: 16),
+            Text('No games recorded yet',
+                style: TextStyle(color: Colors.grey[500], fontSize: 18)),
+            const SizedBox(height: 8),
+            Text('Games appear here after you exit',
+                style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: _history.length,
+      itemBuilder: (context, index) =>
+          _buildHistoryCard(_history[index]),
+    );
+  }
+
+  Widget _buildHistoryCard(GameHistoryEntry entry) {
+    final label = _modeLabels[entry.gameMode] ?? entry.gameMode;
+    final date = _formatDate(entry.date);
+    final sorted = List<GameHistoryPlayer>.from(entry.players)
+      ..sort((a, b) => a.placement.compareTo(b.placement));
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        childrenPadding:
+            const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        leading: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF43A047).withAlpha(30),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFF43A047).withAlpha(80)),
+          ),
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF43A047))),
+        ),
+        title: Row(
+          children: sorted.take(3).map((p) {
+            final medal = p.placement == 1
+                ? '🥇'
+                : p.placement == 2
+                    ? '🥈'
+                    : p.placement == 3
+                        ? '🥉'
+                        : '#${p.placement}';
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text('$medal ${p.name}',
+                  style: const TextStyle(fontSize: 13)),
+            );
+          }).toList(),
+        ),
+        subtitle: Text(date,
+            style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        children: [
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          ...sorted.map((p) => _buildHistoryPlayerRow(p, entry.gameMode)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryPlayerRow(GameHistoryPlayer p, String gameMode) {
+    final medal = p.placement == 1
+        ? '🥇'
+        : p.placement == 2
+            ? '🥈'
+            : p.placement == 3
+                ? '🥉'
+                : '#${p.placement}';
+
+    final statChips = _buildHistoryStatChips(p.stats, gameMode);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('$medal ', style: const TextStyle(fontSize: 16)),
+              Text(p.name,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          if (statChips.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Wrap(spacing: 6, runSpacing: 4, children: statChips),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildHistoryStatChips(
+      Map<String, int> stats, String gameMode) {
+    final chips = <Widget>[];
+
+    void chip(String label, String value) {
+      chips.add(Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text('$label: $value',
+            style: const TextStyle(fontSize: 11, color: Colors.white70)),
+      ));
+    }
+
+    if (gameMode == 'cricket' || gameMode == 'cricket_cutthroat') {
+      if (stats.containsKey('totalPoints')) chip('Pts', '${stats['totalPoints']}');
+      if (stats.containsKey('closedTargets')) chip('Closed', '${stats['closedTargets']}/7');
+      if (stats.containsKey('totalDarts') && stats.containsKey('marksScored')) {
+        final darts = stats['totalDarts']!;
+        final marks = stats['marksScored']!;
+        if (darts > 0) {
+          chip('Marks/dart', (marks / darts).toStringAsFixed(2));
+        }
+      }
+      if (stats.containsKey('misses')) chip('Miss', '${stats['misses']}');
+    } else if (gameMode == 'x01') {
+      if (stats.containsKey('totalDarts')) chip('Darts', '${stats['totalDarts']}');
+      if (stats.containsKey('bullsHit')) chip('Bulls', '${stats['bullsHit']}');
+      if (stats.containsKey('triplesHit')) chip('T', '${stats['triplesHit']}');
+    } else if (gameMode == 'aroundTheClock') {
+      if (stats.containsKey('totalDarts')) chip('Darts', '${stats['totalDarts']}');
+      if (stats.containsKey('totalHits')) chip('Hits', '${stats['totalHits']}');
+    } else if (gameMode == 'killer') {
+      if (stats.containsKey('kills')) chip('Kills', '${stats['kills']}');
+      if (stats.containsKey('attacksDealt')) chip('Attacks', '${stats['attacksDealt']}');
+    } else if (gameMode == 'halveIt') {
+      if (stats.containsKey('totalScore')) chip('Score', '${stats['totalScore']}');
+    }
+    return chips;
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) {
+      return 'Today ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (diff.inDays == 1) {
+      return 'Yesterday';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} days ago';
+    } else {
+      return '${date.day}.${date.month}.${date.year}';
+    }
   }
 }
 

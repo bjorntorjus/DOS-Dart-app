@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cricket UI — Portrait Tablet Mockup</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0a0a0a;
+  color: #fff;
+  font-family: 'Segoe UI', sans-serif;
+  padding: 24px;
+}
+h1 { font-size: 20px; color: #43A047; margin-bottom: 4px; }
+.subtitle { font-size: 13px; color: #555; margin-bottom: 6px; }
+.scale-note {
+  font-size: 12px; color: #43A047; background: #1a2a1a;
+  border: 1px solid #2a4a2a; border-radius: 4px;
+  padding: 6px 12px; display: inline-block; margin-bottom: 24px;
+}
+
+.columns { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+.col { }
+.col-label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+/* ════════════════════════════════════════════
+   TABLET FRAME
+   SM-T500 portrait: 857 × 1429 dp
+   Rendered at 75% → 643 × 1072 px
+   1 px in mockup ≈ 1.33 dp on device
+   ════════════════════════════════════════════ */
+.tablet {
+  width: 643px;
+  height: 1072px;
+  border: 2px solid #333;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #121212;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.scale-badge {
+  position: absolute;
+  top: 8px; right: 8px;
+  font-size: 9px; color: #333; z-index: 10;
+  background: rgba(0,0,0,0.7);
+  padding: 2px 6px; border-radius: 4px;
+}
+
+/* AppBar */
+.appbar {
+  background: #1C1C1C; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 16px;
+  border-bottom: 1px solid #2a2a2a;
+  font-size: 17px; font-weight: bold;
+}
+.appbar-icons { display: flex; gap: 16px; color: #888; font-size: 21px; }
+
+/* Player header */
+.player-header {
+  background: #1C1C1C; flex-shrink: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #2a2a2a;
+}
+.turn-line {
+  font-size: 15px; font-weight: bold; color: #43A047;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.turn-line .last { margin-left: auto; font-size: 12px; color: #aaa; font-weight: normal; }
+.player-cards { display: flex; gap: 7px; }
+.pcard {
+  flex: 1; background: #252525; border-radius: 8px;
+  padding: 8px 6px; text-align: center;
+}
+.pcard.active { background: rgba(67,160,71,0.12); border: 1px solid rgba(67,160,71,0.4); }
+.pcard .av {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: bold; margin: 0 auto 3px;
+}
+.pcard .pname { font-size: 12px; font-weight: bold; margin-bottom: 2px; }
+.pcard .pts { font-size: 17px; font-weight: bold; }
+.pcard .last { font-size: 9px; color: #555; margin-top: 2px; }
+
+/* Col headers */
+.col-heads {
+  display: flex; padding: 4px 10px; flex-shrink: 0;
+  border-bottom: 1px solid #222; background: #161616;
+  font-size: 11px;
+}
+.th-target { width: 52px; flex-shrink: 0; }
+.th-player { text-align: center; color: #555; }
+
+/* Scrollable target list */
+.target-list {
+  flex: 1; overflow: hidden;
+  padding: 4px 8px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.trow {
+  display: flex; align-items: center;
+  background: #1A1A1A; border-radius: 6px;
+  padding: 3px 2px;
+  flex: 1; /* distribute evenly */
+}
+.trow.closed-all { background: #141414; }
+.tlabel {
+  width: 52px; flex-shrink: 0;
+  font-size: 20px; font-weight: bold; padding-left: 6px; color: #ddd;
+}
+.trow.closed-all .tlabel { color: #333; }
+
+/* ── MARK BUTTONS ──
+   Unfilled: same color family as Miss (#374151) for consistency
+   Border: slightly lighter to show it's interactive
+*/
+.mark-buttons { display: flex; gap: 3px; flex: 2.2; padding: 0 3px; }
+.mbtn {
+  flex: 1;
+  border-radius: 5px;
+  border: 1.5px solid #4B5563;  /* visible — matches Miss border */
+  background: #374151;           /* same family as Miss button */
+  color: #D1D5DB;                /* light text — clearly readable */
+  font-size: 14px; font-weight: bold;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.mbtn.filled {
+  background: rgba(67,160,71,0.55);
+  border-color: rgba(67,160,71,0.85);
+  color: #fff;
+}
+.mbtn.closed {
+  background: rgba(67,160,71,0.80);
+  border-color: #43A047;
+  color: #fff;
+}
+
+/* Progress bar — inactive, same height as mark buttons */
+.inactive-col {
+  flex: 1; padding: 0 4px;
+  border-left: 1px solid #1e1e1e;
+  display: flex; align-items: center;
+}
+.pbar {
+  width: 100%; height: 100%;
+  background: #1C1C1C; border-radius: 4px;
+  border: 0.5px solid #262626;
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 42px;
+}
+.pbar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.pbar-txt { position: relative; z-index: 1; font-size: 15px; font-weight: bold; }
+
+/* Bottom bar */
+.bottom-bar {
+  padding: 9px 10px 13px;
+  border-top: 1px solid #1e1e1e;
+  background: #141414; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.bottom-row { display: flex; gap: 6px; }
+.bbtn {
+  flex: 1; border: none; border-radius: 8px;
+  font-weight: bold; color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+/* Miss uses same #374151 as unfilled mark buttons */
+.bbtn-back  { height: 68px; background: transparent; border: 1.5px solid #374151; color: #9CA3AF; font-size: 17px; }
+.bbtn-miss  { height: 68px; background: #374151; font-size: 21px; border: 1.5px solid #4B5563; }
+.bbtn-denied { height: 58px; background: #B71C1C; font-size: 18px; }
+
+/* ── DIMENSION ANNOTATIONS ── */
+.dim-wrap { position: relative; }
+.dim-label {
+  font-size: 10px; color: #43A047;
+  position: absolute; right: -90px; top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  display: flex; align-items: center; gap: 4px;
+}
+.dim-label::before {
+  content: '←';
+  font-size: 9px;
+}
+</style>
+</head>
+<body>
+
+<h1>Cricket — Portrait Tablet Mockup</h1>
+<div class="subtitle">Samsung SM-T500 · Portrait · 857 × 1429 dp · Mockup vist i 75% skala</div>
+<div class="scale-note">
+  ℹ️ &nbsp;75% skala: 1 px i mockup = 1.33 dp på enheten.
+  En 60dp knapp vises som 45px her, men vil føles som ~9mm høy på det fysiske brettet.
+</div>
+
+<div class="columns">
+
+  <!-- PORTRAIT TABLET -->
+  <div class="col">
+    <div class="col-label">Slik ser det ut på brettet (75% skala)</div>
+    <div class="tablet">
+      <div class="scale-badge">75% av ekte størrelse</div>
+
+      <div class="appbar">
+        <span style="color:#555">✕</span>
+        <span>Cricket</span>
+        <div class="appbar-icons"><span>🤡</span><span style="font-size:18px">⚙</span><span style="font-size:18px">↩</span></div>
+      </div>
+
+      <div class="player-header">
+        <div class="turn-line">
+          Alice — Dart 2/3 &nbsp;● ● ○
+          <span class="last">D20 → 2/3</span>
+        </div>
+        <div class="player-cards">
+          <div class="pcard active">
+            <div class="av" style="background:#43A047">A</div>
+            <div class="pname" style="color:#43A047">Alice</div>
+            <div class="pts">240</div>
+            <div class="last">S20 · D20</div>
+          </div>
+          <div class="pcard">
+            <div class="av" style="background:#2196F3">B</div>
+            <div class="pname" style="color:#2196F3">Bob</div>
+            <div class="pts">180</div>
+            <div class="last">T18 · S15</div>
+          </div>
+          <div class="pcard">
+            <div class="av" style="background:#FF9800">C</div>
+            <div class="pname" style="color:#FF9800">Charlie</div>
+            <div class="pts">95</div>
+            <div class="last">S20 · Miss</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-heads">
+        <div class="th-target"></div>
+        <div class="th-player" style="flex:2.2;color:#43A047;font-weight:bold;font-size:12px">Alice</div>
+        <div class="th-player" style="flex:1;color:#2196F3">Bob</div>
+        <div class="th-player" style="flex:1;color:#FF9800">Charlie</div>
+      </div>
+
+      <div class="target-list">
+
+        <div class="trow">
+          <div class="tlabel">20</div>
+          <div class="mark-buttons">
+            <div class="mbtn filled">20</div>
+            <div class="mbtn filled">D20</div>
+            <div class="mbtn">T20</div>
+          </div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:100%;background:rgba(33,150,243,0.55)"></div><span class="pbar-txt">✓</span></div></div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:33%;background:rgba(255,152,0,0.45)"></div><span class="pbar-txt">1</span></div></div>
+        </div>
+
+        <div class="trow">
+          <div class="tlabel">19</div>
+          <div class="mark-buttons">
+            <div class="mbtn">19</div>
+            <div class="mbtn">D19</div>
+            <div class="mbtn">T19</div>
+          </div>
+          <div class="inactive-col"><div class="pbar"><span class="pbar-txt" style="color:#2a2a2a">0</span></div></div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:100%;background:rgba(255,152,0,0.65)"></div><span class="pbar-txt">✓</span></div></div>
+        </div>
+
+        <div class="trow">
+          <div class="tlabel" style="color:#43A047">18</div>
+          <div class="mark-buttons">
+            <div class="mbtn closed">18</div>
+            <div class="mbtn closed">D18</div>
+            <div class="mbtn closed">T18</div>
+          </div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:67%;background:rgba(33,150,243,0.45)"></div><span class="pbar-txt">2</span></div></div>
+          <div class="inactive-col"><div class="pbar"><span class="pbar-txt" style="color:#2a2a2a">0</span></div></div>
+        </div>
+
+        <div class="trow">
+          <div class="tlabel">17</div>
+          <div class="mark-buttons">
+            <div class="mbtn filled">17</div>
+            <div class="mbtn">D17</div>
+            <div class="mbtn">T17</div>
+          </div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:100%;background:rgba(33,150,243,0.55)"></div><span class="pbar-txt">✓</span></div></div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:67%;background:rgba(255,152,0,0.45)"></div><span class="pbar-txt">2</span></div></div>
+        </div>
+
+        <div class="trow">
+          <div class="tlabel">16</div>
+          <div class="mark-buttons">
+            <div class="mbtn">16</div>
+            <div class="mbtn">D16</div>
+            <div class="mbtn">T16</div>
+          </div>
+          <div class="inactive-col"><div class="pbar"><span class="pbar-txt" style="color:#2a2a2a">0</span></div></div>
+          <div class="inactive-col"><div class="pbar"><span class="pbar-txt" style="color:#2a2a2a">0</span></div></div>
+        </div>
+
+        <div class="trow">
+          <div class="tlabel">15</div>
+          <div class="mark-buttons">
+            <div class="mbtn">15</div>
+            <div class="mbtn">D15</div>
+            <div class="mbtn">T15</div>
+          </div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:33%;background:rgba(33,150,243,0.45)"></div><span class="pbar-txt">1</span></div></div>
+          <div class="inactive-col"><div class="pbar"><span class="pbar-txt" style="color:#2a2a2a">0</span></div></div>
+        </div>
+
+        <div class="trow">
+          <div class="tlabel" style="font-size:14px">Bull</div>
+          <div class="mark-buttons">
+            <div class="mbtn filled" style="flex:1.5">Bull</div>
+            <div class="mbtn" style="flex:1.5">DBull</div>
+          </div>
+          <div class="inactive-col"><div class="pbar"><span class="pbar-txt" style="color:#2a2a2a">0</span></div></div>
+          <div class="inactive-col"><div class="pbar"><div class="pbar-fill" style="width:100%;background:rgba(255,152,0,0.65)"></div><span class="pbar-txt">✓</span></div></div>
+        </div>
+
+      </div><!-- /target-list -->
+
+      <div class="bottom-bar">
+        <div class="bottom-row">
+          <button class="bbtn bbtn-back">↩ &nbsp;Back</button>
+          <button class="bbtn bbtn-miss">Miss</button>
+        </div>
+        <div class="bottom-row">
+          <button class="bbtn bbtn-denied">Denied</button>
+        </div>
+      </div>
+
+    </div><!-- /tablet -->
+  </div>
+
+  <!-- ANNOTATIONS -->
+  <div class="col" style="padding-top:40px; max-width:280px;">
+    <div style="font-size:12px; color:#555; text-transform:uppercase; letter-spacing:1px; margin-bottom:16px">Størrelser (dp)</div>
+
+    <div style="display:flex; flex-direction:column; gap:12px; font-size:13px; color:#aaa;">
+
+      <div style="background:#1a1a1a; border-radius:6px; padding:10px 14px; border-left:3px solid #374151">
+        <div style="font-size:11px; color:#555; margin-bottom:4px">SCORING-KNAPPER</div>
+        <div><span style="color:#fff; font-weight:bold">60 dp høyde</span></div>
+        <div style="font-size:11px; color:#555; margin-top:2px">≈ 9.5 mm på brettet</div>
+      </div>
+
+      <div style="background:#1a1a1a; border-radius:6px; padding:10px 14px; border-left:3px solid #374151">
+        <div style="font-size:11px; color:#555; margin-bottom:4px">MISS / BACK</div>
+        <div><span style="color:#fff; font-weight:bold">72 dp høyde</span></div>
+        <div style="font-size:11px; color:#555; margin-top:2px">≈ 11.5 mm på brettet</div>
+      </div>
+
+      <div style="background:#1a1a1a; border-radius:6px; padding:10px 14px; border-left:3px solid #B71C1C">
+        <div style="font-size:11px; color:#555; margin-bottom:4px">DENIED</div>
+        <div><span style="color:#fff; font-weight:bold">62 dp høyde</span></div>
+        <div style="font-size:11px; color:#555; margin-top:2px">≈ 10 mm på brettet</div>
+      </div>
+
+      <div style="background:#1A2A1A; border-radius:6px; padding:10px 14px; border-left:3px solid #43A047; margin-top:8px;">
+        <div style="font-size:11px; color:#43A047; margin-bottom:6px">FARGESAMKJØRING</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          <div style="width:28px;height:28px;background:#374151;border:1.5px solid #4B5563;border-radius:4px"></div>
+          <div>
+            <div style="font-size:12px; color:#fff">Unfilled knapp</div>
+            <div style="font-size:10px; color:#555">#374151</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="width:28px;height:28px;background:#374151;border:1.5px solid #4B5563;border-radius:4px"></div>
+          <div>
+            <div style="font-size:12px; color:#fff">Miss-knapp</div>
+            <div style="font-size:10px; color:#555">#374151 — identisk</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#1a1a1a; border-radius:6px; padding:10px 14px; font-size:11px; color:#555; margin-top:4px;">
+        <div style="color:#aaa; margin-bottom:4px">Om skalaen</div>
+        SM-T500: 1200 × 2000 px<br>
+        Tetthet: 224 dpi → DPR ≈ 1.4<br>
+        Logiske dp: 857 × 1429<br><br>
+        Mockup: 643 × 1072 px = 75%<br>
+        1 mockup-px ≈ 1.33 dp på enhet
+      </div>
+    </div>
+  </div>
+
+</div><!-- /columns -->
+</body>
+</html>

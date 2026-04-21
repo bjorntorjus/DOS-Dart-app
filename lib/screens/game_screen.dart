@@ -438,6 +438,7 @@ class _GameScreenState extends State<GameScreen> {
     StatsRecorder.recordGame(
       gameMode: 'x01',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,

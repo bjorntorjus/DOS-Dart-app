@@ -418,6 +418,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     StatsRecorder.recordGame(
       gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,

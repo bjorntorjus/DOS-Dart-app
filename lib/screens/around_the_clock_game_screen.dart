@@ -729,6 +729,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     StatsRecorder.recordGame(
       gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,

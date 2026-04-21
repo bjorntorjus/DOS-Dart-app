@@ -1,14 +1,18 @@
 import '../models/saved_player.dart';
+import '../models/game_history.dart';
+import '../services/game_history_service.dart';
 
 class StatsRecorder {
   /// Call after EloService.updateRatings to record per-mode stats,
-  /// head-to-head results, and rating history snapshots.
+  /// head-to-head results, rating history snapshots, and game history.
   ///
-  /// [modeCounters] is an optional map of playerId → counter map for
+  /// [playerNames] — display names in the same order as [playerIds].
+  /// [modeCounters] — optional map of playerId → counter map for
   /// mode-specific detailed stats (e.g. doubles hit, kills, etc.)
   static void recordGame({
     required String gameMode,
     required List<String?> playerIds,
+    required List<String> playerNames,
     required List<int> placements,
     required List<SavedPlayer> savedPlayers,
     Map<String, Map<String, int>>? modeCounters,
@@ -37,7 +41,6 @@ class StatsRecorder {
         final counters = modeCounters[playerId]!;
         for (final entry in counters.entries) {
           if (entry.key.startsWith('max:')) {
-            // Keys prefixed with "max:" use setMax instead of increment
             mode.setMax(entry.key.substring(4), entry.value);
           } else {
             mode.inc(entry.key, entry.value);
@@ -69,5 +72,27 @@ class StatsRecorder {
       sp.ratingHistory.add(RatingSnapshot(
           date: now, rating: sp.rating, placement: ratingPlacement));
     }
+
+    // Record to game history (fire-and-forget)
+    final historyPlayers = List.generate(playerIds.length, (i) {
+      final stats = (modeCounters != null && playerIds[i] != null)
+          ? (modeCounters[playerIds[i]] ?? <String, int>{})
+          : <String, int>{};
+      return GameHistoryPlayer(
+        name: playerNames[i],
+        savedPlayerId: playerIds[i],
+        placement: placements[i],
+        stats: Map<String, int>.from(stats),
+      );
+    });
+
+    final entry = GameHistoryEntry(
+      id: '${now.millisecondsSinceEpoch}',
+      gameMode: gameMode,
+      date: now,
+      players: historyPlayers,
+    );
+
+    GameHistoryService.record(entry);
   }
 }

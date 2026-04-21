@@ -43,6 +43,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   String? lastThrowLabel;
   List<int> finishedPlayers = [];
   bool _gameFullyOver = false;
+  bool _statsRecorded = false;
 
   final List<_CricketUndoData> _undoStack = [];
   final GameAnnouncer _announcer = GameAnnouncer();
@@ -295,14 +296,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
       _announcer.announceWinner(players[winnerIndex!].name);
-      _updateStats().then((_) => _showPostGame());
+      _showPostGame();
     } else if (finishedPlayers.contains(currentPlayerIndex) && !_gameFullyOver) {
       if (players.length <= 2) {
         _gameFullyOver = true;
-        _updateStats().then((_) => _showPostGame());
-      } else {
-        _showPostGame();
       }
+      _showPostGame();
     }
   }
 
@@ -371,6 +370,53 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
+  /// Computes final placements for all players.
+  /// Finished players keep their finish order.
+  /// Remaining players are ranked by: score (desc/asc for cutthroat),
+  /// then closed targets (desc), then total marks (desc). Ties share a rank.
+  List<int> _computeExitPlacements() {
+    final result = List<int>.filled(players.length, 0);
+    for (int i = 0; i < finishedPlayers.length; i++) {
+      result[finishedPlayers[i]] = i + 1;
+    }
+    final remaining = List.generate(players.length, (i) => i)
+        .where((i) => !finishedPlayers.contains(i))
+        .toList();
+    if (remaining.isEmpty) return result;
+
+    remaining.sort((a, b) {
+      final scoreComp = widget.config.isCutthroat
+          ? scores[a].compareTo(scores[b])
+          : scores[b].compareTo(scores[a]);
+      if (scoreComp != 0) return scoreComp;
+      final closedA = targets.where((t) => _isClosed(t, a)).length;
+      final closedB = targets.where((t) => _isClosed(t, b)).length;
+      if (closedB != closedA) return closedB.compareTo(closedA);
+      final marksA = targets.fold(0, (s, t) => s + (marks[a][t] ?? 0));
+      final marksB = targets.fold(0, (s, t) => s + (marks[b][t] ?? 0));
+      return marksB.compareTo(marksA);
+    });
+
+    final base = finishedPlayers.length + 1;
+    int place = base;
+    for (int i = 0; i < remaining.length; i++) {
+      if (i > 0) {
+        final prev = remaining[i - 1];
+        final curr = remaining[i];
+        final sameScore = scores[prev] == scores[curr];
+        final prevClosed = targets.where((t) => _isClosed(t, prev)).length;
+        final currClosed = targets.where((t) => _isClosed(t, curr)).length;
+        final prevMarks = targets.fold(0, (s, t) => s + (marks[prev][t] ?? 0));
+        final currMarks = targets.fold(0, (s, t) => s + (marks[curr][t] ?? 0));
+        if (!sameScore || prevClosed != currClosed || prevMarks != currMarks) {
+          place = base + i;
+        }
+      }
+      result[remaining[i]] = place;
+    }
+    return result;
+  }
+
   Future<void> _updateStats() async {
     final savedPlayers = await PlayerStorage.loadPlayers();
     _ratingsBefore = {};
@@ -379,20 +425,17 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
+    final placements = _computeExitPlacements();
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
       if (idx < 0) continue;
       savedPlayers[idx].gamesPlayed++;
-      if (finishedPlayers.isNotEmpty && finishedPlayers.first == pi) {
+      if (placements[pi] == 1) {
         savedPlayers[idx].gamesWon++;
       }
     }
-    final placements = List.generate(players.length, (i) {
-      final idx = finishedPlayers.indexOf(i);
-      return idx >= 0 ? idx + 1 : finishedPlayers.length + 1;
-    });
     // Compute per-player Cricket stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -436,8 +479,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       savedPlayers: savedPlayers,
     );
     StatsRecorder.recordGame(
-      gameMode: 'cricket',
+      gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
@@ -452,14 +496,14 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   GameResult _buildGameResult() {
+    final placements = _computeExitPlacements();
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
       final closedCount = targets.where((t) => marks[i][t]! >= 3).length;
-      final finishIdx = finishedPlayers.indexOf(i);
       results.add(PlayerResult(
         name: players[i].name,
         avatarPath: players[i].avatarPath,
-        placement: finishIdx >= 0 ? finishIdx + 1 : finishedPlayers.length + 1,
+        placement: placements[i],
         stats: {'points': scores[i], 'closed': closedCount},
         ratingBefore: players[i].savedPlayerId != null
             ? _ratingsBefore[players[i].savedPlayerId!]
@@ -503,7 +547,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       });
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
-      if (!_gameFullyOver) {
+      if (!_statsRecorded) {
+        _statsRecorded = true;
         _gameFullyOver = true;
         await _updateStats();
       }
@@ -725,74 +770,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              itemCount: targets.length + 1, // +1 for Miss/Back row
+              itemCount: targets.length,
               itemBuilder: (context, index) {
-                // Miss + Back row
-                if (index == targets.length) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      children: [
-                        if (throwHistory.isNotEmpty) ...[
-                          Expanded(
-                            child: SizedBox(
-                              height: 52,
-                              child: OutlinedButton.icon(
-                                onPressed: _undo,
-                                icon: const Icon(Icons.undo, size: 20),
-                                label: const Text('Back',
-                                    style: TextStyle(fontSize: 18)),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.grey[400],
-                                  side: BorderSide(color: Colors.grey[700]!),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 20),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: SizedBox(
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: isGameActive ? _onMiss : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.grey[800],
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 16),
-                                textStyle: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                              child: const Text('Miss'),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: SizedBox(
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: isGameActive ? _onMiss : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFB71C1C),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 16),
-                                textStyle: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                              child: const Text('Denied'),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
                 final target = targets[index];
                 final closedByAll = _isClosedByAll(target);
                 final isBull = target == 25;
@@ -800,6 +779,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
                 return Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                  constraints: const BoxConstraints(minHeight: 64),
                   decoration: BoxDecoration(
                     color: closedByAll
                         ? Colors.grey[900]?.withAlpha(120)
@@ -808,6 +788,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Target label
                       SizedBox(
@@ -828,51 +809,25 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                         final closed = _isClosed(target, pi);
                         final color = closed ? Colors.green : playerColor(pi);
 
-                        // Active player: show mark dots + hit buttons
+                        // Active player: mark buttons (filled = mark achieved)
                         if (isCurrent && isGameActive && !closedByAll) {
                           return SizedBox(
                             width: activePlayerColWidth,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Mark dots
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 3),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ...List.generate(maxMarks, (i) => Padding(
-                                        padding: const EdgeInsets.only(right: 3),
-                                        child: Icon(
-                                          i < m ? Icons.circle : Icons.circle_outlined,
-                                          size: 10,
-                                          color: m >= maxMarks ? Colors.green : playerColor(pi),
-                                        ),
-                                      )),
-                                      if (m >= maxMarks) ...[
-                                        const SizedBox(width: 2),
-                                        Icon(Icons.check, size: 11, color: Colors.green[400]),
-                                      ],
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: isBull
+                                  ? [
+                                      Expanded(child: _markButton(target, 1, m)),
+                                      const SizedBox(width: 2),
+                                      Expanded(child: _markButton(target, 2, m)),
+                                    ]
+                                  : [
+                                      Expanded(child: _markButton(target, 1, m)),
+                                      const SizedBox(width: 2),
+                                      Expanded(child: _markButton(target, 2, m)),
+                                      const SizedBox(width: 2),
+                                      Expanded(child: _markButton(target, 3, m)),
                                     ],
-                                  ),
-                                ),
-                                // Hit buttons — fill the active column
-                                Row(
-                                  children: isBull
-                                      ? [
-                                          Expanded(child: _inlineHitButton(target, 1)),
-                                          const SizedBox(width: 3),
-                                          Expanded(child: _inlineHitButton(target, 2)),
-                                        ]
-                                      : [
-                                          Expanded(child: _inlineHitButton(target, 1)),
-                                          const SizedBox(width: 3),
-                                          Expanded(child: _inlineHitButton(target, 2)),
-                                          const SizedBox(width: 3),
-                                          Expanded(child: _inlineHitButton(target, 3)),
-                                        ],
-                                ),
-                              ],
                             ),
                           );
                         }
@@ -887,7 +842,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                                 ? Border(right: BorderSide(color: Colors.grey[800]!, width: 1))
                                 : null,
                           ),
-                          child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
                             child: _buildProgressBar(
                               fillFraction: fillFraction,
                               color: color,
@@ -903,28 +859,94 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               },
             ),
           ),
+          // Fixed bottom bar — always visible
+          _buildBottomBar(isGameActive),
         ],
       ),
     );
   }
 
-  /// Builds a small progress bar showing marks 0-3
+  Widget _buildBottomBar(bool isGameActive) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161616),
+        border: Border(top: BorderSide(color: Colors.grey[850]!)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              if (throwHistory.isNotEmpty) ...[
+                Expanded(
+                  child: SizedBox(
+                    height: 64,
+                    child: OutlinedButton.icon(
+                      onPressed: _undo,
+                      icon: const Icon(Icons.undo, size: 22),
+                      label: const Text('Back', style: TextStyle(fontSize: 19)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey[400],
+                        side: BorderSide(color: Colors.grey[700]!),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: SizedBox(
+                  height: 64,
+                  child: ElevatedButton(
+                    onPressed: isGameActive ? _onMiss : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[800],
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    child: const Text('Miss'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: isGameActive ? _onMiss : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFB71C1C),
+                foregroundColor: Colors.white,
+                textStyle: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              child: const Text('Denied'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a progress bar showing marks 0-3, same height as mark buttons
   Widget _buildProgressBar({
     required double fillFraction,
     required Color color,
     required int markCount,
     required double width,
   }) {
-    final barHeight = 26.0;
+    // No fixed height — fills whatever height the parent Row gives via stretch.
     return SizedBox(
       width: width,
-      height: barHeight,
       child: Stack(
+        fit: StackFit.expand,
         children: [
           // Background
           Container(
-            width: width,
-            height: barHeight,
             decoration: BoxDecoration(
               color: Colors.grey[850] ?? Colors.grey[900],
               borderRadius: BorderRadius.circular(4),
@@ -933,23 +955,23 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           ),
           // Fill
           if (fillFraction > 0)
-            Container(
-              width: width * fillFraction,
-              height: barHeight,
-              decoration: BoxDecoration(
-                color: color.withAlpha(markCount >= 3 ? 200 : 140),
-                borderRadius: BorderRadius.circular(4),
+            FractionallySizedBox(
+              widthFactor: fillFraction,
+              alignment: Alignment.centerLeft,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: color.withAlpha(markCount >= 3 ? 200 : 140),
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ),
           // Mark text overlay
           if (markCount > 0)
             Center(
               child: Text(
-                markCount >= 3
-                    ? '✓'
-                    : '$markCount',
+                markCount >= 3 ? '✓' : '$markCount',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: markCount >= 3 ? Colors.white : Colors.white.withAlpha(220),
                 ),
@@ -960,36 +982,35 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     );
   }
 
-  /// Inline hit button used inside the active player's column in each target row.
-  Widget _inlineHitButton(int target, int multiplier) {
-    final bg = switch (multiplier) {
-      1 => Colors.blueGrey[700]!,
-      2 => Colors.orange[800]!,
-      3 => Colors.red[800]!,
-      _ => Colors.grey[700]!,
-    };
+  /// Mark button: filled when currentMarks >= multiplier threshold.
+  /// Label shows the number (e.g. "20", "D20", "T20", "Bull", "DBull").
+  Widget _markButton(int target, int multiplier, int currentMarks) {
     final isBull = target == 25;
-    final prefix = switch (multiplier) {
-      2 => 'D',
-      3 => 'T',
-      _ => '',
+    final isFilled = currentMarks >= multiplier;
+    final color = playerColor(currentPlayerIndex);
+    final label = switch (multiplier) {
+      2 => isBull ? 'DBull' : 'D$target',
+      3 => 'T$target',
+      _ => isBull ? 'Bull' : '$target',
     };
-    final label = isBull
-        ? (multiplier == 2 ? 'Bull' : 'S.Bull')
-        : '$prefix$target';
-    return SizedBox(
-      height: 42,
-      child: ElevatedButton(
-        onPressed: () => _registerHit(target, multiplier),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: bg,
-          foregroundColor: Colors.white,
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+    return ElevatedButton(
+      onPressed: () => _registerHit(target, multiplier),
+      style: ElevatedButton.styleFrom(
+        backgroundColor:
+            isFilled ? color.withAlpha(170) : const Color(0xFF374151),
+        foregroundColor: isFilled ? Colors.white : const Color(0xFFD1D5DB),
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        side: BorderSide(
+          color: isFilled ? color.withAlpha(200) : const Color(0xFF4B5563),
         ),
-        child: Text(label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),
+      child: Text(label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
     );
   }
 

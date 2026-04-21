@@ -598,6 +598,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     StatsRecorder.recordGame(
       gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
