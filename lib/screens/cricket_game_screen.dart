@@ -32,6 +32,9 @@ class CricketGameScreen extends StatefulWidget {
 }
 
 class _CricketGameScreenState extends State<CricketGameScreen> {
+  /// Shared height for mark buttons and progress bars — guarantees equal sizing.
+  static const _rowContentHeight = 56.0;
+
   late List<Player> players;
   late List<int> targets;
   late List<Map<int, int>> marks;
@@ -779,7 +782,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
                 return Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                  constraints: const BoxConstraints(minHeight: 64),
                   decoration: BoxDecoration(
                     color: closedByAll
                         ? Colors.grey[900]?.withAlpha(120)
@@ -788,7 +790,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Target label
                       SizedBox(
@@ -814,7 +815,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           return SizedBox(
                             width: activePlayerColWidth,
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: isBull
                                   ? [
                                       Expanded(child: _markButton(target, 1, m)),
@@ -842,8 +842,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                                 ? Border(right: BorderSide(color: Colors.grey[800]!, width: 1))
                                 : null,
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Center(
                             child: _buildProgressBar(
                               fillFraction: fillFraction,
                               color: color,
@@ -939,25 +938,26 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     required int markCount,
     required double width,
   }) {
-    // No fixed height — fills whatever height the parent Row gives via stretch.
     return SizedBox(
       width: width,
+      height: _rowContentHeight,
       child: Stack(
-        fit: StackFit.expand,
         children: [
           // Background
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.grey[850] ?? Colors.grey[900],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.grey[700]!, width: 0.5),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[850] ?? Colors.grey[900],
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.grey[700]!, width: 0.5),
+              ),
             ),
           ),
           // Fill
           if (fillFraction > 0)
-            FractionallySizedBox(
-              widthFactor: fillFraction,
-              alignment: Alignment.centerLeft,
+            Positioned(
+              left: 0, top: 0, bottom: 0,
+              width: width * fillFraction,
               child: Container(
                 decoration: BoxDecoration(
                   color: color.withAlpha(markCount >= 3 ? 200 : 140),
@@ -993,24 +993,27 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       3 => 'T$target',
       _ => isBull ? 'Bull' : '$target',
     };
-    return ElevatedButton(
-      onPressed: () => _registerHit(target, multiplier),
-      style: ElevatedButton.styleFrom(
-        backgroundColor:
-            isFilled ? color.withAlpha(170) : const Color(0xFF374151),
-        foregroundColor: isFilled ? Colors.white : const Color(0xFFD1D5DB),
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        side: BorderSide(
-          color: isFilled ? color.withAlpha(200) : const Color(0xFF4B5563),
+    return SizedBox(
+      height: _rowContentHeight,
+      child: ElevatedButton(
+        onPressed: () => _registerHit(target, multiplier),
+        style: ElevatedButton.styleFrom(
+          backgroundColor:
+              isFilled ? color.withAlpha(170) : const Color(0xFF374151),
+          foregroundColor: isFilled ? Colors.white : const Color(0xFFD1D5DB),
+          elevation: 0,
+          padding: EdgeInsets.zero,
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          side: BorderSide(
+            color: isFilled ? color.withAlpha(200) : const Color(0xFF4B5563),
+          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         ),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        child: Text(label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ),
-      child: Text(label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
     );
   }
 
