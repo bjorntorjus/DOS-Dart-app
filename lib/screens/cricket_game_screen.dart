@@ -33,7 +33,6 @@ class CricketGameScreen extends StatefulWidget {
 
 class _CricketGameScreenState extends State<CricketGameScreen> {
   /// Shared height for mark buttons and progress bars — guarantees equal sizing.
-  static const _rowContentHeight = 56.0;
 
   late List<Player> players;
   late List<int> targets;
@@ -533,6 +532,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       finishedOrder: finishedPlayers,
       gameFullyOver: _gameFullyOver,
     );
+    // Compute stats before showing post-game so rating changes are visible (mirrors X01 behaviour)
+    if (_gameFullyOver && !_statsRecorded) {
+      _statsRecorded = true;
+      await _updateStats();
+    }
+    if (!mounted) return;
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(
@@ -551,6 +556,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
       if (!_statsRecorded) {
+        // Game not fully over — user exiting early; record stats now
         _statsRecorded = true;
         _gameFullyOver = true;
         await _updateStats();
@@ -571,17 +577,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   @override
   Widget build(BuildContext context) {
     final isGameActive = !finishedPlayers.contains(currentPlayerIndex);
-    // Calculate column width based on player count
-    final screenWidth = MediaQuery.of(context).size.width;
-    final targetLabelWidth = 44.0;
-    final rowPadding = 16.0; // 8 each side
-    final availableForColumns = screenWidth - targetLabelWidth - rowPadding;
-    // Active player column needs ~158dp (3 buttons auto-sized + gaps)
-    const activePlayerColWidth = 158.0;
-    final inactiveCount = (players.length - 1).clamp(1, 99);
-    final inactivePlayerColWidth =
-        ((availableForColumns - activePlayerColWidth) / inactiveCount)
-            .clamp(32.0, 80.0);
+    const targetLabelWidth = 44.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -747,20 +743,18 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                 SizedBox(width: targetLabelWidth),
                 ...List.generate(players.length, (pi) {
                   final isCurrent = pi == currentPlayerIndex;
-                  final colWidth = isCurrent ? activePlayerColWidth : inactivePlayerColWidth;
-                  return SizedBox(
-                    width: colWidth,
+                  return Expanded(
+                    flex: isCurrent ? 3 : 1,
                     child: Center(
                       child: Text(
-                        players[pi].name.length > 8
-                            ? players[pi].name.substring(0, 8)
-                            : players[pi].name,
+                        players[pi].name,
                         style: TextStyle(
                           fontSize: isCurrent ? 12 : 11,
                           fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                           color: playerColor(pi),
                         ),
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                   );
@@ -770,92 +764,102 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           ),
 
           // Target matrix with progress bars + S/D/T buttons
+          // Uses Expanded rows so the matrix fills all available vertical space
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              itemCount: targets.length,
-              itemBuilder: (context, index) {
-                final target = targets[index];
-                final closedByAll = _isClosedByAll(target);
-                final isBull = target == 25;
-                final maxMarks = isBull ? 2 : 3;
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: targets.map((target) {
+                  final closedByAll = _isClosedByAll(target);
+                  final isBull = target == 25;
+                  final maxMarks = isBull ? 2 : 3;
 
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: closedByAll
-                        ? Colors.grey[900]?.withAlpha(120)
-                        : const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Row(
-                    children: [
-                      // Target label
-                      SizedBox(
-                        width: targetLabelWidth,
-                        child: Text(
-                          isBull ? 'Bull' : '$target',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: closedByAll ? Colors.grey[600] : Colors.white,
-                          ),
-                        ),
+                  return Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 1),
+                      decoration: BoxDecoration(
+                        color: closedByAll
+                            ? Colors.grey[900]?.withAlpha(120)
+                            : const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      // Player columns — active player gets buttons, others get progress bars
-                      ...List.generate(players.length, (pi) {
-                        final isCurrent = pi == currentPlayerIndex;
-                        final m = marks[pi][target] ?? 0;
-                        final closed = _isClosed(target, pi);
-                        final color = closed ? Colors.green : playerColor(pi);
-
-                        // Active player: mark buttons (filled = mark achieved)
-                        if (isCurrent && isGameActive && !closedByAll) {
-                          return SizedBox(
-                            width: activePlayerColWidth,
-                            child: Row(
-                              children: isBull
-                                  ? [
-                                      Expanded(child: _markButton(target, 1, m)),
-                                      const SizedBox(width: 2),
-                                      Expanded(child: _markButton(target, 2, m)),
-                                    ]
-                                  : [
-                                      Expanded(child: _markButton(target, 1, m)),
-                                      const SizedBox(width: 2),
-                                      Expanded(child: _markButton(target, 2, m)),
-                                      const SizedBox(width: 2),
-                                      Expanded(child: _markButton(target, 3, m)),
-                                    ],
-                            ),
-                          );
-                        }
-
-                        // Inactive player or game not active: progress bar
-                        final colWidth = isCurrent ? activePlayerColWidth : inactivePlayerColWidth;
-                        final fillFraction = (m.clamp(0, maxMarks) / maxMarks.toDouble());
-                        return Container(
-                          width: colWidth,
-                          decoration: BoxDecoration(
-                            border: pi < players.length - 1
-                                ? Border(right: BorderSide(color: Colors.grey[800]!, width: 1))
-                                : null,
-                          ),
-                          child: Center(
-                            child: _buildProgressBar(
-                              fillFraction: fillFraction,
-                              color: color,
-                              markCount: m,
-                              width: colWidth - 12,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Target label
+                          SizedBox(
+                            width: targetLabelWidth,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                isBull ? 'Bull' : '$target',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: closedByAll ? Colors.grey[600] : Colors.white,
+                                ),
+                              ),
                             ),
                           ),
-                        );
-                      }),
-                    ],
-                  ),
-                );
-              },
+                          // Player columns — active player (flex 3) gets S/D/T buttons,
+                          // inactive players (flex 1) get progress bars
+                          ...List.generate(players.length, (pi) {
+                            final isCurrent = pi == currentPlayerIndex;
+                            final m = marks[pi][target] ?? 0;
+                            final closed = _isClosed(target, pi);
+                            final color = closed ? Colors.green : playerColor(pi);
+                            final fillFraction = (m.clamp(0, maxMarks) / maxMarks.toDouble());
+
+                            // Active player: mark buttons
+                            if (isCurrent && isGameActive && !closedByAll) {
+                              return Expanded(
+                                flex: 3,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: isBull
+                                        ? [
+                                            Expanded(child: _markButton(target, 1, m)),
+                                            const SizedBox(width: 3),
+                                            Expanded(child: _markButton(target, 2, m)),
+                                          ]
+                                        : [
+                                            Expanded(child: _markButton(target, 1, m)),
+                                            const SizedBox(width: 3),
+                                            Expanded(child: _markButton(target, 2, m)),
+                                            const SizedBox(width: 3),
+                                            Expanded(child: _markButton(target, 3, m)),
+                                          ],
+                                  ),
+                                ),
+                              );
+                            }
+
+                            // Inactive player or game not active: progress bar
+                            return Expanded(
+                              flex: isCurrent ? 3 : 1,
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  left: 4,
+                                  right: pi < players.length - 1 ? 4 : 0,
+                                ),
+                                child: _buildProgressBar(
+                                  fillFraction: fillFraction,
+                                  color: color,
+                                  markCount: m,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
           ),
           // Fixed bottom bar — always visible
@@ -931,33 +935,28 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     );
   }
 
-  /// Builds a progress bar showing marks 0-3, same height as mark buttons
+  /// Builds a progress bar showing marks 0–3. Fills its parent's constraints.
   Widget _buildProgressBar({
     required double fillFraction,
     required Color color,
     required int markCount,
-    required double width,
   }) {
-    return SizedBox(
-      width: width,
-      height: _rowContentHeight,
-      child: Stack(
-        children: [
-          // Background
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[850] ?? Colors.grey[900],
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.grey[700]!, width: 0.5),
-              ),
-            ),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[850] ?? Colors.grey[900],
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.grey[700]!, width: 0.5),
           ),
-          // Fill
-          if (fillFraction > 0)
-            Positioned(
-              left: 0, top: 0, bottom: 0,
-              width: width * fillFraction,
+        ),
+        if (fillFraction > 0)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: fillFraction,
+              heightFactor: 1.0,
               child: Container(
                 decoration: BoxDecoration(
                   color: color.withAlpha(markCount >= 3 ? 200 : 140),
@@ -965,20 +964,19 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                 ),
               ),
             ),
-          // Mark text overlay
-          if (markCount > 0)
-            Center(
-              child: Text(
-                markCount >= 3 ? '✓' : '$markCount',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: markCount >= 3 ? Colors.white : Colors.white.withAlpha(220),
-                ),
+          ),
+        if (markCount > 0)
+          Center(
+            child: Text(
+              markCount >= 3 ? '✓' : '$markCount',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: markCount >= 3 ? Colors.white : Colors.white.withAlpha(220),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -993,8 +991,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       3 => 'T$target',
       _ => isBull ? 'Bull' : '$target',
     };
-    return SizedBox(
-      height: _rowContentHeight,
+    return SizedBox.expand(
       child: ElevatedButton(
         onPressed: () => _registerHit(target, multiplier),
         style: ElevatedButton.styleFrom(
@@ -1011,8 +1008,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         ),
-        child: Text(label,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        ),
       ),
     );
   }

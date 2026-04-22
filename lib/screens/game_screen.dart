@@ -229,17 +229,7 @@ class _GameScreenState extends State<GameScreen> {
             'completedThisRound': _playersCompletedThisRound,
             'finishedPlayers': finishedPlayers,
           });
-          if (canMatch) {
-            _advancePlayer();
-          } else {
-            // No one can match — mark all remaining as completed to trigger round resolve
-            _log.log('No remaining player can match → marking all as completed');
-            for (int i = 0; i < players.length; i++) {
-              if (!_finishedBeforeRound.contains(i) && !finishedPlayers.contains(i)) {
-                _playersCompletedThisRound.add(i);
-              }
-            }
-          }
+          _advancePlayer();
         } else {
           _log.logState({'roundComplete': true, 'completedThisRound': _playersCompletedThisRound, 'finishedPlayers': finishedPlayers});
         }
