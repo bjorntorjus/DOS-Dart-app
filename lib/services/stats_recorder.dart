@@ -1,6 +1,7 @@
 import '../models/saved_player.dart';
 import '../models/game_history.dart';
 import '../services/game_history_service.dart';
+import '../services/player_storage.dart';
 
 class StatsRecorder {
   /// Call after EloService.updateRatings to record per-mode stats,
@@ -16,6 +17,8 @@ class StatsRecorder {
     required List<int> placements,
     required List<SavedPlayer> savedPlayers,
     Map<String, Map<String, int>>? modeCounters,
+    Map<String, double>? ratingsBefore,
+    Map<String, double>? ratingsAfter,
   }) {
     final now = DateTime.now();
 
@@ -78,11 +81,16 @@ class StatsRecorder {
       final stats = (modeCounters != null && playerIds[i] != null)
           ? (modeCounters[playerIds[i]] ?? <String, int>{})
           : <String, int>{};
+      final pid = playerIds[i];
+      final rb = pid == null ? null : ratingsBefore?[pid];
+      final ra = pid == null ? null : ratingsAfter?[pid];
       return GameHistoryPlayer(
         name: playerNames[i],
-        savedPlayerId: playerIds[i],
+        savedPlayerId: pid,
         placement: placements[i],
         stats: Map<String, int>.from(stats),
+        ratingBefore: rb,
+        ratingAfter: ra,
       );
     });
 
@@ -95,4 +103,28 @@ class StatsRecorder {
 
     GameHistoryService.record(entry);
   }
+
+  /// Records mid-game join/leave counters for a game whose stats are skipped.
+  static Future<void> recordMidGameChanges({
+    required Set<String> joinedIds,
+    required Set<String> leftIds,
+  }) async {
+    if (joinedIds.isEmpty && leftIds.isEmpty) return;
+    final savedPlayers = await _loadSavedPlayers();
+    for (final id in joinedIds) {
+      final idx = savedPlayers.indexWhere((sp) => sp.id == id);
+      if (idx >= 0) savedPlayers[idx].gamesJoinedMidway++;
+    }
+    for (final id in leftIds) {
+      final idx = savedPlayers.indexWhere((sp) => sp.id == id);
+      if (idx >= 0) savedPlayers[idx].gamesLeftMidway++;
+    }
+    await _saveSavedPlayers(savedPlayers);
+  }
+
+  static Future<List<SavedPlayer>> _loadSavedPlayers() =>
+      PlayerStorage.loadPlayers();
+
+  static Future<void> _saveSavedPlayers(List<SavedPlayer> players) =>
+      PlayerStorage.savePlayers(players);
 }

@@ -105,6 +105,8 @@ class SavedPlayer {
   int highestTurnScore;
   double rating;
   String? avatarPath;
+  int gamesJoinedMidway;
+  int gamesLeftMidway;
 
   Map<String, ModeStats> modeStats;
   Map<String, H2HRecord> headToHead;
@@ -121,6 +123,8 @@ class SavedPlayer {
     this.highestTurnScore = 0,
     this.rating = 1200.0,
     this.avatarPath,
+    this.gamesJoinedMidway = 0,
+    this.gamesLeftMidway = 0,
     Map<String, ModeStats>? modeStats,
     Map<String, H2HRecord>? headToHead,
     List<RatingSnapshot>? ratingHistory,
@@ -144,6 +148,8 @@ class SavedPlayer {
         'highestTurnScore': highestTurnScore,
         'rating': rating,
         'avatarPath': avatarPath,
+        'gamesJoinedMidway': gamesJoinedMidway,
+        'gamesLeftMidway': gamesLeftMidway,
         'modeStats': modeStats
             .map((key, value) => MapEntry(key, value.toJson())),
         'headToHead': headToHead
@@ -162,6 +168,8 @@ class SavedPlayer {
         highestTurnScore: json['highestTurnScore'] as int? ?? 0,
         rating: (json['rating'] as num?)?.toDouble() ?? 1200.0,
         avatarPath: json['avatarPath'] as String?,
+        gamesJoinedMidway: json['gamesJoinedMidway'] as int? ?? 0,
+        gamesLeftMidway: json['gamesLeftMidway'] as int? ?? 0,
         modeStats: (json['modeStats'] as Map<String, dynamic>?)?.map(
               (k, v) => MapEntry(k, ModeStats.fromJson(v as Map<String, dynamic>)),
             ) ??

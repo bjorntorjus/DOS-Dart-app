@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../models/saved_player.dart';
+import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/clock_progress.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
@@ -63,6 +65,11 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
+
+  bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
+  final Set<int> _removedPlayerIndices = {};
 
   bool get _isReverse => widget.config.reverse;
   int get _maxTarget => widget.config.includeBull ? 25 : 20;
@@ -534,49 +541,88 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       else if (mult == 2) bg = Colors.orange[800]!;
       else bg = Colors.blueGrey[700]!;
 
-      return SizedBox(
-        width: 110,
-        height: 70,
-        child: ElevatedButton(
-          onPressed: isActive ? () => _onDartHit(seg, mult) : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: bg,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: bg.withAlpha(60),
-            padding: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      return Expanded(
+        child: SizedBox(
+          height: 120,
+          child: ElevatedButton(
+            onPressed: isActive ? () => _onDartHit(seg, mult) : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: bg,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: bg.withAlpha(60),
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label,
+                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+            ),
           ),
-          child: Text(label,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         ),
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          isBull ? 'Hit Bull' : 'Hit $target',
-          style: TextStyle(fontSize: 16, color: Colors.grey[400]),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isBull) ...[
-              hitBtn('S.Bull', 25, 1),
-              const SizedBox(width: 12),
-              hitBtn('Bull', 25, 2),
-            ] else ...[
-              hitBtn('$target', target, 1),
-              const SizedBox(width: 12),
-              hitBtn('D$target', target, 2),
-              const SizedBox(width: 12),
-              hitBtn('T$target', target, 3),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            isBull ? 'Hit Bull' : 'Hit $target',
+            style: TextStyle(fontSize: 20, color: Colors.grey[400]),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              if (isBull) ...[
+                hitBtn('S.Bull', 25, 1),
+                const SizedBox(width: 16),
+                hitBtn('Bull', 25, 2),
+              ] else ...[
+                hitBtn('$target', target, 1),
+                const SizedBox(width: 16),
+                hitBtn('D$target', target, 2),
+                const SizedBox(width: 16),
+                hitBtn('T$target', target, 3),
+              ],
             ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton(
+              onPressed: isActive ? _onMiss : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey[800],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('MISS',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2)),
+            ),
+          ),
+          if (throwHistory.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            FractionallySizedBox(
+              widthFactor: 0.6,
+              child: SizedBox(
+                height: 40,
+                child: OutlinedButton.icon(
+                  onPressed: _undo,
+                  icon: const Icon(Icons.undo, size: 16),
+                  label: const Text('Back'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.grey[400],
+                    side: BorderSide(color: Colors.grey[700]!),
+                  ),
+                ),
+              ),
+            ),
           ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -672,6 +718,13 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   }
 
   Future<void> _updateStats() async {
+    if (_midGamePlayerChanges) {
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
@@ -718,6 +771,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         if (finishedPlayers.contains(pi))
           'max:bestDartCount': playerDarts.length,
         'finished': finishedPlayers.contains(pi) ? 1 : 0,
+        'reached': currentTargets[pi],
       };
     }
 
@@ -726,6 +780,15 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
     );
+
+    // Capture ratings after update (before recording history)
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+
     StatsRecorder.recordGame(
       gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -733,15 +796,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
     );
-
-    // Capture ratings after update
-    _ratingsAfter = {};
-    for (final p in players) {
-      if (p.savedPlayerId == null) continue;
-      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
-      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
-    }
 
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -830,6 +887,11 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.group_add),
+            onPressed: _gameFullyOver ? null : _openPlayerManagement,
+            tooltip: 'Manage players',
+          ),
           IconButton(
             icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
             onPressed: () {
@@ -969,68 +1031,24 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
             ),
           ),
 
-          // Last throw + Back/Miss
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Row(
-              children: [
-                if (lastThrowLabel != null)
-                  Expanded(
-                    child: Text('Last: $lastThrowLabel',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: lastThrowLabel!.contains('✓')
-                              ? Colors.green
-                              : Colors.white,
-                        )),
-                  )
-                else
-                  const Expanded(child: SizedBox()),
-                if (throwHistory.isNotEmpty) ...[
-                  SizedBox(
-                    height: 40,
-                    child: OutlinedButton.icon(
-                      onPressed: _undo,
-                      icon: const Icon(Icons.undo, size: 16),
-                      label: const Text('Back'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                ElevatedButton(
-                  onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[800],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10),
-                  ),
-                  child: const Text('Miss'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB71C1C),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10),
-                  ),
-                  child: const Text('Denied', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
+          // Last throw
+          if (lastThrowLabel != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text('Last: $lastThrowLabel',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: lastThrowLabel!.contains('✓')
+                        ? Colors.green
+                        : Colors.white,
+                  )),
             ),
-          ),
 
           // Player scoreboard
           Container(
-            constraints: const BoxConstraints(maxHeight: 180),
+            constraints: const BoxConstraints(maxHeight: 280),
             decoration: BoxDecoration(
               color: const Color(0xFF1E1E1E),
               border: Border(top: BorderSide(color: Colors.grey[800]!)),
@@ -1046,44 +1064,47 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 final isWinner = index == winnerIndex;
                 final target = currentTargets[index];
 
-                return Container(
+                final isRemoved = _removedPlayerIndices.contains(index);
+                return Opacity(
+                  opacity: isRemoved ? 0.4 : 1.0,
+                  child: Container(
                   color: isCurrent
                       ? playerColor(index).withAlpha(25)
                       : isWinner
                           ? Colors.green.withAlpha(25)
                           : null,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(
                     children: [
                       SizedBox(
-                        width: 24,
+                        width: 32,
                         child: _pendingFinishes.any((f) => f.playerIndex == index)
                             ? const Icon(Icons.check_circle,
-                                color: Colors.green, size: 20)
+                                color: Colors.green, size: 28)
                             : isCurrent
                                 ? Icon(Icons.arrow_right,
-                                    color: playerColor(index), size: 20)
+                                    color: playerColor(index), size: 28)
                                 : isWinner
                                     ? const Icon(Icons.emoji_events,
-                                        color: Colors.amber, size: 20)
+                                        color: Colors.amber, size: 28)
                                     : null,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       PlayerAvatar(
                         avatarPath: player.avatarPath,
                         name: player.name,
-                        radius: 14,
+                        radius: 22,
                         backgroundColor: playerColor(index),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(player.name,
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 22,
                                   fontWeight: isCurrent
                                       ? FontWeight.bold
                                       : FontWeight.normal,
@@ -1092,7 +1113,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                               Text(
                                 _lastDartsLabel(index),
                                 style: TextStyle(
-                                    fontSize: 11, color: Colors.grey[500]),
+                                    fontSize: 14, color: Colors.grey[500]),
                               ),
                           ],
                         ),
@@ -1104,12 +1125,13 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                                 ? 'Bull'
                                 : '$target',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: isWinner ? Colors.green : null,
                         ),
                       ),
                     ],
+                  ),
                   ),
                 );
               },
@@ -1177,6 +1199,97 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openPlayerManagement() {
+    showMidGamePlayerSheet(
+      context: context,
+      players: players,
+      isRemoved: (i) => _removedPlayerIndices.contains(i),
+      gameOver: _gameFullyOver,
+      colorFor: playerColor,
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
+  /// Compute new player's starting target from average remaining segments
+  /// of active players. Standard rounding (0.5 up).
+  int _computeJoinTarget() {
+    final activeIndices = List.generate(players.length, (i) => i)
+        .where((i) => !finishedPlayers.contains(i))
+        .toList();
+    if (activeIndices.isEmpty) return _startTarget;
+    final avgRemaining = activeIndices
+            .map((i) => _segmentsRemaining(currentTargets[i]))
+            .reduce((a, b) => a + b) /
+        activeIndices.length;
+    final remainingRounded = avgRemaining.round();
+    // Walk forward from start by (totalSegments - remaining) steps
+    int totalSegments = _segmentsRemaining(_startTarget);
+    int stepsTaken = totalSegments - remainingRounded;
+    if (stepsTaken < 0) stepsTaken = 0;
+    int t = _startTarget;
+    for (int s = 0; s < stepsTaken; s++) {
+      t = _advanceTarget(t);
+    }
+    return t;
+  }
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    final target = _computeJoinTarget();
+    setState(() {
+      _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
+      players.add(Player(
+        name: sp.name,
+        score: target,
+        savedPlayerId: sp.id,
+        avatarPath: sp.avatarPath,
+      ));
+      currentTargets.add(target);
+    });
+  }
+
+  void _removePlayerMidGame(int playerIndex) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${players[playerIndex].name}?'),
+        content:
+            const Text('Rating will not be updated for this game.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              final removed = players[playerIndex];
+              setState(() {
+                _midGamePlayerChanges = true;
+                _removedPlayerIndices.add(playerIndex);
+                if (removed.savedPlayerId != null) {
+                  _leftMidGameIds.add(removed.savedPlayerId!);
+                }
+                if (!finishedPlayers.contains(playerIndex)) {
+                  finishedPlayers.add(playerIndex);
+                }
+                if (playerIndex == currentPlayerIndex) {
+                  dartsInTurn = 0;
+                  _advancePlayer();
+                }
+              });
+            },
+            child: const Text('Remove'),
+          ),
+        ],
       ),
     );
   }

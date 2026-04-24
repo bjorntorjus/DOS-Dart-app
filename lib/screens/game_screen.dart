@@ -5,6 +5,7 @@ import '../models/dart_throw.dart';
 import '../widgets/dart_board.dart';
 import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
+import '../models/saved_player.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
@@ -18,6 +19,7 @@ import '../widgets/player_avatar.dart';
 import '../models/game_result.dart';
 import '../services/game_logger.dart';
 import 'post_game_screen.dart';
+import '../widgets/mid_game_player_sheet.dart';
 
 class GameScreen extends StatefulWidget {
   final List<Player> players;
@@ -52,6 +54,9 @@ class _GameScreenState extends State<GameScreen> {
   List<int> finishedPlayers = [];
   bool _gameFullyOver = false;
   bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
+  final Set<int> _removedPlayerIndices = {};
   final ScrollController _scoreboardController = ScrollController();
   bool _soundEnabled = true;
   bool _ttsEnabled = false;
@@ -281,7 +286,11 @@ class _GameScreenState extends State<GameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) return; // Skip stats if player list changed
+    if (_midGamePlayerChanges) {
+      // Rating and stats skipped, but still record mid-game join/leave counters
+      await _recordMidGameCounters();
+      return;
+    }
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
@@ -425,6 +434,15 @@ class _GameScreenState extends State<GameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
     );
+
+    // Capture ratings after update (before recording history)
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+
     StatsRecorder.recordGame(
       gameMode: 'x01',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -432,15 +450,9 @@ class _GameScreenState extends State<GameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
     );
-
-    // Capture ratings after update
-    _ratingsAfter = {};
-    for (final p in players) {
-      if (p.savedPlayerId == null) continue;
-      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
-      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
-    }
 
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -984,6 +996,11 @@ class _GameScreenState extends State<GameScreen> {
               onPressed: _showSoundSettingsDialog,
               tooltip: 'Sound settings',
             ),
+          IconButton(
+            icon: const Icon(Icons.group_add),
+            onPressed: _gameFullyOver ? null : _openPlayerManagement,
+            tooltip: 'Manage players',
+          ),
           if (throwHistory.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.undo),
@@ -1215,10 +1232,9 @@ class _GameScreenState extends State<GameScreen> {
                 final hasPendingCheckout =
                     _pendingCheckouts.any((c) => c.playerIndex == index);
 
-                return GestureDetector(
-                  onLongPress: _gameFullyOver
-                      ? null
-                      : () => _showPlayerManagementSheet(index),
+                final isRemoved = _removedPlayerIndices.contains(index);
+                return Opacity(
+                  opacity: isRemoved ? 0.4 : 1.0,
                   child: Container(
                   height: _playerCardHeight,
                   color: isCurrent
@@ -1400,56 +1416,17 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  void _showPlayerManagementSheet(int playerIndex) {
-    final canRemove = players.length > 2;
-
-    showModalBottomSheet(
+  void _openPlayerManagement() {
+    showMidGamePlayerSheet(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                players[playerIndex].name,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.person_remove,
-                color: canRemove ? Colors.red : Colors.grey,
-              ),
-              title: Text(
-                'Remove ${players[playerIndex].name}',
-                style: TextStyle(
-                    color: canRemove ? Colors.red : Colors.grey),
-              ),
-              subtitle: canRemove
-                  ? null
-                  : const Text('Need at least 2 players'),
-              enabled: canRemove,
-              onTap: canRemove
-                  ? () {
-                      Navigator.pop(ctx);
-                      _removePlayerMidGame(playerIndex);
-                    }
-                  : null,
-            ),
-            ListTile(
-              leading: const Icon(Icons.person_add, color: Colors.green),
-              title: const Text('Add player'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _addPlayerMidGame();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+      players: players,
+      isRemoved: (i) => _removedPlayerIndices.contains(i),
+      gameOver: _gameFullyOver,
+      colorFor: playerColor,
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: (saved) => _addSavedPlayerMidGame(saved),
+      onRemove: (i) => _removePlayerMidGame(i),
     );
   }
 
@@ -1470,8 +1447,13 @@ class _GameScreenState extends State<GameScreen> {
                 backgroundColor: Colors.red),
             onPressed: () {
               Navigator.pop(ctx);
+              final removed = players[playerIndex];
               setState(() {
                 _midGamePlayerChanges = true;
+                _removedPlayerIndices.add(playerIndex);
+                if (removed.savedPlayerId != null) {
+                  _leftMidGameIds.add(removed.savedPlayerId!);
+                }
                 finishedPlayers.remove(playerIndex);
                 // Mark as finished so they're skipped in rotation
                 if (!finishedPlayers.contains(playerIndex)) {
@@ -1509,16 +1491,15 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  void _addPlayerMidGame() async {
-    final savedPlayers = await PlayerStorage.loadPlayers();
-    final existingIds =
-        players.map((p) => p.savedPlayerId).whereType<String>().toSet();
-    final available =
-        savedPlayers.where((sp) => !existingIds.contains(sp.id)).toList();
+  Future<void> _recordMidGameCounters() async {
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+  }
 
-    if (!mounted) return;
-
-    // Calculate average score of active (non-finished) players
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Avg of active players' remaining score; added as last in round
     final activePlayers = List.generate(players.length, (i) => i)
         .where((i) => !finishedPlayers.contains(i))
         .toList();
@@ -1527,65 +1508,16 @@ class _GameScreenState extends State<GameScreen> {
         : (activePlayers.fold<int>(0, (s, i) => s + players[i].score) /
                 activePlayers.length)
             .round();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add player'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Starting score: $avgScore (average of active players)',
-                  style:
-                      TextStyle(fontSize: 13, color: Colors.grey[400])),
-              const SizedBox(height: 8),
-              const Text('Statistics will not be recorded for this game.',
-                  style: TextStyle(fontSize: 13, color: Colors.orange)),
-              const SizedBox(height: 12),
-              if (available.isNotEmpty)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 240),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: available.length,
-                    itemBuilder: (_, i) {
-                      final sp = available[i];
-                      return ListTile(
-                        title: Text(sp.name),
-                        subtitle:
-                            Text('Rating: ${sp.rating.toStringAsFixed(0)}'),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          setState(() {
-                            _midGamePlayerChanges = true;
-                            players.add(Player(
-                              name: sp.name,
-                              score: avgScore,
-                              savedPlayerId: sp.id,
-                              avatarPath: sp.avatarPath,
-                            ));
-                          });
-                        },
-                      );
-                    },
-                  ),
-                )
-              else
-                const Text('No more saved players available.'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
+    setState(() {
+      _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
+      players.add(Player(
+        name: sp.name,
+        score: avgScore,
+        savedPlayerId: sp.id,
+        avatarPath: sp.avatarPath,
+      ));
+    });
   }
 }
 

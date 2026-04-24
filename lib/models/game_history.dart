@@ -46,19 +46,29 @@ class GameHistoryPlayer {
   final String? savedPlayerId;
   final int placement;
   final Map<String, int> stats;
+  final double? ratingBefore;
+  final double? ratingAfter;
 
   GameHistoryPlayer({
     required this.name,
     this.savedPlayerId,
     required this.placement,
     required this.stats,
+    this.ratingBefore,
+    this.ratingAfter,
   });
+
+  double? get ratingDelta => (ratingBefore != null && ratingAfter != null)
+      ? ratingAfter! - ratingBefore!
+      : null;
 
   Map<String, dynamic> toJson() => {
         'name': name,
         if (savedPlayerId != null) 'savedPlayerId': savedPlayerId,
         'placement': placement,
         'stats': stats,
+        if (ratingBefore != null) 'ratingBefore': ratingBefore,
+        if (ratingAfter != null) 'ratingAfter': ratingAfter,
       };
 
   factory GameHistoryPlayer.fromJson(Map<String, dynamic> json) =>
@@ -69,5 +79,7 @@ class GameHistoryPlayer {
         stats: (json['stats'] as Map<String, dynamic>).map(
           (k, v) => MapEntry(k, (v as num).toInt()),
         ),
+        ratingBefore: (json['ratingBefore'] as num?)?.toDouble(),
+        ratingAfter: (json['ratingAfter'] as num?)?.toDouble(),
       );
 }

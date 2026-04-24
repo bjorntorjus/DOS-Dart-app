@@ -16,6 +16,8 @@ import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
+import '../widgets/mid_game_player_sheet.dart';
+import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 
 class HalveItGameScreen extends StatefulWidget {
@@ -62,6 +64,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
+
+  bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
+  final Set<int> _removedPlayerIndices = {};
 
   @override
   void initState() {
@@ -240,16 +247,30 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     turnPoints = 0;
     turnHasHit = false;
 
-    if (currentPlayerIndex == players.length - 1) {
+    // Find next active (non-removed) player in rotation
+    int next = currentPlayerIndex + 1;
+    while (next < players.length && _removedPlayerIndices.contains(next)) {
+      next++;
+    }
+    if (next >= players.length) {
       // End of round
       if (currentRoundIndex == rounds.length - 1) {
         gameOver = true;
         return;
       }
       currentRoundIndex++;
-      currentPlayerIndex = 0;
+      // Find first active player in new round
+      int first = 0;
+      while (first < players.length && _removedPlayerIndices.contains(first)) {
+        first++;
+      }
+      if (first >= players.length) {
+        gameOver = true;
+        return;
+      }
+      currentPlayerIndex = first;
     } else {
-      currentPlayerIndex++;
+      currentPlayerIndex = next;
     }
     _log.logAdvance(
       roundNumber: roundNum,
@@ -316,6 +337,17 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   }
 
   Future<void> _updateStats() async {
+    if (_midGamePlayerChanges) {
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
+    await _updateStatsInternal();
+  }
+
+  Future<void> _updateStatsInternal() async {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
@@ -378,6 +410,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       int roundsHit = 0;
       int totalRoundsPlayed = 0;
       int biggestHalving = 0;
+      int bestRound = 0;
+      int halvings = 0;
       final playerDarts = throwHistory.where((t) => t.playerIndex == pi).toList();
       int totalDarts = playerDarts.length;
       int misses = 0;
@@ -388,7 +422,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         totalRoundsPlayed++;
         if (score >= 0) {
           roundsHit++;
+          if (score > bestRound) bestRound = score;
         } else {
+          halvings++;
           // Negative score = halved, abs is the amount lost
           if (score.abs() > biggestHalving) biggestHalving = score.abs();
         }
@@ -407,6 +443,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         'max:biggestHalving': biggestHalving,
         'totalDarts': totalDarts,
         'misses': misses,
+        'bestRound': bestRound,
+        'halvings': halvings,
       };
     }
 
@@ -415,6 +453,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
     );
+
+    // Capture ratings after update (before recording history)
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+
     StatsRecorder.recordGame(
       gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -422,15 +469,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
     );
-
-    // Capture ratings after update
-    _ratingsAfter = {};
-    for (final p in players) {
-      if (p.savedPlayerId == null) continue;
-      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
-      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
-    }
 
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -493,6 +534,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.group_add),
+            onPressed: gameOver ? null : _openPlayerManagement,
+            tooltip: 'Manage players',
+          ),
           IconButton(
             icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
             onPressed: () {
@@ -708,8 +754,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   final lastRoundScore = roundScores[currentRoundIndex][index];
                   final showRoundAnnotation = lastRoundScore != null && index < currentPlayerIndex;
                   final lastDarts = _lastDartsLabel(index);
+                  final isRemoved = _removedPlayerIndices.contains(index);
 
-                  return Container(
+                  return Opacity(
+                    opacity: isRemoved ? 0.4 : 1.0,
+                    child: Container(
                     color: isCurrent
                         ? playerColor(index).withAlpha(25)
                         : null,
@@ -773,6 +822,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                           ),
                         ),
                       ],
+                    ),
                     ),
                   );
                 },
@@ -1045,6 +1095,90 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         ),
       ),
     );
+  }
+
+  void _openPlayerManagement() {
+    showMidGamePlayerSheet(
+      context: context,
+      players: players,
+      isRemoved: (i) => _removedPlayerIndices.contains(i),
+      gameOver: gameOver,
+      colorFor: playerColor,
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    final activeIndices = List.generate(players.length, (i) => i)
+        .where((i) => !_removedPlayerIndices.contains(i))
+        .toList();
+    final avgScore = activeIndices.isEmpty
+        ? 40
+        : (activeIndices.map((i) => totalScores[i]).reduce((a, b) => a + b) /
+                activeIndices.length)
+            .round();
+
+    setState(() {
+      _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
+      players.add(Player(
+        name: sp.name,
+        score: avgScore,
+        savedPlayerId: sp.id,
+        avatarPath: sp.avatarPath,
+      ));
+      totalScores.add(avgScore);
+      // Backfill roundScores for rounds already played with null (skipped)
+      for (int ri = 0; ri < rounds.length; ri++) {
+        roundScores[ri].add(null);
+      }
+    });
+  }
+
+  void _removePlayerMidGame(int playerIndex) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${players[playerIndex].name}?'),
+        content: const Text('Rating will not be updated for this game.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              final removed = players[playerIndex];
+              setState(() {
+                _midGamePlayerChanges = true;
+                _removedPlayerIndices.add(playerIndex);
+                if (removed.savedPlayerId != null) {
+                  _leftMidGameIds.add(removed.savedPlayerId!);
+                }
+                if (playerIndex == currentPlayerIndex) {
+                  dartsInTurn = 0;
+                  _advanceToNextActive();
+                }
+              });
+            },
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _advanceToNextActive() {
+    final start = currentPlayerIndex;
+    do {
+      currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      if (currentPlayerIndex == start) break;
+    } while (_removedPlayerIndices.contains(currentPlayerIndex));
   }
 
   void _confirmExit() {

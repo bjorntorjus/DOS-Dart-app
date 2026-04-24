@@ -17,6 +17,8 @@ import '../services/video_service.dart';
 import '../models/game_result.dart';
 import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
+import '../widgets/mid_game_player_sheet.dart';
+import '../models/saved_player.dart';
 
 enum KillerPhase { assignment, playing }
 
@@ -59,6 +61,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
+
+  bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
+  final Set<int> _removedPlayerIndices = {};
 
   // Assignment phase tracking
   int assignmentPlayerIndex = 0;
@@ -493,6 +500,13 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   }
 
   Future<void> _updateStats() async {
+    if (_midGamePlayerChanges) {
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
@@ -587,6 +601,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         'attacksDealt': attacksDealt,
         'attacksReceived': attacksReceived,
         'selfHits': selfHits,
+        'livesLeft': lives[pi],
       };
     }
 
@@ -595,16 +610,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
     );
-    StatsRecorder.recordGame(
-      gameMode: 'killer',
-      playerIds: players.map((p) => p.savedPlayerId).toList(),
-      playerNames: players.map((p) => p.name).toList(),
-      placements: placements,
-      savedPlayers: savedPlayers,
-      modeCounters: modeCounters,
-    );
 
-    // Capture ratings after update
+    // Capture ratings after update (before recording history)
     _ratingsAfter = {};
     for (final p in players) {
       if (p.savedPlayerId == null) continue;
@@ -612,6 +619,17 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
+
+    StatsRecorder.recordGame(
+      gameMode: 'killer',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+      modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+    );
 
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -675,6 +693,12 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
+          if (phase == KillerPhase.playing)
+            IconButton(
+              icon: const Icon(Icons.group_add),
+              onPressed: winnerIndex != null ? null : _openPlayerManagement,
+              tooltip: 'Manage players',
+            ),
           IconButton(
             icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
             onPressed: () {
@@ -940,8 +964,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
               winnerIndex == null;
           final isWinner = index == winnerIndex;
           final eliminated = isEliminated[index];
+          final isRemoved = _removedPlayerIndices.contains(index);
 
-          return Container(
+          return Opacity(
+            opacity: isRemoved ? 0.4 : 1.0,
+            child: Container(
             color: eliminated
                 ? Colors.red.withAlpha(15)
                 : isCurrent
@@ -1050,6 +1077,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                   ),
               ],
             ),
+            ),
           );
         },
       ),
@@ -1113,6 +1141,98 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openPlayerManagement() {
+    showMidGamePlayerSheet(
+      context: context,
+      players: players,
+      isRemoved: (i) => _removedPlayerIndices.contains(i),
+      gameOver: winnerIndex != null,
+      colorFor: playerColor,
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player. '
+          'New players get a random unused number and must qualify by hitting their double.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    final activeIndices = List.generate(players.length, (i) => i)
+        .where((i) => !isEliminated[i] && !_removedPlayerIndices.contains(i))
+        .toList();
+
+    // Avg lives, standard rounding
+    final avgLives = activeIndices.isEmpty
+        ? widget.config.lives
+        : (activeIndices.map((i) => lives[i]).reduce((a, b) => a + b) /
+                activeIndices.length)
+            .round();
+
+    // Random unused number
+    final usedNumbers = assignedNumbers.toSet();
+    final available = [for (int n = 1; n <= 20; n++) if (!usedNumbers.contains(n)) n];
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No free numbers — all 1–20 are in use.')),
+      );
+      return;
+    }
+    final number = available[Random().nextInt(available.length)];
+
+    setState(() {
+      _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
+      players.add(Player(
+        name: sp.name,
+        score: 0,
+        savedPlayerId: sp.id,
+        avatarPath: sp.avatarPath,
+      ));
+      assignedNumbers.add(number);
+      lives.add(avgLives);
+      isKiller.add(false); // must qualify
+      isEliminated.add(false);
+      shields.add(0);
+    });
+  }
+
+  void _removePlayerMidGame(int playerIndex) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${players[playerIndex].name}?'),
+        content: const Text('Rating will not be updated for this game.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              final removed = players[playerIndex];
+              setState(() {
+                _midGamePlayerChanges = true;
+                _removedPlayerIndices.add(playerIndex);
+                if (removed.savedPlayerId != null) {
+                  _leftMidGameIds.add(removed.savedPlayerId!);
+                }
+                // Mark as eliminated so rotation skips
+                isEliminated[playerIndex] = true;
+                if (playerIndex == currentPlayerIndex) {
+                  dartsInTurn = 0;
+                  _advancePlayer();
+                }
+              });
+            },
+            child: const Text('Remove'),
+          ),
+        ],
       ),
     );
   }

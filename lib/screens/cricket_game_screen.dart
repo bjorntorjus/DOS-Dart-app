@@ -15,6 +15,8 @@ import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
+import '../widgets/mid_game_player_sheet.dart';
+import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 
 class CricketGameScreen extends StatefulWidget {
@@ -372,6 +374,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
+  bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
+  final Set<int> _removedPlayerIndices = {};
+
   /// Computes final placements for all players.
   /// Finished players keep their finish order.
   /// Remaining players are ranked by: score (desc/asc for cutthroat),
@@ -420,6 +427,13 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   Future<void> _updateStats() async {
+    if (_midGamePlayerChanges) {
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
     final savedPlayers = await PlayerStorage.loadPlayers();
     _ratingsBefore = {};
     for (final p in players) {
@@ -480,6 +494,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
     );
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
     StatsRecorder.recordGame(
       gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -487,13 +507,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
     );
-    _ratingsAfter = {};
-    for (final p in players) {
-      if (p.savedPlayerId == null) continue;
-      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
-      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
-    }
     await PlayerStorage.savePlayers(savedPlayers);
   }
 
@@ -588,6 +604,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.group_add),
+            onPressed: _gameFullyOver ? null : _openPlayerManagement,
+            tooltip: 'Manage players',
+          ),
+          IconButton(
             icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
             onPressed: () {
               setState(() => _memeEnabled = !_memeEnabled);
@@ -672,8 +693,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                   children: List.generate(players.length, (pi) {
                     final isCurrent = pi == currentPlayerIndex;
                     final lastDarts = _lastDartsLabel(pi);
+                    final isRemoved = _removedPlayerIndices.contains(pi);
                     return Expanded(
-                      child: Container(
+                      child: Opacity(
+                        opacity: isRemoved ? 0.4 : 1.0,
+                        child: Container(
                         margin: EdgeInsets.only(
                             right: pi < players.length - 1 ? 6 : 0),
                         padding: const EdgeInsets.symmetric(
@@ -724,6 +748,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                               ),
                           ],
                         ),
+                      ),
                       ),
                     );
                   }),
@@ -876,58 +901,44 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         color: const Color(0xFF161616),
         border: Border(top: BorderSide(color: Colors.grey[850]!)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          Row(
-            children: [
-              if (throwHistory.isNotEmpty) ...[
-                Expanded(
-                  child: SizedBox(
-                    height: 64,
-                    child: OutlinedButton.icon(
-                      onPressed: _undo,
-                      icon: const Icon(Icons.undo, size: 22),
-                      label: const Text('Back', style: TextStyle(fontSize: 19)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: SizedBox(
-                  height: 64,
-                  child: ElevatedButton(
-                    onPressed: isGameActive ? _onMiss : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[800],
-                      foregroundColor: Colors.white,
-                      textStyle: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    child: const Text('Miss'),
+          if (throwHistory.isNotEmpty) ...[
+            Expanded(
+              child: SizedBox(
+                height: 92,
+                child: OutlinedButton.icon(
+                  onPressed: _undo,
+                  icon: const Icon(Icons.undo, size: 28),
+                  label: const Text('BACK',
+                      style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.grey[300],
+                    side: BorderSide(color: Colors.grey[600]!, width: 1.5),
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: isGameActive ? _onMiss : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB71C1C),
-                foregroundColor: Colors.white,
-                textStyle: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: SizedBox(
+              height: 92,
+              child: ElevatedButton(
+                onPressed: isGameActive ? _onMiss : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[800],
+                  foregroundColor: Colors.white,
+                  textStyle: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2),
+                ),
+                child: const Text('MISS'),
               ),
-              child: const Text('Denied'),
             ),
           ),
         ],
@@ -1074,6 +1085,119 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openPlayerManagement() {
+    showMidGamePlayerSheet(
+      context: context,
+      players: players,
+      isRemoved: (i) => _removedPlayerIndices.contains(i),
+      gameOver: _gameFullyOver,
+      colorFor: playerColor,
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    final activeIndices = List.generate(players.length, (i) => i)
+        .where((i) => !finishedPlayers.contains(i))
+        .toList();
+
+    // Number of closed targets: avg of actives, standard rounding
+    int closedCount = 0;
+    int avgPoints = 0;
+    final targetsClosedByAll = <int>{};
+    final closedByAny = <int, int>{}; // target → how many players closed it
+
+    if (activeIndices.isNotEmpty) {
+      final closedCounts = activeIndices.map((i) =>
+          targets.where((t) => marks[i][t]! >= 3).length).toList();
+      closedCount = (closedCounts.reduce((a, b) => a + b) / activeIndices.length).round();
+
+      avgPoints = (activeIndices.map((i) => scores[i]).reduce((a, b) => a + b) /
+              activeIndices.length)
+          .round();
+
+      // Targets closed by ALL active players → must be closed for newcomer
+      for (final t in targets) {
+        int closedBy = 0;
+        for (final i in activeIndices) {
+          if (marks[i][t]! >= 3) closedBy++;
+        }
+        if (closedBy == activeIndices.length) targetsClosedByAll.add(t);
+        if (closedBy > 0) closedByAny[t] = closedBy;
+      }
+    }
+
+    // Build the set of closed targets for the newcomer:
+    //  - Must include everything in targetsClosedByAll
+    //  - Fill up to closedCount using the most-popular-from-union first
+    final closedForNew = <int>{...targetsClosedByAll};
+    if (closedCount < closedForNew.length) closedCount = closedForNew.length;
+
+    final candidates = closedByAny.entries
+        .where((e) => !closedForNew.contains(e.key))
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final c in candidates) {
+      if (closedForNew.length >= closedCount) break;
+      closedForNew.add(c.key);
+    }
+
+    setState(() {
+      _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
+      players.add(Player(
+        name: sp.name,
+        score: avgPoints,
+        savedPlayerId: sp.id,
+        avatarPath: sp.avatarPath,
+      ));
+      final newMarks = {for (final t in targets) t: closedForNew.contains(t) ? 3 : 0};
+      marks.add(newMarks);
+      scores.add(avgPoints);
+    });
+  }
+
+  void _removePlayerMidGame(int playerIndex) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${players[playerIndex].name}?'),
+        content: const Text('Rating will not be updated for this game.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              final removed = players[playerIndex];
+              setState(() {
+                _midGamePlayerChanges = true;
+                _removedPlayerIndices.add(playerIndex);
+                if (removed.savedPlayerId != null) {
+                  _leftMidGameIds.add(removed.savedPlayerId!);
+                }
+                if (!finishedPlayers.contains(playerIndex)) {
+                  finishedPlayers.add(playerIndex);
+                }
+                if (playerIndex == currentPlayerIndex) {
+                  dartsInTurn = 0;
+                  _advancePlayer();
+                }
+              });
+            },
+            child: const Text('Remove'),
+          ),
+        ],
       ),
     );
   }

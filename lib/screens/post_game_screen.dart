@@ -123,7 +123,7 @@ class PostGameScreen extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop('home'),
-                    child: const Text('Exit'),
+                    child: const Text('Finish Game'),
                   ),
                 ),
               ],

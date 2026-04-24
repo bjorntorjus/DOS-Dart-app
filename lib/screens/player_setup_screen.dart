@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -87,12 +88,20 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
 
   Future<void> _loadSavedPlayers() async {
     final players = await PlayerStorage.loadPlayers();
+    players.sort((a, b) =>
+        a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final scale = await AppSettings.getHandicapScale();
     setState(() {
       _savedPlayers = players;
       _handicapScale = scale;
       _isLoading = false;
     });
+    // Auto-open player selection on first entry
+    if (mounted && _selectedPlayers.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _selectedPlayers.isEmpty) _addPlayer();
+      });
+    }
   }
 
   void _addPlayer() {
@@ -446,7 +455,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       return;
     }
 
-    final players = _buildPlayers();
+    final players = _buildPlayers()..shuffle(Random());
 
     Widget screen;
     switch (widget.gameMode) {
@@ -594,47 +603,49 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                         ),
                 ),
 
-                // Add player
+                // Add player (secondary, outlined)
                 Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _addPlayer,
-                          icon: const Icon(Icons.person_add),
-                          label: Text(
-                              'Select players (${_selectedPlayers.length})'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            textStyle: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _addPlayer,
+                      icon: const Icon(Icons.person_add, size: 20),
+                      label: Text(
+                          'Select players (${_selectedPlayers.length})'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey[300],
+                        side: BorderSide(color: Colors.grey[600]!, width: 1),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
 
-                // Start button
+                // Start button (primary, prominent)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
                   child: SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
                       onPressed: _selectedPlayers.length >= _minPlayers
                           ? _startGame
                           : null,
+                      icon: const Icon(Icons.play_arrow, size: 28),
+                      label: const Text('START GAME'),
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        backgroundColor: const Color(0xFF43A047),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 20),
                         textStyle: const TextStyle(
-                          fontSize: 20,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
                         ),
                       ),
-                      child: const Text('Start game'),
                     ),
                   ),
                 ),

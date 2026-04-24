@@ -214,6 +214,12 @@ class _StatsScreenState extends State<StatsScreen>
               'Best round',
               p.highestTurnScore > 0 ? '${p.highestTurnScore}' : '-',
             ),
+            const SizedBox(height: 4),
+            _statRow(
+              'Mid-game joins / leaves',
+              '${p.gamesJoinedMidway} / ${p.gamesLeftMidway}',
+            ),
+            ..._buildPlayerInsights(p),
 
             // Head-to-head
             if (p.headToHead.isNotEmpty) ...[
@@ -942,6 +948,7 @@ class _StatsScreenState extends State<StatsScreen>
               Text(p.name,
                   style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.bold)),
+              _buildRatingDelta(p.ratingDelta),
             ],
           ),
           if (statChips.isNotEmpty) ...[
@@ -979,21 +986,169 @@ class _StatsScreenState extends State<StatsScreen>
           chip('Marks/dart', (marks / darts).toStringAsFixed(2));
         }
       }
-      if (stats.containsKey('misses')) chip('Miss', '${stats['misses']}');
     } else if (gameMode == 'x01') {
+      final turns = stats['totalTurns'] ?? 0;
+      final turnScore = stats['totalTurnScore'] ?? 0;
+      if (turns > 0) chip('3-dart avg', (turnScore / turns).toStringAsFixed(1));
       if (stats.containsKey('totalDarts')) chip('Darts', '${stats['totalDarts']}');
-      if (stats.containsKey('bullsHit')) chip('Bulls', '${stats['bullsHit']}');
-      if (stats.containsKey('triplesHit')) chip('T', '${stats['triplesHit']}');
+      final bestCo = stats['max:bestCheckout'] ?? 0;
+      if (bestCo > 0) chip('Checkout', '$bestCo');
+      final to100 = stats['turnsOver100'] ?? 0;
+      if (to100 > 0) chip('100+', '$to100');
     } else if (gameMode == 'aroundTheClock') {
       if (stats.containsKey('totalDarts')) chip('Darts', '${stats['totalDarts']}');
-      if (stats.containsKey('totalHits')) chip('Hits', '${stats['totalHits']}');
+      final td = stats['totalDarts'] ?? 0;
+      final th = stats['totalHits'] ?? 0;
+      if (td > 0) chip('Hit rate', '${(th / td * 100).toStringAsFixed(0)}%');
+      final reached = stats['reached'];
+      final finished = (stats['finished'] ?? 0) == 1;
+      if (reached != null && !finished) {
+        chip('Reached', reached == 25 ? 'Bull' : '$reached');
+      }
     } else if (gameMode == 'killer') {
       if (stats.containsKey('kills')) chip('Kills', '${stats['kills']}');
-      if (stats.containsKey('attacksDealt')) chip('Attacks', '${stats['attacksDealt']}');
+      if (stats.containsKey('attacksDealt')) chip('Damage', '${stats['attacksDealt']}');
+      if (stats.containsKey('livesLeft')) chip('Lives', '${stats['livesLeft']}');
     } else if (gameMode == 'halveIt') {
       if (stats.containsKey('totalScore')) chip('Score', '${stats['totalScore']}');
+      if (stats.containsKey('bestRound')) chip('Best rnd', '${stats['bestRound']}');
+      if (stats.containsKey('halvings')) chip('Halvings', '${stats['halvings']}');
     }
     return chips;
+  }
+
+  /// Compute and build: current streak, favorite mode, top 3 X01 checkouts,
+  /// activity (last 30 days), nemesis, favorite victim.
+  List<Widget> _buildPlayerInsights(SavedPlayer p) {
+    final widgets = <Widget>[];
+
+    // Current win/loss streak — iterate history chronologically (oldest → newest)
+    final playerGames = _history
+        .where((e) => e.players.any((gp) => gp.savedPlayerId == p.id))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    if (playerGames.isNotEmpty) {
+      int streak = 0;
+      bool? streakIsWin;
+      for (final game in playerGames.reversed) {
+        final gp = game.players.firstWhere((x) => x.savedPlayerId == p.id);
+        final bestPlacement =
+            game.players.map((x) => x.placement).reduce((a, b) => a < b ? a : b);
+        final won = gp.placement == bestPlacement;
+        if (streakIsWin == null) {
+          streakIsWin = won;
+          streak = 1;
+        } else if (streakIsWin == won) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+      if (streak > 1) {
+        widgets.add(const SizedBox(height: 4));
+        widgets.add(_statRow(
+          'Current streak',
+          '$streak ${streakIsWin! ? 'wins' : 'losses'} ${streakIsWin ? '🔥' : '💀'}',
+        ));
+      }
+    }
+
+    // Favorite mode — most played
+    if (p.modeStats.isNotEmpty) {
+      final sorted = p.modeStats.entries.toList()
+        ..sort((a, b) => b.value.played.compareTo(a.value.played));
+      if (sorted.first.value.played > 0) {
+        const labels = {
+          'x01': 'X01',
+          'cricket': 'Cricket',
+          'cricket_cutthroat': 'Cricket CT',
+          'aroundTheClock': 'Clock',
+          'killer': 'Killer',
+          'halveIt': 'Halve It',
+        };
+        final top = sorted.first;
+        widgets.add(const SizedBox(height: 4));
+        widgets.add(_statRow(
+          'Favorite mode',
+          '${labels[top.key] ?? top.key} (${top.value.played})',
+        ));
+      }
+    }
+
+    // Top 3 X01 checkouts
+    final checkouts = <int>[];
+    for (final game in _history.where((e) => e.gameMode == 'x01')) {
+      final gp = game.players.where((x) => x.savedPlayerId == p.id).firstOrNull;
+      if (gp == null) continue;
+      final co = gp.stats['max:bestCheckout'] ?? 0;
+      if (co > 0) checkouts.add(co);
+    }
+    checkouts.sort((a, b) => b.compareTo(a));
+    if (checkouts.isNotEmpty) {
+      final top3 = checkouts.take(3).toList();
+      widgets.add(const SizedBox(height: 4));
+      widgets.add(_statRow('Top checkouts (X01)', top3.join(' · ')));
+    }
+
+    // Activity last 30 days
+    final cutoff = DateTime.now().subtract(const Duration(days: 30));
+    final recentCount = playerGames.where((g) => g.date.isAfter(cutoff)).length;
+    if (recentCount > 0) {
+      widgets.add(const SizedBox(height: 4));
+      widgets.add(_statRow('Games last 30 days', '$recentCount'));
+    }
+
+    // Nemesis / Favorite victim
+    if (p.headToHead.isNotEmpty) {
+      final opponents = p.headToHead.entries
+          .where((e) => e.value.total > 0)
+          .toList();
+
+      // Nemesis: most losses
+      final byLosses = List.of(opponents)
+        ..sort((a, b) => b.value.losses.compareTo(a.value.losses));
+      if (byLosses.isNotEmpty && byLosses.first.value.losses > 0) {
+        final n = byLosses.first;
+        widgets.add(const SizedBox(height: 4));
+        widgets.add(_statRow(
+          'Nemesis 😈',
+          '${_findPlayerName(n.key)} (${n.value.wins}W-${n.value.losses}L)',
+        ));
+      }
+
+      // Favorite victim: most wins
+      final byWins = List.of(opponents)
+        ..sort((a, b) => b.value.wins.compareTo(a.value.wins));
+      if (byWins.isNotEmpty && byWins.first.value.wins > 0) {
+        final v = byWins.first;
+        widgets.add(const SizedBox(height: 4));
+        widgets.add(_statRow(
+          'Favorite victim 🎯',
+          '${_findPlayerName(v.key)} (${v.value.wins}W-${v.value.losses}L)',
+        ));
+      }
+    }
+
+    return widgets;
+  }
+
+  Widget _buildRatingDelta(double? delta) {
+    if (delta == null) return const SizedBox.shrink();
+    final rounded = delta.round();
+    if (rounded == 0) {
+      return Text(' ±0',
+          style: TextStyle(fontSize: 11, color: Colors.grey[500]));
+    }
+    final isUp = rounded > 0;
+    return Text(
+      ' ${isUp ? '▲' : '▼'}${rounded.abs()}',
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: isUp ? Colors.green[400] : Colors.red[400],
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
