@@ -299,6 +299,7 @@ class _GameScreenState extends State<GameScreen> {
             playerName: player.name,
             details: 'overshoot=$overshoot darts=${_totalDartsPerPlayer[currentPlayerIndex]}',
           );
+          _announcer.announceThrow(dartThrow.spokenLabel);
           _announcer.announceGameEvent('${player.name} finishes!');
           if (!finishedPlayers.contains(currentPlayerIndex)) {
             finishedPlayers.add(currentPlayerIndex);
@@ -323,6 +324,7 @@ class _GameScreenState extends State<GameScreen> {
             dartNumber: dartsInTurn,
             extra: 'NO_BUST_TURN_END',
           );
+          _announcer.announceThrow(dartThrow.spokenLabel);
           _meme.onTurnEnd();
           _meme.resetTurn();
           _playersCompletedThisRound.add(currentPlayerIndex);
@@ -340,6 +342,7 @@ class _GameScreenState extends State<GameScreen> {
             scoreAfter: newScore,
             dartNumber: dartsInTurn,
           );
+          _announcer.announceThrow(dartThrow.spokenLabel);
           _totalDartsPerPlayer[currentPlayerIndex]++;
           dartsInTurn++;
           if (dartsInTurn >= 3) {
