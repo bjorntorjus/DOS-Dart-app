@@ -19,6 +19,7 @@ import '../services/video_service.dart';
 import '../models/game_result.dart';
 import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
+import '../services/battery_sampler.dart';
 
 class AroundTheClockGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -99,8 +100,15 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         'maxTarget': _maxTarget,
       },
     );
+    BatterySampler.instance.start('AroundTheClock');
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
+  }
+
+  @override
+  void dispose() {
+    BatterySampler.instance.stop();
+    super.dispose();
   }
 
   /// Check if a target value means "finished" (past the end of the sequence).
@@ -846,6 +854,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       finishedOrder: finishedPlayers,
       gameFullyOver: _gameFullyOver,
     );
+    BatterySampler.instance.stop();
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => PostGameScreen(result: _buildGameResult())),
