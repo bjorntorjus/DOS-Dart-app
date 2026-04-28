@@ -17,6 +17,7 @@ import 'around_the_clock_game_screen.dart';
 import 'halve_it_game_screen.dart';
 import 'cricket_game_screen.dart';
 import 'killer_game_screen.dart';
+import 'shanghai_game_screen.dart';
 
 class PlayerSetupScreen extends StatefulWidget {
   final GameMode gameMode;
@@ -70,6 +71,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   bool _halveItIncludeDouble = true;
   bool _halveItIncludeTriple = true;
   bool _halveItIncludeBull = true;
+
+  // Shanghai options
+  int _shanghaiTargetEnd = 7;
 
   int get _minPlayers {
     switch (widget.gameMode) {
@@ -512,6 +516,11 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             includeBull: _halveItIncludeBull,
           ),
         );
+      case GameMode.shanghai:
+        screen = ShanghaiGameScreen(
+          players: players,
+          config: ShanghaiConfig(targetEnd: _shanghaiTargetEnd),
+        );
     }
 
     Navigator.pushReplacement(
@@ -877,6 +886,21 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             value: _halveItIncludeBull,
             onChanged: (v) => setState(() => _halveItIncludeBull = v),
             activeTrackColor: Theme.of(context).colorScheme.primary,
+          ),
+        ]);
+
+      case GameMode.shanghai:
+        return _optionsCard([
+          ListTile(
+            title: Text('Rounds (targets 1–$_shanghaiTargetEnd): $_shanghaiTargetEnd'),
+            subtitle: Slider(
+              value: _shanghaiTargetEnd.toDouble(),
+              min: 3,
+              max: 20,
+              divisions: 17,
+              label: '$_shanghaiTargetEnd',
+              onChanged: (v) => setState(() => _shanghaiTargetEnd = v.round()),
+            ),
           ),
         ]);
     }
