@@ -75,9 +75,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     super.initState();
     players = widget.players;
     rounds = widget.config.generateRounds();
-    totalScores = List.filled(players.length, 40);
-    roundScores = List.generate(
-        rounds.length, (_) => List.filled(players.length, null));
+    totalScores = List.filled(players.length, 40, growable: true);
+    roundScores = List.generate(rounds.length,
+        (_) => List<int?>.filled(players.length, null, growable: true));
     for (final p in players) {
       p.score = 40;
     }
@@ -868,7 +868,6 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// Big buttons for a specific target number (or Bull if n == null).
   Widget _buildNumberButtons(int? n) {
     final isBull = n == null;
-    final halfScore = totalScores[currentPlayerIndex] ~/ 2;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -892,7 +891,6 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   ],
           ),
           const SizedBox(height: 12),
-          // Miss button — shows what the score halves to
           SizedBox(
             height: 62,
             width: double.infinity,
@@ -903,30 +901,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Miss', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text('score halves to $halfScore',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Denied button
-          SizedBox(
-            height: 62,
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _onMiss,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB71C1C),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Denied',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              child: const Text('Miss',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -958,76 +934,61 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
   Widget _compactButton(String label, VoidCallback onTap, Color color) {
     return SizedBox(
-      height: 58,
+      height: 76,
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        child: Text(label,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+        ),
       ),
     );
   }
 
   Widget _compactButtonGrid(List<Widget> buttons, {bool includeMiss = false}) {
-    final halfScore = totalScores[currentPlayerIndex] ~/ 2;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column(
         children: [
           Expanded(
-            child: Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              alignment: WrapAlignment.center,
-              children: buttons.map((b) => SizedBox(width: 82, child: b)).toList(),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const spacing = 8.0;
+                final tileWidth =
+                    (constraints.maxWidth - spacing * 3) / 4; // 4 per row
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  alignment: WrapAlignment.center,
+                  children: buttons
+                      .map((b) => SizedBox(width: tileWidth, child: b))
+                      .toList(),
+                );
+              },
             ),
           ),
           if (includeMiss) ...[
             const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _onMiss,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[800],
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('Miss', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          Text('halves to $halfScore', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
-                        ],
-                      ),
-                    ),
-                  ),
+            SizedBox(
+              height: 64,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _onMiss,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[800],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _onMiss,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB71C1C),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Text('Denied',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ),
-              ],
+                child: const Text('Miss',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              ),
             ),
             const SizedBox(height: 4),
           ],

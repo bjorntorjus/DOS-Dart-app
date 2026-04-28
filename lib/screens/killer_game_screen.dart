@@ -74,11 +74,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   void initState() {
     super.initState();
     players = widget.players;
-    assignedNumbers = List.filled(players.length, 0);
-    lives = List.filled(players.length, widget.config.lives);
-    isKiller = List.filled(players.length, false);
-    isEliminated = List.filled(players.length, false);
-    shields = List.filled(players.length, 0);
+    assignedNumbers = List.filled(players.length, 0, growable: true);
+    lives = List.filled(players.length, widget.config.lives, growable: true);
+    isKiller = List.filled(players.length, false, growable: true);
+    isEliminated = List.filled(players.length, false, growable: true);
+    shields = List.filled(players.length, 0, growable: true);
 
     if (!widget.config.throwToPick) {
       _assignRandomNumbers();

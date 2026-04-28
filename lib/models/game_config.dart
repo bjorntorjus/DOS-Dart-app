@@ -66,7 +66,7 @@ class AroundTheClockConfig extends GameConfig {
   final bool reverse; // 20→1 instead of 1→20
   const AroundTheClockConfig({
     this.includeBull = false,
-    this.countMultiples = false,
+    this.countMultiples = true,
     this.reverse = false,
   }) : super(GameMode.aroundTheClock);
 }
@@ -111,7 +111,7 @@ class HalveItConfig extends GameConfig {
         const HalveItRound(type: HalveItRoundType.anyTriple),
         const HalveItRound(type: HalveItRoundType.number, targetNumber: 19),
         const HalveItRound(type: HalveItRoundType.number, targetNumber: 20),
-        const HalveItRound(type: HalveItRoundType.bull),
+        if (includeBull) const HalveItRound(type: HalveItRoundType.bull),
       ];
     }
 

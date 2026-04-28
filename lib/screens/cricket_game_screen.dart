@@ -67,7 +67,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     targets = widget.config.generateTargets();
     marks = List.generate(
         players.length, (_) => {for (final t in targets) t: 0});
-    scores = List.filled(players.length, 0);
+    scores = List.filled(players.length, 0, growable: true);
     for (final p in players) {
       p.score = 0;
     }
@@ -1108,45 +1108,22 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         .where((i) => !finishedPlayers.contains(i))
         .toList();
 
-    // Number of closed targets: avg of actives, standard rounding
-    int closedCount = 0;
     int avgPoints = 0;
-    final targetsClosedByAll = <int>{};
-    final closedByAny = <int, int>{}; // target → how many players closed it
+    final newMarks = {for (final t in targets) t: 0};
 
     if (activeIndices.isNotEmpty) {
-      final closedCounts = activeIndices.map((i) =>
-          targets.where((t) => marks[i][t]! >= 3).length).toList();
-      closedCount = (closedCounts.reduce((a, b) => a + b) / activeIndices.length).round();
-
       avgPoints = (activeIndices.map((i) => scores[i]).reduce((a, b) => a + b) /
               activeIndices.length)
           .round();
 
-      // Targets closed by ALL active players → must be closed for newcomer
+      // Per-target average marks (rounded), capped at 3 (closed)
       for (final t in targets) {
-        int closedBy = 0;
-        for (final i in activeIndices) {
-          if (marks[i][t]! >= 3) closedBy++;
-        }
-        if (closedBy == activeIndices.length) targetsClosedByAll.add(t);
-        if (closedBy > 0) closedByAny[t] = closedBy;
+        final avgMarks = activeIndices
+                .map((i) => marks[i][t]!.clamp(0, 3))
+                .reduce((a, b) => a + b) /
+            activeIndices.length;
+        newMarks[t] = avgMarks.round().clamp(0, 3);
       }
-    }
-
-    // Build the set of closed targets for the newcomer:
-    //  - Must include everything in targetsClosedByAll
-    //  - Fill up to closedCount using the most-popular-from-union first
-    final closedForNew = <int>{...targetsClosedByAll};
-    if (closedCount < closedForNew.length) closedCount = closedForNew.length;
-
-    final candidates = closedByAny.entries
-        .where((e) => !closedForNew.contains(e.key))
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    for (final c in candidates) {
-      if (closedForNew.length >= closedCount) break;
-      closedForNew.add(c.key);
     }
 
     setState(() {
@@ -1158,7 +1135,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      final newMarks = {for (final t in targets) t: closedForNew.contains(t) ? 3 : 0};
       marks.add(newMarks);
       scores.add(avgPoints);
     });

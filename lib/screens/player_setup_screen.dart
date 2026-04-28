@@ -51,7 +51,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
 
   // Around the Clock options
   bool _clockIncludeBull = false;
-  bool _clockCountMultiples = false;
+  bool _clockCountMultiples = true;
   bool _clockReverse = false;
 
   // Killer options
@@ -60,6 +60,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   bool _killerMultiplyHits = false;
   bool _killerShields = false;
   bool _killerSuicide = false;
+
+  // Player order
+  bool _randomizeOrder = true;
 
   // Halve It options
   bool _halveItIsRandom = false;
@@ -455,7 +458,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       return;
     }
 
-    final players = _buildPlayers()..shuffle(Random());
+    final players = _buildPlayers();
+    if (_randomizeOrder) players.shuffle(Random());
 
     Widget screen;
     switch (widget.gameMode) {
@@ -533,6 +537,28 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
               children: [
                 // Mode-specific options
                 _buildModeOptions(),
+
+                // Randomize player order toggle
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.shuffle, size: 18, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('Randomize player order',
+                            style: TextStyle(fontSize: 14)),
+                      ),
+                      Switch(
+                        value: _randomizeOrder,
+                        onChanged: (v) =>
+                            setState(() => _randomizeOrder = v),
+                        activeTrackColor:
+                            Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
 
                 // Selected player list
                 Expanded(
