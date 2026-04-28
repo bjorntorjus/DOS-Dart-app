@@ -893,14 +893,24 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       case GameMode.shanghai:
         return _optionsCard([
           ListTile(
-            title: Text('Rounds (targets 1–$_shanghaiTargetEnd): $_shanghaiTargetEnd'),
-            subtitle: Slider(
-              value: _shanghaiTargetEnd.toDouble(),
-              min: 3,
-              max: 20,
-              divisions: 17,
-              label: '$_shanghaiTargetEnd',
-              onChanged: (v) => setState(() => _shanghaiTargetEnd = v.round()),
+            title: const Text('Target sequence'),
+            subtitle: Text(_shanghaiTargetEnd == 7
+                ? '1 to 7 (short)'
+                : _shanghaiTargetEnd == 9
+                    ? '1 to 9 (medium)'
+                    : '1 to 20 (long)'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 7, label: Text('1-7')),
+                ButtonSegment(value: 9, label: Text('1-9')),
+                ButtonSegment(value: 20, label: Text('1-20')),
+              ],
+              selected: {_shanghaiTargetEnd},
+              onSelectionChanged: (v) =>
+                  setState(() => _shanghaiTargetEnd = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
             ),
           ),
         ]);
