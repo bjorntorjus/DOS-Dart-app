@@ -25,6 +25,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Memes
   bool _memeEnabled = false;
 
+  // Debug
+  LogMode _logMode = LogMode.full;
+
   // Sound & Video
   bool _soundEffectsEnabled = true;
   bool _videoEventsEnabled = true;
@@ -63,6 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final eloKNew = await AppSettings.getEloKNew();
     final eloKExp = await AppSettings.getEloKExp();
     final eloThreshold = await AppSettings.getEloThreshold();
+    final logMode = await AppSettings.getLogMode();
 
     await TtsService.instance.init();
     final languages = await TtsService.instance.getLanguages();
@@ -86,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _eloKNew = eloKNew;
       _eloKExp = eloKExp;
       _eloThreshold = eloThreshold;
+      _logMode = logMode;
       _isLoading = false;
     });
   }
@@ -492,6 +497,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                         activeTrackColor:
                             Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Debug section
+                Text('Debug',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: Colors.grey)),
+                const SizedBox(height: 8),
+                Card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Text('Log mode',
+                            style: TextStyle(
+                                color: Colors.grey[400], fontSize: 13)),
+                      ),
+                      RadioListTile<LogMode>(
+                        title: const Text('Full (every event)'),
+                        value: LogMode.full,
+                        groupValue: _logMode,
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          await AppSettings.setLogMode(v);
+                          GameLogger.instance.setMode(v);
+                          setState(() => _logMode = v);
+                        },
+                      ),
+                      RadioListTile<LogMode>(
+                        title: const Text('Minimal (battery only)'),
+                        value: LogMode.minimal,
+                        groupValue: _logMode,
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          await AppSettings.setLogMode(v);
+                          GameLogger.instance.setMode(v);
+                          setState(() => _logMode = v);
+                        },
+                      ),
+                      RadioListTile<LogMode>(
+                        title: const Text('Off'),
+                        value: LogMode.off,
+                        groupValue: _logMode,
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          await AppSettings.setLogMode(v);
+                          GameLogger.instance.setMode(v);
+                          setState(() => _logMode = v);
+                        },
                       ),
                     ],
                   ),
