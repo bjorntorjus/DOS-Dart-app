@@ -81,6 +81,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
         return 3;
       case GameMode.aroundTheClock:
       case GameMode.halveIt:
+      case GameMode.shanghai:
         return 1;
       default:
         return 2;
