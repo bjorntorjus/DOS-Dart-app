@@ -18,6 +18,7 @@ import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
+import '../services/battery_sampler.dart';
 
 class CricketGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -84,6 +85,13 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         if (widget.config.isCutthroat) 'cutthroat': true,
       },
     );
+    BatterySampler.instance.start('Cricket');
+  }
+
+  @override
+  void dispose() {
+    BatterySampler.instance.stop();
+    super.dispose();
   }
 
   int get _roundNumber {
@@ -548,6 +556,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       finishedOrder: finishedPlayers,
       gameFullyOver: _gameFullyOver,
     );
+    BatterySampler.instance.stop();
     // Compute stats before showing post-game so rating changes are visible (mirrors X01 behaviour)
     if (_gameFullyOver && !_statsRecorded) {
       _statsRecorded = true;
