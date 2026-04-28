@@ -144,6 +144,57 @@ class _GameScreenState extends State<GameScreen> {
     return _ThrowOutcome.continueTurn;
   }
 
+  /// Conservative check: can any remaining player (not yet completed this round
+  /// and not already finished) potentially beat the current leader's
+  /// _FinishEntry, given full round darts?
+  ///
+  /// Uses maximum-achievable bounds per dart (60 single, 50 D-Bull for double-out).
+  bool _anyoneCanBeat(_FinishEntry leader) {
+    const maxNonFinalDart = 60; // T20
+    final maxFinalDart = widget.masterOut == 'double' ? 50 /* D-Bull */ : 60;
+
+    for (int pi = 0; pi < players.length; pi++) {
+      if (_playersCompletedThisRound.contains(pi)) continue;
+      if (_removedPlayerIndices.contains(pi)) continue;
+      if (finishedPlayers.contains(pi) && pi != leader.playerIndex) continue;
+      if (pi == leader.playerIndex) continue;
+
+      final dartsAlreadyUsed = _totalDartsPerPlayer[pi];
+      final dartsLeftThisTurn = pi == currentPlayerIndex ? (3 - dartsInTurn) : 3;
+      final score = players[pi].score;
+
+      for (int k = 1; k <= dartsLeftThisTurn; k++) {
+        final dartCountIfFinish = dartsAlreadyUsed + k;
+        final maxPoints = (k - 1) * maxNonFinalDart + maxFinalDart;
+        if (score > maxPoints) continue; // can't even reach 0 in k darts
+
+        final maxOvershoot = maxPoints - score;
+
+        if (dartCountIfFinish < leader.totalDartsAtFinish) {
+          return true;
+        }
+        if (dartCountIfFinish == leader.totalDartsAtFinish &&
+            maxOvershoot > leader.overshoot) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  _FinishEntry _currentLeader() {
+    if (_finishes.isEmpty) {
+      throw StateError('No finishes recorded');
+    }
+    final sorted = List<_FinishEntry>.from(_finishes);
+    sorted.sort((a, b) {
+      final dartCmp = a.totalDartsAtFinish.compareTo(b.totalDartsAtFinish);
+      if (dartCmp != 0) return dartCmp;
+      return b.overshoot.compareTo(a.overshoot);
+    });
+    return sorted.first;
+  }
+
   void _scrollToCurrentPlayer() {
     if (!_scoreboardController.hasClients) return;
     final maxScroll = _scoreboardController.position.maxScrollExtent;
@@ -299,6 +350,15 @@ class _GameScreenState extends State<GameScreen> {
           }
         }
       });
+      // Early-termination check (no-bust mode)
+      if (_finishes.isNotEmpty && !_isRoundComplete()) {
+        final leader = _currentLeader();
+        if (!_anyoneCanBeat(leader)) {
+          if (mounted) {
+            await _showEarlyTerminationPostGame();
+          }
+        }
+      }
     } else {
       // ─────── Standard X01 path (existing code, UNCHANGED) ───────
       setState(() {
@@ -969,6 +1029,110 @@ class _GameScreenState extends State<GameScreen> {
         _playersCompletedThisRound.add(lastThrow.playerIndex);
       }
     }
+  }
+
+  /// Build current ranking by no-bust rules:
+  ///   1. Players with _FinishEntry first, sorted by (dartCount asc, overshoot desc)
+  ///   2. Non-finishers after, sorted by current score asc (closer to 0 = better)
+  List<int> _noBustRankIndices() {
+    final indices = List<int>.generate(players.length, (i) => i);
+    indices.sort((a, b) {
+      final aFinish = _finishes.where((f) => f.playerIndex == a).firstOrNull;
+      final bFinish = _finishes.where((f) => f.playerIndex == b).firstOrNull;
+      if (aFinish != null && bFinish == null) return -1;
+      if (aFinish == null && bFinish != null) return 1;
+      if (aFinish != null && bFinish != null) {
+        final dartCmp = aFinish.totalDartsAtFinish.compareTo(bFinish.totalDartsAtFinish);
+        if (dartCmp != 0) return dartCmp;
+        return bFinish.overshoot.compareTo(aFinish.overshoot);
+      }
+      // both non-finishers
+      return players[a].score.compareTo(players[b].score);
+    });
+    return indices;
+  }
+
+  Future<void> _showEarlyTerminationPostGame() async {
+    final ranking = _noBustRankIndices();
+
+    final results = <PlayerResult>[];
+    for (int rank = 0; rank < ranking.length; rank++) {
+      final i = ranking[rank];
+      final p = players[i];
+      final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
+      final dartCount = playerThrows.length;
+
+      int highestTurn = 0;
+      double totalTurnScore = 0;
+      int turnCount = 0;
+      int currentTurnScore = 0;
+      int? currentTurnStart;
+      for (final t in playerThrows) {
+        if (currentTurnStart != t.scoreAtStartOfTurn) {
+          if (currentTurnStart != null) {
+            if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
+            totalTurnScore += currentTurnScore;
+            turnCount++;
+          }
+          currentTurnStart = t.scoreAtStartOfTurn;
+          currentTurnScore = 0;
+        }
+        currentTurnScore += t.points;
+      }
+      if (currentTurnStart != null) {
+        if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
+        totalTurnScore += currentTurnScore;
+        turnCount++;
+      }
+
+      int? checkout;
+      if (finishedPlayers.contains(i) && playerThrows.isNotEmpty) {
+        checkout = playerThrows.last.scoreAtStartOfTurn;
+      }
+
+      results.add(PlayerResult(
+        name: p.name,
+        avatarPath: p.avatarPath,
+        placement: rank + 1,
+        stats: {
+          'highestTurn': highestTurn,
+          'avgTurn': turnCount > 0 ? totalTurnScore / turnCount : 0.0,
+          'darts': dartCount,
+          'checkout': ?checkout,
+        },
+        ratingBefore: p.savedPlayerId != null ? _ratingsBefore[p.savedPlayerId!] : null,
+        ratingAfter: p.savedPlayerId != null ? _ratingsAfter[p.savedPlayerId!] : null,
+      ));
+    }
+
+    final gameResult = GameResult(
+      gameMode: 'x01',
+      results: results,
+      canContinue: true,
+      statsSkipped: _midGamePlayerChanges,
+    );
+
+    final action = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => PostGameScreen(result: gameResult)),
+    );
+
+    if (!mounted) return;
+    if (action == 'continue') {
+      // Resume — round continues normally
+      return;
+    }
+    if (action == 'undo') {
+      _log.logPostGame(action: 'undo');
+      _undo();
+      return;
+    }
+    // 'home' or null → finalize game
+    _log.logPostGame(action: 'newGame');
+    _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: true);
+    BatterySampler.instance.stop();
+    _gameFullyOver = true;
+    await _updateStats();
+    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   GameResult _buildGameResult() {
