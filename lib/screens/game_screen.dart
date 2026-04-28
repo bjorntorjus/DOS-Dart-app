@@ -214,101 +214,189 @@ class _GameScreenState extends State<GameScreen> {
 
     bool isTurnEnd = false;
 
-    setState(() {
-      throwHistory.add(dartThrow);
+    if (widget.noBust) {
+      // ─────── No-bust path ───────
+      final outcome = _classifyThrow(newScore, multiplier);
+      setState(() {
+        throwHistory.add(dartThrow);
 
-      if (isBust) {
-        isTurnEnd = true;
-        // 50/50 between video and sound for bust
-        final bustShowVideo = videoRoll && Random().nextBool();
-        if (bustShowVideo) _pendingVideoEvent = 'bust';
-        player.score = scoreAtStartOfTurn;
-        lastThrowLabel = '${dartThrow.label} - BUST!';
-        _log.logThrow(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, label: dartThrow.label, points: points, scoreBefore: scoreBefore, scoreAfter: scoreAtStartOfTurn, dartNumber: dartsInTurn, extra: 'BUST');
-        _log.logBust(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: player.name, throwLabel: dartThrow.label, scoreReset: scoreAtStartOfTurn);
-        _announcer.announceGameEvent('Bust');
-        // Play random bust sound only if video won't play
-        if (_soundEnabled && !bustShowVideo) {
-          _meme.markSoundPlayed();
-          SoundService.instance.playRandomMaybe([
-            'x01/negative/out',
-            if (_offensiveEnabled) 'x01/offensive/end of round',
-          ], chance: vc);
-        }
-        if (bustShowVideo) _meme.markSoundPlayed();
-        _meme.resetTurn();
-        _playersCompletedThisRound.add(currentPlayerIndex);
-        _advancePlayer();
-      } else if (newScore == 0) {
-        // Checkout! Add as pending — don't end game until round completes
-        isTurnEnd = true;
-        _pendingVideoEvent = 'checkout'; // highest priority
-        player.score = 0;
-        lastThrowLabel = dartThrow.label;
-        _log.logThrow(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, label: dartThrow.label, points: points, scoreBefore: scoreBefore, scoreAfter: 0, dartNumber: dartsInTurn, extra: 'CHECKOUT');
-        _log.logCheckout(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: player.name, dartsUsed: dartsInTurn + 1, checkoutScore: scoreAtStartOfTurn);
-        _announcer.announceGameEvent('${player.name} checks out!');
-        _meme.onThrow(dartThrow, remainingScore: 0);
-        if (videoRoll) _meme.markSoundPlayed();
-        _meme.onTurnEnd();
-
-        finishedPlayers.add(currentPlayerIndex);
-        _pendingCheckouts.add(_PendingCheckout(
-          playerIndex: currentPlayerIndex,
-          dartsUsedInTurn: dartsInTurn + 1,
-          checkoutScore: scoreAtStartOfTurn,
-        ));
-
-        _playersCompletedThisRound.add(currentPlayerIndex);
-
-        // Check if all active players have finished their turn this round
-        final roundComplete = _isRoundComplete();
-        if (!roundComplete) {
-          // Check if any remaining player can theoretically match or beat this checkout
-          final bestDarts = _pendingCheckouts.map((c) => c.dartsUsedInTurn).reduce(min);
-          final canMatch = _canAnyRemainingPlayerCheckout(bestDarts);
-          _log.logState({
-            'roundComplete': false,
-            'canAnyRemainingCheckout': canMatch,
-            'bestDarts': bestDarts,
-            'pendingCheckouts': _pendingCheckouts.map((c) => 'P${c.playerIndex}(${c.dartsUsedInTurn}d,${c.checkoutScore})').toList(),
-            'completedThisRound': _playersCompletedThisRound,
-            'finishedPlayers': finishedPlayers,
-          });
-          _advancePlayer();
-        } else {
-          _log.logState({'roundComplete': true, 'completedThisRound': _playersCompletedThisRound, 'finishedPlayers': finishedPlayers});
-        }
-      } else {
-        player.score = newScore;
-        lastThrowLabel = dartThrow.label;
-        _log.logThrow(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, label: dartThrow.label, points: points, scoreBefore: scoreBefore, scoreAfter: newScore, dartNumber: dartsInTurn);
-        final memeTriggered = _meme.onThrow(dartThrow, remainingScore: newScore);
-        if (!memeTriggered && !_missSoundPlayed) {
-          _announcer.announceThrow(dartThrow.spokenLabel);
-        }
-        if (multiplier == 3 && segment >= 18 && segment <= 20) {
-          if (_meme.frequency < 10) _meme.markSoundPlayed();
-          SoundService.instance.playRandomMaybe(['triple'], chance: vc);
-        } else if (segment == 25) {
-          if (_meme.frequency < 10) _meme.markSoundPlayed();
-          SoundService.instance.play('bull');
-        }
-        dartsInTurn++;
-        if (dartsInTurn >= 3) {
+        if (outcome == _ThrowOutcome.finish) {
           isTurnEnd = true;
-          // Turn-end video events
-          final turnTotal = scoreAtStartOfTurn - player.score;
-          if (turnTotal >= 120) _pendingVideoEvent ??= 'high_round';
-          else if (turnTotal < 10) _pendingVideoEvent ??= 'low_round';
-          // Suppress meme sounds if video will play
-          if (_pendingVideoEvent != null && videoRoll) _meme.markSoundPlayed();
+          _totalDartsPerPlayer[currentPlayerIndex]++;
+          final overshoot = newScore < 0 ? -newScore : 0;
+          player.score = 0;
+          lastThrowLabel = '${dartThrow.label}${overshoot > 0 ? ' +$overshoot' : ''}';
+          _finishes.add(_FinishEntry(
+            playerIndex: currentPlayerIndex,
+            totalDartsAtFinish: _totalDartsPerPlayer[currentPlayerIndex],
+            overshoot: overshoot,
+            turnId: _turnIdCounter,
+          ));
+          _log.logThrow(
+            roundNumber: _roundNumber,
+            playerIndex: currentPlayerIndex,
+            label: dartThrow.label,
+            points: points,
+            scoreBefore: scoreBefore,
+            scoreAfter: 0,
+            dartNumber: dartsInTurn,
+            extra: 'NO_BUST_FINISH overshoot=$overshoot darts=${_totalDartsPerPlayer[currentPlayerIndex]}',
+          );
+          _log.logFinish(
+            roundNumber: _roundNumber,
+            playerIndex: currentPlayerIndex,
+            playerName: player.name,
+            details: 'overshoot=$overshoot darts=${_totalDartsPerPlayer[currentPlayerIndex]}',
+          );
+          _announcer.announceGameEvent('${player.name} finishes!');
+          if (!finishedPlayers.contains(currentPlayerIndex)) {
+            finishedPlayers.add(currentPlayerIndex);
+          }
+          _playersCompletedThisRound.add(currentPlayerIndex);
           _meme.onTurnEnd();
+          _meme.resetTurn();
+          _advancePlayer();
+        } else if (outcome == _ThrowOutcome.turnEndNoBust) {
+          isTurnEnd = true;
+          _totalDartsPerPlayer[currentPlayerIndex]++;
+          // Score unchanged; player stays on scoreAtStartOfTurn
+          player.score = scoreAtStartOfTurn;
+          lastThrowLabel = '${dartThrow.label} - no effect';
+          _log.logThrow(
+            roundNumber: _roundNumber,
+            playerIndex: currentPlayerIndex,
+            label: dartThrow.label,
+            points: points,
+            scoreBefore: scoreBefore,
+            scoreAfter: scoreAtStartOfTurn,
+            dartNumber: dartsInTurn,
+            extra: 'NO_BUST_TURN_END',
+          );
+          _meme.onTurnEnd();
+          _meme.resetTurn();
           _playersCompletedThisRound.add(currentPlayerIndex);
           _advancePlayer();
+        } else {
+          // continueTurn
+          player.score = newScore;
+          lastThrowLabel = dartThrow.label;
+          _log.logThrow(
+            roundNumber: _roundNumber,
+            playerIndex: currentPlayerIndex,
+            label: dartThrow.label,
+            points: points,
+            scoreBefore: scoreBefore,
+            scoreAfter: newScore,
+            dartNumber: dartsInTurn,
+          );
+          _totalDartsPerPlayer[currentPlayerIndex]++;
+          dartsInTurn++;
+          if (dartsInTurn >= 3) {
+            isTurnEnd = true;
+            _meme.onTurnEnd();
+            _playersCompletedThisRound.add(currentPlayerIndex);
+            _advancePlayer();
+          }
         }
-      }
-    });
+      });
+    } else {
+      // ─────── Standard X01 path (existing code, UNCHANGED) ───────
+      setState(() {
+        throwHistory.add(dartThrow);
+
+        if (isBust) {
+          isTurnEnd = true;
+          // 50/50 between video and sound for bust
+          final bustShowVideo = videoRoll && Random().nextBool();
+          if (bustShowVideo) _pendingVideoEvent = 'bust';
+          player.score = scoreAtStartOfTurn;
+          lastThrowLabel = '${dartThrow.label} - BUST!';
+          _log.logThrow(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, label: dartThrow.label, points: points, scoreBefore: scoreBefore, scoreAfter: scoreAtStartOfTurn, dartNumber: dartsInTurn, extra: 'BUST');
+          _log.logBust(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: player.name, throwLabel: dartThrow.label, scoreReset: scoreAtStartOfTurn);
+          _announcer.announceGameEvent('Bust');
+          // Play random bust sound only if video won't play
+          if (_soundEnabled && !bustShowVideo) {
+            _meme.markSoundPlayed();
+            SoundService.instance.playRandomMaybe([
+              'x01/negative/out',
+              if (_offensiveEnabled) 'x01/offensive/end of round',
+            ], chance: vc);
+          }
+          if (bustShowVideo) _meme.markSoundPlayed();
+          _meme.resetTurn();
+          _playersCompletedThisRound.add(currentPlayerIndex);
+          _advancePlayer();
+        } else if (newScore == 0) {
+          // Checkout! Add as pending — don't end game until round completes
+          isTurnEnd = true;
+          _pendingVideoEvent = 'checkout'; // highest priority
+          player.score = 0;
+          lastThrowLabel = dartThrow.label;
+          _log.logThrow(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, label: dartThrow.label, points: points, scoreBefore: scoreBefore, scoreAfter: 0, dartNumber: dartsInTurn, extra: 'CHECKOUT');
+          _log.logCheckout(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: player.name, dartsUsed: dartsInTurn + 1, checkoutScore: scoreAtStartOfTurn);
+          _announcer.announceGameEvent('${player.name} checks out!');
+          _meme.onThrow(dartThrow, remainingScore: 0);
+          if (videoRoll) _meme.markSoundPlayed();
+          _meme.onTurnEnd();
+
+          finishedPlayers.add(currentPlayerIndex);
+          _pendingCheckouts.add(_PendingCheckout(
+            playerIndex: currentPlayerIndex,
+            dartsUsedInTurn: dartsInTurn + 1,
+            checkoutScore: scoreAtStartOfTurn,
+          ));
+
+          _playersCompletedThisRound.add(currentPlayerIndex);
+
+          // Check if all active players have finished their turn this round
+          final roundComplete = _isRoundComplete();
+          if (!roundComplete) {
+            // Check if any remaining player can theoretically match or beat this checkout
+            final bestDarts = _pendingCheckouts.map((c) => c.dartsUsedInTurn).reduce(min);
+            final canMatch = _canAnyRemainingPlayerCheckout(bestDarts);
+            _log.logState({
+              'roundComplete': false,
+              'canAnyRemainingCheckout': canMatch,
+              'bestDarts': bestDarts,
+              'pendingCheckouts': _pendingCheckouts.map((c) => 'P${c.playerIndex}(${c.dartsUsedInTurn}d,${c.checkoutScore})').toList(),
+              'completedThisRound': _playersCompletedThisRound,
+              'finishedPlayers': finishedPlayers,
+            });
+            _advancePlayer();
+          } else {
+            _log.logState({'roundComplete': true, 'completedThisRound': _playersCompletedThisRound, 'finishedPlayers': finishedPlayers});
+          }
+        } else {
+          player.score = newScore;
+          lastThrowLabel = dartThrow.label;
+          _log.logThrow(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, label: dartThrow.label, points: points, scoreBefore: scoreBefore, scoreAfter: newScore, dartNumber: dartsInTurn);
+          final memeTriggered = _meme.onThrow(dartThrow, remainingScore: newScore);
+          if (!memeTriggered && !_missSoundPlayed) {
+            _announcer.announceThrow(dartThrow.spokenLabel);
+          }
+          if (multiplier == 3 && segment >= 18 && segment <= 20) {
+            if (_meme.frequency < 10) _meme.markSoundPlayed();
+            SoundService.instance.playRandomMaybe(['triple'], chance: vc);
+          } else if (segment == 25) {
+            if (_meme.frequency < 10) _meme.markSoundPlayed();
+            SoundService.instance.play('bull');
+          }
+          dartsInTurn++;
+          if (dartsInTurn >= 3) {
+            isTurnEnd = true;
+            // Turn-end video events
+            final turnTotal = scoreAtStartOfTurn - player.score;
+            if (turnTotal >= 120) _pendingVideoEvent ??= 'high_round';
+            else if (turnTotal < 10) _pendingVideoEvent ??= 'low_round';
+            // Suppress meme sounds if video will play
+            if (_pendingVideoEvent != null && videoRoll) _meme.markSoundPlayed();
+            _meme.onTurnEnd();
+            _playersCompletedThisRound.add(currentPlayerIndex);
+            _advancePlayer();
+          }
+        }
+      });
+    }
 
     // Show video at turn end only (awaited so it doesn't get hidden)
     if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
