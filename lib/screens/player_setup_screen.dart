@@ -41,6 +41,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   // X01 options
   String _masterOut = 'none'; // 'none', 'double', 'master'
   bool _handicap = false;
+  bool _noBust = false;
   double _handicapScale = AppSettings.defaultHandicapScale;
 
   // Cricket options
@@ -474,6 +475,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           masterOut: _masterOut,
           startingScore: widget.startingScore!,
           handicap: _handicap,
+          noBust: _noBust,
         );
       case GameMode.cricket:
         screen = CricketGameScreen(
@@ -720,6 +722,13 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             subtitle: const Text('Starting scores adjusted by rating'),
             value: _handicap,
             onChanged: (v) => setState(() => _handicap = v),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
+          ),
+          SwitchListTile(
+            title: const Text('No-bust mode'),
+            subtitle: const Text('Going over score = finish; biggest overshoot wins ties'),
+            value: _noBust,
+            onChanged: (v) => setState(() => _noBust = v),
             activeTrackColor: Theme.of(context).colorScheme.primary,
           ),
         ]);

@@ -27,6 +27,7 @@ class GameScreen extends StatefulWidget {
   final String masterOut; // 'none', 'double', 'master'
   final int startingScore;
   final bool handicap;
+  final bool noBust;
 
   const GameScreen({
     super.key,
@@ -34,6 +35,7 @@ class GameScreen extends StatefulWidget {
     this.masterOut = 'none',
     required this.startingScore,
     this.handicap = false,
+    this.noBust = false,
   });
 
   @override
@@ -84,10 +86,10 @@ class _GameScreenState extends State<GameScreen> {
     _announcer.init();
     _meme.init();
     _log.logGameStart(
-      gameMode: 'X01 ${widget.startingScore} ${widget.masterOut == 'double' ? 'Double-Out' : widget.masterOut == 'master' ? 'Master-Out' : 'Free-Out'}',
+      gameMode: 'X01 ${widget.startingScore} ${widget.masterOut == 'double' ? 'Double-Out' : widget.masterOut == 'master' ? 'Master-Out' : 'Free-Out'}${widget.noBust ? ' No-Bust' : ''}',
       playerNames: players.map((p) => p.name).toList(),
       playerScores: players.map((p) => p.score).toList(),
-      config: {'handicap': widget.handicap, 'masterOut': widget.masterOut},
+      config: {'handicap': widget.handicap, 'masterOut': widget.masterOut, 'noBust': widget.noBust},
     );
     BatterySampler.instance.start('X01');
     AppSettings.getSoundEffectsEnabled().then((v) {
@@ -962,16 +964,23 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  String get _appBarTitle {
+    final outLabel = widget.masterOut == 'double'
+        ? 'Double-Out'
+        : widget.masterOut == 'master'
+            ? 'Master-Out'
+            : 'Free-Out';
+    final suffix = widget.noBust ? ' (No-Bust)' : '';
+    return '${widget.startingScore} - $outLabel$suffix';
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentPlayer = players[currentPlayerIndex];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            '${widget.startingScore}'
-            '${widget.masterOut == 'double' ? ' (Double out)' : widget.masterOut == 'master' ? ' (Master out)' : ''}'
-            '${widget.handicap ? ' - Handicap' : ''}'),
+        title: Text(_appBarTitle),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => _confirmExit(),
