@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum LogMode { full, minimal, off }
+
 class AppSettings {
   // Handicap
   static const String _handicapScaleKey = 'handicap_scale';
@@ -14,6 +16,9 @@ class AppSettings {
   static const String _ttsWinnerKey = 'tts_announce_winner';
   static const String _ttsGameEventsKey = 'tts_announce_game_events';
   static const String _ttsVoiceKey = 'tts_voice';
+
+  // Logging
+  static const String _logModeKey = 'log_mode';
 
   // Handicap getters/setters
   static Future<double> getHandicapScale() async {
@@ -238,5 +243,20 @@ class AppSettings {
   static Future<void> setVideoEventsEnabled(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_videoEventsEnabledKey, value);
+  }
+
+  // Log mode getters/setters
+  static Future<LogMode> getLogMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_logModeKey) ?? 'full';
+    return LogMode.values.firstWhere(
+      (m) => m.name == value,
+      orElse: () => LogMode.full,
+    );
+  }
+
+  static Future<void> setLogMode(LogMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_logModeKey, mode.name);
   }
 }
