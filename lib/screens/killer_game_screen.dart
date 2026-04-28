@@ -19,6 +19,7 @@ import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../models/saved_player.dart';
+import '../services/battery_sampler.dart';
 
 enum KillerPhase { assignment, playing }
 
@@ -98,6 +99,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           'multiplyHits': widget.config.multiplyHits,
         },
       );
+      BatterySampler.instance.start('Killer');
       if (!widget.config.throwToPick) {
         _log.log('Assignment: random numbers ${List.generate(players.length, (i) => '${players[i].name}→${assignedNumbers[i]}').join(', ')}');
         _log.log('Phase: playing');
@@ -107,6 +109,12 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     });
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
+  }
+
+  @override
+  void dispose() {
+    BatterySampler.instance.stop();
+    super.dispose();
   }
 
   void _assignRandomNumbers() {
@@ -648,6 +656,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       finishedOrder: finishedOrder,
       gameFullyOver: true,
     );
+    BatterySampler.instance.stop();
 
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
