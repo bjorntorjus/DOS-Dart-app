@@ -521,9 +521,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             style: TextStyle(
                                 color: Colors.grey[400], fontSize: 13)),
                       ),
-                      RadioListTile<LogMode>(
-                        title: const Text('Full (every event)'),
-                        value: LogMode.full,
+                      RadioGroup<LogMode>(
                         groupValue: _logMode,
                         onChanged: (v) async {
                           if (v == null) return;
@@ -531,28 +529,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           GameLogger.instance.setMode(v);
                           setState(() => _logMode = v);
                         },
-                      ),
-                      RadioListTile<LogMode>(
-                        title: const Text('Minimal (battery only)'),
-                        value: LogMode.minimal,
-                        groupValue: _logMode,
-                        onChanged: (v) async {
-                          if (v == null) return;
-                          await AppSettings.setLogMode(v);
-                          GameLogger.instance.setMode(v);
-                          setState(() => _logMode = v);
-                        },
-                      ),
-                      RadioListTile<LogMode>(
-                        title: const Text('Off'),
-                        value: LogMode.off,
-                        groupValue: _logMode,
-                        onChanged: (v) async {
-                          if (v == null) return;
-                          await AppSettings.setLogMode(v);
-                          GameLogger.instance.setMode(v);
-                          setState(() => _logMode = v);
-                        },
+                        child: const Column(
+                          children: [
+                            RadioListTile<LogMode>(
+                              title: Text('Full (every event)'),
+                              value: LogMode.full,
+                            ),
+                            RadioListTile<LogMode>(
+                              title: Text('Minimal (battery only)'),
+                              value: LogMode.minimal,
+                            ),
+                            RadioListTile<LogMode>(
+                              title: Text('Off'),
+                              value: LogMode.off,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
