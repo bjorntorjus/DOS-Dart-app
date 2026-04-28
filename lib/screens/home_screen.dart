@@ -103,6 +103,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _modeButton(context, GameMode.killer),
                 const SizedBox(height: 8),
                 _modeButton(context, GameMode.halveIt),
+                const SizedBox(height: 8),
+                _modeButton(context, GameMode.shanghai),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
