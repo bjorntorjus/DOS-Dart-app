@@ -19,6 +19,7 @@ import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
+import '../services/battery_sampler.dart';
 
 class HalveItGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -94,10 +95,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         'isRandom': widget.config.isRandom,
       },
     );
+    BatterySampler.instance.start('HalveIt');
   }
 
   @override
   void dispose() {
+    BatterySampler.instance.stop();
     _scoreboardController.dispose();
     super.dispose();
   }
@@ -486,6 +489,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       finishedOrder: indexed,
       gameFullyOver: true,
     );
+    BatterySampler.instance.stop();
 
     final results = <PlayerResult>[];
     for (int rank = 0; rank < indexed.length; rank++) {
