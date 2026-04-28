@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'app_settings.dart';
 
 /// Persistent game logger that writes detailed event logs to daily files.
 /// Keeps last 5 daily log files. All game modes use this service.
@@ -12,6 +13,14 @@ class GameLogger {
   Directory? _logDir;
   bool _initialized = false;
   int _gameIndex = 0;
+
+  LogMode _mode = LogMode.full;
+
+  LogMode get mode => _mode;
+  void setMode(LogMode value) => _mode = value;
+
+  bool get isBatteryAllowed => _mode != LogMode.off;
+  bool get isGeneralAllowed => _mode == LogMode.full;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -28,6 +37,7 @@ class GameLogger {
     } catch (e) {
       debugPrint('GameLogger init failed: $e');
     }
+    _mode = await AppSettings.getLogMode();
   }
 
   /// Delete log files older than 5 days.
@@ -67,6 +77,7 @@ class GameLogger {
     required List<int> playerScores,
     Map<String, dynamic>? config,
   }) {
+    if (!isGeneralAllowed) return;
     _gameIndex++;
     _write('');
     _write('${'=' * 60}');
@@ -87,6 +98,7 @@ class GameLogger {
     required List<int> finishedOrder,
     bool gameFullyOver = true,
   }) {
+    if (!isGeneralAllowed) return;
     final placements = finishedOrder
         .map((i) => 'P$i:${i < playerNames.length ? playerNames[i] : '?'}')
         .join(', ');
@@ -103,6 +115,7 @@ class GameLogger {
     required int score,
     String? checkoutHint,
   }) {
+    if (!isGeneralAllowed) return;
     final hint = checkoutHint != null ? ' checkout=$checkoutHint' : '';
     _write('R$roundNumber TURN P$playerIndex($playerName) score=$score$hint');
   }
@@ -117,6 +130,7 @@ class GameLogger {
     required int dartNumber,
     String? extra,
   }) {
+    if (!isGeneralAllowed) return;
     final ex = extra != null ? ' $extra' : '';
     _write('R$roundNumber THROW P$playerIndex $label($points) $scoreBefore→$scoreAfter dart=${dartNumber + 1}/3$ex');
   }
@@ -128,6 +142,7 @@ class GameLogger {
     required String throwLabel,
     required int scoreReset,
   }) {
+    if (!isGeneralAllowed) return;
     _write('R$roundNumber BUST P$playerIndex($playerName) $throwLabel → score reset to $scoreReset');
   }
 
@@ -138,6 +153,7 @@ class GameLogger {
     required int dartsUsed,
     required int checkoutScore,
   }) {
+    if (!isGeneralAllowed) return;
     _write('R$roundNumber CHECKOUT P$playerIndex($playerName) darts=$dartsUsed from=$checkoutScore');
   }
 
@@ -147,6 +163,7 @@ class GameLogger {
     required String playerName,
     String? details,
   }) {
+    if (!isGeneralAllowed) return;
     final det = details != null ? ' $details' : '';
     _write('R$roundNumber FINISH P$playerIndex($playerName)$det');
   }
@@ -159,6 +176,7 @@ class GameLogger {
     required int toScore,
     String? reason,
   }) {
+    if (!isGeneralAllowed) return;
     final r = reason != null ? ' ($reason)' : '';
     _write('R$roundNumber ADVANCE P$fromIndex→P$toIndex($toName) score=$toScore$r');
   }
@@ -170,6 +188,7 @@ class GameLogger {
     required Set<int> completedPlayers,
     required List<int> finishedPlayers,
   }) {
+    if (!isGeneralAllowed) return;
     _write('R$roundNumber ROUND_COMPLETE completed=$completedPlayers finished=$finishedPlayers');
   }
 
@@ -177,10 +196,12 @@ class GameLogger {
     required int roundNumber,
     required String details,
   }) {
+    if (!isGeneralAllowed) return;
     _write('R$roundNumber RESOLVE $details');
   }
 
   void logPostGame({required String action, String? details}) {
+    if (!isGeneralAllowed) return;
     final det = details != null ? ' $details' : '';
     _write('POSTGAME action=$action$det');
   }
@@ -194,12 +215,14 @@ class GameLogger {
     required int scoreRestored,
     required int roundNumber,
   }) {
+    if (!isGeneralAllowed) return;
     _write('UNDO P$playerIndex($playerName) $throwLabel → score=$scoreRestored round=$roundNumber');
   }
 
   // ─── State snapshots ───────────────────────────────────────
 
   void logState(Map<String, dynamic> state) {
+    if (!isGeneralAllowed) return;
     final parts = state.entries.map((e) => '${e.key}=${e.value}').join(', ');
     _write('STATE $parts');
   }
@@ -211,6 +234,7 @@ class GameLogger {
     required String event,
     String? outcome,
   }) {
+    if (!isGeneralAllowed) return;
     final out = outcome != null ? ' → $outcome' : '';
     _write('SOUND [$source] $event$out');
   }
@@ -220,11 +244,13 @@ class GameLogger {
     required String outcome,
     bool? soundPlayedThisTurn,
   }) {
+    if (!isGeneralAllowed) return;
     final flag = soundPlayedThisTurn != null ? ' soundPlayedThisTurn=$soundPlayedThisTurn' : '';
     _write('MEME $event → $outcome$flag');
   }
 
   void logTts({required String event, int? queueLength}) {
+    if (!isGeneralAllowed) return;
     final q = queueLength != null ? ' queue=$queueLength' : '';
     _write('TTS $event$q');
   }
@@ -232,6 +258,7 @@ class GameLogger {
   // ─── Errors ─────────────────────────────────────────────────
 
   void logError(String message, [Object? error, StackTrace? stack]) {
+    if (!isGeneralAllowed) return;
     _write('ERROR $message');
     if (error != null) _write('  exception: $error');
     if (stack != null) {
@@ -244,7 +271,13 @@ class GameLogger {
 
   // ─── Generic ────────────────────────────────────────────────
 
+  void logBattery({required int level, required String state}) {
+    if (!isBatteryAllowed) return;
+    _write('BATTERY level=$level% state=$state');
+  }
+
   void log(String message) {
+    if (!isGeneralAllowed) return;
     _write(message);
   }
 
