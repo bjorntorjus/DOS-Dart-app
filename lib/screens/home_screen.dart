@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'v1.4.0',
+                  'v1.5.0',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
