@@ -150,3 +150,9 @@ class HalveItConfig extends GameConfig {
     return rounds;
   }
 }
+
+class ShanghaiConfig extends GameConfig {
+  final int targetEnd; // 7, 9, or 20 — sequence is 1..targetEnd inclusive
+  const ShanghaiConfig({this.targetEnd = 7})
+      : super(GameMode.shanghai);
+}
