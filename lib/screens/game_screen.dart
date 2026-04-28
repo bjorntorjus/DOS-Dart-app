@@ -20,6 +20,7 @@ import '../models/game_result.dart';
 import '../services/game_logger.dart';
 import 'post_game_screen.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../services/battery_sampler.dart';
 
 class GameScreen extends StatefulWidget {
   final List<Player> players;
@@ -88,6 +89,7 @@ class _GameScreenState extends State<GameScreen> {
       playerScores: players.map((p) => p.score).toList(),
       config: {'handicap': widget.handicap, 'masterOut': widget.masterOut},
     );
+    BatterySampler.instance.start('X01');
     AppSettings.getSoundEffectsEnabled().then((v) {
       setState(() => _soundEnabled = v);
       SoundService.instance.setEnabled(v);
@@ -99,6 +101,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    BatterySampler.instance.stop();
     _scoreboardController.dispose();
     super.dispose();
   }
@@ -584,6 +587,7 @@ class _GameScreenState extends State<GameScreen> {
     if (_gameFullyOver) {
       final winner = players[finishedPlayers.first];
       _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: true);
+      BatterySampler.instance.stop();
       _announcer.stop();
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
@@ -681,6 +685,7 @@ class _GameScreenState extends State<GameScreen> {
     if (_gameFullyOver) {
       final winner = players[finishedPlayers.first];
       _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: true);
+      BatterySampler.instance.stop();
       _announcer.stop();
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
@@ -947,6 +952,7 @@ class _GameScreenState extends State<GameScreen> {
       // New Game — save stats if not already saved
       _log.logPostGame(action: 'newGame');
       _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: _gameFullyOver);
+      BatterySampler.instance.stop();
       if (!_gameFullyOver) {
         _gameFullyOver = true;
         await _updateStats();
