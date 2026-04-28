@@ -4,6 +4,7 @@ enum GameMode {
   aroundTheClock,
   killer,
   halveIt,
+  shanghai,
 }
 
 extension GameModeLabel on GameMode {
@@ -19,6 +20,8 @@ extension GameModeLabel on GameMode {
         return 'Killer';
       case GameMode.halveIt:
         return 'Splitscore';
+      case GameMode.shanghai:
+        return 'Shanghai';
     }
   }
 }
