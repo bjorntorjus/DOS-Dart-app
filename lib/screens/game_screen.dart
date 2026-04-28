@@ -22,6 +22,8 @@ import 'post_game_screen.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../services/battery_sampler.dart';
 
+enum _ThrowOutcome { continueTurn, finish, turnEndNoBust, bust }
+
 class GameScreen extends StatefulWidget {
   final List<Player> players;
   final String masterOut; // 'none', 'double', 'master'
@@ -76,12 +78,17 @@ class _GameScreenState extends State<GameScreen> {
   List<int> _suddenDeathPlayers = [];
   bool _inSuddenDeath = false;
 
+  // No-bust mode state (only populated when widget.noBust == true)
+  List<int> _totalDartsPerPlayer = [];
+  final List<_FinishEntry> _finishes = [];
+
   static const double _playerCardHeight = 72.0;
 
   @override
   void initState() {
     super.initState();
     players = widget.players;
+    _totalDartsPerPlayer = List<int>.filled(players.length, 0, growable: true);
     scoreAtStartOfTurn = players[0].score;
     _announcer.init();
     _meme.init();
@@ -106,6 +113,35 @@ class _GameScreenState extends State<GameScreen> {
     BatterySampler.instance.stop();
     _scoreboardController.dispose();
     super.dispose();
+  }
+
+  /// Classifies a throw outcome based on resulting score, multiplier, out-rule,
+  /// and no-bust mode. Pure helper — no state mutation.
+  _ThrowOutcome _classifyThrow(int newScore, int multiplier) {
+    final isValidOut = widget.masterOut == 'double'
+        ? multiplier == 2
+        : widget.masterOut == 'master'
+            ? multiplier >= 2
+            : true;
+    final needsSpecialOut = widget.masterOut != 'none';
+
+    if (widget.noBust) {
+      if (newScore > 1) return _ThrowOutcome.continueTurn;
+      if (newScore == 1) {
+        return needsSpecialOut
+            ? _ThrowOutcome.turnEndNoBust
+            : _ThrowOutcome.continueTurn;
+      }
+      // newScore <= 0
+      return isValidOut ? _ThrowOutcome.finish : _ThrowOutcome.turnEndNoBust;
+    }
+
+    // Standard X01 (existing logic, expressed via outcomes)
+    if (newScore < 0) return _ThrowOutcome.bust;
+    if (newScore == 0 && needsSpecialOut && !isValidOut) return _ThrowOutcome.bust;
+    if (newScore == 1 && needsSpecialOut) return _ThrowOutcome.bust;
+    if (newScore == 0) return _ThrowOutcome.finish;
+    return _ThrowOutcome.continueTurn;
   }
 
   void _scrollToCurrentPlayer() {
@@ -1545,5 +1581,19 @@ class _PendingCheckout {
     required this.playerIndex,
     required this.dartsUsedInTurn,
     required this.checkoutScore,
+  });
+}
+
+class _FinishEntry {
+  final int playerIndex;
+  final int totalDartsAtFinish;
+  final int overshoot; // 0 if exact-out, else abs(newScore)
+  final int turnId;
+
+  _FinishEntry({
+    required this.playerIndex,
+    required this.totalDartsAtFinish,
+    required this.overshoot,
+    required this.turnId,
   });
 }
