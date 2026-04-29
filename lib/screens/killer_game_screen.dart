@@ -790,7 +790,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                               .contains('Lost') ||
                                           lastThrowLabel!
                                               .contains('Suicide')
-                                      ? const Color(0xFFE53935)
+                                      ? Theme.of(context).colorScheme.error
                                       : lastThrowLabel!
                                               .contains('Must be Killer')
                                           ? Colors.orange
