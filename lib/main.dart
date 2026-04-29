@@ -37,21 +37,18 @@ class DartScoringApp extends StatelessWidget {
       title: 'Dart Scorer',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        useMaterial3: true,
         brightness: Brightness.dark,
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF43A047),
-          secondary: Color(0xFFE53935),
-          surface: Color(0xFF1E1E1E),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF43A047),
+          brightness: Brightness.dark,
+          primary: const Color(0xFF43A047),
+          secondary: const Color(0xFFE53935),
+          error: const Color(0xFFE53935),
         ),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E1E1E),
-          elevation: 0,
-        ),
+        appBarTheme: const AppBarTheme(elevation: 0),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF43A047),
-            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
