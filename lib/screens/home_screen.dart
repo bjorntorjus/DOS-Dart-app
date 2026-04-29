@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.adjust, size: 80, color: Color(0xFFE53935)),
+                Icon(Icons.adjust, size: 80, color: Theme.of(context).colorScheme.secondary),
                 const SizedBox(height: 16),
                 Text(
                   'Dart Scorer',

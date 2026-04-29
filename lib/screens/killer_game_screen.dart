@@ -1274,7 +1274,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53935)),
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             child: const Text('Quit'),
           ),
         ],
