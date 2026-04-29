@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
+import '../widgets/active_player_highlight.dart';
 import '../widgets/dart_board.dart';
 import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
@@ -1669,72 +1670,73 @@ class _GameScreenState extends State<GameScreen> {
                 final isRemoved = _removedPlayerIndices.contains(index);
                 return Opacity(
                   opacity: isRemoved ? 0.4 : 1.0,
-                  child: Container(
-                  height: _playerCardHeight,
-                  color: isCurrent
-                      ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
-                      : isWinner
-                          ? Colors.green.withAlpha(25)
-                          : null,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 28,
-                        child: hasPendingCheckout
-                            ? const Icon(Icons.check_circle,
-                                color: Colors.green, size: 24)
-                            : isCurrent
-                                ? Icon(Icons.arrow_right,
-                                    color: Theme.of(context).colorScheme.primary, size: 24)
-                                : isWinner
-                                    ? const Icon(Icons.emoji_events,
-                                        color: Colors.amber, size: 24)
-                                    : null,
-                      ),
-                      const SizedBox(width: 8),
-                      PlayerAvatar(
-                        avatarPath: player.avatarPath,
-                        name: player.name,
-                        radius: 22,
-                        backgroundColor: avatarColor(index),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
+                  child: ActivePlayerHighlight(
+                    isActive: isCurrent,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      height: _playerCardHeight - 18, // subtract 2*(vertical padding 6 + border 3)
+                      child: Container(
+                        color: isWinner ? Colors.green.withAlpha(25) : null,
+                        child: Row(
                           children: [
-                            Text(
-                              player.name,
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight:
-                                    isCurrent ? FontWeight.bold : FontWeight.normal,
+                            SizedBox(
+                              width: 28,
+                              child: hasPendingCheckout
+                                  ? const Icon(Icons.check_circle,
+                                      color: Colors.green, size: 24)
+                                  : isCurrent
+                                      ? Icon(Icons.arrow_right,
+                                          color: Theme.of(context).colorScheme.primary, size: 24)
+                                      : isWinner
+                                          ? const Icon(Icons.emoji_events,
+                                              color: Colors.amber, size: 24)
+                                          : null,
+                            ),
+                            const SizedBox(width: 8),
+                            PlayerAvatar(
+                              avatarPath: player.avatarPath,
+                              name: player.name,
+                              radius: 22,
+                              backgroundColor: avatarColor(index),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    player.name,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight:
+                                          isCurrent ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  if (_lastDartsLabel(index).isNotEmpty)
+                                    Text(
+                                      _lastDartsLabel(index),
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (_lastDartsLabel(index).isNotEmpty)
-                              Text(
-                                _lastDartsLabel(index),
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.grey[500],
-                                ),
+                            Text(
+                              hasPendingCheckout ? 'OUT' : '${player.score}',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: hasPendingCheckout || isWinner ? Colors.green : null,
                               ),
+                            ),
                           ],
                         ),
                       ),
-                      Text(
-                        hasPendingCheckout ? 'OUT' : '${player.score}',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: hasPendingCheckout || isWinner ? Colors.green : null,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
                   ),
                 );
               },

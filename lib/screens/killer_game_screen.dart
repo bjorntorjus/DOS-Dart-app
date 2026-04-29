@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../widgets/active_player_highlight.dart';
 import '../widgets/dart_board.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
@@ -988,115 +989,116 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
           return Opacity(
             opacity: isRemoved ? 0.4 : 1.0,
-            child: Container(
-            color: eliminated
-                ? Colors.red.withAlpha(15)
-                : isCurrent
-                    ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
+            child: ActivePlayerHighlight(
+              isActive: isCurrent,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                color: eliminated
+                    ? Colors.red.withAlpha(15)
                     : isWinner
                         ? Colors.green.withAlpha(25)
                         : null,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 24,
-                  child: isCurrent
-                      ? Icon(Icons.arrow_right,
-                          color: Theme.of(context).colorScheme.primary, size: 20)
-                      : isWinner
-                          ? const Icon(Icons.emoji_events,
-                              color: Colors.amber, size: 20)
-                          : eliminated
-                              ? const Icon(Icons.close,
-                                  color: Colors.red, size: 20)
-                              : null,
-                ),
-                const SizedBox(width: 8),
-                PlayerAvatar(
-                  avatarPath: player.avatarPath,
-                  name: player.name,
-                  radius: 14,
-                  backgroundColor:
-                      eliminated ? Colors.grey : avatarColor(index),
-                ),
-                const SizedBox(width: 8),
-                // Number badge
-                if (assignedNumbers[index] > 0)
-                  Container(
-                    width: 26,
-                    height: 26,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border:
-                          Border.all(color: Colors.grey[600]!, width: 1),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      child: isCurrent
+                          ? Icon(Icons.arrow_right,
+                              color: Theme.of(context).colorScheme.primary, size: 20)
+                          : isWinner
+                              ? const Icon(Icons.emoji_events,
+                                  color: Colors.amber, size: 20)
+                              : eliminated
+                                  ? const Icon(Icons.close,
+                                      color: Colors.red, size: 20)
+                                  : null,
                     ),
-                    child: Text('${assignedNumbers[index]}',
-                        style: const TextStyle(fontSize: 11)),
-                  ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        player.name,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight:
-                              isCurrent ? FontWeight.bold : FontWeight.normal,
-                          decoration: eliminated
-                              ? TextDecoration.lineThrough
-                              : null,
-                          color: eliminated ? Colors.grey : null,
+                    const SizedBox(width: 8),
+                    PlayerAvatar(
+                      avatarPath: player.avatarPath,
+                      name: player.name,
+                      radius: 14,
+                      backgroundColor:
+                          eliminated ? Colors.grey : avatarColor(index),
+                    ),
+                    const SizedBox(width: 8),
+                    // Number badge
+                    if (assignedNumbers[index] > 0)
+                      Container(
+                        width: 26,
+                        height: 26,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border:
+                              Border.all(color: Colors.grey[600]!, width: 1),
                         ),
+                        child: Text('${assignedNumbers[index]}',
+                            style: const TextStyle(fontSize: 11)),
                       ),
-                      if (isKiller[index] && !eliminated)
-                        const Text('KILLER',
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            player.name,
                             style: TextStyle(
-                                color: Colors.amber,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
-                      if (_lastDartsLabel(index).isNotEmpty)
-                        Text(
-                          _lastDartsLabel(index),
-                          style: TextStyle(
-                              fontSize: 10, color: Colors.grey[500]),
-                        ),
-                    ],
-                  ),
+                              fontSize: 15,
+                              fontWeight:
+                                  isCurrent ? FontWeight.bold : FontWeight.normal,
+                              decoration: eliminated
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: eliminated ? Colors.grey : null,
+                            ),
+                          ),
+                          if (isKiller[index] && !eliminated)
+                            const Text('KILLER',
+                                style: TextStyle(
+                                    color: Colors.amber,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
+                          if (_lastDartsLabel(index).isNotEmpty)
+                            Text(
+                              _lastDartsLabel(index),
+                              style: TextStyle(
+                                  fontSize: 10, color: Colors.grey[500]),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Shields + Lives
+                    if (phase == KillerPhase.playing)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Shield icons
+                          if (widget.config.shields)
+                            ...List.generate(shields[index], (_) {
+                              return const Icon(
+                                Icons.shield,
+                                size: 16,
+                                color: Colors.blue,
+                              );
+                            }),
+                          if (widget.config.shields && shields[index] > 0)
+                            const SizedBox(width: 4),
+                          // Life hearts
+                          ...List.generate(widget.config.lives, (li) {
+                            final hasLife = li < lives[index];
+                            return Icon(
+                              hasLife ? Icons.favorite : Icons.favorite_border,
+                              size: 18,
+                              color: hasLife ? Colors.red : Theme.of(context).colorScheme.surfaceContainer,
+                            );
+                          }),
+                        ],
+                      ),
+                  ],
                 ),
-                // Shields + Lives
-                if (phase == KillerPhase.playing)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Shield icons
-                      if (widget.config.shields)
-                        ...List.generate(shields[index], (_) {
-                          return const Icon(
-                            Icons.shield,
-                            size: 16,
-                            color: Colors.blue,
-                          );
-                        }),
-                      if (widget.config.shields && shields[index] > 0)
-                        const SizedBox(width: 4),
-                      // Life hearts
-                      ...List.generate(widget.config.lives, (li) {
-                        final hasLife = li < lives[index];
-                        return Icon(
-                          hasLife ? Icons.favorite : Icons.favorite_border,
-                          size: 18,
-                          color: hasLife ? Colors.red : Theme.of(context).colorScheme.surfaceContainer,
-                        );
-                      }),
-                    ],
-                  ),
-              ],
-            ),
+              ),
             ),
           );
         },

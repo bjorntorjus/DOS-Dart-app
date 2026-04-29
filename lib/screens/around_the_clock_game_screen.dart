@@ -4,6 +4,7 @@ import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/saved_player.dart';
+import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/clock_progress.dart';
 import '../services/player_storage.dart';
@@ -1087,71 +1088,70 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 final isRemoved = _removedPlayerIndices.contains(index);
                 return Opacity(
                   opacity: isRemoved ? 0.4 : 1.0,
-                  child: Container(
-                  color: isCurrent
-                      ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
-                      : isWinner
-                          ? Colors.green.withAlpha(25)
-                          : null,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 32,
-                        child: _pendingFinishes.any((f) => f.playerIndex == index)
-                            ? const Icon(Icons.check_circle,
-                                color: Colors.green, size: 28)
-                            : isCurrent
-                                ? Icon(Icons.arrow_right,
-                                    color: Theme.of(context).colorScheme.primary, size: 28)
-                                : isWinner
-                                    ? const Icon(Icons.emoji_events,
-                                        color: Colors.amber, size: 28)
-                                    : null,
+                  child: ActivePlayerHighlight(
+                    isActive: isCurrent,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      color: isWinner ? Colors.green.withAlpha(25) : null,
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 32,
+                            child: _pendingFinishes.any((f) => f.playerIndex == index)
+                                ? const Icon(Icons.check_circle,
+                                    color: Colors.green, size: 28)
+                                : isCurrent
+                                    ? Icon(Icons.arrow_right,
+                                        color: Theme.of(context).colorScheme.primary, size: 28)
+                                    : isWinner
+                                        ? const Icon(Icons.emoji_events,
+                                            color: Colors.amber, size: 28)
+                                        : null,
+                          ),
+                          const SizedBox(width: 10),
+                          PlayerAvatar(
+                            avatarPath: player.avatarPath,
+                            name: player.name,
+                            radius: 22,
+                            backgroundColor: avatarColor(index),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(player.name,
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: isCurrent
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    )),
+                                if (_lastDartsLabel(index).isNotEmpty)
+                                  Text(
+                                    _lastDartsLabel(index),
+                                    style: TextStyle(
+                                        fontSize: 14, color: Colors.grey[500]),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            _isFinished(target)
+                                ? 'Done!'
+                                : target == 25
+                                    ? 'Bull'
+                                    : '$target',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: isWinner ? Colors.green : null,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      PlayerAvatar(
-                        avatarPath: player.avatarPath,
-                        name: player.name,
-                        radius: 22,
-                        backgroundColor: avatarColor(index),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(player.name,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: isCurrent
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                )),
-                            if (_lastDartsLabel(index).isNotEmpty)
-                              Text(
-                                _lastDartsLabel(index),
-                                style: TextStyle(
-                                    fontSize: 14, color: Colors.grey[500]),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        _isFinished(target)
-                            ? 'Done!'
-                            : target == 25
-                                ? 'Bull'
-                                : '$target',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: isWinner ? Colors.green : null,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
                   ),
                 );
               },
