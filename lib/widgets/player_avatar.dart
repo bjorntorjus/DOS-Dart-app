@@ -28,7 +28,7 @@ class PlayerAvatar extends StatelessWidget {
       if (file.existsSync()) {
         return CircleAvatar(
           radius: radius,
-          backgroundColor: backgroundColor ?? Colors.grey[700],
+          backgroundColor: backgroundColor ?? Theme.of(context).colorScheme.surfaceContainer,
           backgroundImage: FileImage(file),
         );
       }

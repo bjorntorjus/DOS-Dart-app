@@ -44,7 +44,7 @@ class ClockProgress extends StatelessWidget {
                   ? Colors.green
                   : isCurrent
                       ? Colors.amber
-                      : Colors.grey[800],
+                      : Theme.of(context).colorScheme.surfaceContainerLow,
               border: isCurrent
                   ? Border.all(color: Colors.amber, width: 2)
                   : null,

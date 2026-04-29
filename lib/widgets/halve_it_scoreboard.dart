@@ -85,7 +85,7 @@ class HalveItScoreboard extends StatelessWidget {
             }),
             // Total row
             DataRow(
-              color: const WidgetStatePropertyAll(Color(0xFF2A2A2A)),
+              color: WidgetStatePropertyAll(Theme.of(context).colorScheme.surfaceContainerLow),
               cells: [
                 const DataCell(Text('Total',
                     style:
