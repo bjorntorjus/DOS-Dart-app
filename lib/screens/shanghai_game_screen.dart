@@ -15,6 +15,7 @@ import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
 import '../utils/player_colors.dart';
+import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/player_avatar.dart';
 import 'post_game_screen.dart';
@@ -537,7 +538,6 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   }
 
   Widget _buildScoreboard() {
-    final primary = Theme.of(context).colorScheme.primary;
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
@@ -551,7 +551,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 avatarPath: players[i].avatarPath,
                 name: players[i].name,
                 radius: 22,
-                backgroundColor: isActive ? primary : avatarColor(i),
+                backgroundColor: avatarColor(i),
               ),
               const SizedBox(height: 4),
               Text(
@@ -565,26 +565,16 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 '${engine.totalScores[i]}',
                 style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isActive ? primary : Colors.white),
+                    fontWeight: FontWeight.bold),
               ),
             ],
           );
-          final wrapped = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isActive ? primary : Colors.transparent,
-                width: 3,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              color: isActive ? primary.withValues(alpha: 0.08) : null,
-            ),
-            child: col,
-          );
           return Opacity(
             opacity: isRemoved ? 0.4 : 1.0,
-            child: wrapped,
+            child: ActivePlayerHighlight(
+              isActive: isActive,
+              child: col,
+            ),
           );
         }),
       ),
