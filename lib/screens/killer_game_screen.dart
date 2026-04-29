@@ -808,7 +808,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                       label: const Text('Back', style: TextStyle(fontSize: 16)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
+                        side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
                     ),
@@ -819,7 +819,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                   ElevatedButton(
                     onPressed: winnerIndex == null ? _onMiss : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[800],
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 28, vertical: 14),
@@ -970,8 +970,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     return Container(
       constraints: const BoxConstraints(maxHeight: 200),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        border: Border(top: BorderSide(color: Colors.grey[800]!)),
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
       ),
       child: ListView.builder(
         padding: EdgeInsets.zero,
@@ -1090,7 +1090,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         return Icon(
                           hasLife ? Icons.favorite : Icons.favorite_border,
                           size: 18,
-                          color: hasLife ? Colors.red : Colors.grey[700],
+                          color: hasLife ? Colors.red : Theme.of(context).colorScheme.surfaceContainer,
                         );
                       }),
                     ],

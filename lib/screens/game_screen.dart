@@ -1594,7 +1594,7 @@ class _GameScreenState extends State<GameScreen> {
                       label: const Text('Back', style: TextStyle(fontSize: 18)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
+                        side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                       ),
                     ),
@@ -1604,7 +1604,7 @@ class _GameScreenState extends State<GameScreen> {
                 ElevatedButton(
                   onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[800],
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 16),
@@ -1615,7 +1615,7 @@ class _GameScreenState extends State<GameScreen> {
                 ElevatedButton(
                   onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB71C1C),
+                    backgroundColor: Theme.of(context).colorScheme.error,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 16),
@@ -1632,9 +1632,9 @@ class _GameScreenState extends State<GameScreen> {
               maxHeight: _playerCardHeight * 3,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
+              color: Theme.of(context).colorScheme.surface,
               border: Border(
-                top: BorderSide(color: Colors.grey[800]!),
+                top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow),
               ),
             ),
             child: ListView.builder(

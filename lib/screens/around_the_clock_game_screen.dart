@@ -606,7 +606,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
             child: ElevatedButton(
               onPressed: isActive ? _onMiss : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[800],
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
@@ -626,7 +626,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                   label: const Text('Back'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.grey[400],
-                    side: BorderSide(color: Colors.grey[700]!),
+                    side: BorderSide(color: Theme.of(context).colorScheme.outline),
                   ),
                 ),
               ),
@@ -1070,8 +1070,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
           Container(
             constraints: const BoxConstraints(maxHeight: 280),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              border: Border(top: BorderSide(color: Colors.grey[800]!)),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: ListView.builder(
               padding: EdgeInsets.zero,

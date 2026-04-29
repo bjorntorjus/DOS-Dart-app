@@ -629,15 +629,15 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
             : _logLabelForHit(hit, target);
     final color = filled
         ? (hit == HitType.miss
-            ? Colors.grey[700]!
+            ? Theme.of(context).colorScheme.surfaceContainer
             : Theme.of(context).colorScheme.primary)
-        : const Color(0xFF374151);
+        : Theme.of(context).colorScheme.surfaceContainer;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: filled ? 1.0 : 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF4B5563)),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Column(
         children: [
@@ -664,7 +664,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
               Expanded(
                   child: _bigButton('${engine.currentTarget}',
                       () => _onHit(HitType.single),
-                      const Color(0xFF43A047))),
+                      Theme.of(context).colorScheme.primary)),
               const SizedBox(width: 8),
               Expanded(
                   child: _bigButton('D${engine.currentTarget}',
@@ -684,7 +684,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
             child: ElevatedButton(
               onPressed: () => _onHit(HitType.miss),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[800],
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),

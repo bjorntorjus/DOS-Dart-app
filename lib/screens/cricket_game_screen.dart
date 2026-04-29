@@ -667,8 +667,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              border: Border(bottom: BorderSide(color: Colors.grey[800]!)),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: Column(
               children: [
@@ -781,7 +781,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[800]!)),
+              border: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: Row(
               children: [
@@ -826,7 +826,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                       decoration: BoxDecoration(
                         color: closedByAll
                             ? Colors.grey[900]?.withAlpha(120)
-                            : const Color(0xFF1E1E1E),
+                            : Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -950,7 +950,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               child: ElevatedButton(
                 onPressed: isGameActive ? _onMiss : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[800],
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                   foregroundColor: Colors.white,
                   textStyle: const TextStyle(
                       fontSize: 28,
@@ -979,7 +979,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           decoration: BoxDecoration(
             color: Colors.grey[850] ?? Colors.grey[900],
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.grey[700]!, width: 0.5),
+            border: Border.all(color: Theme.of(context).colorScheme.outline, width: 0.5),
           ),
         ),
         if (fillFraction > 0)
@@ -1027,14 +1027,14 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         onPressed: () => _registerHit(target, multiplier),
         style: ElevatedButton.styleFrom(
           backgroundColor:
-              isFilled ? color.withAlpha(170) : const Color(0xFF374151),
-          foregroundColor: isFilled ? Colors.white : const Color(0xFFD1D5DB),
+              isFilled ? color.withAlpha(170) : Theme.of(context).colorScheme.surfaceContainer,
+          foregroundColor: isFilled ? Colors.white : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
           elevation: 0,
           padding: EdgeInsets.zero,
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           side: BorderSide(
-            color: isFilled ? color.withAlpha(200) : const Color(0xFF4B5563),
+            color: isFilled ? color.withAlpha(200) : Theme.of(context).colorScheme.outline,
           ),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),

@@ -738,7 +738,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         label: const Text('Back', style: TextStyle(fontSize: 16)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.grey[400],
-                          side: BorderSide(color: Colors.grey[700]!),
+                          side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         ),
                       ),
                     ),
@@ -755,8 +755,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               maxHeight: _playerCardHeight * 3,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              border: Border(top: BorderSide(color: Colors.grey[800]!)),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: ListView.builder(
               controller: _scoreboardController,
@@ -912,7 +912,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             child: ElevatedButton(
               onPressed: _onMiss,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[800],
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -997,7 +997,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               child: ElevatedButton(
                 onPressed: _onMiss,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[800],
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
