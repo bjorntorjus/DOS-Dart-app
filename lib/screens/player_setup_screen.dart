@@ -675,7 +675,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                       icon: const Icon(Icons.play_arrow, size: 28),
                       label: const Text('START GAME'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF43A047),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         textStyle: const TextStyle(

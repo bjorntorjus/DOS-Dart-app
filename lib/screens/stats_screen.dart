@@ -289,7 +289,7 @@ class _StatsScreenState extends State<StatsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.sports_esports, size: 48, color: Colors.grey[700]),
+            Icon(Icons.sports_esports, size: 48, color: Theme.of(context).colorScheme.surfaceContainer),
             const SizedBox(height: 16),
             Text(
               'No $modeLabel games played yet',
@@ -767,7 +767,7 @@ class _StatsScreenState extends State<StatsScreen>
                 padding: const EdgeInsets.only(top: 48),
                 child: Column(
                   children: [
-                    Icon(Icons.map, size: 48, color: Colors.grey[700]),
+                    Icon(Icons.map, size: 48, color: Theme.of(context).colorScheme.surfaceContainer),
                     const SizedBox(height: 16),
                     Text(
                       'Select a player to see their heatmap',
@@ -854,7 +854,7 @@ class _StatsScreenState extends State<StatsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history, size: 64, color: Colors.grey[700]),
+            Icon(Icons.history, size: 64, color: Theme.of(context).colorScheme.surfaceContainer),
             const SizedBox(height: 16),
             Text('No games recorded yet',
                 style: TextStyle(color: Colors.grey[500], fontSize: 18)),
@@ -889,15 +889,15 @@ class _StatsScreenState extends State<StatsScreen>
         leading: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF43A047).withAlpha(30),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFF43A047).withAlpha(80)),
+            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.32)),
           ),
           child: Text(label,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF43A047))),
+                  color: Theme.of(context).colorScheme.primary)),
         ),
         title: Row(
           children: sorted.take(3).map((p) {
