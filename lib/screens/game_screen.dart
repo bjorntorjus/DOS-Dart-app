@@ -1434,12 +1434,12 @@ class _GameScreenState extends State<GameScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 8),
-              color: const Color(0xFFE53935),
-              child: const Text(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Text(
                 'SUDDEN DEATH',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onErrorContainer,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
@@ -1572,16 +1572,32 @@ class _GameScreenState extends State<GameScreen> {
               children: [
                 if (lastThrowLabel != null)
                   Expanded(
-                    child: Text(
-                      'Last: $lastThrowLabel',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: lastThrowLabel!.contains('BUST')
-                            ? const Color(0xFFE53935)
-                            : Colors.white,
-                      ),
-                    ),
+                    child: lastThrowLabel!.contains('BUST')
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.warning_amber,
+                                  color: Theme.of(context).colorScheme.error,
+                                  size: 18),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Last: $lastThrowLabel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            'Last: $lastThrowLabel',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   )
                 else
                   const Expanded(child: SizedBox()),
