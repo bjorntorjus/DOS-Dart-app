@@ -670,12 +670,12 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
               Expanded(
                   child: _bigButton('D${engine.currentTarget}',
                       () => _onHit(HitType.double_),
-                      const Color(0xFF1E88E5))),
+                      Theme.of(context).colorScheme.secondary)),
               const SizedBox(width: 8),
               Expanded(
                   child: _bigButton('T${engine.currentTarget}',
                       () => _onHit(HitType.triple),
-                      const Color(0xFFE53935))),
+                      Theme.of(context).colorScheme.tertiary)),
             ],
           ),
           const SizedBox(height: 8),
