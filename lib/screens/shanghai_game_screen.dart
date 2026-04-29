@@ -74,7 +74,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     AppSettings.getMemeOffensive().then((v) {
       if (mounted) setState(() => _offensiveEnabled = v);
     });
-    _ttsEnabled = TtsService.instance.enabled;
+    TtsService.instance.init().then((_) {
+      if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
+    });
   }
 
   @override

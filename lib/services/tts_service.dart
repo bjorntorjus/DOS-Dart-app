@@ -19,6 +19,18 @@ class TtsService {
 
   bool get enabled => _enabled;
 
+  @visibleForTesting
+  bool get isInitialized => _initialized;
+
+  @visibleForTesting
+  void resetForTesting() {
+    _initialized = false;
+    _enabled = false;
+    _speaking = false;
+    _queue.clear();
+    _idleCallbacks.clear();
+  }
+
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
@@ -102,6 +114,7 @@ class TtsService {
   }
 
   Future<void> setEnabled(bool value) async {
+    if (!_initialized) await init();
     _enabled = value;
     await AppSettings.setTtsEnabled(value);
     if (!value) await stop();
