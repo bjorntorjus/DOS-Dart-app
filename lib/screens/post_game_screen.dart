@@ -213,22 +213,7 @@ class _PlayerResultTile extends StatelessWidget {
             ),
             // Rating change
             if (ratingChange != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: ratingChange >= 0
-                      ? Colors.green.withAlpha(30)
-                      : Colors.red.withAlpha(30),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${ratingChange >= 0 ? '+' : ''}${ratingChange.toStringAsFixed(1)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: ratingChange >= 0 ? Colors.green : Colors.red,
-                  ),
-                ),
-              ),
+              _buildRatingDelta(context, ratingChange),
           ],
         ),
       ),
@@ -261,6 +246,33 @@ class _PlayerResultTile extends StatelessWidget {
     return Text(
       entries.join(' | '),
       style: TextStyle(color: Colors.grey[400], fontSize: 12),
+    );
+  }
+
+  Widget _buildRatingDelta(BuildContext context, double delta) {
+    if (delta.abs() < 0.5) {
+      return Text(
+        '±0',
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+        ),
+      );
+    }
+    final cs = Theme.of(context).colorScheme;
+    final positive = delta > 0;
+    final color = positive ? cs.primary : cs.error;
+    final icon = positive ? Icons.arrow_upward : Icons.arrow_downward;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 14),
+        const SizedBox(width: 2),
+        Text(
+          '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)}',
+          style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold),
+        ),
+      ],
     );
   }
 }
