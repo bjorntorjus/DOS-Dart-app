@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/halve_it_round.dart';
+import 'active_player_highlight.dart';
 
 class HalveItScoreboard extends StatelessWidget {
   final List<HalveItRound> rounds;
@@ -32,15 +33,22 @@ class HalveItScoreboard extends StatelessWidget {
           columns: [
             const DataColumn(label: Text('Round', style: TextStyle(fontSize: 12))),
             ...List.generate(playerNames.length, (pi) {
+              final isCurrent = pi == currentPlayerIndex;
               return DataColumn(
-                label: Text(
-                  playerNames[pi].length > 6
-                      ? playerNames[pi].substring(0, 6)
-                      : playerNames[pi],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
+                label: ActivePlayerHighlight(
+                  isActive: isCurrent,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  borderRadius: BorderRadius.circular(8),
+                  borderWidth: 2,
+                  child: Text(
+                    playerNames[pi].length > 6
+                        ? playerNames[pi].substring(0, 6)
+                        : playerNames[pi],
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ),
               );
