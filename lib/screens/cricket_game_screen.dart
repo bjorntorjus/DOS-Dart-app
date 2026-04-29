@@ -1016,6 +1016,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Widget _markButton(int target, int multiplier, int currentMarks) {
     final isBull = target == 25;
     final isFilled = currentMarks >= multiplier;
+    final isDead = _isClosedByAll(target);
     final cs = Theme.of(context).colorScheme;
     final label = switch (multiplier) {
       2 => isBull ? 'DBull' : 'D$target',
@@ -1023,26 +1024,29 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       _ => isBull ? 'Bull' : '$target',
     };
     return SizedBox.expand(
-      child: ElevatedButton(
-        onPressed: () => _registerHit(target, multiplier),
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              isFilled ? cs.primary.withValues(alpha: 0.7) : cs.surfaceContainer,
-          foregroundColor: isFilled ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.7),
-          elevation: 0,
-          padding: EdgeInsets.zero,
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          side: BorderSide(
-            color: isFilled ? cs.primary.withValues(alpha: 0.8) : cs.outline,
+      child: Tooltip(
+        message: isDead ? 'Closed by all players' : '',
+        child: ElevatedButton(
+          onPressed: isDead ? null : () => _registerHit(target, multiplier),
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                isFilled ? cs.primary.withValues(alpha: 0.7) : cs.surfaceContainer,
+            foregroundColor: isFilled ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.7),
+            elevation: 0,
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            side: BorderSide(
+              color: isFilled ? cs.primary.withValues(alpha: 0.8) : cs.outline,
+            ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           ),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(label,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          ),
         ),
       ),
     );

@@ -7,6 +7,7 @@ class CricketScoreboard extends StatelessWidget {
   final List<Map<int, int>> marks; // [playerIndex][target] = mark count (0-3+)
   final List<int> scores;
   final int currentPlayerIndex;
+  final Set<int> deadTargets;
 
   const CricketScoreboard({
     super.key,
@@ -15,6 +16,7 @@ class CricketScoreboard extends StatelessWidget {
     required this.marks,
     required this.scores,
     required this.currentPlayerIndex,
+    this.deadTargets = const {},
   });
 
   @override
@@ -54,15 +56,29 @@ class CricketScoreboard extends StatelessWidget {
           rows: [
             // Target rows
             ...targets.map((target) {
+              final isDead = deadTargets.contains(target);
               return DataRow(cells: [
-                DataCell(Text(
-                  target == 25 ? 'Bull' : '$target',
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.bold),
-                )),
+                DataCell(
+                  Opacity(
+                    opacity: isDead ? 0.35 : 1.0,
+                    child: Text(
+                      target == 25 ? 'Bull' : '$target',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        decoration: isDead ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                  ),
+                ),
                 ...List.generate(playerNames.length, (pi) {
                   final m = marks[pi][target] ?? 0;
-                  return DataCell(Center(child: _markWidget(m)));
+                  return DataCell(Center(
+                    child: Opacity(
+                      opacity: isDead ? 0.35 : 1.0,
+                      child: _markWidget(m, isDead, Theme.of(context).colorScheme),
+                    ),
+                  ));
                 }),
               ]);
             }),
@@ -90,23 +106,24 @@ class CricketScoreboard extends StatelessWidget {
     );
   }
 
-  Widget _markWidget(int count) {
+  Widget _markWidget(int count, bool isDead, ColorScheme cs) {
     if (count == 0) return const SizedBox(width: 24);
+    final closedColor = isDead ? cs.onSurface.withValues(alpha: 0.4) : Colors.green;
     if (count == 1) {
-      return const Text('/', style: TextStyle(fontSize: 16, color: Colors.white));
+      return Text('/', style: TextStyle(fontSize: 16, color: cs.onSurface));
     }
     if (count == 2) {
-      return const Text('X', style: TextStyle(fontSize: 16, color: Colors.white));
+      return Text('X', style: TextStyle(fontSize: 16, color: cs.onSurface));
     }
-    // 3+ = closed (circle)
+    // 3+ = closed (circle or lock)
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.radio_button_checked,
-            size: 16, color: Colors.green),
+        Icon(isDead ? Icons.lock_outline : Icons.radio_button_checked,
+            size: 16, color: closedColor),
         if (count > 3)
           Text('+${count - 3}',
-              style: const TextStyle(fontSize: 10, color: Colors.green)),
+              style: TextStyle(fontSize: 10, color: closedColor)),
       ],
     );
   }
