@@ -12,6 +12,7 @@ import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
+import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
@@ -56,6 +57,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   final MemeService _meme = MemeService();
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
+  bool _ttsEnabled = false;
   bool _missSoundPlayed = false;
   int _consecutiveMisses = 0;
   int _scoreAtStartOfTurn = 0;
@@ -76,6 +78,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     _meme.init();
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
+    _ttsEnabled = TtsService.instance.enabled;
     _log.logGameStart(
       gameMode: widget.config.isCutthroat ? 'Cricket (Cutthroat)' : 'Cricket',
       playerNames: players.map((p) => p.name).toList(),
@@ -616,6 +619,14 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
             icon: const Icon(Icons.group_add),
             onPressed: _gameFullyOver ? null : _openPlayerManagement,
             tooltip: 'Manage players',
+          ),
+          IconButton(
+            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+            onPressed: () async {
+              await TtsService.instance.setEnabled(!_ttsEnabled);
+              setState(() => _ttsEnabled = TtsService.instance.enabled);
+            },
+            tooltip: 'Speech',
           ),
           IconButton(
             icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),

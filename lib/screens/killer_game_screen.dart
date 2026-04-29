@@ -13,6 +13,7 @@ import '../services/meme_service.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/game_logger.dart';
+import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
 import 'post_game_screen.dart';
@@ -58,6 +59,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   final MemeService _meme = MemeService();
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
+  bool _ttsEnabled = false;
   bool _missSoundPlayed = false;
 
   Map<String, double> _ratingsBefore = {};
@@ -109,6 +111,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     });
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
+    _ttsEnabled = TtsService.instance.enabled;
   }
 
   @override
@@ -708,6 +711,14 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
               onPressed: winnerIndex != null ? null : _openPlayerManagement,
               tooltip: 'Manage players',
             ),
+          IconButton(
+            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+            onPressed: () async {
+              await TtsService.instance.setEnabled(!_ttsEnabled);
+              setState(() => _ttsEnabled = TtsService.instance.enabled);
+            },
+            tooltip: 'Speech',
+          ),
           IconButton(
             icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
             onPressed: () {

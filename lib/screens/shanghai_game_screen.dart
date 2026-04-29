@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_result.dart';
 import '../models/player.dart';
+import '../models/saved_player.dart';
 import '../models/shanghai_engine.dart';
+import '../services/app_settings.dart';
 import '../services/battery_sampler.dart';
 import '../services/elo_service.dart';
 import '../services/game_logger.dart';
+import '../services/meme_service.dart';
 import '../services/player_storage.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
 import '../utils/player_colors.dart' show playerColor;
+import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/player_avatar.dart';
 import 'post_game_screen.dart';
 
@@ -33,6 +38,17 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   late ShanghaiGameEngine engine;
   final GameLogger _log = GameLogger.instance;
 
+  // Per-turn hit history for the dart-slot display.
+  // Reset whenever a new turn starts. Length matches engine.dartNumber.
+  final List<HitType> _turnHits = [];
+
+  final MemeService _meme = MemeService();
+  bool _memeEnabled = false;
+  bool _offensiveEnabled = false;
+  bool _ttsEnabled = false;
+
+  bool _midGamePlayerChanges = false;
+
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
@@ -51,6 +67,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       config: {'targetEnd': widget.config.targetEnd},
     );
     BatterySampler.instance.start('Shanghai');
+    _meme.init();
+    AppSettings.getMemeEnabled().then((v) {
+      if (mounted) setState(() => _memeEnabled = v);
+    });
+    AppSettings.getMemeOffensive().then((v) {
+      if (mounted) setState(() => _offensiveEnabled = v);
+    });
+    _ttsEnabled = TtsService.instance.enabled;
   }
 
   @override
@@ -59,40 +83,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     super.dispose();
   }
 
-  void _onHit(HitType type) {
-    if (engine.gameOver) return;
-    final playerIdx = engine.currentPlayerIndex;
-    final dart = engine.dartNumber;
-    final target = engine.currentTarget;
-    final scoreBefore = engine.totalScores[playerIdx];
+  int _multiplierFor(HitType type) => switch (type) {
+        HitType.single => 1,
+        HitType.double_ => 2,
+        HitType.triple => 3,
+        HitType.miss => 0,
+      };
 
-    setState(() {
-      engine.recordThrow(type);
-    });
-
-    final scoreAfter = engine.totalScores[playerIdx];
-    final label = _labelForHit(type, target);
-    _log.logThrow(
-      roundNumber: engine.currentRound,
-      playerIndex: playerIdx,
-      label: label,
-      points: scoreAfter - scoreBefore,
-      scoreBefore: scoreBefore,
-      scoreAfter: scoreAfter,
-      dartNumber: dart,
-    );
-
-    SoundService.instance.play(type == HitType.miss ? 'miss/miss' : 'nice/nice');
-    if (TtsService.instance.enabled) {
-      TtsService.instance.speak(label);
-    }
-
-    if (engine.gameOver) {
-      _onGameEnd();
-    }
-  }
-
-  String _labelForHit(HitType type, int target) {
+  String _logLabelForHit(HitType type, int target) {
     switch (type) {
       case HitType.single:
         return 'S$target';
@@ -102,6 +100,81 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
         return 'T$target';
       case HitType.miss:
         return 'miss';
+    }
+  }
+
+  String _spokenForHit(HitType type, int target) {
+    switch (type) {
+      case HitType.single:
+        return '$target';
+      case HitType.double_:
+        return 'double $target';
+      case HitType.triple:
+        return 'triple $target';
+      case HitType.miss:
+        return 'miss';
+    }
+  }
+
+  void _onHit(HitType type) {
+    if (engine.gameOver) return;
+    final playerIdx = engine.currentPlayerIndex;
+    final dart = engine.dartNumber;
+    final target = engine.currentTarget;
+    final scoreBefore = engine.totalScores[playerIdx];
+    final wasTurnStart = dart == 0;
+
+    setState(() {
+      engine.recordThrow(type);
+      _turnHits.add(type);
+    });
+
+    final scoreAfter = engine.totalScores[playerIdx];
+    final pointsDelta = scoreAfter - scoreBefore;
+    final logLabel = _logLabelForHit(type, target);
+
+    _log.logThrow(
+      roundNumber: engine.currentRound,
+      playerIndex: playerIdx,
+      label: logLabel,
+      points: pointsDelta,
+      scoreBefore: scoreBefore,
+      scoreAfter: scoreAfter,
+      dartNumber: dart,
+    );
+
+    final dartThrow = DartThrow(
+      playerIndex: playerIdx,
+      segment: type == HitType.miss ? 0 : target,
+      multiplier: _multiplierFor(type),
+      points: pointsDelta,
+      scoreBefore: scoreBefore,
+      turnNumber: dart,
+      scoreAtStartOfTurn: wasTurnStart ? scoreBefore : (scoreBefore - 0),
+      roundNumber: engine.currentRound,
+    );
+
+    // Play core sound (miss/nice) before meme so meme can mark and skip TTS.
+    if (type == HitType.miss) {
+      SoundService.instance.play('miss/miss');
+    } else {
+      SoundService.instance.play('nice/nice');
+    }
+
+    final memeTriggered = _meme.onThrow(dartThrow);
+    if (!memeTriggered && _ttsEnabled) {
+      TtsService.instance.speak(_spokenForHit(type, target));
+    }
+
+    // Did the engine just advance to the next turn?
+    final turnEnded = engine.dartNumber == 0;
+    if (turnEnded) {
+      _meme.onTurnEnd();
+      _turnHits.clear();
+    }
+
+    if (engine.gameOver) {
+      _onGameEnd();
     }
   }
 
@@ -122,7 +195,6 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   Future<void> _updateStats(List<int> ranking) async {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
-    // Capture ratings before update
     _ratingsBefore = {};
     for (final p in players) {
       if (p.savedPlayerId == null) continue;
@@ -130,20 +202,20 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
-    // Build placements list (1-indexed, lower = better)
     final placements = List.filled(players.length, 0);
     for (int rank = 0; rank < ranking.length; rank++) {
       final idx = ranking[rank];
-      if (rank > 0 && engine.totalScores[idx] == engine.totalScores[ranking[rank - 1]]) {
-        placements[idx] = placements[ranking[rank - 1]]; // tie
+      if (rank > 0 &&
+          engine.totalScores[idx] == engine.totalScores[ranking[rank - 1]]) {
+        placements[idx] = placements[ranking[rank - 1]];
       } else {
         placements[idx] = rank + 1;
       }
     }
 
-    // Mode-specific counters
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       modeCounters[playerId] = {
@@ -153,13 +225,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       };
     }
 
-    EloService.updateRatings(
-      playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: placements,
-      savedPlayers: savedPlayers,
-    );
+    if (!_midGamePlayerChanges) {
+      EloService.updateRatings(
+        playerIds: players.map((p) => p.savedPlayerId).toList(),
+        placements: placements,
+        savedPlayers: savedPlayers,
+      );
+    }
 
-    // Capture ratings after update
     _ratingsAfter = {};
     for (final p in players) {
       if (p.savedPlayerId == null) continue;
@@ -178,7 +251,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ratingsAfter: _ratingsAfter,
     );
 
-    await PlayerStorage.savePlayers(savedPlayers);
+    if (!_midGamePlayerChanges) {
+      await PlayerStorage.savePlayers(savedPlayers);
+    }
   }
 
   void _showPostGame(List<int> ranking) {
@@ -210,7 +285,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   }
 
   List<int> _rankPlayers() {
-    final indices = List<int>.generate(players.length, (i) => i);
+    final indices = List<int>.generate(players.length, (i) => i)
+        .where((i) => !engine.isSkipped(i))
+        .toList();
     indices.sort((a, b) => engine.totalScores[b].compareTo(engine.totalScores[a]));
     if (engine.isInstantShanghai && engine.winnerIndex != null) {
       indices.remove(engine.winnerIndex!);
@@ -223,6 +300,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     if (engine.gameOver) return;
     setState(() {
       engine.undo();
+      if (_turnHits.isNotEmpty) {
+        _turnHits.removeLast();
+      }
     });
     _log.logUndo(
       playerIndex: engine.currentPlayerIndex,
@@ -258,20 +338,179 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     );
   }
 
+  void _openPlayerManagement() {
+    showMidGamePlayerSheet(
+      context: context,
+      players: players,
+      isRemoved: (i) => engine.isSkipped(i),
+      gameOver: engine.gameOver,
+      colorFor: playerColor,
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    final activeIndices = List.generate(players.length, (i) => i)
+        .where((i) => !engine.isSkipped(i))
+        .toList();
+    int avgScore = 0;
+    if (activeIndices.isNotEmpty) {
+      avgScore = (activeIndices
+                  .map((i) => engine.totalScores[i])
+                  .reduce((a, b) => a + b) /
+              activeIndices.length)
+          .round();
+    }
+    setState(() {
+      _midGamePlayerChanges = true;
+      players.add(Player(
+        name: sp.name,
+        score: avgScore,
+        savedPlayerId: sp.id,
+        avatarPath: sp.avatarPath,
+      ));
+      engine.addPlayer(initialScore: avgScore);
+    });
+  }
+
+  void _removePlayerMidGame(int playerIndex) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${players[playerIndex].name}?'),
+        content: const Text('Rating will not be updated for this game.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _midGamePlayerChanges = true;
+                final wasCurrent = engine.currentPlayerIndex == playerIndex;
+                engine.removePlayer(playerIndex);
+                if (wasCurrent) _turnHits.clear();
+                if (engine.gameOver) {
+                  _onGameEnd();
+                }
+              });
+            },
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMemeFrequencyDialog() {
+    int currentFreq = _meme.frequency;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Meme frequency'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Slider(
+                value: currentFreq.toDouble(),
+                min: 1,
+                max: 10,
+                divisions: 9,
+                label: _freqLabel(currentFreq),
+                onChanged: (v) {
+                  setDialogState(() => currentFreq = v.round());
+                },
+              ),
+              Text(_freqLabel(currentFreq),
+                  style: TextStyle(color: Colors.grey[400])),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _meme.setFrequency(currentFreq);
+                AppSettings.setMemeFrequency(currentFreq);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _freqLabel(int freq) {
+    if (freq == 1) return 'Rare';
+    if (freq <= 3) return 'Low';
+    if (freq <= 6) return 'Normal';
+    if (freq <= 8) return 'Often';
+    return 'Always';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final p = engine.currentPlayerIndex < players.length
-        ? players[engine.currentPlayerIndex]
-        : players[0];
     return Scaffold(
       appBar: AppBar(
-        title: Text('Shanghai — Target: ${engine.currentTarget}'),
+        title: const Text('Shanghai'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: _confirmExit,
           tooltip: 'Exit',
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.group_add),
+            onPressed: engine.gameOver ? null : _openPlayerManagement,
+            tooltip: 'Manage players',
+          ),
+          IconButton(
+            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+            onPressed: () async {
+              await TtsService.instance.setEnabled(!_ttsEnabled);
+              setState(() => _ttsEnabled = TtsService.instance.enabled);
+            },
+            tooltip: 'Speech',
+          ),
+          IconButton(
+            icon: Text(_memeEnabled ? '🤡' : '🤐',
+                style: const TextStyle(fontSize: 22)),
+            onPressed: () {
+              setState(() => _memeEnabled = !_memeEnabled);
+              AppSettings.setMemeEnabled(_memeEnabled);
+              _meme.setEnabled(_memeEnabled);
+            },
+            tooltip: 'Meme sounds',
+          ),
+          if (_memeEnabled) ...[
+            IconButton(
+              icon: const Icon(Icons.tune),
+              onPressed: _showMemeFrequencyDialog,
+              tooltip: 'Meme frequency',
+            ),
+            IconButton(
+              icon: Icon(_offensiveEnabled
+                  ? Icons.whatshot
+                  : Icons.whatshot_outlined),
+              onPressed: () {
+                setState(() => _offensiveEnabled = !_offensiveEnabled);
+                AppSettings.setMemeOffensive(_offensiveEnabled);
+                _meme.setOffensive(_offensiveEnabled);
+              },
+              tooltip: 'Offensive sounds',
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.undo),
             onPressed: engine.gameOver ? null : _onUndo,
@@ -283,9 +522,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
         children: [
           _buildScoreboard(),
           const SizedBox(height: 8),
-          _buildTurnIndicator(p),
+          _buildTurnIndicator(),
           const SizedBox(height: 8),
-          _buildHitsDisplay(),
+          _buildDartSlots(),
           const Spacer(),
           _buildActionButtons(),
           const SizedBox(height: 16),
@@ -295,21 +534,21 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   }
 
   Widget _buildScoreboard() {
+    final primary = Theme.of(context).colorScheme.primary;
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: List.generate(players.length, (i) {
           final isActive = i == engine.currentPlayerIndex && !engine.gameOver;
-          return Column(
+          final isRemoved = engine.isSkipped(i);
+          final col = Column(
             children: [
               PlayerAvatar(
                 avatarPath: players[i].avatarPath,
                 name: players[i].name,
                 radius: 22,
-                backgroundColor: isActive
-                    ? Theme.of(context).colorScheme.primary
-                    : playerColor(i),
+                backgroundColor: isActive ? primary : playerColor(i),
               ),
               const SizedBox(height: 4),
               Text(
@@ -324,53 +563,92 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: isActive
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.white),
+                    color: isActive ? primary : Colors.white),
               ),
             ],
+          );
+          final wrapped = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isActive ? primary : Colors.transparent,
+                width: 3,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              color: isActive ? primary.withValues(alpha: 0.08) : null,
+            ),
+            child: col,
+          );
+          return Opacity(
+            opacity: isRemoved ? 0.4 : 1.0,
+            child: wrapped,
           );
         }),
       ),
     );
   }
 
-  Widget _buildTurnIndicator(Player p) {
+  Widget _buildTurnIndicator() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Text(
-        '${p.name} — Round ${engine.currentRound + 1} of ${widget.config.targetEnd} — Dart ${engine.dartNumber + 1}/3',
+        'Round ${engine.currentRound + 1} of ${widget.config.targetEnd} — Target: ${engine.currentTarget}',
         style: const TextStyle(fontSize: 14, color: Colors.grey),
         textAlign: TextAlign.center,
       ),
     );
   }
 
-  Widget _buildHitsDisplay() {
-    final s = engine.currentTurnHits.contains(HitType.single);
-    final d = engine.currentTurnHits.contains(HitType.double_);
-    final t = engine.currentTurnHits.contains(HitType.triple);
-    Color chip(bool hit) =>
-        hit ? Theme.of(context).colorScheme.primary : Colors.grey.shade700;
-    Widget pill(String label, bool hit) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-              color: chip(hit), borderRadius: BorderRadius.circular(16)),
-          child: Text(label,
+  Widget _buildDartSlots() {
+    final target = engine.currentTarget;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: List.generate(3, (i) {
+          final hit = i < _turnHits.length ? _turnHits[i] : null;
+          return Expanded(
+            child: Padding(
+              padding:
+                  EdgeInsets.only(left: i == 0 ? 0 : 4, right: i == 2 ? 0 : 4),
+              child: _dartSlot(i + 1, hit, target),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _dartSlot(int dartNum, HitType? hit, int target) {
+    final filled = hit != null;
+    final label = hit == null
+        ? '–'
+        : hit == HitType.miss
+            ? 'Miss'
+            : _logLabelForHit(hit, target);
+    final color = filled
+        ? (hit == HitType.miss
+            ? Colors.grey[700]!
+            : Theme.of(context).colorScheme.primary)
+        : const Color(0xFF374151);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: filled ? 1.0 : 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF4B5563)),
+      ),
+      child: Column(
+        children: [
+          Text('Dart $dartNum',
+              style: const TextStyle(fontSize: 11, color: Colors.white70)),
+          const SizedBox(height: 2),
+          Text(label,
               style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold)),
-        );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        pill('S', s),
-        const SizedBox(width: 8),
-        pill('D', d),
-        const SizedBox(width: 8),
-        pill('T', t),
-      ],
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white)),
+        ],
+      ),
     );
   }
 
@@ -410,7 +688,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                     borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text('Miss',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  style:
+                      TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -429,8 +708,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child:
-            Text(label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        child: Text(label,
+            style:
+                const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
       ),
     );
   }

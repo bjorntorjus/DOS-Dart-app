@@ -40,6 +40,7 @@ class ShanghaiGameEngine {
   bool isInstantShanghai = false;
   bool isTie = false;
 
+  final Set<int> _skipped = {};
   final List<_UndoEntry> _undoStack = [];
 
   ShanghaiGameEngine({required int playerCount, required this.targetEnd})
@@ -47,6 +48,8 @@ class ShanghaiGameEngine {
 
   int get currentTarget => currentRound + 1;
   int get playerCount => totalScores.length;
+  bool isSkipped(int i) => _skipped.contains(i);
+  int get activePlayerCount => playerCount - _skipped.length;
 
   int _multiplierFor(HitType type) {
     switch (type) {
@@ -101,24 +104,46 @@ class ShanghaiGameEngine {
   void _advanceTurn() {
     dartNumber = 0;
     currentTurnHits = {};
-    currentPlayerIndex++;
-    if (currentPlayerIndex >= playerCount) {
-      currentPlayerIndex = 0;
-      currentRound++;
-      if (currentRound >= targetEnd) {
-        _endGameByScore();
+    _advanceToNextActive();
+  }
+
+  void _advanceToNextActive() {
+    if (activePlayerCount == 0) {
+      gameOver = true;
+      return;
+    }
+    int safety = 0;
+    while (safety <= playerCount + 1) {
+      currentPlayerIndex++;
+      if (currentPlayerIndex >= playerCount) {
+        currentPlayerIndex = 0;
+        currentRound++;
+        if (currentRound >= targetEnd) {
+          _endGameByScore();
+          return;
+        }
       }
+      if (!_skipped.contains(currentPlayerIndex)) return;
+      safety++;
     }
   }
 
   void _endGameByScore() {
     gameOver = true;
     if (totalScores.isEmpty) return;
-    final maxScore = totalScores.reduce((a, b) => a > b ? a : b);
-    final winners =
-        totalScores.asMap().entries.where((e) => e.value == maxScore).toList();
+    int? maxScore;
+    for (int i = 0; i < totalScores.length; i++) {
+      if (_skipped.contains(i)) continue;
+      if (maxScore == null || totalScores[i] > maxScore) maxScore = totalScores[i];
+    }
+    if (maxScore == null) return;
+    final winners = <int>[];
+    for (int i = 0; i < totalScores.length; i++) {
+      if (_skipped.contains(i)) continue;
+      if (totalScores[i] == maxScore) winners.add(i);
+    }
     if (winners.length == 1) {
-      winnerIndex = winners.first.key;
+      winnerIndex = winners.first;
     } else {
       winnerIndex = null;
       isTie = true;
@@ -139,14 +164,26 @@ class ShanghaiGameEngine {
     isTie = false;
   }
 
-  void addPlayer() {
-    totalScores.add(0);
+  void addPlayer({int initialScore = 0}) {
+    totalScores.add(initialScore);
+    _undoStack.clear();
   }
 
   void removePlayer(int index) {
-    totalScores.removeAt(index);
-    if (currentPlayerIndex >= totalScores.length && totalScores.isNotEmpty) {
-      currentPlayerIndex = totalScores.length - 1;
+    if (_skipped.contains(index)) return;
+    _skipped.add(index);
+    _undoStack.clear();
+    if (gameOver) return;
+    if (activePlayerCount == 0) {
+      gameOver = true;
+      return;
+    }
+    if (currentPlayerIndex == index) {
+      dartNumber = 0;
+      currentTurnHits = {};
+      _advanceToNextActive();
     }
   }
+
+  void clearUndoStack() => _undoStack.clear();
 }

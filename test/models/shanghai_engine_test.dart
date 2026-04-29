@@ -198,10 +198,30 @@ void main() {
       expect(e.totalScores[2], 0);
     });
 
-    test('removePlayer mid-game adjusts scores list', () {
+    test('removePlayer marks player as skipped without shrinking scores', () {
       final e = ShanghaiGameEngine(playerCount: 3, targetEnd: 7);
       e.removePlayer(1);
-      expect(e.totalScores.length, 2);
+      expect(e.totalScores.length, 3);
+      expect(e.isSkipped(1), isTrue);
+      expect(e.activePlayerCount, 2);
+    });
+
+    test('removePlayer skips current player and advances turn', () {
+      final e = ShanghaiGameEngine(playerCount: 3, targetEnd: 7);
+      // currentPlayerIndex starts at 0
+      e.removePlayer(0);
+      expect(e.isSkipped(0), isTrue);
+      expect(e.currentPlayerIndex, 1);
+    });
+
+    test('turn advance skips removed players', () {
+      final e = ShanghaiGameEngine(playerCount: 3, targetEnd: 7);
+      e.removePlayer(1);
+      // Player 0 throws 3 darts; turn should jump to player 2, not 1
+      e.recordThrow(HitType.miss);
+      e.recordThrow(HitType.miss);
+      e.recordThrow(HitType.miss);
+      expect(e.currentPlayerIndex, 2);
     });
   });
 }
