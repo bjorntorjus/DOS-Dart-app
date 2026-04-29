@@ -725,7 +725,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                         decoration: BoxDecoration(
                           color: isCurrent
                               ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
-                              : Colors.grey[900],
+                              : Theme.of(context).colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(8),
                           border: isCurrent
                               ? Border.all(
@@ -763,7 +763,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                               Text(
                                 lastDarts,
                                 style: TextStyle(
-                                    fontSize: 10, color: Colors.grey[500]),
+                                    fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
                                 overflow: TextOverflow.ellipsis,
                               ),
                           ],
@@ -825,7 +825,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                       margin: const EdgeInsets.symmetric(vertical: 1),
                       decoration: BoxDecoration(
                         color: closedByAll
-                            ? Colors.grey[900]?.withAlpha(120)
+                            ? Theme.of(context).colorScheme.surfaceContainerLow.withValues(alpha: 0.47)
                             : Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -843,7 +843,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: closedByAll ? Colors.grey[600] : Colors.white,
+                                  color: closedByAll ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4) : Colors.white,
                                 ),
                               ),
                             ),
@@ -918,8 +918,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        border: Border(top: BorderSide(color: Colors.grey[850]!)),
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outline)),
       ),
       child: Row(
         children: [
@@ -936,8 +936,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[300],
-                    side: BorderSide(color: Colors.grey[600]!, width: 1.5),
+                    foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                    side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1.5),
                   ),
                 ),
               ),
@@ -977,7 +977,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.grey[850] ?? Colors.grey[900],
+            color: Theme.of(context).colorScheme.outline,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(color: Theme.of(context).colorScheme.outline, width: 0.5),
           ),
@@ -1090,7 +1090,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),

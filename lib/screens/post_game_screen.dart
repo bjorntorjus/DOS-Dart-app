@@ -141,16 +141,17 @@ class _PlayerResultTile extends StatelessWidget {
 
   const _PlayerResultTile({required this.result, required this.gameMode});
 
-  Color _placementColor(int p) {
+  Color _placementColor(int p, BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     switch (p) {
       case 1:
         return Colors.amber;
       case 2:
-        return Colors.grey[400]!;
+        return cs.onSurface.withValues(alpha: 0.7);
       case 3:
         return Colors.brown[300]!;
       default:
-        return Colors.grey[600]!;
+        return cs.onSurface.withValues(alpha: 0.4);
     }
   }
 
@@ -171,9 +172,9 @@ class _PlayerResultTile extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _placementColor(result.placement).withAlpha(40),
+                color: _placementColor(result.placement, context).withAlpha(40),
                 border: Border.all(
-                  color: _placementColor(result.placement),
+                  color: _placementColor(result.placement, context),
                   width: 2,
                 ),
               ),
@@ -182,7 +183,7 @@ class _PlayerResultTile extends StatelessWidget {
                 '${result.placement}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: _placementColor(result.placement),
+                  color: _placementColor(result.placement, context),
                 ),
               ),
             ),
@@ -207,7 +208,7 @@ class _PlayerResultTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  _buildStats(stats),
+                  _buildStats(stats, context),
                 ],
               ),
             ),
@@ -220,7 +221,7 @@ class _PlayerResultTile extends StatelessWidget {
     );
   }
 
-  Widget _buildStats(Map<String, dynamic> stats) {
+  Widget _buildStats(Map<String, dynamic> stats, BuildContext context) {
     final entries = <String>[];
 
     switch (gameMode) {
@@ -245,7 +246,7 @@ class _PlayerResultTile extends StatelessWidget {
     if (entries.isEmpty) return const SizedBox.shrink();
     return Text(
       entries.join(' | '),
-      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12),
     );
   }
 

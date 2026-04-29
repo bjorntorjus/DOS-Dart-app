@@ -808,7 +808,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                       icon: const Icon(Icons.undo, size: 18),
                       label: const Text('Back', style: TextStyle(fontSize: 16)),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
+                        foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                         side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
@@ -868,7 +868,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                     children: [
                       Text('Dart ${dartsInTurn + 1} of 3',
                           style: TextStyle(
-                              color: Colors.grey[400], fontSize: 13)),
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                       const SizedBox(width: 8),
                       ...List.generate(3, (i) {
                         return Padding(
@@ -887,7 +887,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                 else
                   Text('Throw a dart to pick a number',
                       style:
-                          TextStyle(color: Colors.grey[400], fontSize: 13)),
+                          TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                 // Hint for non-killers
                 if (phase == KillerPhase.playing &&
                     !isKiller[pi] &&
@@ -903,7 +903,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
               children: [
                 Text('Number',
                     style:
-                        TextStyle(color: Colors.grey[400], fontSize: 11)),
+                        TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 11)),
                 Text('${assignedNumbers[pi]}',
                     style: const TextStyle(
                         fontSize: 36, fontWeight: FontWeight.bold)),
@@ -955,7 +955,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16))
                           : Text('...',
-                              style: TextStyle(color: Colors.grey[600])),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4))),
                     ],
                   ),
                 );
@@ -1032,7 +1032,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border:
-                              Border.all(color: Colors.grey[600]!, width: 1),
+                              Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1),
                         ),
                         child: Text('${assignedNumbers[index]}',
                             style: const TextStyle(fontSize: 11)),
@@ -1064,7 +1064,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                             Text(
                               _lastDartsLabel(index),
                               style: TextStyle(
-                                  fontSize: 10, color: Colors.grey[500]),
+                                  fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
                             ),
                         ],
                       ),
@@ -1144,7 +1144,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),

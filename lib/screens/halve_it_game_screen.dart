@@ -613,7 +613,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         children: [
                           Text('Dart ${dartsInTurn + 1} of 3',
                               style: TextStyle(
-                                  color: Colors.grey[400], fontSize: 13)),
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                           const SizedBox(width: 8),
                           ...List.generate(3, (i) {
                             return Padding(
@@ -642,7 +642,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   children: [
                     Text('Target',
                         style:
-                            TextStyle(color: Colors.grey[400], fontSize: 11)),
+                            TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 11)),
                     Text(
                       currentRound.label,
                       style: const TextStyle(
@@ -651,7 +651,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                     Text(
                       'Total: ${totalScores[currentPlayerIndex]}',
                       style:
-                          TextStyle(color: Colors.grey[400], fontSize: 13),
+                          TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13),
                     ),
                   ],
                 ),
@@ -680,7 +680,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         ? Colors.amber.withAlpha(40)
                         : isDone
                             ? Colors.green.withAlpha(30)
-                            : Colors.grey[900],
+                            : Theme.of(context).colorScheme.surfaceContainerLow,
                     border: isCurrent
                         ? Border.all(color: Colors.amber, width: 1.5)
                         : null,
@@ -695,7 +695,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                           ? Colors.amber
                           : isDone
                               ? Colors.green
-                              : Colors.grey[600],
+                              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
                 );
@@ -737,7 +737,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         icon: const Icon(Icons.undo, size: 18),
                         label: const Text('Back', style: TextStyle(fontSize: 16)),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[400],
+                          foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                           side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         ),
                       ),
@@ -810,7 +810,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                                 Text(
                                   lastDarts,
                                   style: TextStyle(
-                                      fontSize: 13, color: Colors.grey[500]),
+                                      fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
                                 ),
                             ],
                           ),
@@ -1050,7 +1050,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),

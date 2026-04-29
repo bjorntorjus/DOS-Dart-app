@@ -582,7 +582,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         children: [
           Text(
             isBull ? 'Hit Bull' : 'Hit $target',
-            style: TextStyle(fontSize: 20, color: Colors.grey[400]),
+            style: TextStyle(fontSize: 20, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
           ),
           const SizedBox(height: 20),
           Row(
@@ -626,7 +626,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                   icon: const Icon(Icons.undo, size: 16),
                   label: const Text('Back'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[400],
+                    foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                     side: BorderSide(color: Theme.of(context).colorScheme.outline),
                   ),
                 ),
@@ -997,7 +997,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                         children: [
                           Text('Dart ${dartsInTurn + 1} of 3',
                               style: TextStyle(
-                                  color: Colors.grey[400], fontSize: 14)),
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14)),
                           const SizedBox(width: 8),
                           ...List.generate(3, (i) {
                             return Padding(
@@ -1020,7 +1020,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                   children: [
                     Text('Target',
                         style:
-                            TextStyle(color: Colors.grey[400], fontSize: 12)),
+                            TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12)),
                     Text(
                       _isFinished(currentTarget)
                           ? '✓'
@@ -1132,7 +1132,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                                   Text(
                                     _lastDartsLabel(index),
                                     style: TextStyle(
-                                        fontSize: 14, color: Colors.grey[500]),
+                                        fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
                                   ),
                               ],
                             ),
@@ -1200,7 +1200,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),

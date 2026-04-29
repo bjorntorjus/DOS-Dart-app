@@ -127,7 +127,7 @@ class _MidGameSheetState extends State<_MidGameSheet> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey[300],
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
                   ),
                 ),
               ),

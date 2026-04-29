@@ -36,7 +36,7 @@ class PlayerAvatar extends StatelessWidget {
 
     return CircleAvatar(
       radius: radius,
-      backgroundColor: backgroundColor ?? Colors.grey[700],
+      backgroundColor: backgroundColor ?? Theme.of(context).colorScheme.surfaceContainer,
       child: initial,
     );
   }

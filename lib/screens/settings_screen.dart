@@ -128,7 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Example: A 1400-rated player starts '
                           '${(200 * _handicapScale).round()} points higher.',
                           style: TextStyle(
-                              color: Colors.grey[400], fontSize: 13),
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13),
                         ),
                         const SizedBox(height: 8),
                         Slider(
@@ -147,10 +147,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           children: [
                             Text('0.10',
                                 style: TextStyle(
-                                    color: Colors.grey[600], fontSize: 12)),
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), fontSize: 12)),
                             Text('2.00',
                                 style: TextStyle(
-                                    color: Colors.grey[600], fontSize: 12)),
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), fontSize: 12)),
                           ],
                         ),
                       ],
@@ -178,7 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Colors.grey[300],
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -188,7 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'New players use a higher K so their rating adjusts quickly. '
                           'After a threshold of games, K drops for more stable ratings. '
                           'Rating changes are scaled by 1/(N-1) for multi-player games.',
-                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), fontSize: 12),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -199,7 +199,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'Rating change per game for players with < $_eloThreshold games.',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12),
                         ),
                         Slider(
                           value: _eloKNew,
@@ -222,7 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'Rating change per game for players with >= $_eloThreshold games.',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12),
                         ),
                         Slider(
                           value: _eloKExp,
@@ -245,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'After this many games, K-factor drops from ${_eloKNew.round()} to ${_eloKExp.round()}.',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12),
                         ),
                         Slider(
                           value: _eloThreshold.toDouble(),
@@ -365,7 +365,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                           child: Text('Announcements',
                               style: TextStyle(
-                                  color: Colors.grey[400], fontSize: 13)),
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                         ),
                         SwitchListTile(
                           title: const Text('Next player'),
@@ -519,7 +519,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                         child: Text('Log mode',
                             style: TextStyle(
-                                color: Colors.grey[400], fontSize: 13)),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                       ),
                       RadioGroup<LogMode>(
                         groupValue: _logMode,

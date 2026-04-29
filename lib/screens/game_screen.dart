@@ -1498,7 +1498,7 @@ class _GameScreenState extends State<GameScreen> {
                           Text(
                             'Dart ${dartsInTurn + 1} of 3',
                             style: TextStyle(
-                                color: Colors.grey[400], fontSize: 14),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14),
                           ),
                           const SizedBox(width: 10),
                           // Dart indicators — larger, player-colored
@@ -1610,7 +1610,7 @@ class _GameScreenState extends State<GameScreen> {
                       icon: const Icon(Icons.undo, size: 20),
                       label: const Text('Back', style: TextStyle(fontSize: 18)),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
+                        foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                         side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                       ),
@@ -1719,7 +1719,7 @@ class _GameScreenState extends State<GameScreen> {
                                       _lastDartsLabel(index),
                                       style: TextStyle(
                                         fontSize: 15,
-                                        color: Colors.grey[500],
+                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                                       ),
                                     ),
                                 ],
@@ -1800,7 +1800,7 @@ class _GameScreenState extends State<GameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),

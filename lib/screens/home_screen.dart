@@ -61,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   'v1.6.1',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                   ),
                 ),
                 if (_topPlayers.isNotEmpty) ...[
@@ -200,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Text(
               player.rating.toStringAsFixed(0),
-              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
             ),
             const SizedBox(height: 4),
             Container(
@@ -235,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
           'Leaderboard',
           style: TextStyle(
             fontSize: 13,
-            color: Colors.grey[600],
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
             letterSpacing: 1,
           ),
         ),

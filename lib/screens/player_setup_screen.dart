@@ -581,7 +581,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                             child: Text(
                               'Tap "Add player" to select players',
                               style: TextStyle(
-                                color: Colors.grey[500],
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                                 fontSize: 16,
                               ),
                             ),
@@ -626,7 +626,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                                   'Rating: ${sp.rating.round()} | '
                                   'Games: ${sp.gamesPlayed}',
                                   style: TextStyle(
-                                    color: Colors.grey[500],
+                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -652,8 +652,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                       label: Text(
                           'Select players (${_selectedPlayers.length})'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[300],
-                        side: BorderSide(color: Colors.grey[600]!, width: 1),
+                        foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                        side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         textStyle: const TextStyle(
                           fontSize: 15,

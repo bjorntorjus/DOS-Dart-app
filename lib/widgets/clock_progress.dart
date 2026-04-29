@@ -55,7 +55,7 @@ class ClockProgress extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                color: done || isCurrent ? Colors.black : Colors.grey[400],
+                color: done || isCurrent ? Colors.black : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           );

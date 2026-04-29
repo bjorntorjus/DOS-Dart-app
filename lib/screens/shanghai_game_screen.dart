@@ -433,7 +433,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 },
               ),
               Text(_freqLabel(currentFreq),
-                  style: TextStyle(color: Colors.grey[400])),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
             ],
           ),
           actions: [
