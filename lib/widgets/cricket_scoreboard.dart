@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/player_colors.dart';
-
 class CricketScoreboard extends StatelessWidget {
   final List<int> targets; // e.g. [20, 19, 18, 17, 16, 15, 25]
   final List<String> playerNames;
@@ -30,7 +28,6 @@ class CricketScoreboard extends StatelessWidget {
           columns: [
             const DataColumn(label: Text('', style: TextStyle(fontSize: 12))),
             ...List.generate(playerNames.length, (pi) {
-              final isCurrent = pi == currentPlayerIndex;
               return DataColumn(
                 label: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -42,9 +39,7 @@ class CricketScoreboard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: playerColor(pi),
-                        decoration:
-                            isCurrent ? TextDecoration.underline : null,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ],

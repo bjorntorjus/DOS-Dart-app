@@ -679,7 +679,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                       '${players[currentPlayerIndex].name} — Dart ${dartsInTurn + 1}/3',
                       style: TextStyle(
                         fontSize: 16,
-                        color: playerColor(currentPlayerIndex),
+                        color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -689,7 +689,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                       child: Icon(
                         i < dartsInTurn ? Icons.circle : Icons.circle_outlined,
                         size: 10,
-                        color: playerColor(currentPlayerIndex),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )),
                     if (lastThrowLabel != null) ...[
@@ -724,12 +724,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                             vertical: 6, horizontal: 4),
                         decoration: BoxDecoration(
                           color: isCurrent
-                              ? playerColor(pi).withAlpha(40)
+                              ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
                               : Colors.grey[900],
                           borderRadius: BorderRadius.circular(8),
                           border: isCurrent
                               ? Border.all(
-                                  color: playerColor(pi).withAlpha(100))
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4))
                               : null,
                         ),
                         child: Column(
@@ -750,7 +750,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                                 fontWeight: isCurrent
                                     ? FontWeight.bold
                                     : FontWeight.normal,
-                                color: playerColor(pi),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -796,7 +796,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                         style: TextStyle(
                           fontSize: isCurrent ? 12 : 11,
                           fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                          color: playerColor(pi),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
@@ -854,7 +854,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                             final isCurrent = pi == currentPlayerIndex;
                             final m = marks[pi][target] ?? 0;
                             final closed = _isClosed(target, pi);
-                            final color = closed ? Colors.green : playerColor(pi);
+                            final color = closed ? Colors.green : Theme.of(context).colorScheme.primary;
                             final fillFraction = (m.clamp(0, maxMarks) / maxMarks.toDouble());
 
                             // Active player: mark buttons
@@ -1016,7 +1016,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Widget _markButton(int target, int multiplier, int currentMarks) {
     final isBull = target == 25;
     final isFilled = currentMarks >= multiplier;
-    final color = playerColor(currentPlayerIndex);
+    final cs = Theme.of(context).colorScheme;
     final label = switch (multiplier) {
       2 => isBull ? 'DBull' : 'D$target',
       3 => 'T$target',
@@ -1027,14 +1027,14 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         onPressed: () => _registerHit(target, multiplier),
         style: ElevatedButton.styleFrom(
           backgroundColor:
-              isFilled ? color.withAlpha(170) : Theme.of(context).colorScheme.surfaceContainer,
-          foregroundColor: isFilled ? Colors.white : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              isFilled ? cs.primary.withValues(alpha: 0.7) : cs.surfaceContainer,
+          foregroundColor: isFilled ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.7),
           elevation: 0,
           padding: EdgeInsets.zero,
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           side: BorderSide(
-            color: isFilled ? color.withAlpha(200) : Theme.of(context).colorScheme.outline,
+            color: isFilled ? cs.primary.withValues(alpha: 0.8) : cs.outline,
           ),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),

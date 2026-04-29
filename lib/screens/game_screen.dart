@@ -1464,14 +1464,14 @@ class _GameScreenState extends State<GameScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
-              color: playerColor(currentPlayerIndex).withAlpha(55),
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
               border: Border(
                 bottom: BorderSide(
-                  color: playerColor(currentPlayerIndex).withAlpha(160),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
                   width: 1,
                 ),
                 left: BorderSide(
-                  color: playerColor(currentPlayerIndex),
+                  color: Theme.of(context).colorScheme.primary,
                   width: 4,
                 ),
               ),
@@ -1488,7 +1488,7 @@ class _GameScreenState extends State<GameScreen> {
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: playerColor(currentPlayerIndex),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1509,7 +1509,7 @@ class _GameScreenState extends State<GameScreen> {
                                     ? Icons.circle
                                     : Icons.circle_outlined,
                                 size: 16,
-                                color: playerColor(currentPlayerIndex),
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             );
                           }),
@@ -1672,7 +1672,7 @@ class _GameScreenState extends State<GameScreen> {
                   child: Container(
                   height: _playerCardHeight,
                   color: isCurrent
-                      ? playerColor(index).withAlpha(25)
+                      ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
                       : isWinner
                           ? Colors.green.withAlpha(25)
                           : null,
@@ -1687,7 +1687,7 @@ class _GameScreenState extends State<GameScreen> {
                                 color: Colors.green, size: 24)
                             : isCurrent
                                 ? Icon(Icons.arrow_right,
-                                    color: playerColor(index), size: 24)
+                                    color: Theme.of(context).colorScheme.primary, size: 24)
                                 : isWinner
                                     ? const Icon(Icons.emoji_events,
                                         color: Colors.amber, size: 24)

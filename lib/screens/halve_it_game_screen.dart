@@ -594,10 +594,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             padding:
                 const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
             decoration: BoxDecoration(
-              color: playerColor(currentPlayerIndex).withAlpha(40),
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
               border: Border(
                 bottom: BorderSide(
-                    color: playerColor(currentPlayerIndex).withAlpha(80)),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
               ),
             ),
             child: Row(
@@ -623,7 +623,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                                     ? Icons.circle
                                     : Icons.circle_outlined,
                                 size: 10,
-                                color: playerColor(currentPlayerIndex),
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             );
                           }),
@@ -775,7 +775,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                     opacity: isRemoved ? 0.4 : 1.0,
                     child: Container(
                     color: isCurrent
-                        ? playerColor(index).withAlpha(25)
+                        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
                         : null,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: Row(
@@ -784,7 +784,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                           width: 28,
                           child: isCurrent
                               ? Icon(Icons.arrow_right,
-                                  color: playerColor(index), size: 24)
+                                  color: Theme.of(context).colorScheme.primary, size: 24)
                               : null,
                         ),
                         const SizedBox(width: 8),

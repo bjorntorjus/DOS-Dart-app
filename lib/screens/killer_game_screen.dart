@@ -848,9 +848,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
       decoration: BoxDecoration(
-        color: playerColor(pi).withAlpha(40),
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
         border: Border(
-          bottom: BorderSide(color: playerColor(pi).withAlpha(80)),
+          bottom: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
         ),
       ),
       child: Row(
@@ -877,7 +877,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                 ? Icons.circle
                                 : Icons.circle_outlined,
                             size: 10,
-                            color: playerColor(pi),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         );
                       }),
@@ -935,7 +935,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         width: 20,
                         child: isCurrent
                             ? Icon(Icons.arrow_right,
-                                color: playerColor(i), size: 18)
+                                color: Theme.of(context).colorScheme.primary, size: 18)
                             : null,
                       ),
                       PlayerAvatar(
@@ -992,7 +992,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             color: eliminated
                 ? Colors.red.withAlpha(15)
                 : isCurrent
-                    ? playerColor(index).withAlpha(25)
+                    ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
                     : isWinner
                         ? Colors.green.withAlpha(25)
                         : null,
@@ -1004,7 +1004,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                   width: 24,
                   child: isCurrent
                       ? Icon(Icons.arrow_right,
-                          color: playerColor(index), size: 20)
+                          color: Theme.of(context).colorScheme.primary, size: 20)
                       : isWinner
                           ? const Icon(Icons.emoji_events,
                               color: Colors.amber, size: 20)

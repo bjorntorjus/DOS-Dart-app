@@ -976,10 +976,10 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
             padding:
                 const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
-              color: playerColor(currentPlayerIndex).withAlpha(40),
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
               border: Border(
                 bottom: BorderSide(
-                    color: playerColor(currentPlayerIndex).withAlpha(80)),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
               ),
             ),
             child: Row(
@@ -1006,7 +1006,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                                     ? Icons.circle
                                     : Icons.circle_outlined,
                                 size: 10,
-                                color: playerColor(currentPlayerIndex),
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             );
                           }),
@@ -1089,7 +1089,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                   opacity: isRemoved ? 0.4 : 1.0,
                   child: Container(
                   color: isCurrent
-                      ? playerColor(index).withAlpha(25)
+                      ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
                       : isWinner
                           ? Colors.green.withAlpha(25)
                           : null,
@@ -1104,7 +1104,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                                 color: Colors.green, size: 28)
                             : isCurrent
                                 ? Icon(Icons.arrow_right,
-                                    color: playerColor(index), size: 28)
+                                    color: Theme.of(context).colorScheme.primary, size: 28)
                                 : isWinner
                                     ? const Icon(Icons.emoji_events,
                                         color: Colors.amber, size: 28)

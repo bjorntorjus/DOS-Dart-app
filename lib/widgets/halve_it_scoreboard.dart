@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/halve_it_round.dart';
-import '../utils/player_colors.dart';
 
 class HalveItScoreboard extends StatelessWidget {
   final List<HalveItRound> rounds;
@@ -41,7 +40,7 @@ class HalveItScoreboard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: playerColor(pi),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               );
