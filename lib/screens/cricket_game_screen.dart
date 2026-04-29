@@ -738,7 +738,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                               avatarPath: players[pi].avatarPath,
                               name: players[pi].name,
                               radius: 18,
-                              backgroundColor: playerColor(pi),
+                              backgroundColor: avatarColor(pi),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -1115,7 +1115,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: _gameFullyOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,

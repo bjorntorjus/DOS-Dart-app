@@ -942,7 +942,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         avatarPath: players[i].avatarPath,
                         name: players[i].name,
                         radius: 12,
-                        backgroundColor: playerColor(i),
+                        backgroundColor: avatarColor(i),
                       ),
                       const SizedBox(width: 8),
                       Text(players[i].name,
@@ -1019,7 +1019,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                   name: player.name,
                   radius: 14,
                   backgroundColor:
-                      eliminated ? Colors.grey : playerColor(index),
+                      eliminated ? Colors.grey : avatarColor(index),
                 ),
                 const SizedBox(width: 8),
                 // Number badge
@@ -1171,7 +1171,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: winnerIndex != null,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player. '
           'New players get a random unused number and must qualify by hitting their double.',

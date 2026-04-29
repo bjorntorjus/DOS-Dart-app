@@ -14,7 +14,7 @@ import '../services/player_storage.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
-import '../utils/player_colors.dart' show playerColor;
+import '../utils/player_colors.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/player_avatar.dart';
 import 'post_game_screen.dart';
@@ -347,7 +347,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       players: players,
       isRemoved: (i) => engine.isSkipped(i),
       gameOver: engine.gameOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
@@ -551,7 +551,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 avatarPath: players[i].avatarPath,
                 name: players[i].name,
                 radius: 22,
-                backgroundColor: isActive ? primary : playerColor(i),
+                backgroundColor: isActive ? primary : avatarColor(i),
               ),
               const SizedBox(height: 4),
               Text(

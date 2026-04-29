@@ -792,7 +792,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                           avatarPath: player.avatarPath,
                           name: player.name,
                           radius: 18,
-                          backgroundColor: playerColor(index),
+                          backgroundColor: avatarColor(index),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1079,7 +1079,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: gameOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,

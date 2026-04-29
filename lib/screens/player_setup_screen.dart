@@ -610,7 +610,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                                     avatarPath: sp.avatarPath,
                                     name: sp.name,
                                     radius: 20,
-                                    backgroundColor: playerColor(index),
+                                    backgroundColor: avatarColor(index),
                                   ),
                                 ),
                                 title: GestureDetector(

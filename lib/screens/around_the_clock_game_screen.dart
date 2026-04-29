@@ -1115,7 +1115,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                         avatarPath: player.avatarPath,
                         name: player.name,
                         radius: 22,
-                        backgroundColor: playerColor(index),
+                        backgroundColor: avatarColor(index),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -1229,7 +1229,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: _gameFullyOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
