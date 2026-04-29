@@ -21,10 +21,3 @@ const avatarColors = [
 ];
 
 Color avatarColor(int index) => avatarColors[index % avatarColors.length];
-
-// Backwards-compatible aliases — to be removed in a follow-up commit
-// once all callers migrate.
-@Deprecated('Use avatarColor(index) and only on avatar widgets')
-const playerColors = avatarColors;
-@Deprecated('Use avatarColor(index) and only on avatar widgets')
-Color playerColor(int index) => avatarColor(index);
