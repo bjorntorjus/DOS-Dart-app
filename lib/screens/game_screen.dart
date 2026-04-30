@@ -1390,42 +1390,77 @@ class _GameScreenState extends State<GameScreen> {
           onPressed: () => _confirmExit(),
         ),
         actions: [
-          IconButton(
-            icon: Text(_soundEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
-            onPressed: () {
-              setState(() => _soundEnabled = !_soundEnabled);
-              SoundService.instance.setEnabled(_soundEnabled);
-              _meme.setEnabled(_soundEnabled);
-              AppSettings.setSoundEffectsEnabled(_soundEnabled);
-              AppSettings.setMemeEnabled(_soundEnabled);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) {
+              switch (value) {
+                case 'players':
+                  if (!_gameFullyOver) _openPlayerManagement();
+                  break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  _meme.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
+                  AppSettings.setMemeEnabled(_soundEnabled);
+                  break;
+                case 'tts':
+                  setState(() => _ttsEnabled = !_ttsEnabled);
+                  TtsService.instance.setEnabled(_ttsEnabled);
+                  break;
+                case 'sound_settings':
+                  _showSoundSettingsDialog();
+                  break;
+              }
             },
-            tooltip: 'Sound effects',
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'players',
+                enabled: !_gameFullyOver,
+                child: const Row(
+                  children: [
+                    Icon(Icons.group_add),
+                    SizedBox(width: 12),
+                    Text('Manage players'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Text(_soundEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(
+                  children: [
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
+                    const SizedBox(width: 12),
+                    Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                  ],
+                ),
+              ),
+              if (_soundEnabled)
+                const PopupMenuItem(
+                  value: 'sound_settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune),
+                      SizedBox(width: 12),
+                      Text('Sound settings'),
+                    ],
+                  ),
+                ),
+            ],
           ),
-          IconButton(
-            icon: Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
-            onPressed: () {
-              setState(() => _ttsEnabled = !_ttsEnabled);
-              TtsService.instance.setEnabled(_ttsEnabled);
-            },
-            tooltip: 'Text-to-speech',
-          ),
-          if (_soundEnabled)
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showSoundSettingsDialog,
-              tooltip: 'Sound settings',
-            ),
-          IconButton(
-            icon: const Icon(Icons.group_add),
-            onPressed: _gameFullyOver ? null : _openPlayerManagement,
-            tooltip: 'Manage players',
-          ),
-          if (throwHistory.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: _undo,
-              tooltip: 'Undo',
-            ),
         ],
       ),
       body: Column(
@@ -1452,13 +1487,13 @@ class _GameScreenState extends State<GameScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-              color: Colors.green.withAlpha(40),
+              color: Theme.of(context).colorScheme.primary.withAlpha(40),
               child: Text(
                 _pendingCheckouts.length == 1
                     ? '${players[_pendingCheckouts.first.playerIndex].name} checked out! Round continues...'
                     : '${_pendingCheckouts.length} players checked out! Round continues...',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.green, fontSize: 14),
+                style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 14),
               ),
             ),
           // Current player info bar
@@ -1479,75 +1514,72 @@ class _GameScreenState extends State<GameScreen> {
             ),
             child: Row(
               children: [
-                // Name + dart counter
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        currentPlayer.name,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                // Name + dart indicators (left)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      currentPlayer.name,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
-                      const SizedBox(height: 4),
-                      Row(
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: List.generate(3, (i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            i < dartsInTurn
+                                ? Icons.circle
+                                : Icons.circle_outlined,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+                // Checkout (middle)
+                if (_checkoutFor(currentPlayer.score).isNotEmpty)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
                         children: [
                           Text(
-                            'Dart ${dartsInTurn + 1} of 3',
+                            'CHECKOUT',
                             style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14),
+                              fontSize: 10,
+                              letterSpacing: 1,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.8),
+                            ),
                           ),
-                          const SizedBox(width: 10),
-                          // Dart indicators — larger, player-colored
-                          ...List.generate(3, (i) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Icon(
-                                i < dartsInTurn
-                                    ? Icons.circle
-                                    : Icons.circle_outlined,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            );
-                          }),
+                          const SizedBox(height: 2),
+                          Text(
+                            _checkoutFor(currentPlayer.score),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.tertiary,
+                            ),
+                          ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                // Checkout suggestion (centered between name and score)
-                if (_checkoutFor(currentPlayer.score).isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Checkout',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.8),
-                          ),
-                        ),
-                        Text(
-                          _checkoutFor(currentPlayer.score),
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.tertiary,
-                          ),
-                        ),
-                      ],
                     ),
-                  ),
-                // Score
+                  )
+                else
+                  const Spacer(),
+                // Score (right)
                 Text(
                   '${currentPlayer.score}',
                   style: const TextStyle(
-                      fontSize: 52, fontWeight: FontWeight.bold),
+                      fontSize: 38, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -1632,12 +1664,12 @@ class _GameScreenState extends State<GameScreen> {
                 ElevatedButton(
                   onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 16),
                   ),
-                  child: const Text('Denied', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: const Text('Miss', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -1677,7 +1709,7 @@ class _GameScreenState extends State<GameScreen> {
                     child: SizedBox(
                       height: _playerCardHeight - 18, // subtract 2*(vertical padding 6 + border 3)
                       child: Container(
-                        color: isWinner ? Colors.green.withAlpha(25) : null,
+                        color: isWinner ? Theme.of(context).colorScheme.primary.withAlpha(25) : null,
                         child: Row(
                           children: [
                             SizedBox(
@@ -1730,7 +1762,7 @@ class _GameScreenState extends State<GameScreen> {
                               style: TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.bold,
-                                color: hasPendingCheckout || isWinner ? Colors.green : null,
+                                color: hasPendingCheckout || isWinner ? Theme.of(context).colorScheme.primary : null,
                               ),
                             ),
                           ],
