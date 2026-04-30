@@ -27,17 +27,18 @@ class CheckoutWidget extends StatelessWidget {
 
     if (checkout == null) return const SizedBox.shrink();
 
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.amber.withAlpha(20),
+        color: cs.tertiary.withAlpha(20),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withAlpha(60)),
+        border: Border.all(color: cs.tertiary.withAlpha(60)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.lightbulb_outline, color: Colors.amber[600], size: 16),
+          Icon(Icons.lightbulb_outline, color: cs.tertiary, size: 16),
           const SizedBox(width: 6),
           Text(
             checkout,

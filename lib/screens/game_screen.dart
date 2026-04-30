@@ -1529,7 +1529,7 @@ class _GameScreenState extends State<GameScreen> {
                           'Checkout',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.amber[400],
+                            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.8),
                           ),
                         ),
                         Text(
@@ -1537,7 +1537,7 @@ class _GameScreenState extends State<GameScreen> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Colors.amber[600],
+                            color: Theme.of(context).colorScheme.tertiary,
                           ),
                         ),
                       ],
