@@ -275,7 +275,7 @@ class _GameScreenState extends State<GameScreen> {
           isTurnEnd = true;
           _totalDartsPerPlayer[currentPlayerIndex]++;
           final overshoot = newScore < 0 ? -newScore : 0;
-          player.score = 0;
+          player.score = -overshoot;
           lastThrowLabel = '${dartThrow.label}${overshoot > 0 ? ' +$overshoot' : ''}';
           _finishes.add(_FinishEntry(
             playerIndex: currentPlayerIndex,
@@ -705,88 +705,45 @@ class _GameScreenState extends State<GameScreen> {
         });
         return;
       }
-      // At least one player finished — end the game now.
+
+      // Reorder finishedPlayers by no-bust tiebreaker (darts asc, overshoot desc)
       final ranking = _noBustRankIndices();
+      final orderedFinishers =
+          ranking.where((i) => finishedPlayers.contains(i)).toList();
+      final activePlayers = List.generate(players.length, (i) => i)
+          .where((i) => !finishedPlayers.contains(i))
+          .toList();
+
       setState(() {
         finishedPlayers
           ..clear()
-          ..addAll(ranking);
-        winnerIndex = ranking.first;
-        _gameFullyOver = true;
-      });
-      _log.logGameEnd(
-          playerNames: players.map((p) => p.name).toList(),
-          finishedOrder: finishedPlayers,
-          gameFullyOver: true);
-      BatterySampler.instance.stop();
-      _announcer.stop();
-      await VideoService.instance.showRandomFromFolder(context, 'winner');
-      if (!mounted) return;
-      _announcer.announceWinner(players[ranking.first].name);
-      await _updateStats();
-      if (!mounted) return;
-
-      final results = <PlayerResult>[];
-      for (int rank = 0; rank < ranking.length; rank++) {
-        final i = ranking[rank];
-        final p = players[i];
-        final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
-        final dartCount = playerThrows.length;
-
-        int highestTurn = 0;
-        double totalTurnScore = 0;
-        int turnCount = 0;
-        int currentTurnScore = 0;
-        int? currentTurnStart;
-        for (final t in playerThrows) {
-          if (currentTurnStart != t.scoreAtStartOfTurn) {
-            if (currentTurnStart != null) {
-              if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-              totalTurnScore += currentTurnScore;
-              turnCount++;
-            }
-            currentTurnStart = t.scoreAtStartOfTurn;
-            currentTurnScore = 0;
+          ..addAll(orderedFinishers);
+        winnerIndex = finishedPlayers.first;
+        _roundNumber++;
+        _playersCompletedThisRound = {};
+        _finishedBeforeRound = List.from(finishedPlayers);
+        if (activePlayers.length <= 1) {
+          if (activePlayers.length == 1) {
+            finishedPlayers.add(activePlayers.first);
           }
-          currentTurnScore += t.points;
+          _gameFullyOver = true;
         }
-        if (currentTurnStart != null) {
-          if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-          totalTurnScore += currentTurnScore;
-          turnCount++;
-        }
+      });
 
-        int? checkout;
-        if (finishedPlayers.contains(i) && playerThrows.isNotEmpty) {
-          checkout = playerThrows.last.scoreAtStartOfTurn;
-        }
-
-        results.add(PlayerResult(
-          name: p.name,
-          avatarPath: p.avatarPath,
-          placement: rank + 1,
-          stats: {
-            'highestTurn': highestTurn,
-            'avgTurn': turnCount > 0 ? totalTurnScore / turnCount : 0.0,
-            'darts': dartCount,
-            'checkout': ?checkout,
-          },
-          ratingBefore: p.savedPlayerId != null ? _ratingsBefore[p.savedPlayerId!] : null,
-          ratingAfter: p.savedPlayerId != null ? _ratingsAfter[p.savedPlayerId!] : null,
-        ));
-      }
-
-      final gameResult = GameResult(
-        gameMode: 'x01',
-        results: results,
-        canContinue: false,
-        statsSkipped: _midGamePlayerChanges,
-      );
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => PostGameScreen(result: gameResult)),
-        );
+      if (_gameFullyOver) {
+        final winner = players[finishedPlayers.first];
+        _log.logGameEnd(
+            playerNames: players.map((p) => p.name).toList(),
+            finishedOrder: finishedPlayers,
+            gameFullyOver: true);
+        BatterySampler.instance.stop();
+        _announcer.stop();
+        await VideoService.instance.showRandomFromFolder(context, 'winner');
+        if (!mounted) return;
+        _announcer.announceWinner(winner.name);
+        _updateStats().then((_) => _showPostGame());
+      } else {
+        _showPostGame();
       }
       return;
     }
