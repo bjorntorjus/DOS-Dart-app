@@ -41,12 +41,12 @@ class ClockProgress extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: done
-                  ? Colors.green
+                  ? Theme.of(context).colorScheme.primary
                   : isCurrent
-                      ? Colors.amber
+                      ? Theme.of(context).colorScheme.tertiary
                       : Theme.of(context).colorScheme.surfaceContainerLow,
               border: isCurrent
-                  ? Border.all(color: Colors.amber, width: 2)
+                  ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 2)
                   : null,
             ),
             alignment: Alignment.center,

@@ -60,7 +60,7 @@ class HalveItScoreboard extends StatelessWidget {
               final isCurrent = ri == currentRoundIndex;
               return DataRow(
                 color: isCurrent
-                    ? WidgetStatePropertyAll(Colors.amber.withAlpha(20))
+                    ? WidgetStatePropertyAll(Theme.of(context).colorScheme.tertiary.withAlpha(20))
                     : null,
                 cells: [
                   DataCell(Text(
@@ -69,7 +69,7 @@ class HalveItScoreboard extends StatelessWidget {
                       fontSize: 12,
                       fontWeight:
                           isCurrent ? FontWeight.bold : FontWeight.normal,
-                      color: isCurrent ? Colors.amber : null,
+                      color: isCurrent ? Theme.of(context).colorScheme.tertiary : null,
                     ),
                   )),
                   ...List.generate(playerNames.length, (pi) {

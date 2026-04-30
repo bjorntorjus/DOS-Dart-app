@@ -1105,8 +1105,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                                     ? Icon(Icons.arrow_right,
                                         color: Theme.of(context).colorScheme.primary, size: 28)
                                     : isWinner
-                                        ? const Icon(Icons.emoji_events,
-                                            color: Colors.amber, size: 28)
+                                        ? Icon(Icons.emoji_events,
+                                            color: Theme.of(context).colorScheme.tertiary, size: 28)
                                         : null,
                           ),
                           const SizedBox(width: 10),

@@ -1683,14 +1683,14 @@ class _GameScreenState extends State<GameScreen> {
                             SizedBox(
                               width: 28,
                               child: hasPendingCheckout
-                                  ? const Icon(Icons.check_circle,
-                                      color: Colors.green, size: 24)
+                                  ? Icon(Icons.check_circle,
+                                      color: Theme.of(context).colorScheme.primary, size: 24)
                                   : isCurrent
                                       ? Icon(Icons.arrow_right,
                                           color: Theme.of(context).colorScheme.primary, size: 24)
                                       : isWinner
-                                          ? const Icon(Icons.emoji_events,
-                                              color: Colors.amber, size: 24)
+                                          ? Icon(Icons.emoji_events,
+                                              color: Theme.of(context).colorScheme.tertiary, size: 24)
                                           : null,
                             ),
                             const SizedBox(width: 8),

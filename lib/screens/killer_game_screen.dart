@@ -783,7 +783,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: lastThrowLabel!.contains('KILLER')
-                              ? Colors.amber
+                              ? Theme.of(context).colorScheme.tertiary
                               : lastThrowLabel!.contains('shield')
                                   ? Colors.blue
                                   : lastThrowLabel!.contains('Eliminated') ||
@@ -794,7 +794,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                       ? Theme.of(context).colorScheme.error
                                       : lastThrowLabel!
                                               .contains('Must be Killer')
-                                          ? Colors.orange
+                                          ? Theme.of(context).colorScheme.tertiary
                                           : Colors.white,
                         )),
                   )
@@ -893,8 +893,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                     !isKiller[pi] &&
                     !isEliminated[pi])
                   Text('Hit ${assignedNumbers[pi]} to become Killer!',
-                      style: const TextStyle(
-                          color: Colors.amber, fontSize: 12)),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.tertiary, fontSize: 12)),
               ],
             ),
           ),
@@ -1007,8 +1007,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                           ? Icon(Icons.arrow_right,
                               color: Theme.of(context).colorScheme.primary, size: 20)
                           : isWinner
-                              ? const Icon(Icons.emoji_events,
-                                  color: Colors.amber, size: 20)
+                              ? Icon(Icons.emoji_events,
+                                  color: Theme.of(context).colorScheme.tertiary, size: 20)
                               : eliminated
                                   ? const Icon(Icons.close,
                                       color: Colors.red, size: 20)
@@ -1055,9 +1055,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                             ),
                           ),
                           if (isKiller[index] && !eliminated)
-                            const Text('KILLER',
+                            Text('KILLER',
                                 style: TextStyle(
-                                    color: Colors.amber,
+                                    color: Theme.of(context).colorScheme.tertiary,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold)),
                           if (_lastDartsLabel(index).isNotEmpty)

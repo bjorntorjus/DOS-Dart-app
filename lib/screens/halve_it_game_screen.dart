@@ -677,12 +677,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     color: isCurrent
-                        ? Colors.amber.withAlpha(40)
+                        ? Theme.of(context).colorScheme.tertiary.withAlpha(40)
                         : isDone
                             ? Colors.green.withAlpha(30)
                             : Theme.of(context).colorScheme.surfaceContainerLow,
                     border: isCurrent
-                        ? Border.all(color: Colors.amber, width: 1.5)
+                        ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 1.5)
                         : null,
                   ),
                   child: Text(
@@ -692,7 +692,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                       fontWeight:
                           isCurrent ? FontWeight.bold : FontWeight.normal,
                       color: isCurrent
-                          ? Colors.amber
+                          ? Theme.of(context).colorScheme.tertiary
                           : isDone
                               ? Colors.green
                               : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
