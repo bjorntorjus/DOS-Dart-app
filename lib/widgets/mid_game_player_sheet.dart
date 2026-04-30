@@ -109,8 +109,9 @@ class _MidGameSheetState extends State<_MidGameSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
                     widget.addInfoText!,
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.orange[300]),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.secondary),
                   ),
                 ),
               const SizedBox(height: 8),

@@ -64,18 +64,18 @@ class PostGameScreen extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.orange.withAlpha(30),
-                border: Border.all(color: Colors.orange.withAlpha(80)),
+                color: cs.secondary.withAlpha(30),
+                border: Border.all(color: cs.secondary.withAlpha(80)),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.orange, size: 16),
-                  SizedBox(width: 8),
+                  Icon(Icons.info_outline, color: cs.secondary, size: 16),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Statistics not recorded (player list changed mid-game)',
-                      style: TextStyle(color: Colors.orange, fontSize: 13),
+                      style: TextStyle(color: cs.secondary, fontSize: 13),
                     ),
                   ),
                 ],
