@@ -336,7 +336,7 @@ class _StatsScreenState extends State<StatsScreen>
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: rank == 0
-                          ? Colors.amber
+                          ? Theme.of(context).colorScheme.tertiary
                           : rank == 1
                               ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
                               : rank == 2

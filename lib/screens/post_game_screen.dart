@@ -9,6 +9,7 @@ class PostGameScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final sorted = List<PlayerResult>.from(result.results)
       ..sort((a, b) => a.placement.compareTo(b.placement));
     final winner = sorted.first;
@@ -29,14 +30,14 @@ class PostGameScreen extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.amber.withAlpha(40),
+                  cs.tertiary.withAlpha(40),
                   Colors.transparent,
                 ],
               ),
             ),
             child: Column(
               children: [
-                const Icon(Icons.emoji_events, size: 48, color: Colors.amber),
+                Icon(Icons.emoji_events, size: 48, color: cs.tertiary),
                 const SizedBox(height: 8),
                 PlayerAvatar(
                   avatarPath: winner.avatarPath,
@@ -51,8 +52,8 @@ class PostGameScreen extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Text('Winner!',
-                    style: TextStyle(color: Colors.amber, fontSize: 16)),
+                Text('Winner!',
+                    style: TextStyle(color: cs.tertiary, fontSize: 16)),
               ],
             ),
           ),
@@ -145,7 +146,7 @@ class _PlayerResultTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     switch (p) {
       case 1:
-        return Colors.amber;
+        return cs.tertiary;
       case 2:
         return cs.onSurface.withValues(alpha: 0.7);
       case 3:
