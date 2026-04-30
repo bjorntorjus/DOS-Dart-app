@@ -123,6 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           label: const Text('Stats'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
                       ),
@@ -138,6 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           label: const Text('Settings'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
                       ),
@@ -281,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(vertical: 18),
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         side: BorderSide(color: Theme.of(context).colorScheme.outline),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -344,6 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(vertical: 18),
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         side: BorderSide(color: Theme.of(context).colorScheme.outline),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

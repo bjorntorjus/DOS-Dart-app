@@ -928,41 +928,74 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// Big buttons for a specific target number (or Bull if n == null).
   Widget _buildNumberButtons(int? n) {
     final isBull = n == null;
+    final cs = Theme.of(context).colorScheme;
+
+    final entries = isBull
+        ? [
+            ('Bull', () => _onDartHit(25, 1)),
+            ('DBull', () => _onDartHit(25, 2)),
+          ]
+        : [
+            ('$n', () => _onDartHit(n, 1)),
+            ('D$n', () => _onDartHit(n, 2)),
+            ('T$n', () => _onDartHit(n, 3)),
+          ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Hit buttons row
-          Row(
-            children: isBull
-                ? [
-                    Expanded(child: _scoreButton('S.Bull', '+25', () => _onDartHit(25, 1), Colors.blueGrey[700]!)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _scoreButton('Bull', '+50', () => _onDartHit(25, 2), Colors.orange[800]!)),
-                  ]
-                : [
-                    Expanded(child: _scoreButton('S$n', '+$n', () => _onDartHit(n, 1), Colors.blueGrey[700]!)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _scoreButton('D$n', '+${n * 2}', () => _onDartHit(n, 2), Colors.orange[800]!)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _scoreButton('T$n', '+${n * 3}', () => _onDartHit(n, 3), Colors.red[800]!)),
+          // Outline-wrap with plain labels separated by 2px vlines
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: cs.outline),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SizedBox(
+              height: 90,
+              child: Row(
+                children: [
+                  for (var i = 0; i < entries.length; i++) ...[
+                    if (i > 0)
+                      Container(width: 2, height: 60, color: cs.outline),
+                    Expanded(
+                      child: InkWell(
+                        onTap: entries[i].$2,
+                        borderRadius: BorderRadius.circular(11),
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              entries[i].$1,
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 62,
+            height: 54,
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _onMiss,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                backgroundColor: cs.surfaceContainerHigh,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text('Miss',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -970,79 +1003,57 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
-  Widget _scoreButton(String label, String points, VoidCallback onTap, Color color) {
-    return SizedBox(
-      height: 86,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: EdgeInsets.zero,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            Text(points, style: const TextStyle(fontSize: 14, color: Colors.white70)),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _compactButton(String label, VoidCallback onTap, Color color) {
-    return SizedBox(
-      height: 76,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(label,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: cs.outline),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(4),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface)),
+          ),
         ),
       ),
     );
   }
 
   Widget _compactButtonGrid(List<Widget> buttons, {bool includeMiss = false}) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column(
         children: [
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                const spacing = 8.0;
-                final tileWidth =
-                    (constraints.maxWidth - spacing * 3) / 4; // 4 per row
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  alignment: WrapAlignment.center,
-                  children: buttons
-                      .map((b) => SizedBox(width: tileWidth, child: b))
-                      .toList(),
-                );
-              },
+            child: GridView.count(
+              crossAxisCount: 4,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+              childAspectRatio: 1.4,
+              children: buttons,
             ),
           ),
           if (includeMiss) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             SizedBox(
-              height: 64,
+              height: 54,
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _onMiss,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                  backgroundColor: cs.surfaceContainerHigh,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),

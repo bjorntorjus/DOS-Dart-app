@@ -1070,7 +1070,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                           eliminated ? Colors.grey : avatarColor(index),
                     ),
                     const SizedBox(width: 8),
-                    // Number badge
+                    // Number badge — turns amber + filled when player is KILLER
                     if (assignedNumbers[index] > 0)
                       Container(
                         width: 26,
@@ -1078,11 +1078,29 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border:
-                              Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1),
+                          color: isKiller[index] && !eliminated
+                              ? Theme.of(context).colorScheme.tertiary
+                              : null,
+                          border: Border.all(
+                            color: isKiller[index] && !eliminated
+                                ? Theme.of(context).colorScheme.tertiary
+                                : Theme.of(context).colorScheme.onSurface
+                                    .withValues(alpha: 0.4),
+                            width: 1,
+                          ),
                         ),
-                        child: Text('${assignedNumbers[index]}',
-                            style: const TextStyle(fontSize: 11)),
+                        child: Text(
+                          '${assignedNumbers[index]}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isKiller[index] && !eliminated
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isKiller[index] && !eliminated
+                                ? Colors.black
+                                : null,
+                          ),
+                        ),
                       ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -1101,18 +1119,21 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                               color: eliminated ? Colors.grey : null,
                             ),
                           ),
-                          if (isKiller[index] && !eliminated)
-                            Text('KILLER',
-                                style: TextStyle(
-                                    color: Theme.of(context).colorScheme.tertiary,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold)),
-                          if (_lastDartsLabel(index).isNotEmpty)
-                            Text(
-                              _lastDartsLabel(index),
-                              style: TextStyle(
-                                  fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
-                            ),
+                          // Reserve a single line for last-darts so the row
+                          // height stays constant. KILLER status is now shown
+                          // by the amber-filled number badge instead of a
+                          // separate label.
+                          Text(
+                            _lastDartsLabel(index).isEmpty
+                                ? ' '
+                                : _lastDartsLabel(index),
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.55)),
+                          ),
                         ],
                       ),
                     ),

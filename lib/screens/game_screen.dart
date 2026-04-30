@@ -1653,17 +1653,6 @@ class _GameScreenState extends State<GameScreen> {
                 ElevatedButton(
                   onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 16),
-                  ),
-                  child: const Text('Miss', style: TextStyle(fontSize: 18)),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
-                  style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                     foregroundColor: Theme.of(context).colorScheme.onSurface,
                     padding: const EdgeInsets.symmetric(

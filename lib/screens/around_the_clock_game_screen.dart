@@ -1175,12 +1175,20 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                                           ? FontWeight.bold
                                           : FontWeight.normal,
                                     )),
-                                if (_lastDartsLabel(index).isNotEmpty)
-                                  Text(
-                                    _lastDartsLabel(index),
-                                    style: TextStyle(
-                                        fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
-                                  ),
+                                // Always reserve space for last-darts label so
+                                // the row height doesn't jump when the first
+                                // dart of a turn is registered.
+                                Text(
+                                  _lastDartsLabel(index).isEmpty
+                                      ? ' '
+                                      : _lastDartsLabel(index),
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.55)),
+                                ),
                               ],
                             ),
                           ),

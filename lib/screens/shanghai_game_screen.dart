@@ -277,14 +277,23 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ));
     }
 
-    Navigator.pushReplacement(
+    Navigator.push<String>(
       context,
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
           result: GameResult(gameMode: 'shanghai', results: results),
         ),
       ),
-    );
+    ).then((action) {
+      if (!mounted) return;
+      if (action == 'undo') {
+        // User wants to keep playing — undo the game-end and return to game.
+        setState(() => engine.undo());
+      } else {
+        // 'home' or back-button: leave the game-screen entirely.
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
   }
 
   List<int> _rankPlayers() {
@@ -567,14 +576,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ),
       body: Column(
         children: [
-          _buildScoreboard(),
-          const SizedBox(height: 8),
           _buildTurnIndicator(),
           const SizedBox(height: 8),
           _buildDartSlots(),
-          const Spacer(),
+          const SizedBox(height: 12),
           _buildActionButtons(),
-          const SizedBox(height: 16),
+          const Spacer(),
+          _buildScoreboard(),
+          const SizedBox(height: 8),
         ],
       ),
     );
