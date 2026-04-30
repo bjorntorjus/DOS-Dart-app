@@ -600,48 +600,73 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                           },
                           itemBuilder: (context, index) {
                             final sp = _selectedPlayers[index];
-                            return Card(
+                            final cs = Theme.of(context).colorScheme;
+                            return Container(
                               key: ValueKey(sp.id),
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: GestureDetector(
-                                  onTap: () => _showPlayerProfile(sp),
-                                  child: PlayerAvatar(
-                                    avatarPath: sp.avatarPath,
-                                    name: sp.name,
-                                    radius: 20,
-                                    backgroundColor: avatarColor(index),
-                                  ),
-                                ),
-                                title: GestureDetector(
-                                  onTap: () => _showPlayerProfile(sp),
-                                  child: Text(
-                                    sp.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: cs.outline),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.drag_indicator,
+                                      size: 18,
+                                      color: cs.onSurface
+                                          .withValues(alpha: 0.35)),
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: () => _showPlayerProfile(sp),
+                                    child: PlayerAvatar(
+                                      avatarPath: sp.avatarPath,
+                                      name: sp.name,
+                                      radius: 20,
+                                      backgroundColor: avatarColor(index),
                                     ),
                                   ),
-                                ),
-                                subtitle: Text(
-                                  'Rating: ${sp.rating.round()} | '
-                                  'Games: ${sp.gamesPlayed}',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
-                                    fontSize: 12,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => _showPlayerProfile(sp),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            sp.name,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${sp.rating.round()} · '
+                                            '${sp.gamesPlayed} games',
+                                            style: TextStyle(
+                                              color: cs.onSurface
+                                                  .withValues(alpha: 0.55),
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.close,
-                                      color: Colors.red, size: 20),
-                                  onPressed: () => _removePlayer(index),
-                                ),
+                                  IconButton(
+                                    icon: Icon(Icons.close,
+                                        color: cs.error, size: 20),
+                                    onPressed: () => _removePlayer(index),
+                                  ),
+                                ],
                               ),
                             );
                           },
                         ),
                 ),
 
-                // Add player (secondary, outlined)
+                // Add player (matches outline-style)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   child: SizedBox(
@@ -650,13 +675,16 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                       onPressed: _addPlayer,
                       icon: const Icon(Icons.person_add, size: 20),
                       label: Text(
-                          'Select players (${_selectedPlayers.length})'),
+                          'Add players (${_selectedPlayers.length})'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
-                        side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onSurface,
+                        side: BorderSide(
+                            color: Theme.of(context).colorScheme.outline),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         textStyle: const TextStyle(
                           fontSize: 15,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

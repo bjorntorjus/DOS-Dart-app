@@ -105,11 +105,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 // Handicap section
-                Text('Handicap',
+                Text('HANDICAP',
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(color: Colors.grey)),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Card(
                   child: Padding(
@@ -161,11 +161,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // ELO Rating section
-                Text('ELO Rating',
+                Text('ELO RATING',
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(color: Colors.grey)),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Card(
                   child: Padding(
@@ -267,11 +267,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // TTS section
-                Text('Text-to-Speech',
+                Text('TEXT-TO-SPEECH',
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(color: Colors.grey)),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Card(
                   child: Column(
@@ -432,11 +432,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // Memes section
-                Text('Memes',
+                Text('MEMES',
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(color: Colors.grey)),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Card(
                   child: GestureDetector(
@@ -465,11 +465,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // Sound effects section
-                Text('Sound Effects',
+                Text('SOUND EFFECTS',
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(color: Colors.grey)),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Card(
                   child: Column(
@@ -505,11 +505,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // Debug section
-                Text('Debug',
+                Text('DEBUG',
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(color: Colors.grey)),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Card(
                   child: Column(
@@ -553,11 +553,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // Feedback section
-                Text('Feedback',
+                Text('FEEDBACK',
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(color: Colors.grey)),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Card(
                   child: Column(
