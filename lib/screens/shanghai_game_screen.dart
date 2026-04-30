@@ -693,60 +693,107 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
         children: [
+          // Outline-wrap with three plain labels (cricket/splitscore style)
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).colorScheme.outline),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SizedBox(
+              height: 90,
+              child: Row(
+                children: [
+                  _shanghaiHitLabel(
+                      '${engine.currentTarget}', () => _onHit(HitType.single)),
+                  Container(
+                      width: 2,
+                      height: 60,
+                      color: Theme.of(context).colorScheme.outline),
+                  _shanghaiHitLabel('D${engine.currentTarget}',
+                      () => _onHit(HitType.double_)),
+                  Container(
+                      width: 2,
+                      height: 60,
+                      color: Theme.of(context).colorScheme.outline),
+                  _shanghaiHitLabel('T${engine.currentTarget}',
+                      () => _onHit(HitType.triple)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Bottom row: Back + Miss side-by-side
           Row(
             children: [
+              if (!engine.gameOver)
+                Expanded(
+                  child: SizedBox(
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _onUndo,
+                      icon: const Icon(Icons.undo, size: 20),
+                      label: const Text('Back',
+                          style: TextStyle(fontSize: 16)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                            color: Theme.of(context).colorScheme.outline),
+                        foregroundColor: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+                ),
+              if (!engine.gameOver) const SizedBox(width: 10),
               Expanded(
-                  child: _bigButton('${engine.currentTarget}',
-                      () => _onHit(HitType.single),
-                      Theme.of(context).colorScheme.primary)),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: _bigButton('D${engine.currentTarget}',
-                      () => _onHit(HitType.double_),
-                      Theme.of(context).colorScheme.secondary)),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: _bigButton('T${engine.currentTarget}',
-                      () => _onHit(HitType.triple),
-                      Theme.of(context).colorScheme.tertiary)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 64,
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _onHit(HitType.miss),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                child: SizedBox(
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () => _onHit(HitType.miss),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceContainerHigh,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Miss',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                ),
               ),
-              child: const Text('Miss',
-                  style:
-                      TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _bigButton(String label, VoidCallback onTap, Color color) {
-    return SizedBox(
-      height: 76,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  Widget _shanghaiHitLabel(String label, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: engine.gameOver ? null : onTap,
+        borderRadius: BorderRadius.circular(11),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: engine.gameOver
+                    ? Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.4)
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ),
         ),
-        child: Text(label,
-            style:
-                const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
       ),
     );
   }

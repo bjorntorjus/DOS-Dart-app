@@ -1042,9 +1042,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 color: eliminated
-                    ? Colors.red.withAlpha(15)
+                    ? Theme.of(context).colorScheme.error.withAlpha(15)
                     : isWinner
-                        ? Colors.green.withAlpha(25)
+                        ? Theme.of(context).colorScheme.primary.withAlpha(25)
                         : null,
                 child: Row(
                   children: [
@@ -1057,8 +1057,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                               ? Icon(Icons.emoji_events,
                                   color: Theme.of(context).colorScheme.tertiary, size: 20)
                               : eliminated
-                                  ? const Icon(Icons.close,
-                                      color: Colors.red, size: 20)
+                                  ? Icon(Icons.close,
+                                      color: Theme.of(context).colorScheme.error, size: 20)
                                   : null,
                     ),
                     const SizedBox(width: 8),
@@ -1123,22 +1123,35 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         children: [
                           // Shield icons
                           if (widget.config.shields)
-                            ...List.generate(shields[index], (_) {
-                              return const Icon(
-                                Icons.shield,
-                                size: 16,
-                                color: Colors.blue,
+                            ...List.generate(shields[index], (i) {
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                    right: i < shields[index] - 1 ? 3 : 0),
+                                child: const Icon(
+                                  Icons.shield,
+                                  size: 22,
+                                  color: Colors.blue,
+                                ),
                               );
                             }),
                           if (widget.config.shields && shields[index] > 0)
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 8),
                           // Life hearts
                           ...List.generate(widget.config.lives, (li) {
                             final hasLife = li < lives[index];
-                            return Icon(
-                              hasLife ? Icons.favorite : Icons.favorite_border,
-                              size: 18,
-                              color: hasLife ? Colors.red : Theme.of(context).colorScheme.surfaceContainer,
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                  right:
+                                      li < widget.config.lives - 1 ? 3 : 0),
+                              child: Icon(
+                                hasLife
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 22,
+                                color: hasLife
+                                    ? Colors.red
+                                    : Theme.of(context).colorScheme.surfaceContainer,
+                              ),
                             );
                           }),
                         ],
@@ -1281,7 +1294,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
               final removed = players[playerIndex];

@@ -675,8 +675,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                           if (turnPoints > 0) ...[
                             const SizedBox(width: 12),
                             Text('+$turnPoints',
-                                style: const TextStyle(
-                                    color: Colors.green, fontSize: 14)),
+                                style: TextStyle(
+                                    color: Theme.of(context).colorScheme.primary, fontSize: 14)),
                           ],
                         ],
                       ),
@@ -724,7 +724,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                     color: isCurrent
                         ? Theme.of(context).colorScheme.tertiary.withAlpha(40)
                         : isDone
-                            ? Colors.green.withAlpha(30)
+                            ? Theme.of(context).colorScheme.primary.withAlpha(30)
                             : Theme.of(context).colorScheme.surfaceContainerLow,
                     border: isCurrent
                         ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 1.5)
@@ -739,7 +739,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                       color: isCurrent
                           ? Theme.of(context).colorScheme.tertiary
                           : isDone
-                              ? Colors.green
+                              ? Theme.of(context).colorScheme.primary
                               : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
@@ -870,7 +870,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
-                                color: lastRoundScore < 0 ? Colors.red : Colors.green,
+                                color: lastRoundScore < 0 ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -1171,7 +1171,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
               final removed = players[playerIndex];
