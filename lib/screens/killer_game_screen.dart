@@ -706,51 +706,98 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
-          if (phase == KillerPhase.playing)
-            IconButton(
-              icon: const Icon(Icons.group_add),
-              onPressed: winnerIndex != null ? null : _openPlayerManagement,
-              tooltip: 'Manage players',
-            ),
-          IconButton(
-            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
-            onPressed: () async {
-              await TtsService.instance.setEnabled(!_ttsEnabled);
-              setState(() => _ttsEnabled = TtsService.instance.enabled);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) async {
+              switch (value) {
+                case 'players':
+                  if (phase == KillerPhase.playing && winnerIndex == null) {
+                    _openPlayerManagement();
+                  }
+                  break;
+                case 'tts':
+                  await TtsService.instance.setEnabled(!_ttsEnabled);
+                  setState(() => _ttsEnabled = TtsService.instance.enabled);
+                  break;
+                case 'meme':
+                  setState(() => _memeEnabled = !_memeEnabled);
+                  AppSettings.setMemeEnabled(_memeEnabled);
+                  _meme.setEnabled(_memeEnabled);
+                  break;
+                case 'meme_freq':
+                  _showMemeFrequencyDialog();
+                  break;
+                case 'offensive':
+                  setState(() => _offensiveEnabled = !_offensiveEnabled);
+                  AppSettings.setMemeOffensive(_offensiveEnabled);
+                  _meme.setOffensive(_offensiveEnabled);
+                  break;
+              }
             },
-            tooltip: 'Speech',
+            itemBuilder: (ctx) => [
+              if (phase == KillerPhase.playing)
+                PopupMenuItem(
+                  value: 'players',
+                  enabled: winnerIndex == null,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.group_add),
+                      SizedBox(width: 12),
+                      Text('Manage players'),
+                    ],
+                  ),
+                ),
+              if (phase == KillerPhase.playing) const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(
+                  children: [
+                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'meme',
+                child: Row(
+                  children: [
+                    Text(_memeEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_memeEnabled ? 'Memes on' : 'Memes off'),
+                  ],
+                ),
+              ),
+              if (_memeEnabled) ...[
+                const PopupMenuItem(
+                  value: 'meme_freq',
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune),
+                      SizedBox(width: 12),
+                      Text('Meme frequency'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'offensive',
+                  child: Row(
+                    children: [
+                      Icon(_offensiveEnabled
+                          ? Icons.whatshot
+                          : Icons.whatshot_outlined),
+                      const SizedBox(width: 12),
+                      Text(_offensiveEnabled
+                          ? 'Offensive on'
+                          : 'Offensive off'),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
-          IconButton(
-            icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
-            onPressed: () {
-              setState(() => _memeEnabled = !_memeEnabled);
-              AppSettings.setMemeEnabled(_memeEnabled);
-              _meme.setEnabled(_memeEnabled);
-            },
-            tooltip: 'Meme sounds',
-          ),
-          if (_memeEnabled) ...[
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showMemeFrequencyDialog,
-              tooltip: 'Meme frequency',
-            ),
-            IconButton(
-              icon: Icon(_offensiveEnabled ? Icons.whatshot : Icons.whatshot_outlined),
-              onPressed: () {
-                setState(() => _offensiveEnabled = !_offensiveEnabled);
-                AppSettings.setMemeOffensive(_offensiveEnabled);
-                _meme.setOffensive(_offensiveEnabled);
-              },
-              tooltip: 'Offensive sounds',
-            ),
-          ],
-          if (throwHistory.isNotEmpty || assignmentPlayerIndex > 0)
-            IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: _undo,
-              tooltip: 'Undo',
-            ),
         ],
       ),
       body: Column(

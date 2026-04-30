@@ -29,7 +29,7 @@ class _StatsScreenState extends State<StatsScreen>
     ('cricket', 'Cricket'),
     ('aroundTheClock', 'Clock'),
     ('killer', 'Killer'),
-    ('halveIt', 'Halve It'),
+    ('halveIt', 'Splitscore'),
   ];
 
   @override
@@ -847,7 +847,7 @@ class _StatsScreenState extends State<StatsScreen>
     'cricket_cutthroat': 'Cricket CT',
     'aroundTheClock': 'Clock',
     'killer': 'Killer',
-    'halveIt': 'Halve It',
+    'halveIt': 'Splitscore',
   };
 
   Widget _buildHistoryTab() {
@@ -1067,7 +1067,7 @@ class _StatsScreenState extends State<StatsScreen>
           'cricket_cutthroat': 'Cricket CT',
           'aroundTheClock': 'Clock',
           'killer': 'Killer',
-          'halveIt': 'Halve It',
+          'halveIt': 'Splitscore',
         };
         final top = sorted.first;
         widgets.add(const SizedBox(height: 4));
