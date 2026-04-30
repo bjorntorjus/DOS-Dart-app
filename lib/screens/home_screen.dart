@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.adjust, size: 80, color: Theme.of(context).colorScheme.secondary),
+                Icon(Icons.adjust, size: 80, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 16),
                 Text(
                   'Dart Scorer',
@@ -71,69 +71,78 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 32),
                 Text(
                   'X01',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: Colors.grey),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface
+                            .withValues(alpha: 0.55),
+                        letterSpacing: 1.5,
+                      ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _x01Button(context, 301),
-                    const SizedBox(width: 12),
-                    _x01Button(context, 501),
-                    const SizedBox(width: 12),
-                    _x01Button(context, 701),
-                  ],
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(child: _x01Button(context, 301)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _x01Button(context, 501)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _x01Button(context, 701)),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Other Games',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                _modeButton(context, GameMode.cricket),
-                const SizedBox(height: 8),
-                _modeButton(context, GameMode.aroundTheClock),
-                const SizedBox(height: 8),
-                _modeButton(context, GameMode.killer),
-                const SizedBox(height: 8),
-                _modeButton(context, GameMode.halveIt),
-                const SizedBox(height: 8),
-                _modeButton(context, GameMode.shanghai),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.bar_chart,
-                          color: Colors.grey, size: 28),
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const StatsScreen()),
-                        );
-                        _loadTopPlayers();
-                      },
-                      tooltip: 'Statistics',
-                    ),
-                    const SizedBox(width: 16),
-                    IconButton(
-                      icon: const Icon(Icons.settings,
-                          color: Colors.grey, size: 28),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const SettingsScreen()),
+                  'GAME MODES',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface
+                            .withValues(alpha: 0.55),
+                        letterSpacing: 1.5,
                       ),
-                      tooltip: 'Settings',
-                    ),
-                  ],
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _modeGrid(context),
+                ),
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const StatsScreen()),
+                            );
+                            _loadTopPlayers();
+                          },
+                          icon: const Icon(Icons.bar_chart, size: 20),
+                          label: const Text('Stats'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const SettingsScreen()),
+                          ),
+                          icon: const Icon(Icons.settings, size: 20),
+                          label: const Text('Settings'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -255,50 +264,132 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _x01Button(BuildContext context, int score) {
-    return SizedBox(
-      width: 90,
-      child: ElevatedButton(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PlayerSetupScreen(
-                gameMode: GameMode.x01,
-                startingScore: score,
-              ),
+    return OutlinedButton(
+      onPressed: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PlayerSetupScreen(
+              gameMode: GameMode.x01,
+              startingScore: score,
             ),
-          );
-          _loadTopPlayers();
-        },
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle:
-              const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        child: Text('$score'),
+          ),
+        );
+        _loadTopPlayers();
+      },
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        side: BorderSide(color: Theme.of(context).colorScheme.outline),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🎯', style: TextStyle(fontSize: 22)),
+          const SizedBox(height: 4),
+          Text(
+            '$score',
+            style:
+                const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _modeButton(BuildContext context, GameMode mode) {
-    return SizedBox(
-      width: 220,
-      child: ElevatedButton(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PlayerSetupScreen(gameMode: mode),
+  Widget _modeGrid(BuildContext context) {
+    final modes = const [
+      (GameMode.cricket, '🎯'),
+      (GameMode.aroundTheClock, '🕐'),
+      (GameMode.killer, '💀'),
+      (GameMode.halveIt, '➗'),
+      (GameMode.shanghai, '🌃'),
+    ];
+    final cells = <Widget>[
+      for (final (mode, emoji) in modes) _modeButton(context, mode, emoji),
+      _comingSoonCell(context),
+    ];
+    return Column(
+      children: [
+        for (var i = 0; i < cells.length; i += 2)
+          Padding(
+            padding: EdgeInsets.only(bottom: i < cells.length - 2 ? 8 : 0),
+            child: Row(
+              children: [
+                Expanded(child: cells[i]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child:
+                      i + 1 < cells.length ? cells[i + 1] : const SizedBox(),
+                ),
+              ],
             ),
-          );
-          _loadTopPlayers();
-        },
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          textStyle:
-              const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+      ],
+    );
+  }
+
+  Widget _modeButton(BuildContext context, GameMode mode, String emoji) {
+    return OutlinedButton(
+      onPressed: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PlayerSetupScreen(gameMode: mode),
+          ),
+        );
+        _loadTopPlayers();
+      },
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        side: BorderSide(color: Theme.of(context).colorScheme.outline),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 26)),
+          const SizedBox(height: 6),
+          Text(
+            mode.label,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _comingSoonCell(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline,
+          style: BorderStyle.solid,
         ),
-        child: Text(mode.label),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('✨',
+              style: TextStyle(
+                  fontSize: 26,
+                  color: Theme.of(context).colorScheme.secondary)),
+          const SizedBox(height: 6),
+          Text(
+            'Coming soon',
+            style: TextStyle(
+              fontSize: 13,
+              letterSpacing: 1,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.5),
+            ),
+          ),
+        ],
       ),
     );
   }

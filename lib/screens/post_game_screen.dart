@@ -97,32 +97,39 @@ class PostGameScreen extends StatelessWidget {
             ),
           ),
 
-          // Action buttons
+          // Action buttons: Back + Continue side by side, Finish Game wide bottom
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop('undo'),
-                    child: const Text('Undo'),
-                  ),
-                ),
-                if (result.canContinue) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop('continue'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop('undo'),
+                        child: const Text('↶ Back'),
                       ),
-                      child: const Text('Continue'),
                     ),
-                  ),
-                ],
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
+                    if (result.canContinue) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              Navigator.of(context).pop('continue'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary,
+                          ),
+                          child: const Text('▶ Continue'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop('home'),
                     child: const Text('Finish Game'),
                   ),
