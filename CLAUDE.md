@@ -39,7 +39,24 @@ lib/
 
 ## Tema
 
-Mørkt tema med grønn (#43A047) primær og rød (#E53935) sekundær.
+Mørkt tema, M3 (`useMaterial3: true`). Paletten er låst til fire roller — alle nye komponenter MÅ velge fra disse:
+
+| Rolle       | Hex       | Når                                                     |
+| ----------- | --------- | ------------------------------------------------------- |
+| `primary`   | `#43A047` | Primær handling, aktiv spiller, positiv endring         |
+| `secondary` | `#FFA726` | Sekundær handling, finished/out, soft warning           |
+| `tertiary`  | `#FFD54F` | Informasjon, achievements, checkout-tips                |
+| `error`     | `#E53935` | Bust, destructive, negativ endring                      |
+
+Bruk alltid `Theme.of(context).colorScheme.<role>` — ikke `Colors.amber` / `Colors.orange` / hex literals.
+
+**Unntak (kun disse):**
+- `lib/utils/player_colors.dart` — avatar-farger, separat palett
+- `lib/widgets/heatmap_board.dart` — data-viz gradient
+- D-knapper i score-input (`Colors.orange[800]` i halve_it/atc) — funksjonell input-semantikk for double
+- Bronze (`Colors.brown[300]`) for 3.-plass — ikke i role-palette, kun en literal
+
+Full spec: `docs/superpowers/specs/2026-04-30-color-design-system.md`.
 
 ## Språk
 

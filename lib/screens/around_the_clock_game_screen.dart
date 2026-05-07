@@ -4,8 +4,8 @@ import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/saved_player.dart';
+import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
-import '../widgets/clock_progress.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
@@ -545,95 +545,136 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   Widget _buildHitButtons(int target) {
     final isActive = !finishedPlayers.contains(currentPlayerIndex);
     final isBull = target == 25;
-
-    Widget hitBtn(String label, int seg, int mult) {
-      final Color bg;
-      if (mult == 3) bg = Colors.red[800]!;
-      else if (mult == 2) bg = Colors.orange[800]!;
-      else bg = Colors.blueGrey[700]!;
-
-      return Expanded(
-        child: SizedBox(
-          height: 120,
-          child: ElevatedButton(
-            onPressed: isActive ? () => _onDartHit(seg, mult) : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: bg,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: bg.withAlpha(60),
-              padding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(label,
-                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ),
-      );
-    }
+    final cs = Theme.of(context).colorScheme;
+    final progressTotal = widget.config.includeBull ? 21 : 20;
+    final progressDone = isBull ? progressTotal - 1 : (target - 1);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
-            isBull ? 'Hit Bull' : 'Hit $target',
-            style: TextStyle(fontSize: 20, color: Colors.grey[400]),
+            'NEXT TARGET',
+            style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.55),
+                fontSize: 12,
+                letterSpacing: 1.5,
+                fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              if (isBull) ...[
-                hitBtn('S.Bull', 25, 1),
-                const SizedBox(width: 16),
-                hitBtn('Bull', 25, 2),
-              ] else ...[
-                hitBtn('$target', target, 1),
-                const SizedBox(width: 16),
-                hitBtn('D$target', target, 2),
-                const SizedBox(width: 16),
-                hitBtn('T$target', target, 3),
-              ],
-            ],
+          const SizedBox(height: 4),
+          Text(
+            '${progressDone + 1} OF $progressTotal',
+            style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.4),
+                fontSize: 11,
+                letterSpacing: 2),
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton(
-              onPressed: isActive ? _onMiss : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[800],
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          const SizedBox(height: 18),
+          // Outline-wrap with three plain labels separated by vlines
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: cs.outline),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SizedBox(
+              height: 100,
+              child: Row(
+                children: isBull
+                    ? [
+                        _atcHitLabel('Bull', 25, 1, isActive),
+                        _atcVline(cs),
+                        _atcHitLabel('DBull', 25, 2, isActive),
+                      ]
+                    : [
+                        _atcHitLabel('$target', target, 1, isActive),
+                        _atcVline(cs),
+                        _atcHitLabel('D$target', target, 2, isActive),
+                        _atcVline(cs),
+                        _atcHitLabel('T$target', target, 3, isActive),
+                      ],
               ),
-              child: const Text('MISS',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 2)),
             ),
           ),
-          if (throwHistory.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            FractionallySizedBox(
-              widthFactor: 0.6,
-              child: SizedBox(
-                height: 40,
-                child: OutlinedButton.icon(
-                  onPressed: _undo,
-                  icon: const Icon(Icons.undo, size: 16),
-                  label: const Text('Back'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[400],
-                    side: BorderSide(color: Colors.grey[700]!),
+          const SizedBox(height: 14),
+          // Bottom row: Back + Miss side-by-side
+          Row(
+            children: [
+              if (throwHistory.isNotEmpty)
+                Expanded(
+                  child: SizedBox(
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _undo,
+                      icon: const Icon(Icons.undo, size: 20),
+                      label: const Text('Back',
+                          style: TextStyle(fontSize: 16)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: cs.outline),
+                        foregroundColor:
+                            cs.onSurface.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+                ),
+              if (throwHistory.isNotEmpty) const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isActive ? _onMiss : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: cs.surfaceContainerHigh,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Miss',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _atcHitLabel(String label, int seg, int mult, bool isActive) {
+    return Expanded(
+      child: InkWell(
+        onTap: isActive ? () => _onDartHit(seg, mult) : null,
+        borderRadius: BorderRadius.circular(11),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: isActive
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _atcVline(ColorScheme cs) {
+    return Container(
+      width: 2,
+      height: 60,
+      color: cs.outline,
     );
   }
 
@@ -899,50 +940,95 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.group_add),
-            onPressed: _gameFullyOver ? null : _openPlayerManagement,
-            tooltip: 'Manage players',
-          ),
-          IconButton(
-            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
-            onPressed: () async {
-              await TtsService.instance.setEnabled(!_ttsEnabled);
-              setState(() => _ttsEnabled = TtsService.instance.enabled);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) async {
+              switch (value) {
+                case 'players':
+                  if (!_gameFullyOver) _openPlayerManagement();
+                  break;
+                case 'tts':
+                  await TtsService.instance.setEnabled(!_ttsEnabled);
+                  setState(() => _ttsEnabled = TtsService.instance.enabled);
+                  break;
+                case 'meme':
+                  setState(() => _memeEnabled = !_memeEnabled);
+                  AppSettings.setMemeEnabled(_memeEnabled);
+                  _meme.setEnabled(_memeEnabled);
+                  break;
+                case 'meme_freq':
+                  _showMemeFrequencyDialog();
+                  break;
+                case 'offensive':
+                  setState(() => _offensiveEnabled = !_offensiveEnabled);
+                  AppSettings.setMemeOffensive(_offensiveEnabled);
+                  _meme.setOffensive(_offensiveEnabled);
+                  break;
+              }
             },
-            tooltip: 'Speech',
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'players',
+                enabled: !_gameFullyOver,
+                child: const Row(
+                  children: [
+                    Icon(Icons.group_add),
+                    SizedBox(width: 12),
+                    Text('Manage players'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(
+                  children: [
+                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'meme',
+                child: Row(
+                  children: [
+                    Text(_memeEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_memeEnabled ? 'Memes on' : 'Memes off'),
+                  ],
+                ),
+              ),
+              if (_memeEnabled) ...[
+                const PopupMenuItem(
+                  value: 'meme_freq',
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune),
+                      SizedBox(width: 12),
+                      Text('Meme frequency'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'offensive',
+                  child: Row(
+                    children: [
+                      Icon(_offensiveEnabled
+                          ? Icons.whatshot
+                          : Icons.whatshot_outlined),
+                      const SizedBox(width: 12),
+                      Text(_offensiveEnabled
+                          ? 'Offensive on'
+                          : 'Offensive off'),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
-          IconButton(
-            icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
-            onPressed: () {
-              setState(() => _memeEnabled = !_memeEnabled);
-              AppSettings.setMemeEnabled(_memeEnabled);
-              _meme.setEnabled(_memeEnabled);
-            },
-            tooltip: 'Meme sounds',
-          ),
-          if (_memeEnabled) ...[
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showMemeFrequencyDialog,
-              tooltip: 'Meme frequency',
-            ),
-            IconButton(
-              icon: Icon(_offensiveEnabled ? Icons.whatshot : Icons.whatshot_outlined),
-              onPressed: () {
-                setState(() => _offensiveEnabled = !_offensiveEnabled);
-                AppSettings.setMemeOffensive(_offensiveEnabled);
-                _meme.setOffensive(_offensiveEnabled);
-              },
-              tooltip: 'Offensive sounds',
-            ),
-          ],
-          if (throwHistory.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: _undo,
-              tooltip: 'Undo',
-            ),
         ],
       ),
       body: Column(
@@ -952,126 +1038,88 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6),
-              color: Colors.red.withAlpha(200),
-              child: const Text('SUDDEN DEATH',
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Text('SUDDEN DEATH',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.onErrorContainer)),
             ),
           // Pending finish banner
           if (_pendingFinishes.isNotEmpty && !_inSuddenDeath)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 4),
-              color: Colors.green.withAlpha(150),
+              color: Theme.of(context).colorScheme.primary.withAlpha(40),
               child: Text(
                 _pendingFinishes.length == 1
                     ? '${players[_pendingFinishes.first.playerIndex].name} finished! Round continues...'
                     : '${_pendingFinishes.length} players finished! Round continues...',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.primary),
               ),
             ),
-          // Current player info
+          // Slim current-player info bar
           Container(
             padding:
-                const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
             decoration: BoxDecoration(
-              color: playerColor(currentPlayerIndex).withAlpha(40),
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
               border: Border(
                 bottom: BorderSide(
-                    color: playerColor(currentPlayerIndex).withAlpha(80)),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
               ),
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(currentPlayer.name,
-                          style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text('Dart ${dartsInTurn + 1} of 3',
-                              style: TextStyle(
-                                  color: Colors.grey[400], fontSize: 14)),
-                          const SizedBox(width: 8),
-                          ...List.generate(3, (i) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 3),
-                              child: Icon(
-                                i < dartsInTurn
-                                    ? Icons.circle
-                                    : Icons.circle_outlined,
-                                size: 10,
-                                color: playerColor(currentPlayerIndex),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  children: [
-                    Text('Target',
-                        style:
-                            TextStyle(color: Colors.grey[400], fontSize: 12)),
-                    Text(
-                      _isFinished(currentTarget)
-                          ? '✓'
-                          : currentTarget == 25
-                              ? 'Bull'
-                              : '$currentTarget',
-                      style: const TextStyle(
-                          fontSize: 48, fontWeight: FontWeight.bold),
+                Text(currentPlayer.name,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 10),
+                ...List.generate(3, (i) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      i < dartsInTurn
+                          ? Icons.circle
+                          : Icons.circle_outlined,
+                      size: 10,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                  ],
-                ),
+                  );
+                }),
+                const Spacer(),
+                if (lastThrowLabel != null)
+                  Text('Last: $lastThrowLabel',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: lastThrowLabel!.contains('✓')
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface
+                                .withValues(alpha: 0.85),
+                      )),
               ],
             ),
           ),
 
-          // Progress
-          ClockProgress(
-            currentTarget: _isFinished(currentTarget)
-                ? (_isReverse ? 0 : _maxTarget + 1)
-                : currentTarget,
-            includeBull: widget.config.includeBull,
-            reverse: _isReverse,
-          ),
-
-          // Hit buttons for current target
+          // Hit buttons (focal area: target embedded in button labels)
           Expanded(
             child: Center(
               child: _buildHitButtons(currentTarget),
             ),
           ),
 
-          // Last throw
-          if (lastThrowLabel != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text('Last: $lastThrowLabel',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: lastThrowLabel!.contains('✓')
-                        ? Colors.green
-                        : Colors.white,
-                  )),
-            ),
-
           // Player scoreboard
           Container(
             constraints: const BoxConstraints(maxHeight: 280),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              border: Border(top: BorderSide(color: Colors.grey[800]!)),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: ListView.builder(
               padding: EdgeInsets.zero,
@@ -1087,71 +1135,78 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 final isRemoved = _removedPlayerIndices.contains(index);
                 return Opacity(
                   opacity: isRemoved ? 0.4 : 1.0,
-                  child: Container(
-                  color: isCurrent
-                      ? playerColor(index).withAlpha(25)
-                      : isWinner
-                          ? Colors.green.withAlpha(25)
-                          : null,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 32,
-                        child: _pendingFinishes.any((f) => f.playerIndex == index)
-                            ? const Icon(Icons.check_circle,
-                                color: Colors.green, size: 28)
-                            : isCurrent
-                                ? Icon(Icons.arrow_right,
-                                    color: playerColor(index), size: 28)
-                                : isWinner
-                                    ? const Icon(Icons.emoji_events,
-                                        color: Colors.amber, size: 28)
-                                    : null,
+                  child: ActivePlayerHighlight(
+                    isActive: isCurrent,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      color: isWinner ? Theme.of(context).colorScheme.primary.withAlpha(25) : null,
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 32,
+                            child: _pendingFinishes.any((f) => f.playerIndex == index)
+                                ? Icon(Icons.check_circle,
+                                    color: Theme.of(context).colorScheme.primary, size: 28)
+                                : isCurrent
+                                    ? Icon(Icons.arrow_right,
+                                        color: Theme.of(context).colorScheme.primary, size: 28)
+                                    : isWinner
+                                        ? Icon(Icons.emoji_events,
+                                            color: Theme.of(context).colorScheme.tertiary, size: 28)
+                                        : null,
+                          ),
+                          const SizedBox(width: 10),
+                          PlayerAvatar(
+                            avatarPath: player.avatarPath,
+                            name: player.name,
+                            radius: 22,
+                            backgroundColor: avatarColor(index),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(player.name,
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: isCurrent
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    )),
+                                // Always reserve space for last-darts label so
+                                // the row height doesn't jump when the first
+                                // dart of a turn is registered.
+                                Text(
+                                  _lastDartsLabel(index).isEmpty
+                                      ? ' '
+                                      : _lastDartsLabel(index),
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.55)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            _isFinished(target)
+                                ? 'Done!'
+                                : target == 25
+                                    ? 'Bull'
+                                    : '$target',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: isWinner ? Theme.of(context).colorScheme.primary : null,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      PlayerAvatar(
-                        avatarPath: player.avatarPath,
-                        name: player.name,
-                        radius: 22,
-                        backgroundColor: playerColor(index),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(player.name,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: isCurrent
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                )),
-                            if (_lastDartsLabel(index).isNotEmpty)
-                              Text(
-                                _lastDartsLabel(index),
-                                style: TextStyle(
-                                    fontSize: 14, color: Colors.grey[500]),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        _isFinished(target)
-                            ? 'Done!'
-                            : target == 25
-                                ? 'Bull'
-                                : '$target',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: isWinner ? Colors.green : null,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
                   ),
                 );
               },
@@ -1200,7 +1255,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),
@@ -1229,7 +1284,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: _gameFullyOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
@@ -1288,7 +1343,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
               final removed = players[playerIndex];
@@ -1331,7 +1388,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53935)),
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             child: const Text('Quit'),
           ),
         ],

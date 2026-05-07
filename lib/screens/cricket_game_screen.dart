@@ -615,50 +615,95 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.group_add),
-            onPressed: _gameFullyOver ? null : _openPlayerManagement,
-            tooltip: 'Manage players',
-          ),
-          IconButton(
-            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
-            onPressed: () async {
-              await TtsService.instance.setEnabled(!_ttsEnabled);
-              setState(() => _ttsEnabled = TtsService.instance.enabled);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) async {
+              switch (value) {
+                case 'players':
+                  if (!_gameFullyOver) _openPlayerManagement();
+                  break;
+                case 'tts':
+                  await TtsService.instance.setEnabled(!_ttsEnabled);
+                  setState(() => _ttsEnabled = TtsService.instance.enabled);
+                  break;
+                case 'meme':
+                  setState(() => _memeEnabled = !_memeEnabled);
+                  AppSettings.setMemeEnabled(_memeEnabled);
+                  _meme.setEnabled(_memeEnabled);
+                  break;
+                case 'meme_freq':
+                  _showMemeFrequencyDialog();
+                  break;
+                case 'offensive':
+                  setState(() => _offensiveEnabled = !_offensiveEnabled);
+                  AppSettings.setMemeOffensive(_offensiveEnabled);
+                  _meme.setOffensive(_offensiveEnabled);
+                  break;
+              }
             },
-            tooltip: 'Speech',
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'players',
+                enabled: !_gameFullyOver,
+                child: const Row(
+                  children: [
+                    Icon(Icons.group_add),
+                    SizedBox(width: 12),
+                    Text('Manage players'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(
+                  children: [
+                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'meme',
+                child: Row(
+                  children: [
+                    Text(_memeEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_memeEnabled ? 'Memes on' : 'Memes off'),
+                  ],
+                ),
+              ),
+              if (_memeEnabled) ...[
+                const PopupMenuItem(
+                  value: 'meme_freq',
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune),
+                      SizedBox(width: 12),
+                      Text('Meme frequency'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'offensive',
+                  child: Row(
+                    children: [
+                      Icon(_offensiveEnabled
+                          ? Icons.whatshot
+                          : Icons.whatshot_outlined),
+                      const SizedBox(width: 12),
+                      Text(_offensiveEnabled
+                          ? 'Offensive on'
+                          : 'Offensive off'),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
-          IconButton(
-            icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
-            onPressed: () {
-              setState(() => _memeEnabled = !_memeEnabled);
-              AppSettings.setMemeEnabled(_memeEnabled);
-              _meme.setEnabled(_memeEnabled);
-            },
-            tooltip: 'Meme sounds',
-          ),
-          if (_memeEnabled) ...[
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showMemeFrequencyDialog,
-              tooltip: 'Meme frequency',
-            ),
-            IconButton(
-              icon: Icon(_offensiveEnabled ? Icons.whatshot : Icons.whatshot_outlined),
-              onPressed: () {
-                setState(() => _offensiveEnabled = !_offensiveEnabled);
-                AppSettings.setMemeOffensive(_offensiveEnabled);
-                _meme.setOffensive(_offensiveEnabled);
-              },
-              tooltip: 'Offensive sounds',
-            ),
-          ],
-          if (throwHistory.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: _undo,
-              tooltip: 'Undo',
-            ),
         ],
       ),
       body: Column(
@@ -667,8 +712,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              border: Border(bottom: BorderSide(color: Colors.grey[800]!)),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: Column(
               children: [
@@ -679,7 +724,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                       '${players[currentPlayerIndex].name} — Dart ${dartsInTurn + 1}/3',
                       style: TextStyle(
                         fontSize: 16,
-                        color: playerColor(currentPlayerIndex),
+                        color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -689,7 +734,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                       child: Icon(
                         i < dartsInTurn ? Icons.circle : Icons.circle_outlined,
                         size: 10,
-                        color: playerColor(currentPlayerIndex),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )),
                     if (lastThrowLabel != null) ...[
@@ -724,12 +769,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                             vertical: 6, horizontal: 4),
                         decoration: BoxDecoration(
                           color: isCurrent
-                              ? playerColor(pi).withAlpha(40)
-                              : Colors.grey[900],
+                              ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
+                              : Theme.of(context).colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(8),
                           border: isCurrent
                               ? Border.all(
-                                  color: playerColor(pi).withAlpha(100))
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4))
                               : null,
                         ),
                         child: Column(
@@ -738,7 +783,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                               avatarPath: players[pi].avatarPath,
                               name: players[pi].name,
                               radius: 18,
-                              backgroundColor: playerColor(pi),
+                              backgroundColor: avatarColor(pi),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -750,7 +795,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                                 fontWeight: isCurrent
                                     ? FontWeight.bold
                                     : FontWeight.normal,
-                                color: playerColor(pi),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -763,7 +808,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                               Text(
                                 lastDarts,
                                 style: TextStyle(
-                                    fontSize: 10, color: Colors.grey[500]),
+                                    fontSize: 10, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
                                 overflow: TextOverflow.ellipsis,
                               ),
                           ],
@@ -781,7 +826,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[800]!)),
+              border: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: Row(
               children: [
@@ -796,7 +841,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                         style: TextStyle(
                           fontSize: isCurrent ? 12 : 11,
                           fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                          color: playerColor(pi),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
@@ -825,8 +870,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                       margin: const EdgeInsets.symmetric(vertical: 1),
                       decoration: BoxDecoration(
                         color: closedByAll
-                            ? Colors.grey[900]?.withAlpha(120)
-                            : const Color(0xFF1E1E1E),
+                            ? Theme.of(context).colorScheme.surfaceContainerLow.withValues(alpha: 0.47)
+                            : Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -843,7 +888,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: closedByAll ? Colors.grey[600] : Colors.white,
+                                  color: closedByAll ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4) : Colors.white,
                                 ),
                               ),
                             ),
@@ -854,7 +899,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                             final isCurrent = pi == currentPlayerIndex;
                             final m = marks[pi][target] ?? 0;
                             final closed = _isClosed(target, pi);
-                            final color = closed ? Colors.green : playerColor(pi);
+                            final color = closed ? Colors.green : Theme.of(context).colorScheme.primary;
                             final fillFraction = (m.clamp(0, maxMarks) / maxMarks.toDouble());
 
                             // Active player: mark buttons
@@ -918,8 +963,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        border: Border(top: BorderSide(color: Colors.grey[850]!)),
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outline)),
       ),
       child: Row(
         children: [
@@ -936,8 +981,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[300],
-                    side: BorderSide(color: Colors.grey[600]!, width: 1.5),
+                    foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                    side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1.5),
                   ),
                 ),
               ),
@@ -950,7 +995,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               child: ElevatedButton(
                 onPressed: isGameActive ? _onMiss : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[800],
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                   foregroundColor: Colors.white,
                   textStyle: const TextStyle(
                       fontSize: 28,
@@ -977,9 +1022,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.grey[850] ?? Colors.grey[900],
+            color: Theme.of(context).colorScheme.outline,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.grey[700]!, width: 0.5),
+            border: Border.all(color: Theme.of(context).colorScheme.outline, width: 0.5),
           ),
         ),
         if (fillFraction > 0)
@@ -1016,33 +1061,37 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Widget _markButton(int target, int multiplier, int currentMarks) {
     final isBull = target == 25;
     final isFilled = currentMarks >= multiplier;
-    final color = playerColor(currentPlayerIndex);
+    final isDead = _isClosedByAll(target);
+    final cs = Theme.of(context).colorScheme;
     final label = switch (multiplier) {
       2 => isBull ? 'DBull' : 'D$target',
       3 => 'T$target',
       _ => isBull ? 'Bull' : '$target',
     };
     return SizedBox.expand(
-      child: ElevatedButton(
-        onPressed: () => _registerHit(target, multiplier),
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              isFilled ? color.withAlpha(170) : const Color(0xFF374151),
-          foregroundColor: isFilled ? Colors.white : const Color(0xFFD1D5DB),
-          elevation: 0,
-          padding: EdgeInsets.zero,
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          side: BorderSide(
-            color: isFilled ? color.withAlpha(200) : const Color(0xFF4B5563),
+      child: Tooltip(
+        message: isDead ? 'Closed by all players' : '',
+        child: ElevatedButton(
+          onPressed: isDead ? null : () => _registerHit(target, multiplier),
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                isFilled ? cs.primary.withValues(alpha: 0.7) : cs.surfaceContainer,
+            foregroundColor: isFilled ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.7),
+            elevation: 0,
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            side: BorderSide(
+              color: isFilled ? cs.primary.withValues(alpha: 0.8) : cs.outline,
+            ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           ),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(label,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          ),
         ),
       ),
     );
@@ -1086,7 +1135,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),
@@ -1115,7 +1164,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: _gameFullyOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
@@ -1215,7 +1264,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53935)),
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             child: const Text('Quit'),
           ),
         ],

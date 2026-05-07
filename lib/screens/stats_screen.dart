@@ -29,7 +29,7 @@ class _StatsScreenState extends State<StatsScreen>
     ('cricket', 'Cricket'),
     ('aroundTheClock', 'Clock'),
     ('killer', 'Killer'),
-    ('halveIt', 'Halve It'),
+    ('halveIt', 'Splitscore'),
   ];
 
   @override
@@ -74,7 +74,8 @@ class _StatsScreenState extends State<StatsScreen>
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             child: const Text('Delete'),
           ),
@@ -182,7 +183,7 @@ class _StatsScreenState extends State<StatsScreen>
                       Text(
                         'Rating: ${p.rating.round()}',
                         style: TextStyle(
-                          color: Colors.grey[400],
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                           fontSize: 13,
                         ),
                       ),
@@ -256,6 +257,7 @@ class _StatsScreenState extends State<StatsScreen>
                     painter: _RatingGraphPainter(
                       snapshots: p.ratingHistory,
                       lineColor: Colors.blue,
+                      textColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                     ),
                   ),
                 ),
@@ -289,11 +291,11 @@ class _StatsScreenState extends State<StatsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.sports_esports, size: 48, color: Colors.grey[700]),
+            Icon(Icons.sports_esports, size: 48, color: Theme.of(context).colorScheme.surfaceContainer),
             const SizedBox(height: 16),
             Text(
               'No $modeLabel games played yet',
-              style: TextStyle(color: Colors.grey[500], fontSize: 16),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), fontSize: 16),
             ),
           ],
         ),
@@ -334,12 +336,12 @@ class _StatsScreenState extends State<StatsScreen>
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: rank == 0
-                          ? Colors.amber
+                          ? Theme.of(context).colorScheme.tertiary
                           : rank == 1
-                              ? Colors.grey[400]
+                              ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
                               : rank == 2
                                   ? Colors.brown[300]
-                                  : Colors.grey[600],
+                                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
                 ),
@@ -364,7 +366,7 @@ class _StatsScreenState extends State<StatsScreen>
                       Text(
                         '${ms.played} games, ${ms.won} won',
                         style: TextStyle(
-                          color: Colors.grey[400],
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                           fontSize: 13,
                         ),
                       ),
@@ -381,13 +383,13 @@ class _StatsScreenState extends State<StatsScreen>
                         fontWeight: FontWeight.bold,
                         color: int.parse(winRate) >= 50
                             ? Colors.green
-                            : Colors.grey[400],
+                            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     Text(
                       'win rate',
                       style: TextStyle(
-                        color: Colors.grey[600],
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                         fontSize: 11,
                       ),
                     ),
@@ -616,7 +618,7 @@ class _StatsScreenState extends State<StatsScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.grey[900],
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -629,7 +631,7 @@ class _StatsScreenState extends State<StatsScreen>
               children: [
                 Text(
                   item.label,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), fontSize: 10),
                 ),
                 Text(
                   item.value,
@@ -676,7 +678,7 @@ class _StatsScreenState extends State<StatsScreen>
       children: [
         Flexible(
           child: Text(label,
-              style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 14)),
         ),
         const SizedBox(width: 8),
         Text(
@@ -767,11 +769,11 @@ class _StatsScreenState extends State<StatsScreen>
                 padding: const EdgeInsets.only(top: 48),
                 child: Column(
                   children: [
-                    Icon(Icons.map, size: 48, color: Colors.grey[700]),
+                    Icon(Icons.map, size: 48, color: Theme.of(context).colorScheme.surfaceContainer),
                     const SizedBox(height: 16),
                     Text(
                       'Select a player to see their heatmap',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 16),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), fontSize: 16),
                     ),
                   ],
                 ),
@@ -792,7 +794,7 @@ class _StatsScreenState extends State<StatsScreen>
       children: [
         SizedBox(
           width: 120,
-          child: Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+          child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
         ),
         Expanded(
           child: DropdownButtonFormField<String>(
@@ -845,7 +847,7 @@ class _StatsScreenState extends State<StatsScreen>
     'cricket_cutthroat': 'Cricket CT',
     'aroundTheClock': 'Clock',
     'killer': 'Killer',
-    'halveIt': 'Halve It',
+    'halveIt': 'Splitscore',
   };
 
   Widget _buildHistoryTab() {
@@ -854,13 +856,13 @@ class _StatsScreenState extends State<StatsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history, size: 64, color: Colors.grey[700]),
+            Icon(Icons.history, size: 64, color: Theme.of(context).colorScheme.surfaceContainer),
             const SizedBox(height: 16),
             Text('No games recorded yet',
-                style: TextStyle(color: Colors.grey[500], fontSize: 18)),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), fontSize: 18)),
             const SizedBox(height: 8),
             Text('Games appear here after you exit',
-                style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), fontSize: 14)),
           ],
         ),
       );
@@ -889,15 +891,15 @@ class _StatsScreenState extends State<StatsScreen>
         leading: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF43A047).withAlpha(30),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFF43A047).withAlpha(80)),
+            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.32)),
           ),
           child: Text(label,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF43A047))),
+                  color: Theme.of(context).colorScheme.primary)),
         ),
         title: Row(
           children: sorted.take(3).map((p) {
@@ -916,7 +918,7 @@ class _StatsScreenState extends State<StatsScreen>
           }).toList(),
         ),
         subtitle: Text(date,
-            style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+            style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4))),
         children: [
           const Divider(height: 1),
           const SizedBox(height: 8),
@@ -968,7 +970,7 @@ class _StatsScreenState extends State<StatsScreen>
       chips.add(Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
-          color: Colors.grey[900],
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text('$label: $value',
@@ -1065,7 +1067,7 @@ class _StatsScreenState extends State<StatsScreen>
           'cricket_cutthroat': 'Cricket CT',
           'aroundTheClock': 'Clock',
           'killer': 'Killer',
-          'halveIt': 'Halve It',
+          'halveIt': 'Splitscore',
         };
         final top = sorted.first;
         widgets.add(const SizedBox(height: 4));
@@ -1138,7 +1140,7 @@ class _StatsScreenState extends State<StatsScreen>
     final rounded = delta.round();
     if (rounded == 0) {
       return Text(' ±0',
-          style: TextStyle(fontSize: 11, color: Colors.grey[500]));
+          style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)));
     }
     final isUp = rounded > 0;
     return Text(
@@ -1176,8 +1178,9 @@ class _StatItem {
 class _RatingGraphPainter extends CustomPainter {
   final List<RatingSnapshot> snapshots;
   final Color lineColor;
+  final Color textColor;
 
-  _RatingGraphPainter({required this.snapshots, required this.lineColor});
+  _RatingGraphPainter({required this.snapshots, required this.lineColor, required this.textColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1256,7 +1259,7 @@ class _RatingGraphPainter extends CustomPainter {
     }
 
     // Draw min/max labels
-    final textStyle = TextStyle(color: Colors.grey[500], fontSize: 10);
+    final textStyle = TextStyle(color: textColor, fontSize: 10);
     final maxTp = TextPainter(
       text: TextSpan(text: maxR.round().toString(), style: textStyle),
       textDirection: TextDirection.ltr,

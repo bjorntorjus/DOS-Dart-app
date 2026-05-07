@@ -1,6 +1,19 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
+/// Heatmap gradient — DO NOT migrate to colorScheme. These are data-viz
+/// colors selected to be perceptually distinct and color-blind tolerant.
+class _HeatmapPalette {
+  static const cold = Color(0xFF1565C0);    // blue
+  static const cool = Color(0xFF00ACC1);    // teal
+  static const mid = Color(0xFF4CAF50);     // green
+  static const warm = Color(0xFFFFB300);    // amber
+  static const hot = Color(0xFFE53935);     // red
+  static const empty = Color(0xFF1A1A1A);   // empty cell
+  static const board = Color(0xFF2C2C2C);   // board background
+  static const wireframe = Color(0xFFA0A0A0); // grid lines
+}
+
 /// A non-interactive dart board that colors segments based on hit frequency.
 /// Accepts a counters map with keys like 'seg_20', 'seg_20_t', 'seg_20_d', 'seg_20_s'.
 class HeatmapBoard extends StatelessWidget {
@@ -60,31 +73,31 @@ class _HeatmapPainter extends CustomPainter {
 
   /// Returns a color from cold (blue) to hot (red) based on intensity 0.0-1.0.
   Color _heatColor(double intensity) {
-    if (intensity <= 0) return const Color(0xFF1A1A1A).withAlpha(180);
+    if (intensity <= 0) return _HeatmapPalette.empty.withAlpha(180);
     // Blue -> Cyan -> Green -> Yellow -> Red
     final clamped = intensity.clamp(0.0, 1.0);
     if (clamped < 0.25) {
       return Color.lerp(
-        const Color(0xFF1565C0),
-        const Color(0xFF00ACC1),
+        _HeatmapPalette.cold,
+        _HeatmapPalette.cool,
         clamped / 0.25,
       )!.withAlpha(200);
     } else if (clamped < 0.5) {
       return Color.lerp(
-        const Color(0xFF00ACC1),
-        const Color(0xFF4CAF50),
+        _HeatmapPalette.cool,
+        _HeatmapPalette.mid,
         (clamped - 0.25) / 0.25,
       )!.withAlpha(200);
     } else if (clamped < 0.75) {
       return Color.lerp(
-        const Color(0xFF4CAF50),
-        const Color(0xFFFFB300),
+        _HeatmapPalette.mid,
+        _HeatmapPalette.warm,
         (clamped - 0.5) / 0.25,
       )!.withAlpha(200);
     } else {
       return Color.lerp(
-        const Color(0xFFFFB300),
-        const Color(0xFFE53935),
+        _HeatmapPalette.warm,
+        _HeatmapPalette.hot,
         (clamped - 0.75) / 0.25,
       )!.withAlpha(220);
     }
@@ -123,12 +136,12 @@ class _HeatmapPainter extends CustomPainter {
     canvas.drawCircle(
       center,
       boardRadius * 1.12,
-      Paint()..color = const Color(0xFF2C2C2C),
+      Paint()..color = _HeatmapPalette.board,
     );
     canvas.drawCircle(
       center,
       boardRadius * doubleEndR,
-      Paint()..color = const Color(0xFF1A1A1A),
+      Paint()..color = _HeatmapPalette.empty,
     );
 
     // Draw heatmap sectors
@@ -215,17 +228,17 @@ class _HeatmapPainter extends CustomPainter {
     canvas.drawCircle(
       center,
       boardRadius * 1.12,
-      Paint()..color = const Color(0xFF2C2C2C),
+      Paint()..color = _HeatmapPalette.board,
     );
     canvas.drawCircle(
       center,
       boardRadius * doubleEndR,
-      Paint()..color = const Color(0xFF1A1A1A).withAlpha(180),
+      Paint()..color = _HeatmapPalette.empty.withAlpha(180),
     );
 
     for (int i = 0; i < 20; i++) {
       final startAngle = -pi / 2 + i * sectorAngle - sectorAngle / 2;
-      final color = const Color(0xFF1A1A1A).withAlpha(180);
+      final color = _HeatmapPalette.empty.withAlpha(180);
       _drawSectorRing(canvas, center, boardRadius, doubleEndR, outerSingleEndR,
           startAngle, sectorAngle, color);
       _drawSectorRing(canvas, center, boardRadius, outerSingleEndR, tripleEndR,
@@ -236,9 +249,9 @@ class _HeatmapPainter extends CustomPainter {
           startAngle, sectorAngle, color);
     }
     canvas.drawCircle(
-        center, boardRadius * bullR, Paint()..color = const Color(0xFF1A1A1A).withAlpha(180));
+        center, boardRadius * bullR, Paint()..color = _HeatmapPalette.empty.withAlpha(180));
     canvas.drawCircle(
-        center, boardRadius * doubleBullR, Paint()..color = const Color(0xFF1A1A1A).withAlpha(180));
+        center, boardRadius * doubleBullR, Paint()..color = _HeatmapPalette.empty.withAlpha(180));
 
     _drawWires(canvas, center, boardRadius, sectorAngle);
 
@@ -280,7 +293,7 @@ class _HeatmapPainter extends CustomPainter {
   void _drawWires(
       Canvas canvas, Offset center, double boardRadius, double sectorAngle) {
     final wirePaint = Paint()
-      ..color = const Color(0xFFA0A0A0).withAlpha(100)
+      ..color = _HeatmapPalette.wireframe.withAlpha(100)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
 

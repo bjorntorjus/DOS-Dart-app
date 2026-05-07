@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/halve_it_round.dart';
-import '../utils/player_colors.dart';
+import 'active_player_highlight.dart';
 
 class HalveItScoreboard extends StatelessWidget {
   final List<HalveItRound> rounds;
@@ -33,15 +33,22 @@ class HalveItScoreboard extends StatelessWidget {
           columns: [
             const DataColumn(label: Text('Round', style: TextStyle(fontSize: 12))),
             ...List.generate(playerNames.length, (pi) {
+              final isCurrent = pi == currentPlayerIndex;
               return DataColumn(
-                label: Text(
-                  playerNames[pi].length > 6
-                      ? playerNames[pi].substring(0, 6)
-                      : playerNames[pi],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: playerColor(pi),
+                label: ActivePlayerHighlight(
+                  isActive: isCurrent,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  borderRadius: BorderRadius.circular(8),
+                  borderWidth: 2,
+                  child: Text(
+                    playerNames[pi].length > 6
+                        ? playerNames[pi].substring(0, 6)
+                        : playerNames[pi],
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ),
               );
@@ -53,7 +60,7 @@ class HalveItScoreboard extends StatelessWidget {
               final isCurrent = ri == currentRoundIndex;
               return DataRow(
                 color: isCurrent
-                    ? WidgetStatePropertyAll(Colors.amber.withAlpha(20))
+                    ? WidgetStatePropertyAll(Theme.of(context).colorScheme.tertiary.withAlpha(20))
                     : null,
                 cells: [
                   DataCell(Text(
@@ -62,7 +69,7 @@ class HalveItScoreboard extends StatelessWidget {
                       fontSize: 12,
                       fontWeight:
                           isCurrent ? FontWeight.bold : FontWeight.normal,
-                      color: isCurrent ? Colors.amber : null,
+                      color: isCurrent ? Theme.of(context).colorScheme.tertiary : null,
                     ),
                   )),
                   ...List.generate(playerNames.length, (pi) {
@@ -85,7 +92,7 @@ class HalveItScoreboard extends StatelessWidget {
             }),
             // Total row
             DataRow(
-              color: const WidgetStatePropertyAll(Color(0xFF2A2A2A)),
+              color: WidgetStatePropertyAll(Theme.of(context).colorScheme.surfaceContainerLow),
               cells: [
                 const DataCell(Text('Total',
                     style:

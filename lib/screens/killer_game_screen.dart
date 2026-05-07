@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../widgets/active_player_highlight.dart';
 import '../widgets/dart_board.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
@@ -705,51 +706,98 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
-          if (phase == KillerPhase.playing)
-            IconButton(
-              icon: const Icon(Icons.group_add),
-              onPressed: winnerIndex != null ? null : _openPlayerManagement,
-              tooltip: 'Manage players',
-            ),
-          IconButton(
-            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
-            onPressed: () async {
-              await TtsService.instance.setEnabled(!_ttsEnabled);
-              setState(() => _ttsEnabled = TtsService.instance.enabled);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) async {
+              switch (value) {
+                case 'players':
+                  if (phase == KillerPhase.playing && winnerIndex == null) {
+                    _openPlayerManagement();
+                  }
+                  break;
+                case 'tts':
+                  await TtsService.instance.setEnabled(!_ttsEnabled);
+                  setState(() => _ttsEnabled = TtsService.instance.enabled);
+                  break;
+                case 'meme':
+                  setState(() => _memeEnabled = !_memeEnabled);
+                  AppSettings.setMemeEnabled(_memeEnabled);
+                  _meme.setEnabled(_memeEnabled);
+                  break;
+                case 'meme_freq':
+                  _showMemeFrequencyDialog();
+                  break;
+                case 'offensive':
+                  setState(() => _offensiveEnabled = !_offensiveEnabled);
+                  AppSettings.setMemeOffensive(_offensiveEnabled);
+                  _meme.setOffensive(_offensiveEnabled);
+                  break;
+              }
             },
-            tooltip: 'Speech',
+            itemBuilder: (ctx) => [
+              if (phase == KillerPhase.playing)
+                PopupMenuItem(
+                  value: 'players',
+                  enabled: winnerIndex == null,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.group_add),
+                      SizedBox(width: 12),
+                      Text('Manage players'),
+                    ],
+                  ),
+                ),
+              if (phase == KillerPhase.playing) const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(
+                  children: [
+                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'meme',
+                child: Row(
+                  children: [
+                    Text(_memeEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_memeEnabled ? 'Memes on' : 'Memes off'),
+                  ],
+                ),
+              ),
+              if (_memeEnabled) ...[
+                const PopupMenuItem(
+                  value: 'meme_freq',
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune),
+                      SizedBox(width: 12),
+                      Text('Meme frequency'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'offensive',
+                  child: Row(
+                    children: [
+                      Icon(_offensiveEnabled
+                          ? Icons.whatshot
+                          : Icons.whatshot_outlined),
+                      const SizedBox(width: 12),
+                      Text(_offensiveEnabled
+                          ? 'Offensive on'
+                          : 'Offensive off'),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
-          IconButton(
-            icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
-            onPressed: () {
-              setState(() => _memeEnabled = !_memeEnabled);
-              AppSettings.setMemeEnabled(_memeEnabled);
-              _meme.setEnabled(_memeEnabled);
-            },
-            tooltip: 'Meme sounds',
-          ),
-          if (_memeEnabled) ...[
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showMemeFrequencyDialog,
-              tooltip: 'Meme frequency',
-            ),
-            IconButton(
-              icon: Icon(_offensiveEnabled ? Icons.whatshot : Icons.whatshot_outlined),
-              onPressed: () {
-                setState(() => _offensiveEnabled = !_offensiveEnabled);
-                AppSettings.setMemeOffensive(_offensiveEnabled);
-                _meme.setOffensive(_offensiveEnabled);
-              },
-              tooltip: 'Offensive sounds',
-            ),
-          ],
-          if (throwHistory.isNotEmpty || assignmentPlayerIndex > 0)
-            IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: _undo,
-              tooltip: 'Undo',
-            ),
         ],
       ),
       body: Column(
@@ -769,57 +817,58 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             ),
           ),
 
-          // Last throw + Miss
+          // Last throw + Miss (Back always reserves space to avoid layout shift)
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Row(
               children: [
-                if (lastThrowLabel != null)
-                  Expanded(
-                    child: Text('Last: $lastThrowLabel',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: lastThrowLabel!.contains('KILLER')
-                              ? Colors.amber
-                              : lastThrowLabel!.contains('shield')
-                                  ? Colors.blue
-                                  : lastThrowLabel!.contains('Eliminated') ||
-                                          lastThrowLabel!
-                                              .contains('Lost') ||
-                                          lastThrowLabel!
-                                              .contains('Suicide')
-                                      ? const Color(0xFFE53935)
-                                      : lastThrowLabel!
-                                              .contains('Must be Killer')
-                                          ? Colors.orange
-                                          : Colors.white,
-                        )),
-                  )
-                else
-                  const Expanded(child: SizedBox()),
-                if (throwHistory.isNotEmpty || assignmentPlayerIndex > 0) ...[
-                  SizedBox(
+                Expanded(
+                  child: lastThrowLabel != null
+                      ? Text('Last: $lastThrowLabel',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: lastThrowLabel!.contains('KILLER')
+                                ? Theme.of(context).colorScheme.tertiary
+                                : lastThrowLabel!.contains('shield')
+                                    ? Colors.blue
+                                    : lastThrowLabel!.contains('Eliminated') ||
+                                            lastThrowLabel!.contains('Lost') ||
+                                            lastThrowLabel!.contains('Suicide')
+                                        ? Theme.of(context).colorScheme.error
+                                        : lastThrowLabel!
+                                                .contains('Must be Killer')
+                                            ? Theme.of(context).colorScheme.tertiary
+                                            : Colors.white,
+                          ))
+                      : const SizedBox(),
+                ),
+                Visibility(
+                  visible: throwHistory.isNotEmpty || assignmentPlayerIndex > 0,
+                  maintainSize: true,
+                  maintainAnimation: true,
+                  maintainState: true,
+                  child: SizedBox(
                     height: 48,
                     child: OutlinedButton.icon(
                       onPressed: _undo,
                       icon: const Icon(Icons.undo, size: 18),
                       label: const Text('Back', style: TextStyle(fontSize: 16)),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
+                        foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                ],
+                ),
+                const SizedBox(width: 8),
                 if (phase == KillerPhase.playing)
                   ElevatedButton(
                     onPressed: winnerIndex == null ? _onMiss : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[800],
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 28, vertical: 14),
@@ -848,9 +897,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
       decoration: BoxDecoration(
-        color: playerColor(pi).withAlpha(40),
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
         border: Border(
-          bottom: BorderSide(color: playerColor(pi).withAlpha(80)),
+          bottom: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
         ),
       ),
       child: Row(
@@ -867,7 +916,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                     children: [
                       Text('Dart ${dartsInTurn + 1} of 3',
                           style: TextStyle(
-                              color: Colors.grey[400], fontSize: 13)),
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                       const SizedBox(width: 8),
                       ...List.generate(3, (i) {
                         return Padding(
@@ -877,7 +926,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                 ? Icons.circle
                                 : Icons.circle_outlined,
                             size: 10,
-                            color: playerColor(pi),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         );
                       }),
@@ -886,28 +935,39 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                 else
                   Text('Throw a dart to pick a number',
                       style:
-                          TextStyle(color: Colors.grey[400], fontSize: 13)),
+                          TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                 // Hint for non-killers
                 if (phase == KillerPhase.playing &&
                     !isKiller[pi] &&
                     !isEliminated[pi])
                   Text('Hit ${assignedNumbers[pi]} to become Killer!',
-                      style: const TextStyle(
-                          color: Colors.amber, fontSize: 12)),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.tertiary, fontSize: 12)),
               ],
             ),
           ),
-          if (phase == KillerPhase.playing && assignedNumbers[pi] > 0)
+          if (phase == KillerPhase.playing && assignedNumbers[pi] > 0) ...[
+            // Sword (Killer) or Shield (not yet Killer) for active thrower
+            if (!isEliminated[pi])
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Text(
+                  isKiller[pi] ? '⚔️' : '🛡️',
+                  style: const TextStyle(fontSize: 28),
+                ),
+              ),
             Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('Number',
+                Text('Your number',
                     style:
-                        TextStyle(color: Colors.grey[400], fontSize: 11)),
+                        TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 11)),
                 Text('${assignedNumbers[pi]}',
                     style: const TextStyle(
                         fontSize: 36, fontWeight: FontWeight.bold)),
               ],
             ),
+          ],
         ],
       ),
     );
@@ -935,14 +995,14 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         width: 20,
                         child: isCurrent
                             ? Icon(Icons.arrow_right,
-                                color: playerColor(i), size: 18)
+                                color: Theme.of(context).colorScheme.primary, size: 18)
                             : null,
                       ),
                       PlayerAvatar(
                         avatarPath: players[i].avatarPath,
                         name: players[i].name,
                         radius: 12,
-                        backgroundColor: playerColor(i),
+                        backgroundColor: avatarColor(i),
                       ),
                       const SizedBox(width: 8),
                       Text(players[i].name,
@@ -954,7 +1014,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16))
                           : Text('...',
-                              style: TextStyle(color: Colors.grey[600])),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4))),
                     ],
                   ),
                 );
@@ -970,8 +1030,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     return Container(
       constraints: const BoxConstraints(maxHeight: 200),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        border: Border(top: BorderSide(color: Colors.grey[800]!)),
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
       ),
       child: ListView.builder(
         padding: EdgeInsets.zero,
@@ -988,115 +1048,150 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
           return Opacity(
             opacity: isRemoved ? 0.4 : 1.0,
-            child: Container(
-            color: eliminated
-                ? Colors.red.withAlpha(15)
-                : isCurrent
-                    ? playerColor(index).withAlpha(25)
+            child: ActivePlayerHighlight(
+              isActive: isCurrent,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                color: eliminated
+                    ? Theme.of(context).colorScheme.error.withAlpha(15)
                     : isWinner
-                        ? Colors.green.withAlpha(25)
+                        ? Theme.of(context).colorScheme.primary.withAlpha(25)
                         : null,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 24,
-                  child: isCurrent
-                      ? Icon(Icons.arrow_right,
-                          color: playerColor(index), size: 20)
-                      : isWinner
-                          ? const Icon(Icons.emoji_events,
-                              color: Colors.amber, size: 20)
-                          : eliminated
-                              ? const Icon(Icons.close,
-                                  color: Colors.red, size: 20)
-                              : null,
-                ),
-                const SizedBox(width: 8),
-                PlayerAvatar(
-                  avatarPath: player.avatarPath,
-                  name: player.name,
-                  radius: 14,
-                  backgroundColor:
-                      eliminated ? Colors.grey : playerColor(index),
-                ),
-                const SizedBox(width: 8),
-                // Number badge
-                if (assignedNumbers[index] > 0)
-                  Container(
-                    width: 26,
-                    height: 26,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border:
-                          Border.all(color: Colors.grey[600]!, width: 1),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      child: isCurrent
+                          ? Icon(Icons.arrow_right,
+                              color: Theme.of(context).colorScheme.primary, size: 20)
+                          : isWinner
+                              ? Icon(Icons.emoji_events,
+                                  color: Theme.of(context).colorScheme.tertiary, size: 20)
+                              : eliminated
+                                  ? Icon(Icons.close,
+                                      color: Theme.of(context).colorScheme.error, size: 20)
+                                  : null,
                     ),
-                    child: Text('${assignedNumbers[index]}',
-                        style: const TextStyle(fontSize: 11)),
-                  ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        player.name,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight:
-                              isCurrent ? FontWeight.bold : FontWeight.normal,
-                          decoration: eliminated
-                              ? TextDecoration.lineThrough
+                    const SizedBox(width: 8),
+                    PlayerAvatar(
+                      avatarPath: player.avatarPath,
+                      name: player.name,
+                      radius: 14,
+                      backgroundColor:
+                          eliminated ? Colors.grey : avatarColor(index),
+                    ),
+                    const SizedBox(width: 8),
+                    // Number badge — turns amber + filled when player is KILLER
+                    if (assignedNumbers[index] > 0)
+                      Container(
+                        width: 26,
+                        height: 26,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isKiller[index] && !eliminated
+                              ? Theme.of(context).colorScheme.tertiary
                               : null,
-                          color: eliminated ? Colors.grey : null,
+                          border: Border.all(
+                            color: isKiller[index] && !eliminated
+                                ? Theme.of(context).colorScheme.tertiary
+                                : Theme.of(context).colorScheme.onSurface
+                                    .withValues(alpha: 0.4),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          '${assignedNumbers[index]}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isKiller[index] && !eliminated
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isKiller[index] && !eliminated
+                                ? Colors.black
+                                : null,
+                          ),
                         ),
                       ),
-                      if (isKiller[index] && !eliminated)
-                        const Text('KILLER',
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            player.name,
                             style: TextStyle(
-                                color: Colors.amber,
+                              fontSize: 15,
+                              fontWeight:
+                                  isCurrent ? FontWeight.bold : FontWeight.normal,
+                              decoration: eliminated
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: eliminated ? Colors.grey : null,
+                            ),
+                          ),
+                          // Reserve a single line for last-darts so the row
+                          // height stays constant. KILLER status is now shown
+                          // by the amber-filled number badge instead of a
+                          // separate label.
+                          Text(
+                            _lastDartsLabel(index).isEmpty
+                                ? ' '
+                                : _lastDartsLabel(index),
+                            style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.bold)),
-                      if (_lastDartsLabel(index).isNotEmpty)
-                        Text(
-                          _lastDartsLabel(index),
-                          style: TextStyle(
-                              fontSize: 10, color: Colors.grey[500]),
-                        ),
-                    ],
-                  ),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.55)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Shields + Lives
+                    if (phase == KillerPhase.playing)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Shield icons
+                          if (widget.config.shields)
+                            ...List.generate(shields[index], (i) {
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                    right: i < shields[index] - 1 ? 3 : 0),
+                                child: const Icon(
+                                  Icons.shield,
+                                  size: 22,
+                                  color: Colors.blue,
+                                ),
+                              );
+                            }),
+                          if (widget.config.shields && shields[index] > 0)
+                            const SizedBox(width: 8),
+                          // Life hearts
+                          ...List.generate(widget.config.lives, (li) {
+                            final hasLife = li < lives[index];
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                  right:
+                                      li < widget.config.lives - 1 ? 3 : 0),
+                              child: Icon(
+                                hasLife
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 22,
+                                color: hasLife
+                                    ? Colors.red
+                                    : Theme.of(context).colorScheme.surfaceContainer,
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                  ],
                 ),
-                // Shields + Lives
-                if (phase == KillerPhase.playing)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Shield icons
-                      if (widget.config.shields)
-                        ...List.generate(shields[index], (_) {
-                          return const Icon(
-                            Icons.shield,
-                            size: 16,
-                            color: Colors.blue,
-                          );
-                        }),
-                      if (widget.config.shields && shields[index] > 0)
-                        const SizedBox(width: 4),
-                      // Life hearts
-                      ...List.generate(widget.config.lives, (li) {
-                        final hasLife = li < lives[index];
-                        return Icon(
-                          hasLife ? Icons.favorite : Icons.favorite_border,
-                          size: 18,
-                          color: hasLife ? Colors.red : Colors.grey[700],
-                        );
-                      }),
-                    ],
-                  ),
-              ],
-            ),
+              ),
             ),
           );
         },
@@ -1142,7 +1237,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),
@@ -1171,7 +1266,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: winnerIndex != null,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player. '
           'New players get a random unused number and must qualify by hitting their double.',
@@ -1232,7 +1327,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
               final removed = players[playerIndex];
@@ -1274,7 +1371,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53935)),
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             child: const Text('Quit'),
           ),
         ],

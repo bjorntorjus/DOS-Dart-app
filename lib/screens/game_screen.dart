@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
+import '../widgets/active_player_highlight.dart';
 import '../widgets/dart_board.dart';
 import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
@@ -1346,42 +1347,77 @@ class _GameScreenState extends State<GameScreen> {
           onPressed: () => _confirmExit(),
         ),
         actions: [
-          IconButton(
-            icon: Text(_soundEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
-            onPressed: () {
-              setState(() => _soundEnabled = !_soundEnabled);
-              SoundService.instance.setEnabled(_soundEnabled);
-              _meme.setEnabled(_soundEnabled);
-              AppSettings.setSoundEffectsEnabled(_soundEnabled);
-              AppSettings.setMemeEnabled(_soundEnabled);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) {
+              switch (value) {
+                case 'players':
+                  if (!_gameFullyOver) _openPlayerManagement();
+                  break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  _meme.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
+                  AppSettings.setMemeEnabled(_soundEnabled);
+                  break;
+                case 'tts':
+                  setState(() => _ttsEnabled = !_ttsEnabled);
+                  TtsService.instance.setEnabled(_ttsEnabled);
+                  break;
+                case 'sound_settings':
+                  _showSoundSettingsDialog();
+                  break;
+              }
             },
-            tooltip: 'Sound effects',
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'players',
+                enabled: !_gameFullyOver,
+                child: const Row(
+                  children: [
+                    Icon(Icons.group_add),
+                    SizedBox(width: 12),
+                    Text('Manage players'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Text(_soundEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(
+                  children: [
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
+                    const SizedBox(width: 12),
+                    Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                  ],
+                ),
+              ),
+              if (_soundEnabled)
+                const PopupMenuItem(
+                  value: 'sound_settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune),
+                      SizedBox(width: 12),
+                      Text('Sound settings'),
+                    ],
+                  ),
+                ),
+            ],
           ),
-          IconButton(
-            icon: Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
-            onPressed: () {
-              setState(() => _ttsEnabled = !_ttsEnabled);
-              TtsService.instance.setEnabled(_ttsEnabled);
-            },
-            tooltip: 'Text-to-speech',
-          ),
-          if (_soundEnabled)
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showSoundSettingsDialog,
-              tooltip: 'Sound settings',
-            ),
-          IconButton(
-            icon: const Icon(Icons.group_add),
-            onPressed: _gameFullyOver ? null : _openPlayerManagement,
-            tooltip: 'Manage players',
-          ),
-          if (throwHistory.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: _undo,
-              tooltip: 'Undo',
-            ),
         ],
       ),
       body: Column(
@@ -1391,12 +1427,12 @@ class _GameScreenState extends State<GameScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 8),
-              color: const Color(0xFFE53935),
-              child: const Text(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Text(
                 'SUDDEN DEATH',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.onErrorContainer,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
@@ -1408,102 +1444,99 @@ class _GameScreenState extends State<GameScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-              color: Colors.green.withAlpha(40),
+              color: Theme.of(context).colorScheme.primary.withAlpha(40),
               child: Text(
                 _pendingCheckouts.length == 1
                     ? '${players[_pendingCheckouts.first.playerIndex].name} checked out! Round continues...'
                     : '${_pendingCheckouts.length} players checked out! Round continues...',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.green, fontSize: 14),
+                style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 14),
               ),
             ),
           // Current player info bar
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             decoration: BoxDecoration(
-              color: playerColor(currentPlayerIndex).withAlpha(55),
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
               border: Border(
                 bottom: BorderSide(
-                  color: playerColor(currentPlayerIndex).withAlpha(160),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
                   width: 1,
                 ),
                 left: BorderSide(
-                  color: playerColor(currentPlayerIndex),
+                  color: Theme.of(context).colorScheme.primary,
                   width: 4,
                 ),
               ),
             ),
             child: Row(
               children: [
-                // Name + dart counter
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        currentPlayer.name,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: playerColor(currentPlayerIndex),
-                        ),
+                // Name + dart indicators (left)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      currentPlayer.name,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
-                      const SizedBox(height: 4),
-                      Row(
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: List.generate(3, (i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            i < dartsInTurn
+                                ? Icons.circle
+                                : Icons.circle_outlined,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+                // Checkout (middle)
+                if (_checkoutFor(currentPlayer.score).isNotEmpty)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
                         children: [
                           Text(
-                            'Dart ${dartsInTurn + 1} of 3',
+                            'CHECKOUT',
                             style: TextStyle(
-                                color: Colors.grey[400], fontSize: 14),
+                              fontSize: 10,
+                              letterSpacing: 1,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.8),
+                            ),
                           ),
-                          const SizedBox(width: 10),
-                          // Dart indicators — larger, player-colored
-                          ...List.generate(3, (i) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Icon(
-                                i < dartsInTurn
-                                    ? Icons.circle
-                                    : Icons.circle_outlined,
-                                size: 16,
-                                color: playerColor(currentPlayerIndex),
-                              ),
-                            );
-                          }),
+                          const SizedBox(height: 2),
+                          Text(
+                            _checkoutFor(currentPlayer.score),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.tertiary,
+                            ),
+                          ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                // Checkout suggestion (centered between name and score)
-                if (_checkoutFor(currentPlayer.score).isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Checkout',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.amber[400],
-                          ),
-                        ),
-                        Text(
-                          _checkoutFor(currentPlayer.score),
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.amber[600],
-                          ),
-                        ),
-                      ],
                     ),
-                  ),
-                // Score
+                  )
+                else
+                  const Spacer(),
+                // Score (right)
                 Text(
                   '${currentPlayer.score}',
                   style: const TextStyle(
-                      fontSize: 52, fontWeight: FontWeight.bold),
+                      fontSize: 38, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -1529,16 +1562,32 @@ class _GameScreenState extends State<GameScreen> {
               children: [
                 if (lastThrowLabel != null)
                   Expanded(
-                    child: Text(
-                      'Last: $lastThrowLabel',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: lastThrowLabel!.contains('BUST')
-                            ? const Color(0xFFE53935)
-                            : Colors.white,
-                      ),
-                    ),
+                    child: lastThrowLabel!.contains('BUST')
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.warning_amber,
+                                  color: Theme.of(context).colorScheme.error,
+                                  size: 18),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Last: $lastThrowLabel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            'Last: $lastThrowLabel',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   )
                 else
                   const Expanded(child: SizedBox()),
@@ -1550,8 +1599,8 @@ class _GameScreenState extends State<GameScreen> {
                       icon: const Icon(Icons.undo, size: 20),
                       label: const Text('Back', style: TextStyle(fontSize: 18)),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
+                        foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                       ),
                     ),
@@ -1561,23 +1610,12 @@ class _GameScreenState extends State<GameScreen> {
                 ElevatedButton(
                   onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[800],
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 16),
                   ),
-                  child: const Text('Miss', style: TextStyle(fontSize: 18)),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: !finishedPlayers.contains(currentPlayerIndex) ? _onMiss : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB71C1C),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 16),
-                  ),
-                  child: const Text('Denied', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: const Text('Miss', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -1589,9 +1627,9 @@ class _GameScreenState extends State<GameScreen> {
               maxHeight: _playerCardHeight * 3,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
+              color: Theme.of(context).colorScheme.surface,
               border: Border(
-                top: BorderSide(color: Colors.grey[800]!),
+                top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow),
               ),
             ),
             child: ListView.builder(
@@ -1610,72 +1648,73 @@ class _GameScreenState extends State<GameScreen> {
                 final isRemoved = _removedPlayerIndices.contains(index);
                 return Opacity(
                   opacity: isRemoved ? 0.4 : 1.0,
-                  child: Container(
-                  height: _playerCardHeight,
-                  color: isCurrent
-                      ? playerColor(index).withAlpha(25)
-                      : isWinner
-                          ? Colors.green.withAlpha(25)
-                          : null,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 28,
-                        child: hasPendingCheckout
-                            ? const Icon(Icons.check_circle,
-                                color: Colors.green, size: 24)
-                            : isCurrent
-                                ? Icon(Icons.arrow_right,
-                                    color: playerColor(index), size: 24)
-                                : isWinner
-                                    ? const Icon(Icons.emoji_events,
-                                        color: Colors.amber, size: 24)
-                                    : null,
-                      ),
-                      const SizedBox(width: 8),
-                      PlayerAvatar(
-                        avatarPath: player.avatarPath,
-                        name: player.name,
-                        radius: 22,
-                        backgroundColor: playerColor(index),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
+                  child: ActivePlayerHighlight(
+                    isActive: isCurrent,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      height: _playerCardHeight - 18, // subtract 2*(vertical padding 6 + border 3)
+                      child: Container(
+                        color: isWinner ? Theme.of(context).colorScheme.primary.withAlpha(25) : null,
+                        child: Row(
                           children: [
-                            Text(
-                              player.name,
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight:
-                                    isCurrent ? FontWeight.bold : FontWeight.normal,
+                            SizedBox(
+                              width: 28,
+                              child: hasPendingCheckout
+                                  ? Icon(Icons.check_circle,
+                                      color: Theme.of(context).colorScheme.primary, size: 24)
+                                  : isCurrent
+                                      ? Icon(Icons.arrow_right,
+                                          color: Theme.of(context).colorScheme.primary, size: 24)
+                                      : isWinner
+                                          ? Icon(Icons.emoji_events,
+                                              color: Theme.of(context).colorScheme.tertiary, size: 24)
+                                          : null,
+                            ),
+                            const SizedBox(width: 8),
+                            PlayerAvatar(
+                              avatarPath: player.avatarPath,
+                              name: player.name,
+                              radius: 22,
+                              backgroundColor: avatarColor(index),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    player.name,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight:
+                                          isCurrent ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  if (_lastDartsLabel(index).isNotEmpty)
+                                    Text(
+                                      _lastDartsLabel(index),
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (_lastDartsLabel(index).isNotEmpty)
-                              Text(
-                                _lastDartsLabel(index),
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.grey[500],
-                                ),
+                            Text(
+                              hasPendingCheckout ? 'OUT' : '${player.score}',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: hasPendingCheckout || isWinner ? Theme.of(context).colorScheme.primary : null,
                               ),
+                            ),
                           ],
                         ),
                       ),
-                      Text(
-                        hasPendingCheckout ? 'OUT' : '${player.score}',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: hasPendingCheckout || isWinner ? Colors.green : null,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
                   ),
                 );
               },
@@ -1739,7 +1778,7 @@ class _GameScreenState extends State<GameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),
@@ -1782,7 +1821,8 @@ class _GameScreenState extends State<GameScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             child: const Text('Quit'),
           ),
@@ -1797,7 +1837,7 @@ class _GameScreenState extends State<GameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: _gameFullyOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: (saved) => _addSavedPlayerMidGame(saved),
@@ -1819,7 +1859,8 @@ class _GameScreenState extends State<GameScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red),
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
               final removed = players[playerIndex];

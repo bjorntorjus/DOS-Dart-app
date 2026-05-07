@@ -541,50 +541,95 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           onPressed: _confirmExit,
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.group_add),
-            onPressed: gameOver ? null : _openPlayerManagement,
-            tooltip: 'Manage players',
-          ),
-          IconButton(
-            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
-            onPressed: () async {
-              await TtsService.instance.setEnabled(!_ttsEnabled);
-              setState(() => _ttsEnabled = TtsService.instance.enabled);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) async {
+              switch (value) {
+                case 'players':
+                  if (!gameOver) _openPlayerManagement();
+                  break;
+                case 'tts':
+                  await TtsService.instance.setEnabled(!_ttsEnabled);
+                  setState(() => _ttsEnabled = TtsService.instance.enabled);
+                  break;
+                case 'meme':
+                  setState(() => _memeEnabled = !_memeEnabled);
+                  AppSettings.setMemeEnabled(_memeEnabled);
+                  _meme.setEnabled(_memeEnabled);
+                  break;
+                case 'meme_freq':
+                  _showMemeFrequencyDialog();
+                  break;
+                case 'offensive':
+                  setState(() => _offensiveEnabled = !_offensiveEnabled);
+                  AppSettings.setMemeOffensive(_offensiveEnabled);
+                  _meme.setOffensive(_offensiveEnabled);
+                  break;
+              }
             },
-            tooltip: 'Speech',
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'players',
+                enabled: !gameOver,
+                child: const Row(
+                  children: [
+                    Icon(Icons.group_add),
+                    SizedBox(width: 12),
+                    Text('Manage players'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(
+                  children: [
+                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'meme',
+                child: Row(
+                  children: [
+                    Text(_memeEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_memeEnabled ? 'Memes on' : 'Memes off'),
+                  ],
+                ),
+              ),
+              if (_memeEnabled) ...[
+                const PopupMenuItem(
+                  value: 'meme_freq',
+                  child: Row(
+                    children: [
+                      Icon(Icons.tune),
+                      SizedBox(width: 12),
+                      Text('Meme frequency'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'offensive',
+                  child: Row(
+                    children: [
+                      Icon(_offensiveEnabled
+                          ? Icons.whatshot
+                          : Icons.whatshot_outlined),
+                      const SizedBox(width: 12),
+                      Text(_offensiveEnabled
+                          ? 'Offensive on'
+                          : 'Offensive off'),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
-          IconButton(
-            icon: Text(_memeEnabled ? '🤡' : '🤐', style: const TextStyle(fontSize: 22)),
-            onPressed: () {
-              setState(() => _memeEnabled = !_memeEnabled);
-              AppSettings.setMemeEnabled(_memeEnabled);
-              _meme.setEnabled(_memeEnabled);
-            },
-            tooltip: 'Meme sounds',
-          ),
-          if (_memeEnabled) ...[
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showMemeFrequencyDialog,
-              tooltip: 'Meme frequency',
-            ),
-            IconButton(
-              icon: Icon(_offensiveEnabled ? Icons.whatshot : Icons.whatshot_outlined),
-              onPressed: () {
-                setState(() => _offensiveEnabled = !_offensiveEnabled);
-                AppSettings.setMemeOffensive(_offensiveEnabled);
-                _meme.setOffensive(_offensiveEnabled);
-              },
-              tooltip: 'Offensive sounds',
-            ),
-          ],
-          if (throwHistory.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: _undo,
-              tooltip: 'Undo',
-            ),
         ],
       ),
       body: Column(
@@ -594,10 +639,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             padding:
                 const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
             decoration: BoxDecoration(
-              color: playerColor(currentPlayerIndex).withAlpha(40),
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
               border: Border(
                 bottom: BorderSide(
-                    color: playerColor(currentPlayerIndex).withAlpha(80)),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
               ),
             ),
             child: Row(
@@ -613,7 +658,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         children: [
                           Text('Dart ${dartsInTurn + 1} of 3',
                               style: TextStyle(
-                                  color: Colors.grey[400], fontSize: 13)),
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13)),
                           const SizedBox(width: 8),
                           ...List.generate(3, (i) {
                             return Padding(
@@ -623,15 +668,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                                     ? Icons.circle
                                     : Icons.circle_outlined,
                                 size: 10,
-                                color: playerColor(currentPlayerIndex),
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             );
                           }),
                           if (turnPoints > 0) ...[
                             const SizedBox(width: 12),
                             Text('+$turnPoints',
-                                style: const TextStyle(
-                                    color: Colors.green, fontSize: 14)),
+                                style: TextStyle(
+                                    color: Theme.of(context).colorScheme.primary, fontSize: 14)),
                           ],
                         ],
                       ),
@@ -642,7 +687,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   children: [
                     Text('Target',
                         style:
-                            TextStyle(color: Colors.grey[400], fontSize: 11)),
+                            TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 11)),
                     Text(
                       currentRound.label,
                       style: const TextStyle(
@@ -651,7 +696,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                     Text(
                       'Total: ${totalScores[currentPlayerIndex]}',
                       style:
-                          TextStyle(color: Colors.grey[400], fontSize: 13),
+                          TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 13),
                     ),
                   ],
                 ),
@@ -677,12 +722,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     color: isCurrent
-                        ? Colors.amber.withAlpha(40)
+                        ? Theme.of(context).colorScheme.tertiary.withAlpha(40)
                         : isDone
-                            ? Colors.green.withAlpha(30)
-                            : Colors.grey[900],
+                            ? Theme.of(context).colorScheme.primary.withAlpha(30)
+                            : Theme.of(context).colorScheme.surfaceContainerLow,
                     border: isCurrent
-                        ? Border.all(color: Colors.amber, width: 1.5)
+                        ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 1.5)
                         : null,
                   ),
                   child: Text(
@@ -692,10 +737,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                       fontWeight:
                           isCurrent ? FontWeight.bold : FontWeight.normal,
                       color: isCurrent
-                          ? Colors.amber
+                          ? Theme.of(context).colorScheme.tertiary
                           : isDone
-                              ? Colors.green
-                              : Colors.grey[600],
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
                 );
@@ -703,33 +748,38 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             ),
           ),
 
-          // Last throw label
-          if (lastThrowLabel != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Last: $lastThrowLabel',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: lastThrowLabel!.contains('✓')
-                          ? Colors.green
-                          : Colors.white,
-                    )),
+          // Last throw label (always reserves space)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                lastThrowLabel != null ? 'Last: $lastThrowLabel' : ' ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: lastThrowLabel != null && lastThrowLabel!.contains('✓')
+                      ? Colors.green
+                      : Colors.white,
+                ),
               ),
             ),
+          ),
 
           // Target buttons (uses remaining space)
           Expanded(child: _buildTargetButtons(currentRound)),
 
-          // Back + Miss buttons
+          // Back button (always reserves space)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
-                if (throwHistory.isNotEmpty) ...[
-                  Expanded(
+                Expanded(
+                  child: Visibility(
+                    visible: throwHistory.isNotEmpty,
+                    maintainSize: true,
+                    maintainAnimation: true,
+                    maintainState: true,
                     child: SizedBox(
                       height: 48,
                       child: OutlinedButton.icon(
@@ -737,14 +787,13 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         icon: const Icon(Icons.undo, size: 18),
                         label: const Text('Back', style: TextStyle(fontSize: 16)),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[400],
-                          side: BorderSide(color: Colors.grey[700]!),
+                          foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                ],
+                ),
               ],
             ),
           ),
@@ -755,8 +804,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               maxHeight: _playerCardHeight * 3,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              border: Border(top: BorderSide(color: Colors.grey[800]!)),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
             ),
             child: ListView.builder(
               controller: _scoreboardController,
@@ -775,7 +824,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                     opacity: isRemoved ? 0.4 : 1.0,
                     child: Container(
                     color: isCurrent
-                        ? playerColor(index).withAlpha(25)
+                        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15)
                         : null,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: Row(
@@ -784,7 +833,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                           width: 28,
                           child: isCurrent
                               ? Icon(Icons.arrow_right,
-                                  color: playerColor(index), size: 24)
+                                  color: Theme.of(context).colorScheme.primary, size: 24)
                               : null,
                         ),
                         const SizedBox(width: 8),
@@ -792,7 +841,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                           avatarPath: player.avatarPath,
                           name: player.name,
                           radius: 18,
-                          backgroundColor: playerColor(index),
+                          backgroundColor: avatarColor(index),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -810,7 +859,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                                 Text(
                                   lastDarts,
                                   style: TextStyle(
-                                      fontSize: 13, color: Colors.grey[500]),
+                                      fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55)),
                                 ),
                             ],
                           ),
@@ -825,7 +874,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
-                                color: lastRoundScore < 0 ? Colors.red : Colors.green,
+                                color: lastRoundScore < 0 ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -883,41 +932,74 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// Big buttons for a specific target number (or Bull if n == null).
   Widget _buildNumberButtons(int? n) {
     final isBull = n == null;
+    final cs = Theme.of(context).colorScheme;
+
+    final entries = isBull
+        ? [
+            ('Bull', () => _onDartHit(25, 1)),
+            ('DBull', () => _onDartHit(25, 2)),
+          ]
+        : [
+            ('$n', () => _onDartHit(n, 1)),
+            ('D$n', () => _onDartHit(n, 2)),
+            ('T$n', () => _onDartHit(n, 3)),
+          ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Hit buttons row
-          Row(
-            children: isBull
-                ? [
-                    Expanded(child: _scoreButton('S.Bull', '+25', () => _onDartHit(25, 1), Colors.blueGrey[700]!)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _scoreButton('Bull', '+50', () => _onDartHit(25, 2), Colors.orange[800]!)),
-                  ]
-                : [
-                    Expanded(child: _scoreButton('S$n', '+$n', () => _onDartHit(n, 1), Colors.blueGrey[700]!)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _scoreButton('D$n', '+${n * 2}', () => _onDartHit(n, 2), Colors.orange[800]!)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _scoreButton('T$n', '+${n * 3}', () => _onDartHit(n, 3), Colors.red[800]!)),
+          // Outline-wrap with plain labels separated by 2px vlines
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: cs.outline),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SizedBox(
+              height: 90,
+              child: Row(
+                children: [
+                  for (var i = 0; i < entries.length; i++) ...[
+                    if (i > 0)
+                      Container(width: 2, height: 60, color: cs.outline),
+                    Expanded(
+                      child: InkWell(
+                        onTap: entries[i].$2,
+                        borderRadius: BorderRadius.circular(11),
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              entries[i].$1,
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 62,
+            height: 54,
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _onMiss,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[800],
+                backgroundColor: cs.surfaceContainerHigh,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text('Miss',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -925,79 +1007,57 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
-  Widget _scoreButton(String label, String points, VoidCallback onTap, Color color) {
-    return SizedBox(
-      height: 86,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: EdgeInsets.zero,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            Text(points, style: const TextStyle(fontSize: 14, color: Colors.white70)),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _compactButton(String label, VoidCallback onTap, Color color) {
-    return SizedBox(
-      height: 76,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(label,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: cs.outline),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(4),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface)),
+          ),
         ),
       ),
     );
   }
 
   Widget _compactButtonGrid(List<Widget> buttons, {bool includeMiss = false}) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Column(
         children: [
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                const spacing = 8.0;
-                final tileWidth =
-                    (constraints.maxWidth - spacing * 3) / 4; // 4 per row
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  alignment: WrapAlignment.center,
-                  children: buttons
-                      .map((b) => SizedBox(width: tileWidth, child: b))
-                      .toList(),
-                );
-              },
+            child: GridView.count(
+              crossAxisCount: 4,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+              childAspectRatio: 1.4,
+              children: buttons,
             ),
           ),
           if (includeMiss) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             SizedBox(
-              height: 64,
+              height: 54,
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _onMiss,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[800],
+                  backgroundColor: cs.surfaceContainerHigh,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -1050,7 +1110,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                style: TextStyle(color: Colors.grey[400]),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
               ),
             ],
           ),
@@ -1079,7 +1139,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       players: players,
       isRemoved: (i) => _removedPlayerIndices.contains(i),
       gameOver: gameOver,
-      colorFor: playerColor,
+      colorFor: avatarColor,
       addInfoText:
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
@@ -1126,7 +1186,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
               final removed = players[playerIndex];
@@ -1174,7 +1236,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53935)),
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             child: const Text('Quit'),
           ),
         ],

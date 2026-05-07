@@ -9,6 +9,7 @@ class PostGameScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final sorted = List<PlayerResult>.from(result.results)
       ..sort((a, b) => a.placement.compareTo(b.placement));
     final winner = sorted.first;
@@ -29,14 +30,14 @@ class PostGameScreen extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.amber.withAlpha(40),
+                  cs.tertiary.withAlpha(40),
                   Colors.transparent,
                 ],
               ),
             ),
             child: Column(
               children: [
-                const Icon(Icons.emoji_events, size: 48, color: Colors.amber),
+                Icon(Icons.emoji_events, size: 48, color: cs.tertiary),
                 const SizedBox(height: 8),
                 PlayerAvatar(
                   avatarPath: winner.avatarPath,
@@ -51,8 +52,8 @@ class PostGameScreen extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Text('Winner!',
-                    style: TextStyle(color: Colors.amber, fontSize: 16)),
+                Text('Winner!',
+                    style: TextStyle(color: cs.tertiary, fontSize: 16)),
               ],
             ),
           ),
@@ -63,18 +64,18 @@ class PostGameScreen extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.orange.withAlpha(30),
-                border: Border.all(color: Colors.orange.withAlpha(80)),
+                color: cs.secondary.withAlpha(30),
+                border: Border.all(color: cs.secondary.withAlpha(80)),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.orange, size: 16),
-                  SizedBox(width: 8),
+                  Icon(Icons.info_outline, color: cs.secondary, size: 16),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Statistics not recorded (player list changed mid-game)',
-                      style: TextStyle(color: Colors.orange, fontSize: 13),
+                      style: TextStyle(color: cs.secondary, fontSize: 13),
                     ),
                   ),
                 ],
@@ -96,32 +97,39 @@ class PostGameScreen extends StatelessWidget {
             ),
           ),
 
-          // Action buttons
+          // Action buttons: Back + Continue side by side, Finish Game wide bottom
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop('undo'),
-                    child: const Text('Undo'),
-                  ),
-                ),
-                if (result.canContinue) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop('continue'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop('undo'),
+                        child: const Text('↶ Back'),
                       ),
-                      child: const Text('Continue'),
                     ),
-                  ),
-                ],
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
+                    if (result.canContinue) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              Navigator.of(context).pop('continue'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary,
+                          ),
+                          child: const Text('▶ Continue'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop('home'),
                     child: const Text('Finish Game'),
                   ),
@@ -141,16 +149,17 @@ class _PlayerResultTile extends StatelessWidget {
 
   const _PlayerResultTile({required this.result, required this.gameMode});
 
-  Color _placementColor(int p) {
+  Color _placementColor(int p, BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     switch (p) {
       case 1:
-        return Colors.amber;
+        return cs.tertiary;
       case 2:
-        return Colors.grey[400]!;
+        return cs.onSurface.withValues(alpha: 0.7);
       case 3:
         return Colors.brown[300]!;
       default:
-        return Colors.grey[600]!;
+        return cs.onSurface.withValues(alpha: 0.4);
     }
   }
 
@@ -171,9 +180,9 @@ class _PlayerResultTile extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _placementColor(result.placement).withAlpha(40),
+                color: _placementColor(result.placement, context).withAlpha(40),
                 border: Border.all(
-                  color: _placementColor(result.placement),
+                  color: _placementColor(result.placement, context),
                   width: 2,
                 ),
               ),
@@ -182,7 +191,7 @@ class _PlayerResultTile extends StatelessWidget {
                 '${result.placement}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: _placementColor(result.placement),
+                  color: _placementColor(result.placement, context),
                 ),
               ),
             ),
@@ -207,35 +216,20 @@ class _PlayerResultTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  _buildStats(stats),
+                  _buildStats(stats, context),
                 ],
               ),
             ),
             // Rating change
             if (ratingChange != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: ratingChange >= 0
-                      ? Colors.green.withAlpha(30)
-                      : Colors.red.withAlpha(30),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${ratingChange >= 0 ? '+' : ''}${ratingChange.toStringAsFixed(1)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: ratingChange >= 0 ? Colors.green : Colors.red,
-                  ),
-                ),
-              ),
+              _buildRatingDelta(context, ratingChange),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStats(Map<String, dynamic> stats) {
+  Widget _buildStats(Map<String, dynamic> stats, BuildContext context) {
     final entries = <String>[];
 
     switch (gameMode) {
@@ -260,7 +254,34 @@ class _PlayerResultTile extends StatelessWidget {
     if (entries.isEmpty) return const SizedBox.shrink();
     return Text(
       entries.join(' | '),
-      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12),
+    );
+  }
+
+  Widget _buildRatingDelta(BuildContext context, double delta) {
+    if (delta.abs() < 0.5) {
+      return Text(
+        '±0',
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+        ),
+      );
+    }
+    final cs = Theme.of(context).colorScheme;
+    final positive = delta > 0;
+    final color = positive ? cs.primary : cs.error;
+    final icon = positive ? Icons.arrow_upward : Icons.arrow_downward;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 14),
+        const SizedBox(width: 2),
+        Text(
+          '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)}',
+          style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold),
+        ),
+      ],
     );
   }
 }

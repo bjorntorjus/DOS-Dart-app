@@ -41,12 +41,12 @@ class ClockProgress extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: done
-                  ? Colors.green
+                  ? Theme.of(context).colorScheme.primary
                   : isCurrent
-                      ? Colors.amber
-                      : Colors.grey[800],
+                      ? Theme.of(context).colorScheme.tertiary
+                      : Theme.of(context).colorScheme.surfaceContainerLow,
               border: isCurrent
-                  ? Border.all(color: Colors.amber, width: 2)
+                  ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 2)
                   : null,
             ),
             alignment: Alignment.center,
@@ -55,7 +55,7 @@ class ClockProgress extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                color: done || isCurrent ? Colors.black : Colors.grey[400],
+                color: done || isCurrent ? Colors.black : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           );

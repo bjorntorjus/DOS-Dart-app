@@ -46,7 +46,6 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
 
   // Cricket options
   bool _cricketIsRandom = false;
-  bool _cricketIsOpen = false;
   int _cricketTargetCount = 7;
   bool _cricketIncludeBull = true;
   bool _cricketIsCutthroat = false;
@@ -482,7 +481,6 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           players: players,
           config: CricketConfig(
             isRandom: _cricketIsRandom,
-            isOpen: _cricketIsOpen,
             targetCount: _cricketTargetCount,
             includeBull: _cricketIncludeBull,
             isCutthroat: _cricketIsCutthroat,
@@ -581,7 +579,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                             child: Text(
                               'Tap "Add player" to select players',
                               style: TextStyle(
-                                color: Colors.grey[500],
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
                                 fontSize: 16,
                               ),
                             ),
@@ -600,48 +598,73 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                           },
                           itemBuilder: (context, index) {
                             final sp = _selectedPlayers[index];
-                            return Card(
+                            final cs = Theme.of(context).colorScheme;
+                            return Container(
                               key: ValueKey(sp.id),
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: GestureDetector(
-                                  onTap: () => _showPlayerProfile(sp),
-                                  child: PlayerAvatar(
-                                    avatarPath: sp.avatarPath,
-                                    name: sp.name,
-                                    radius: 20,
-                                    backgroundColor: playerColor(index),
-                                  ),
-                                ),
-                                title: GestureDetector(
-                                  onTap: () => _showPlayerProfile(sp),
-                                  child: Text(
-                                    sp.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: cs.outline),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.drag_indicator,
+                                      size: 18,
+                                      color: cs.onSurface
+                                          .withValues(alpha: 0.35)),
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: () => _showPlayerProfile(sp),
+                                    child: PlayerAvatar(
+                                      avatarPath: sp.avatarPath,
+                                      name: sp.name,
+                                      radius: 20,
+                                      backgroundColor: avatarColor(index),
                                     ),
                                   ),
-                                ),
-                                subtitle: Text(
-                                  'Rating: ${sp.rating.round()} | '
-                                  'Games: ${sp.gamesPlayed}',
-                                  style: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 12,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => _showPlayerProfile(sp),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            sp.name,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${sp.rating.round()} · '
+                                            '${sp.gamesPlayed} games',
+                                            style: TextStyle(
+                                              color: cs.onSurface
+                                                  .withValues(alpha: 0.55),
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.close,
-                                      color: Colors.red, size: 20),
-                                  onPressed: () => _removePlayer(index),
-                                ),
+                                  IconButton(
+                                    icon: Icon(Icons.close,
+                                        color: cs.error, size: 20),
+                                    onPressed: () => _removePlayer(index),
+                                  ),
+                                ],
                               ),
                             );
                           },
                         ),
                 ),
 
-                // Add player (secondary, outlined)
+                // Add player (matches outline-style)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   child: SizedBox(
@@ -650,13 +673,16 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                       onPressed: _addPlayer,
                       icon: const Icon(Icons.person_add, size: 20),
                       label: Text(
-                          'Select players (${_selectedPlayers.length})'),
+                          'Add players (${_selectedPlayers.length})'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[300],
-                        side: BorderSide(color: Colors.grey[600]!, width: 1),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onSurface,
+                        side: BorderSide(
+                            color: Theme.of(context).colorScheme.outline),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         textStyle: const TextStyle(
                           fontSize: 15,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -675,7 +701,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                       icon: const Icon(Icons.play_arrow, size: 28),
                       label: const Text('START GAME'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF43A047),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         textStyle: const TextStyle(
@@ -745,37 +771,25 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             activeTrackColor: Theme.of(context).colorScheme.primary,
           ),
           SwitchListTile(
-            title: const Text('Open mode'),
-            subtitle: const Text('All numbers 1-20 are valid targets'),
-            value: _cricketIsOpen,
-            onChanged: (v) => setState(() {
-              _cricketIsOpen = v;
-              if (v) _cricketIsRandom = false;
-            }),
+            title: const Text('Random numbers'),
+            subtitle: const Text('Choose random targets instead of 15-20'),
+            value: _cricketIsRandom,
+            onChanged: (v) => setState(() => _cricketIsRandom = v),
             activeTrackColor: Theme.of(context).colorScheme.primary,
           ),
-          if (!_cricketIsOpen) ...[
-            SwitchListTile(
-              title: const Text('Random numbers'),
-              subtitle: const Text('Choose random targets instead of 15-20'),
-              value: _cricketIsRandom,
-              onChanged: (v) => setState(() => _cricketIsRandom = v),
-              activeTrackColor: Theme.of(context).colorScheme.primary,
-            ),
-            if (_cricketIsRandom)
-              ListTile(
-                title: Text('Number of targets: $_cricketTargetCount'),
-                subtitle: Slider(
-                  value: _cricketTargetCount.toDouble(),
-                  min: 3,
-                  max: 15,
-                  divisions: 12,
-                  label: '$_cricketTargetCount',
-                  onChanged: (v) =>
-                      setState(() => _cricketTargetCount = v.round()),
-                ),
+          if (_cricketIsRandom)
+            ListTile(
+              title: Text('Number of targets: $_cricketTargetCount'),
+              subtitle: Slider(
+                value: _cricketTargetCount.toDouble(),
+                min: 3,
+                max: 15,
+                divisions: 12,
+                label: '$_cricketTargetCount',
+                onChanged: (v) =>
+                    setState(() => _cricketTargetCount = v.round()),
               ),
-          ],
+            ),
           SwitchListTile(
             title: const Text('Include Bull'),
             value: _cricketIncludeBull,
