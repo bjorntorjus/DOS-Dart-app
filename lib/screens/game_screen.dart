@@ -1767,14 +1767,6 @@ class _GameScreenState extends State<GameScreen> {
     return total / darts.length * 3;
   }
 
-  /// Skip remaining darts on this turn — equivalent to misses for the rest.
-  void _endTurnEarly() {
-    if (finishedPlayers.contains(currentPlayerIndex)) return;
-    while (dartsInTurn < 3 && !finishedPlayers.contains(currentPlayerIndex)) {
-      _onMiss();
-    }
-  }
-
   Widget _buildIndigoScaffold(BuildContext context, Player currentPlayer) {
     return Scaffold(
       body: SafeArea(
@@ -1829,25 +1821,6 @@ class _GameScreenState extends State<GameScreen> {
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: cs.onSurface)),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: cs.error,
-              borderRadius: BorderRadius.circular(100),
-            ),
-            child: Text(
-              'LIVE',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-                color: cs.onError,
-              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -2088,19 +2061,22 @@ class _GameScreenState extends State<GameScreen> {
       if (i != currentPlayerIndex) others.add(i);
     }
     if (others.isEmpty) return const SizedBox.shrink();
-    final shown = others.take(3).toList();
 
     return Container(
       color: cs.surface,
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: List.generate(shown.length, (idx) {
-          final i = shown[idx];
-          final isLast = idx == shown.length - 1;
-          final last = _lastTurnScored(i);
-          final eliminated = finishedPlayers.contains(i);
-          return Expanded(
-            child: Container(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List.generate(others.length, (idx) {
+            final i = others[idx];
+            final isLast = idx == others.length - 1;
+            final lastDarts = _lastDartsLabel(i);
+            final lastTurn = _lastTurnScored(i);
+            final avg = _avgPerThree(i);
+            final eliminated = finishedPlayers.contains(i);
+            return Container(
+              width: 180,
               padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               decoration: BoxDecoration(
@@ -2133,19 +2109,31 @@ class _GameScreenState extends State<GameScreen> {
                           : cs.onSurface,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
-                    last != null ? 'turn +$last' : '—',
+                    lastDarts.isNotEmpty
+                        ? lastDarts
+                        : (lastTurn != null ? 'turn +$lastTurn' : '—'),
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 11,
                       color: cs.onSurfaceVariant,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'avg ${avg.toStringAsFixed(1)}',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
                   ),
                 ],
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -2178,14 +2166,14 @@ class _GameScreenState extends State<GameScreen> {
                   borderRadius: BorderRadius.circular(6)),
             ),
           ),
-          const SizedBox(width: 8),
-          TextButton(
+          const Spacer(),
+          ElevatedButton(
             onPressed: canAct ? _onMiss : null,
-            style: TextButton.styleFrom(
-              foregroundColor: cs.onSurfaceVariant,
-              backgroundColor: cs.surfaceContainerHigh,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: cs.error,
+              foregroundColor: cs.onError,
               padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6)),
             ),
@@ -2193,25 +2181,8 @@ class _GameScreenState extends State<GameScreen> {
                 style: TextStyle(
                     fontFamily: 'monospace',
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5)),
-          ),
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: canAct && dartsInTurn > 0 ? _endTurnEarly : null,
-            icon: const Icon(Icons.skip_next, size: 18),
-            label: const Text('END TURN',
-                style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: cs.error,
-              foregroundColor: cs.onError,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6)),
-            ),
+                    letterSpacing: 1.5,
+                    fontSize: 16)),
           ),
         ],
       ),

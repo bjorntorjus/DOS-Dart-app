@@ -75,6 +75,12 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   // Shanghai options
   int _shanghaiTargetEnd = 7;
 
+  // Indigo redesign
+  bool _useNewDesign = false;
+  int? _startingScoreOverride; // X01 only — null means use widget.startingScore
+  int get _effectiveStartingScore =>
+      _startingScoreOverride ?? widget.startingScore ?? 501;
+
   int get _minPlayers {
     switch (widget.gameMode) {
       case GameMode.killer:
@@ -99,15 +105,21 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
     players.sort((a, b) =>
         a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final scale = await AppSettings.getHandicapScale();
+    final useNewDesign = await AppSettings.getUseNewDesign();
+    if (!mounted) return;
     setState(() {
       _savedPlayers = players;
       _handicapScale = scale;
+      _useNewDesign = useNewDesign;
       _isLoading = false;
     });
-    // Auto-open player selection on first entry
-    if (mounted && _selectedPlayers.isEmpty) {
+    // Auto-open player selection on first entry (classic design only — the
+    // indigo grid shows all saved players directly, so no modal needed).
+    if (mounted && _selectedPlayers.isEmpty && !_useNewDesign) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _selectedPlayers.isEmpty) _addPlayer();
+        if (mounted && _selectedPlayers.isEmpty && !_useNewDesign) {
+          _addPlayer();
+        }
       });
     }
   }
@@ -256,14 +268,13 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       ),
     );
 
-    if (result != true) {
+    final name = result == true ? nameController.text.trim() : '';
+    // Defer dispose until after the dialog dismissal animation finishes,
+    // otherwise the TextField rebuilds against a disposed controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       nameController.dispose();
-      return;
-    }
-
-    final name = nameController.text.trim();
-    nameController.dispose();
-    if (name.isEmpty) return;
+    });
+    if (result != true || name.isEmpty) return;
 
     final saved = await PlayerStorage.addPlayer(name);
 
@@ -386,7 +397,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                nameController.dispose();
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => nameController.dispose());
                 Navigator.pop(ctx);
               },
               child: const Text('Cancel'),
@@ -399,7 +411,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                   await PlayerStorage.savePlayers(_savedPlayers);
                   setState(() {});
                 }
-                nameController.dispose();
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => nameController.dispose());
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Save'),
@@ -472,7 +485,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
         screen = GameScreen(
           players: players,
           masterOut: _masterOut,
-          startingScore: widget.startingScore!,
+          startingScore: _effectiveStartingScore,
           handicap: _handicap,
           noBust: _noBust,
         );
@@ -539,6 +552,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_useNewDesign) return _buildIndigoSetup(context);
     return Scaffold(
       appBar: AppBar(title: Text(_title)),
       body: _isLoading
@@ -717,6 +731,367 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             ),
     );
   }
+
+  // ==========================================================================
+  // Indigo redesign (Phase 2 — Player setup)
+  // ==========================================================================
+
+  Widget _buildIndigoSetup(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  _indigoSetupBroadcastBar(context),
+                  _indigoModeBar(context),
+                  _indigoSelectionBar(context),
+                  Expanded(child: _indigoPlayerGrid(context)),
+                  if (widget.gameMode != GameMode.x01)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      child: _buildModeOptions(),
+                    ),
+                  _indigoSetupFooter(context),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _indigoSetupBroadcastBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        border:
+            Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () => Navigator.pop(context),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text('←',
+                  style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurface)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'NEW GAME',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.settings_outlined, color: cs.onSurface),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _indigoModeBar(BuildContext context) {
+    final isX01 = widget.gameMode == GameMode.x01;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _indigoChip(context,
+              label: widget.gameMode.label.toUpperCase(),
+              selected: false,
+              onTap: null),
+          if (isX01) ...[
+            for (final score in [301, 501, 701])
+              _indigoChip(context,
+                  label: '$score',
+                  selected: _effectiveStartingScore == score,
+                  onTap: () =>
+                      setState(() => _startingScoreOverride = score)),
+            _indigoChip(context,
+                label: 'D-OUT',
+                selected: _masterOut == 'double',
+                onTap: () => setState(() => _masterOut =
+                    _masterOut == 'double' ? 'none' : 'double')),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _indigoChip(BuildContext context,
+      {required String label,
+      required bool selected,
+      required VoidCallback? onTap}) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(100),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? cs.tertiary : cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: selected ? cs.onTertiary : cs.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _indigoSelectionBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: cs.tertiary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              '${_selectedPlayers.length} SELECTED',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+                color: cs.tertiary,
+              ),
+            ),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: _selectedPlayers.length >= 2
+                ? () => setState(() => _selectedPlayers.shuffle(Random()))
+                : null,
+            icon: const Text('🎲', style: TextStyle(fontSize: 16)),
+            label: const Text('RANDOMIZE',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
+                    fontSize: 12)),
+            style: TextButton.styleFrom(foregroundColor: cs.onSurface),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _indigoPlayerGrid(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (_savedPlayers.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'No saved players yet — tap + NEW to add one.',
+            style: TextStyle(color: cs.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: GridView.count(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        children: _savedPlayers.map((sp) {
+          final selectedIdx = _selectedPlayers.indexWhere((p) => p.id == sp.id);
+          final isSelected = selectedIdx >= 0;
+          return _indigoPlayerCard(context, sp, isSelected, selectedIdx + 1);
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _indigoPlayerCard(BuildContext context, SavedPlayer sp,
+      bool isSelected, int orderNumber) {
+    final cs = Theme.of(context).colorScheme;
+    final colorIdx = _savedPlayers.indexOf(sp);
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (isSelected) {
+            _selectedPlayers.removeWhere((p) => p.id == sp.id);
+          } else {
+            _selectedPlayers.add(sp);
+          }
+        });
+      },
+      onLongPress: () => _showPlayerProfile(sp),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isSelected ? cs.surfaceContainerHigh : cs.surface,
+          border: Border.all(
+            color: isSelected ? cs.tertiary : Theme.of(context).dividerColor,
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PlayerAvatar(
+                    avatarPath: sp.avatarPath,
+                    name: sp.name,
+                    radius: 28,
+                    backgroundColor: avatarColor(colorIdx),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      sp.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: cs.tertiary,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$orderNumber',
+                    style: TextStyle(
+                      color: cs.onTertiary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _indigoSetupFooter(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final canStart = _selectedPlayers.length >= _minPlayers;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          OutlinedButton.icon(
+            onPressed: _showCreatePlayerDialog,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('NEW',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: cs.onSurface,
+              side: BorderSide(color: Theme.of(context).dividerColor),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: _selectedPlayers.isEmpty
+                ? null
+                : () => setState(() => _selectedPlayers.clear()),
+            style: TextButton.styleFrom(
+              foregroundColor: cs.onSurfaceVariant,
+              backgroundColor: cs.surfaceContainerHigh,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6)),
+            ),
+            child: const Text('CLEAR',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5)),
+          ),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: canStart ? _startGame : null,
+            icon: const Text('→',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800)),
+            label: const Text('START',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: cs.error,
+              foregroundColor: cs.onError,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // Classic build helpers
+  // ==========================================================================
 
   Widget _buildModeOptions() {
     switch (widget.gameMode) {
