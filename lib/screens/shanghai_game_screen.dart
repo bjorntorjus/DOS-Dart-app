@@ -576,56 +576,125 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ),
       body: Column(
         children: [
-          _buildTurnIndicator(),
-          const SizedBox(height: 8),
+          _buildPlayerInfoBar(),
+          _buildRoundIndicators(),
+          const SizedBox(height: 4),
           _buildDartSlots(),
-          const SizedBox(height: 12),
-          _buildActionButtons(),
-          const Spacer(),
-          _buildScoreboard(),
           const SizedBox(height: 8),
+          Expanded(child: _buildHitButtons()),
+          _buildBackMissRow(),
+          _buildScoreboard(),
         ],
       ),
     );
   }
 
-  Widget _buildScoreboard() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
+  Widget _buildPlayerInfoBar() {
+    final pi = engine.currentPlayerIndex;
+    if (pi >= players.length) return const SizedBox();
+    final player = players[pi];
+    final dartsInTurn = _turnHits.length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+        border: Border(
+          bottom: BorderSide(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
+        ),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(players.length, (i) {
-          final isActive = i == engine.currentPlayerIndex && !engine.gameOver;
-          final isRemoved = engine.isSkipped(i);
-          final col = Column(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(player.name,
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold)),
+                Row(
+                  children: [
+                    Text('Dart ${dartsInTurn + 1} of 3',
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                            fontSize: 13)),
+                    const SizedBox(width: 8),
+                    ...List.generate(3, (i) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 3),
+                        child: Icon(
+                          i < dartsInTurn ? Icons.circle : Icons.circle_outlined,
+                          size: 10,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              PlayerAvatar(
-                avatarPath: players[i].avatarPath,
-                name: players[i].name,
-                radius: 22,
-                backgroundColor: avatarColor(i),
-              ),
-              const SizedBox(height: 4),
+              Text('Target',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      fontSize: 11)),
               Text(
-                players[i].name,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        isActive ? FontWeight.bold : FontWeight.normal),
+                '${engine.currentTarget}',
+                style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
               ),
               Text(
-                '${engine.totalScores[i]}',
+                'Total: ${engine.totalScores[pi]}',
                 style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold),
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontSize: 13),
               ),
             ],
-          );
-          return Opacity(
-            opacity: isRemoved ? 0.4 : 1.0,
-            child: ActivePlayerHighlight(
-              isActive: isActive,
-              child: col,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoundIndicators() {
+    final total = widget.config.targetEnd;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Wrap(
+        spacing: 5,
+        runSpacing: 4,
+        alignment: WrapAlignment.center,
+        children: List.generate(total, (ri) {
+          final isCurrent = ri == engine.currentRound;
+          final isDone = ri < engine.currentRound;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: isCurrent
+                  ? Theme.of(context).colorScheme.tertiary.withAlpha(40)
+                  : isDone
+                      ? Theme.of(context).colorScheme.primary.withAlpha(30)
+                      : Theme.of(context).colorScheme.surfaceContainerLow,
+              border: isCurrent
+                  ? Border.all(
+                      color: Theme.of(context).colorScheme.tertiary, width: 1.5)
+                  : null,
+            ),
+            child: Text(
+              '${ri + 1}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                color: isCurrent
+                    ? Theme.of(context).colorScheme.tertiary
+                    : isDone
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+              ),
             ),
           );
         }),
@@ -633,13 +702,67 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     );
   }
 
-  Widget _buildTurnIndicator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Text(
-        'Round ${engine.currentRound + 1} of ${widget.config.targetEnd} — Target: ${engine.currentTarget}',
-        style: const TextStyle(fontSize: 14, color: Colors.grey),
-        textAlign: TextAlign.center,
+  Widget _buildScoreboard() {
+    final cardHeight = 56.0;
+    return Container(
+      constraints: BoxConstraints(maxHeight: cardHeight * 3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+            top: BorderSide(color: Theme.of(context).colorScheme.surfaceContainerLow)),
+      ),
+      child: ListView.builder(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        itemCount: players.length,
+        itemBuilder: (context, index) {
+          final player = players[index];
+          final isCurrent =
+              index == engine.currentPlayerIndex && !engine.gameOver;
+          final isRemoved = engine.isSkipped(index);
+
+          return Opacity(
+            opacity: isRemoved ? 0.4 : 1.0,
+            child: ActivePlayerHighlight(
+              isActive: isCurrent,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 28,
+                    child: isCurrent
+                        ? Icon(Icons.arrow_right,
+                            color: Theme.of(context).colorScheme.primary, size: 24)
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  PlayerAvatar(
+                    avatarPath: player.avatarPath,
+                    name: player.name,
+                    radius: 18,
+                    backgroundColor: avatarColor(index),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      player.name,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight:
+                            isCurrent ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${engine.totalScores[index]}',
+                    style: const TextStyle(
+                        fontSize: 26, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -697,83 +820,82 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildHitButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).colorScheme.outline),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            _shanghaiHitLabel(
+                '${engine.currentTarget}', () => _onHit(HitType.single)),
+            Container(
+                width: 2,
+                color: Theme.of(context).colorScheme.outline),
+            _shanghaiHitLabel(
+                'D${engine.currentTarget}', () => _onHit(HitType.double_)),
+            Container(
+                width: 2,
+                color: Theme.of(context).colorScheme.outline),
+            _shanghaiHitLabel(
+                'T${engine.currentTarget}', () => _onHit(HitType.triple)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackMissRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
         children: [
-          // Outline-wrap with three plain labels (cricket/splitscore style)
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).colorScheme.outline),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: SizedBox(
-              height: 90,
-              child: Row(
-                children: [
-                  _shanghaiHitLabel(
-                      '${engine.currentTarget}', () => _onHit(HitType.single)),
-                  Container(
-                      width: 2,
-                      height: 60,
-                      color: Theme.of(context).colorScheme.outline),
-                  _shanghaiHitLabel('D${engine.currentTarget}',
-                      () => _onHit(HitType.double_)),
-                  Container(
-                      width: 2,
-                      height: 60,
-                      color: Theme.of(context).colorScheme.outline),
-                  _shanghaiHitLabel('T${engine.currentTarget}',
-                      () => _onHit(HitType.triple)),
-                ],
+          Expanded(
+            child: Visibility(
+              visible: !engine.gameOver,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: SizedBox(
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: _onUndo,
+                  icon: const Icon(Icons.undo, size: 20),
+                  label: const Text('Back', style: TextStyle(fontSize: 16)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                        color: Theme.of(context).colorScheme.outline),
+                    foregroundColor: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.85),
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          // Bottom row: Back + Miss side-by-side
-          Row(
-            children: [
-              if (!engine.gameOver)
-                Expanded(
-                  child: SizedBox(
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed: _onUndo,
-                      icon: const Icon(Icons.undo, size: 20),
-                      label: const Text('Back',
-                          style: TextStyle(fontSize: 16)),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                            color: Theme.of(context).colorScheme.outline),
-                        foregroundColor: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed:
+                    engine.gameOver ? null : () => _onHit(HitType.miss),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      Theme.of(context).colorScheme.surfaceContainerHigh,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-              if (!engine.gameOver) const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () => _onHit(HitType.miss),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHigh,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text('Miss',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
-                ),
+                child: const Text('Miss',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
-            ],
+            ),
           ),
         ],
       ),

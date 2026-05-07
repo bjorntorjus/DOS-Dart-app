@@ -817,38 +817,39 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             ),
           ),
 
-          // Last throw + Miss
+          // Last throw + Miss (Back always reserves space to avoid layout shift)
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Row(
               children: [
-                if (lastThrowLabel != null)
-                  Expanded(
-                    child: Text('Last: $lastThrowLabel',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: lastThrowLabel!.contains('KILLER')
-                              ? Theme.of(context).colorScheme.tertiary
-                              : lastThrowLabel!.contains('shield')
-                                  ? Colors.blue
-                                  : lastThrowLabel!.contains('Eliminated') ||
-                                          lastThrowLabel!
-                                              .contains('Lost') ||
-                                          lastThrowLabel!
-                                              .contains('Suicide')
-                                      ? Theme.of(context).colorScheme.error
-                                      : lastThrowLabel!
-                                              .contains('Must be Killer')
-                                          ? Theme.of(context).colorScheme.tertiary
-                                          : Colors.white,
-                        )),
-                  )
-                else
-                  const Expanded(child: SizedBox()),
-                if (throwHistory.isNotEmpty || assignmentPlayerIndex > 0) ...[
-                  SizedBox(
+                Expanded(
+                  child: lastThrowLabel != null
+                      ? Text('Last: $lastThrowLabel',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: lastThrowLabel!.contains('KILLER')
+                                ? Theme.of(context).colorScheme.tertiary
+                                : lastThrowLabel!.contains('shield')
+                                    ? Colors.blue
+                                    : lastThrowLabel!.contains('Eliminated') ||
+                                            lastThrowLabel!.contains('Lost') ||
+                                            lastThrowLabel!.contains('Suicide')
+                                        ? Theme.of(context).colorScheme.error
+                                        : lastThrowLabel!
+                                                .contains('Must be Killer')
+                                            ? Theme.of(context).colorScheme.tertiary
+                                            : Colors.white,
+                          ))
+                      : const SizedBox(),
+                ),
+                Visibility(
+                  visible: throwHistory.isNotEmpty || assignmentPlayerIndex > 0,
+                  maintainSize: true,
+                  maintainAnimation: true,
+                  maintainState: true,
+                  child: SizedBox(
                     height: 48,
                     child: OutlinedButton.icon(
                       onPressed: _undo,
@@ -861,8 +862,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                ],
+                ),
+                const SizedBox(width: 8),
                 if (phase == KillerPhase.playing)
                   ElevatedButton(
                     onPressed: winnerIndex == null ? _onMiss : null,
@@ -945,10 +946,20 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
               ],
             ),
           ),
-          if (phase == KillerPhase.playing && assignedNumbers[pi] > 0)
+          if (phase == KillerPhase.playing && assignedNumbers[pi] > 0) ...[
+            // Sword (Killer) or Shield (not yet Killer) for active thrower
+            if (!isEliminated[pi])
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Text(
+                  isKiller[pi] ? '⚔️' : '🛡️',
+                  style: const TextStyle(fontSize: 28),
+                ),
+              ),
             Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('Number',
+                Text('Your number',
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 11)),
                 Text('${assignedNumbers[pi]}',
@@ -956,6 +967,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                         fontSize: 36, fontWeight: FontWeight.bold)),
               ],
             ),
+          ],
         ],
       ),
     );

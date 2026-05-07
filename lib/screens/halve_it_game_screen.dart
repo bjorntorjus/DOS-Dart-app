@@ -748,33 +748,38 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             ),
           ),
 
-          // Last throw label
-          if (lastThrowLabel != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Last: $lastThrowLabel',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: lastThrowLabel!.contains('✓')
-                          ? Colors.green
-                          : Colors.white,
-                    )),
+          // Last throw label (always reserves space)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                lastThrowLabel != null ? 'Last: $lastThrowLabel' : ' ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: lastThrowLabel != null && lastThrowLabel!.contains('✓')
+                      ? Colors.green
+                      : Colors.white,
+                ),
               ),
             ),
+          ),
 
           // Target buttons (uses remaining space)
           Expanded(child: _buildTargetButtons(currentRound)),
 
-          // Back + Miss buttons
+          // Back button (always reserves space)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
-                if (throwHistory.isNotEmpty) ...[
-                  Expanded(
+                Expanded(
+                  child: Visibility(
+                    visible: throwHistory.isNotEmpty,
+                    maintainSize: true,
+                    maintainAnimation: true,
+                    maintainState: true,
                     child: SizedBox(
                       height: 48,
                       child: OutlinedButton.icon(
@@ -788,8 +793,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                ],
+                ),
               ],
             ),
           ),
