@@ -1,0 +1,323 @@
+/* Wireframe styling — mid-fidelity, sketchy but readable */
+@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --ink: #1a1a1a;
+  --ink-2: #3a3a3a;
+  --ink-3: #6b6b6b;
+  --ink-4: #a0a0a0;
+  --paper: #fafaf7;
+  --paper-2: #f0efea;
+  --line: #1a1a1a;
+  --line-soft: #c8c5bd;
+  --accent-red: #d94234;
+  --accent-green: #3a8a4a;
+  --accent-amber: #d99a2b;
+  --accent-blue: #2b6fd9;
+  --hand: 'Architects Daughter', cursive;
+  --sans: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+/* Tablet portrait frame — 768x1024 (iPad-ish, fits Galaxy Tab too) */
+.tablet {
+  width: 540px;
+  height: 720px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 28px;
+  box-shadow: 6px 6px 0 var(--ink);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.tablet.dark {
+  background: #1a1a1a;
+  color: #e8e8e6;
+  border-color: #1a1a1a;
+}
+.tablet .bezel-dot {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0.3;
+}
+.tablet.dark .bezel-dot { background: #fff; opacity: 0.2; }
+
+/* Sketchy primitives */
+.sk-box {
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  position: relative;
+}
+.sk-box-soft {
+  border: 1.5px dashed var(--line-soft);
+  border-radius: 6px;
+}
+.sk-fill {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--line-soft) 0 1px,
+    transparent 1px 6px
+  );
+}
+.sk-fill-dense {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--ink) 0 1px,
+    transparent 1px 4px
+  );
+  opacity: 0.85;
+}
+.sk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1.2px solid var(--ink);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--paper);
+}
+.sk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  background: var(--paper);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.sk-btn.primary { background: var(--ink); color: var(--paper); }
+.sk-btn.accent  { background: var(--accent-red); color: white; border-color: var(--ink); }
+.sk-btn.ghost   { background: transparent; box-shadow: none; }
+
+.sk-label {
+  font-family: var(--hand);
+  font-size: 12px;
+  color: var(--accent-red);
+  letter-spacing: 0.2px;
+}
+
+.sk-callout {
+  font-family: var(--hand);
+  color: var(--accent-red);
+  font-size: 13px;
+  line-height: 1.2;
+  position: relative;
+}
+
+.sk-arrow {
+  font-family: var(--hand);
+  color: var(--accent-red);
+  font-weight: bold;
+}
+
+/* Section heading inside artboards */
+.dc-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Section description block (above artboards row) */
+.section-intro {
+  max-width: 720px;
+  margin: 0 auto 12px;
+}
+.section-intro h2 {
+  font-family: var(--sans);
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -0.3px;
+}
+.section-intro p {
+  font-size: 14px;
+  color: var(--ink-3);
+  margin: 0;
+  line-height: 1.5;
+}
+.section-intro .crit {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent-red);
+  background: rgba(217,66,52,0.06);
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 0 6px 6px 0;
+}
+.section-intro .crit strong { color: var(--accent-red); }
+
+/* Tablet content helpers */
+.bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1.2px solid var(--line-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-family: var(--mono);
+}
+.dark .bar-top { border-bottom-color: #2a2a2a; color: #888; }
+
+.row { display: flex; }
+.col { display: flex; flex-direction: column; }
+.gap-4 { gap: 4px; } .gap-6 { gap: 6px; } .gap-8 { gap: 8px; } .gap-10 { gap: 10px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+.p-8 { padding: 8px; } .p-10 { padding: 10px; } .p-12 { padding: 12px; } .p-14 { padding: 14px; } .p-16 { padding: 16px; }
+.flex-1 { flex: 1; min-height: 0; }
+.center { display: flex; align-items: center; justify-content: center; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+
+.avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  background: var(--paper-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.avatar.lg { width: 56px; height: 56px; font-size: 22px; }
+.avatar.xl { width: 84px; height: 84px; font-size: 32px; }
+.avatar.sm { width: 22px; height: 22px; font-size: 10px; }
+.dark .avatar { border-color: #e8e8e6; background: #2a2a2a; color: #e8e8e6; }
+
+/* Big score numerals */
+.score-jumbo {
+  font-family: var(--sans);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -2px;
+  line-height: 0.9;
+}
+
+/* Dartboard placeholder — simplified concentric look */
+.board-ph {
+  aspect-ratio: 1/1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center,
+      var(--accent-red) 0 6%,
+      var(--accent-green) 6% 12%,
+      var(--paper) 12% 14%,
+      var(--ink) 14% 36%,
+      var(--paper-2) 36% 38%,
+      var(--ink) 38% 60%,
+      var(--paper-2) 60% 62%,
+      var(--ink) 62% 86%,
+      var(--paper-2) 86% 88%,
+      var(--ink) 88% 100%);
+  position: relative;
+  border: 2px solid var(--ink);
+}
+.board-ph::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    conic-gradient(from -9deg,
+      transparent 0deg 18deg, rgba(0,0,0,0.04) 18deg 36deg,
+      transparent 36deg 54deg, rgba(0,0,0,0.04) 54deg 72deg,
+      transparent 72deg 90deg, rgba(0,0,0,0.04) 90deg 108deg,
+      transparent 108deg 126deg, rgba(0,0,0,0.04) 126deg 144deg,
+      transparent 144deg 162deg, rgba(0,0,0,0.04) 162deg 180deg,
+      transparent 180deg 198deg, rgba(0,0,0,0.04) 198deg 216deg,
+      transparent 216deg 234deg, rgba(0,0,0,0.04) 234deg 252deg,
+      transparent 252deg 270deg, rgba(0,0,0,0.04) 270deg 288deg,
+      transparent 288deg 306deg, rgba(0,0,0,0.04) 306deg 324deg,
+      transparent 324deg 342deg, rgba(0,0,0,0.04) 342deg 360deg);
+  mix-blend-mode: multiply;
+}
+
+/* Wireframe schematic dartboard (line-only) */
+.board-wire {
+  aspect-ratio: 1/1;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  position: relative;
+  background: var(--paper);
+}
+.board-wire::before, .board-wire::after {
+  content: "";
+  position: absolute;
+  border: 1.2px solid var(--ink);
+  border-radius: 50%;
+  inset: 7%;
+}
+.board-wire::after { inset: 18%; }
+.board-wire .bull {
+  position: absolute;
+  inset: 44%;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* Strikethrough crit annotations */
+.note {
+  font-family: var(--hand);
+  color: var(--accent-red);
+  font-size: 13px;
+}
+
+/* Color swatch styles for identity card */
+.swatch { height: 70px; border-radius: 6px; border: 1.5px solid var(--ink); position: relative; }
+.swatch span {
+  position: absolute;
+  bottom: -22px; left: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Dot indicator */
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink); display: inline-block; }
+.dot.empty { background: transparent; border: 1.2px solid var(--ink); }
+
+/* Number grid input (alt to dartboard) */
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.numpad .k {
+  border: 1.2px solid var(--ink);
+  border-radius: 4px;
+  padding: 8px 0;
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  background: var(--paper);
+}
+.dark .numpad .k { border-color: #4a4a4a; background: #2a2a2a; color: #e8e8e6; }

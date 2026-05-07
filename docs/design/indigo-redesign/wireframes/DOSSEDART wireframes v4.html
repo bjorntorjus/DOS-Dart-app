@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — v4 narrowed scope</title>
+<meta name="viewport" content="width=1400"/>
+<link rel="stylesheet" href="styles.css"/>
+<link rel="stylesheet" href="styles-v3.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  body { background: #efece5; }
+  .intro { max-width: 1100px; margin: 24px auto 8px; padding: 0 24px; font-family: var(--sans); }
+  .intro .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; color: var(--accent-red); text-transform: uppercase; margin-bottom: 6px; }
+  .intro h1 { font-size: 40px; margin: 0 0 8px; letter-spacing: -1px; font-weight: 900; }
+  .intro .lede { font-size: 16px; color: var(--ink-2); line-height: 1.55; max-width: 760px; }
+  .intro .lede strong { color: var(--ink); }
+  .scope-box { max-width: 1100px; margin: 18px auto 0; padding: 18px 24px; background: var(--paper); border: 1.5px solid var(--ink); border-radius: 10px; box-shadow: 4px 4px 0 var(--ink); display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .scope-box h3 { margin: 0 0 8px; font-size: 14px; font-family: var(--mono); letter-spacing: 1px; text-transform: uppercase; }
+  .scope-box .in h3 { color: #2E7D32; }
+  .scope-box .out h3 { color: var(--accent-red); }
+  .scope-box ul { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+  .scope-box ul li::marker { color: var(--ink-3); }
+  .scope-box strong { color: var(--ink); }
+  .impl { max-width: 1100px; margin: 32px auto; padding: 24px; background: var(--paper); border: 1.5px solid var(--ink); border-radius: 10px; box-shadow: 4px 4px 0 var(--ink); font-family: var(--sans); }
+  .impl h2 { margin: 0 0 6px; font-size: 24px; }
+  .impl h3 { margin: 22px 0 6px; font-size: 16px; font-family: var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--accent-red); }
+  .impl p, .impl li { font-size: 14px; line-height: 1.65; color: var(--ink-2); }
+  .impl strong { color: var(--ink); }
+  .impl code { font-family: var(--mono); background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  .impl ol, .impl ul { padding-left: 22px; }
+  .impl .step { display: grid; grid-template-columns: 32px 1fr; gap: 12px; margin-bottom: 14px; align-items: start; }
+  .impl .step .num { width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--paper); font-family: var(--mono); font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .impl .step h4 { margin: 4px 0 4px; font-size: 15px; }
+  .impl .step p { margin: 0 0 4px; }
+  .impl table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  .impl th, .impl td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--ink-3); }
+  .impl th { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+  .impl td code { font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kicker">DOSSEDART · v4 · narrowed scope</div>
+  <h1>Locking in: indigo, three screens, ship it.</h1>
+  <p class="lede">
+    Scope cut to what we agreed: <strong>indigo (D1) only</strong>, redesign <strong>X01 in-game</strong>, <strong>player setup</strong>, and <strong>post-game</strong>. Cricket gets a <strong>colour refresh only</strong> (full redesign deferred). Stats <strong>dropped from this round</strong>. X01 picks up <strong>UNDO</strong> and <strong>BACK</strong> as you flagged.
+  </p>
+</div>
+
+<div class="scope-box">
+  <div class="in">
+    <h3>✓ In scope (this round)</h3>
+    <ul>
+      <li><strong>X01 in-game</strong> — final layout with players strip, UNDO, BACK</li>
+      <li><strong>Player setup</strong> — grid + randomize</li>
+      <li><strong>Post-game</strong> — stadium + comparison matrix + chart</li>
+      <li><strong>Cricket</strong> — recolour to indigo only (no layout changes)</li>
+      <li><strong>Theme migration</strong> — light → indigo dark</li>
+    </ul>
+  </div>
+  <div class="out">
+    <h3>✗ Out of scope (later rounds)</h3>
+    <ul>
+      <li><strong>Cricket redesign</strong> — keep current layout, ship after X01</li>
+      <li><strong>Stats page</strong> — defer until usage data tells us what matters</li>
+      <li><strong>Home screen</strong> — current is fine, revisit after</li>
+      <li><strong>Visual identity B/C/D</strong> — locked on indigo</li>
+    </ul>
+  </div>
+</div>
+
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="v4.jsx"></script>
+<script type="text/babel" data-presets="react">
+  const App = () => (
+    <DesignCanvas>
+      <X01v4/>
+      <Setupv4/>
+      <PostGamev4/>
+      <Cricketv4/>
+    </DesignCanvas>
+  );
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<div class="impl">
+  <h2>Implementing this in the Flutter app</h2>
+  <p>The mockups are the destination. Here's the path from current code to that destination, ordered so you can ship in pieces and see progress every step.</p>
+
+  <h3>Phase 0 — Theme migration (do this first)</h3>
+  <p>Everything downstream rides on the theme. Before touching any screen, get the indigo palette into <code>ThemeData</code> so each migrated screen lights up correctly without per-screen color overrides.</p>
+
+  <table>
+    <thead><tr><th>Token</th><th>Value</th><th>Maps to</th></tr></thead>
+    <tbody>
+      <tr><td><code>scaffoldBackground</code></td><td><code>#14141A</code></td><td>page bg</td></tr>
+      <tr><td><code>colorScheme.surface</code></td><td><code>#1C1C24</code></td><td>cards, strips</td></tr>
+      <tr><td><code>colorScheme.surfaceContainerHigh</code></td><td><code>#21222B</code></td><td>chips, inputs</td></tr>
+      <tr><td><code>colorScheme.primary</code></td><td><code>#4F5DC4</code> indigo</td><td>nav, calm UI, secondary CTAs</td></tr>
+      <tr><td><code>colorScheme.tertiary</code></td><td><code>#FFB300</code> amber</td><td>winners, big scores, "selected"</td></tr>
+      <tr><td><code>colorScheme.error</code></td><td><code>#FF6B35</code> orange</td><td>primary CTA, alerts, busts</td></tr>
+      <tr><td><code>colorScheme.onSurface</code></td><td><code>#E5E1E9</code></td><td>body text</td></tr>
+      <tr><td><code>dividerColor</code></td><td><code>#44464F</code></td><td>strip & cell borders</td></tr>
+    </tbody>
+  </table>
+  <p>Set <code>brightness: Brightness.dark</code> on the scheme and use <code>Theme.of(context).colorScheme.tertiary</code> wherever you currently use a hardcoded yellow/orange. Avoid hex literals in widgets going forward.</p>
+
+  <h3>Phase 1 — X01 in-game (the big one)</h3>
+  <p>This is 80% of session time. Build it as one widget tree top-to-bottom matching the mock:</p>
+  <div class="step"><div class="num">1</div><div>
+    <h4>Top bar (<code>BroadcastBar</code>)</h4>
+    <p>Row with <strong>BACK</strong> button (<code>Navigator.pop</code>), LIVE pill, meta text (<em>"501 · D-OUT · R7 · LEG 1"</em>), settings icon. Use <code>Border(bottom: BorderSide(color: dividerColor))</code>.</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div>
+    <h4>Active player block (<code>NowThrowing</code>)</h4>
+    <p>Listens to current-player state. Amber gradient header, big avatar, display-font name, score on the right. Three dart pips (filled = thrown). Bottom row: turn delta, last dart, average, checkout suggestion. Most reactive part of the screen — wire it to your existing turn state.</p>
+  </div></div>
+  <div class="step"><div class="num">3</div><div>
+    <h4>Other-players strip (<code>OtherPlayersStrip</code>)</h4>
+    <p>Horizontal flex of 3 small cells (<code>Row</code> with <code>Expanded</code> children). Name + score + last-turn delta. This is the new piece — it's just a denormalized read of game state.</p>
+  </div></div>
+  <div class="step"><div class="num">4</div><div>
+    <h4>Dartboard (<code>DartboardInput</code>)</h4>
+    <p>Reuse your existing input widget. Just make sure it gets <strong>most of the vertical space</strong> — wrap it in <code>Expanded</code> with center alignment.</p>
+  </div></div>
+  <div class="step"><div class="num">5</div><div>
+    <h4>Footer (<code>TurnActionBar</code>) — UNDO + MISS + END TURN</h4>
+    <p><strong>UNDO</strong> is the new addition you flagged. Implement as: keep a stack of <code>TurnDelta</code> records (player id, score before, darts thrown). UNDO pops the top and restores. Disable when stack is empty. <strong>MISS</strong> records a 0. <strong>END TURN</strong> commits and advances. Order left-to-right: UNDO, MISS, spacer, END TURN (primary, orange).</p>
+  </div></div>
+
+  <h3>Phase 2 — Player setup</h3>
+  <ol>
+    <li>Replace the scrolling list with a <code>GridView.count(crossAxisCount: 3)</code> of <code>PlayerCard</code> tiles.</li>
+    <li>Selection shows an amber circle with the join-order number (1, 2, 3…) in the top-right corner. This is the cheapest way to show order without a separate "drag to reorder" UI.</li>
+    <li>Top toolbar: mode chip (X01 selected), start-score chips (301 / <strong>501</strong> / 701), out-rule chip.</li>
+    <li>Below toolbar: "<strong>N SELECTED</strong>" pill on the left, "<strong>🎲 RANDOMIZE</strong>" button on the right. Randomize shuffles the order numbers, not the grid positions — so the user keeps spatial memory of where each friend's tile is.</li>
+    <li>Footer: <strong>+ NEW</strong>, <strong>CLEAR</strong>, spacer, <strong>START →</strong> (primary).</li>
+  </ol>
+
+  <h3>Phase 3 — Post-game</h3>
+  <ol>
+    <li><strong>Winner block</strong> — same gradient header pattern as <code>NowThrowing</code>. Big avatar, big name, rating delta pill (read from your rating service), darts count.</li>
+    <li><strong>Comparison matrix</strong> — <code>Table</code> widget. Cols: Player, Best, Avg, Darts, Δ. Bold the winning cell in each column with amber. Row order = finishing order.</li>
+    <li><strong>Score progression chart</strong> — small line chart, one polyline per player. Use <code>fl_chart</code> with a minimal config (no axes, no labels — just dashed gridlines). Snapshot per round from your existing turn log.</li>
+    <li><strong>Highlights</strong> — list of 2-4 strings generated from the turn log: ton+ throws, busts, the winning checkout. Computable in &lt;50 lines of Dart.</li>
+    <li><strong>Footer</strong> — HOME (ghost), UNDO LAST (outline — for "wait, that wasn't a checkout"), spacer, REMATCH → (primary).</li>
+  </ol>
+
+  <h3>Phase 4 — Cricket (recolor only)</h3>
+  <p>Don't touch layout. Just sweep the file for hardcoded colors and replace with theme references. After theme migration in Phase 0 this should be a 30-minute job. Mark it done; full redesign goes on the backlog.</p>
+
+  <h3>Order of operations</h3>
+  <ol>
+    <li><strong>Theme</strong> (Phase 0) — branch <code>feat/indigo-theme</code>, merge as soon as cricket still works.</li>
+    <li><strong>X01</strong> (Phase 1) — branch <code>feat/x01-redesign</code>. UNDO behind a feature flag if it lands later than the visual changes.</li>
+    <li><strong>Setup</strong> (Phase 2) — independent, can parallelize.</li>
+    <li><strong>Post-game</strong> (Phase 3) — depends on rating service & turn log being queryable.</li>
+    <li><strong>Cricket recolor</strong> (Phase 4) — last, mechanical.</li>
+  </ol>
+
+  <h3>What to bring back to me</h3>
+  <ul>
+    <li>Once Phase 0 ships, screenshot real X01 in the new theme — we'll use that as the baseline before redesigning.</li>
+    <li>If the dartboard widget can't comfortably take ~55% of the vertical space at the new layout, tell me — that affects the players-strip height.</li>
+    <li>Speccing the rating-delta pill needs the rating service's response shape. Send me a sample.</li>
+  </ul>
+</div>
+
+</body>
+</html>
