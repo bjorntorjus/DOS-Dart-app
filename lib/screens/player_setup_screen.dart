@@ -46,7 +46,6 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
 
   // Cricket options
   bool _cricketIsRandom = false;
-  bool _cricketIsOpen = false;
   int _cricketTargetCount = 7;
   bool _cricketIncludeBull = true;
   bool _cricketIsCutthroat = false;
@@ -482,7 +481,6 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           players: players,
           config: CricketConfig(
             isRandom: _cricketIsRandom,
-            isOpen: _cricketIsOpen,
             targetCount: _cricketTargetCount,
             includeBull: _cricketIncludeBull,
             isCutthroat: _cricketIsCutthroat,
@@ -773,37 +771,25 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             activeTrackColor: Theme.of(context).colorScheme.primary,
           ),
           SwitchListTile(
-            title: const Text('Open mode'),
-            subtitle: const Text('All numbers 1-20 are valid targets'),
-            value: _cricketIsOpen,
-            onChanged: (v) => setState(() {
-              _cricketIsOpen = v;
-              if (v) _cricketIsRandom = false;
-            }),
+            title: const Text('Random numbers'),
+            subtitle: const Text('Choose random targets instead of 15-20'),
+            value: _cricketIsRandom,
+            onChanged: (v) => setState(() => _cricketIsRandom = v),
             activeTrackColor: Theme.of(context).colorScheme.primary,
           ),
-          if (!_cricketIsOpen) ...[
-            SwitchListTile(
-              title: const Text('Random numbers'),
-              subtitle: const Text('Choose random targets instead of 15-20'),
-              value: _cricketIsRandom,
-              onChanged: (v) => setState(() => _cricketIsRandom = v),
-              activeTrackColor: Theme.of(context).colorScheme.primary,
-            ),
-            if (_cricketIsRandom)
-              ListTile(
-                title: Text('Number of targets: $_cricketTargetCount'),
-                subtitle: Slider(
-                  value: _cricketTargetCount.toDouble(),
-                  min: 3,
-                  max: 15,
-                  divisions: 12,
-                  label: '$_cricketTargetCount',
-                  onChanged: (v) =>
-                      setState(() => _cricketTargetCount = v.round()),
-                ),
+          if (_cricketIsRandom)
+            ListTile(
+              title: Text('Number of targets: $_cricketTargetCount'),
+              subtitle: Slider(
+                value: _cricketTargetCount.toDouble(),
+                min: 3,
+                max: 15,
+                divisions: 12,
+                label: '$_cricketTargetCount',
+                onChanged: (v) =>
+                    setState(() => _cricketTargetCount = v.round()),
               ),
-          ],
+            ),
           SwitchListTile(
             title: const Text('Include Bull'),
             value: _cricketIncludeBull,

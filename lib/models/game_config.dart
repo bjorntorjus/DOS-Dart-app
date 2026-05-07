@@ -16,30 +16,17 @@ class X01Config extends GameConfig {
 
 class CricketConfig extends GameConfig {
   final bool isRandom;
-  final bool isOpen; // all numbers 1-20 (+bull)
   final int targetCount; // 3-15, used if isRandom
   final bool includeBull;
   final bool isCutthroat; // reverse scoring: points go to opponents
   const CricketConfig({
     this.isRandom = false,
-    this.isOpen = false,
     this.targetCount = 7,
     this.includeBull = true,
     this.isCutthroat = false,
   }) : super(GameMode.cricket);
 
   List<int> generateTargets() {
-    if (isOpen) {
-      final targets = List.generate(20, (i) => i + 1);
-      if (includeBull) targets.add(25);
-      // Sort descending, bull last
-      targets.sort((a, b) {
-        if (a == 25) return 1;
-        if (b == 25) return -1;
-        return b.compareTo(a);
-      });
-      return targets;
-    }
     if (!isRandom) {
       final targets = [15, 16, 17, 18, 19, 20];
       if (includeBull) targets.add(25);
