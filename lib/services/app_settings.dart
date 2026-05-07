@@ -245,6 +245,19 @@ class AppSettings {
     await prefs.setBool(_videoEventsEnabledKey, value);
   }
 
+  // Experimental design toggle (Claude Design indigo redesign)
+  static const String _useNewDesignKey = 'use_new_design';
+
+  static Future<bool> getUseNewDesign() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_useNewDesignKey) ?? false;
+  }
+
+  static Future<void> setUseNewDesign(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_useNewDesignKey, value);
+  }
+
   // Log mode getters/setters
   static Future<LogMode> getLogMode() async {
     final prefs = await SharedPreferences.getInstance();

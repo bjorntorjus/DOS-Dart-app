@@ -28,6 +28,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Debug
   LogMode _logMode = LogMode.full;
 
+  // Experimental
+  bool _useNewDesign = false;
+
   // Sound & Video
   bool _soundEffectsEnabled = true;
   bool _videoEventsEnabled = true;
@@ -67,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final eloKExp = await AppSettings.getEloKExp();
     final eloThreshold = await AppSettings.getEloThreshold();
     final logMode = await AppSettings.getLogMode();
+    final useNewDesign = await AppSettings.getUseNewDesign();
 
     await TtsService.instance.init();
     final languages = await TtsService.instance.getLanguages();
@@ -91,6 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _eloKExp = eloKExp;
       _eloThreshold = eloThreshold;
       _logMode = logMode;
+      _useNewDesign = useNewDesign;
       _isLoading = false;
     });
   }
@@ -545,6 +550,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Experimental section
+                Text('EXPERIMENTAL',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Card(
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        title: const Text('New design (preview)'),
+                        subtitle: const Text(
+                            'Try the indigo redesign. Restart the app for the change to take full effect.'),
+                        value: _useNewDesign,
+                        onChanged: (v) async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          await AppSettings.setUseNewDesign(v);
+                          if (!mounted) return;
+                          setState(() => _useNewDesign = v);
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Restart the app to apply the design change.'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        },
+                        secondary: const Icon(Icons.palette_outlined),
                       ),
                     ],
                   ),
