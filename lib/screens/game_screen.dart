@@ -107,7 +107,12 @@ class _GameScreenState extends State<GameScreen> {
     });
     AppSettings.getTtsEnabled().then((v) => setState(() => _ttsEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
+    AppSettings.getUseNewDesign().then((v) {
+      if (mounted) setState(() => _useNewDesign = v);
+    });
   }
+
+  bool _useNewDesign = false;
 
   @override
   void dispose() {
@@ -1339,6 +1344,10 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final currentPlayer = players[currentPlayerIndex];
 
+    if (_useNewDesign) {
+      return _buildIndigoScaffold(context, currentPlayer);
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_appBarTitle),
@@ -1718,6 +1727,490 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // Indigo redesign (gated on AppSettings.useNewDesign — Phase 1)
+  // ==========================================================================
+
+  /// Sum of points scored by the current player on the current turn.
+  int _turnPointsScored() {
+    return throwHistory
+        .where((t) =>
+            t.playerIndex == currentPlayerIndex && t.turnId == _turnIdCounter)
+        .fold<int>(0, (sum, t) => sum + t.points);
+  }
+
+  /// Score from a player's previous (completed) turn. Returns null if none.
+  int? _lastTurnScored(int playerIndex) {
+    final turns = throwHistory
+        .where((t) => t.playerIndex == playerIndex && t.turnId < _turnIdCounter)
+        .toList();
+    if (turns.isEmpty) return null;
+    final lastTurnId = turns.last.turnId;
+    return turns
+        .where((t) => t.turnId == lastTurnId)
+        .fold<int>(0, (sum, t) => sum + t.points);
+  }
+
+  /// Three-dart average for a player (handoff calls this AVG).
+  double _avgPerThree(int playerIndex) {
+    final darts =
+        throwHistory.where((t) => t.playerIndex == playerIndex).toList();
+    if (darts.isEmpty) return 0;
+    final total = darts.fold<int>(0, (s, t) => s + t.points);
+    return total / darts.length * 3;
+  }
+
+  /// Skip remaining darts on this turn — equivalent to misses for the rest.
+  void _endTurnEarly() {
+    if (finishedPlayers.contains(currentPlayerIndex)) return;
+    while (dartsInTurn < 3 && !finishedPlayers.contains(currentPlayerIndex)) {
+      _onMiss();
+    }
+  }
+
+  Widget _buildIndigoScaffold(BuildContext context, Player currentPlayer) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            _indigoBroadcastBar(context),
+            _indigoNowThrowing(context, currentPlayer),
+            _indigoOtherPlayersStrip(context),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: DartBoard(
+                  onHit: !finishedPlayers.contains(currentPlayerIndex)
+                      ? _onDartHit
+                      : (a, b) {},
+                  onOutsideTap: !finishedPlayers.contains(currentPlayerIndex)
+                      ? _handleOutsideBoardTap
+                      : null,
+                ),
+              ),
+            ),
+            _indigoTurnActionBar(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _indigoBroadcastBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final outLabel = widget.masterOut == 'double'
+        ? 'D-OUT'
+        : widget.masterOut == 'master'
+            ? 'M-OUT'
+            : 'FREE';
+    final meta =
+        '${widget.startingScore} · $outLabel · R$_roundNumber · LEG 1';
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: _confirmExit,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text('←',
+                  style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurface)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: cs.error,
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              'LIVE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2,
+                color: cs.onError,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              meta,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurfaceVariant,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.settings_outlined, color: cs.onSurface),
+            tooltip: 'More',
+            onSelected: (value) {
+              switch (value) {
+                case 'players':
+                  if (!_gameFullyOver) _openPlayerManagement();
+                  break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  _meme.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
+                  AppSettings.setMemeEnabled(_soundEnabled);
+                  break;
+                case 'tts':
+                  setState(() => _ttsEnabled = !_ttsEnabled);
+                  TtsService.instance.setEnabled(_ttsEnabled);
+                  break;
+                case 'sound_settings':
+                  _showSoundSettingsDialog();
+                  break;
+              }
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'players',
+                enabled: !_gameFullyOver,
+                child: const Row(children: [
+                  Icon(Icons.group_add),
+                  SizedBox(width: 12),
+                  Text('Manage players')
+                ]),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'sound',
+                child: Row(children: [
+                  Text(_soundEnabled ? '🤡' : '🤐',
+                      style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 12),
+                  Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'tts',
+                child: Row(children: [
+                  Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
+                  const SizedBox(width: 12),
+                  Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
+                ]),
+              ),
+              if (_soundEnabled)
+                const PopupMenuItem(
+                  value: 'sound_settings',
+                  child: Row(children: [
+                    Icon(Icons.tune),
+                    SizedBox(width: 12),
+                    Text('Sound settings'),
+                  ]),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _indigoNowThrowing(BuildContext context, Player currentPlayer) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final turnPoints = _turnPointsScored();
+    final lastTurn = _lastTurnScored(currentPlayerIndex);
+    final avg = _avgPerThree(currentPlayerIndex);
+    final checkout = _checkoutFor(currentPlayer.score);
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            cs.tertiary.withValues(alpha: 0.10),
+            Colors.transparent,
+          ],
+        ),
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('NOW THROWING',
+              style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: cs.tertiary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  currentPlayer.name.isEmpty
+                      ? '?'
+                      : currentPlayer.name[0].toUpperCase(),
+                  style: TextStyle(
+                    color: cs.onTertiary,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(currentPlayer.name, style: tt.displaySmall),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        ...List.generate(3, (i) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Container(
+                              width: 32,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: i < dartsInTurn
+                                    ? cs.tertiary
+                                    : Colors.white.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          );
+                        }),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$dartsInTurn/3',
+                          style: tt.labelSmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${currentPlayer.score}',
+                style: tt.displayLarge?.copyWith(
+                    fontWeight: FontWeight.w400, color: cs.onSurface),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  style: BorderStyle.solid,
+                ),
+              ),
+            ),
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(
+              children: [
+                _miniStat(context, 'TURN', '+$turnPoints'),
+                const SizedBox(width: 18),
+                _miniStat(context, 'LAST',
+                    lastTurn != null ? '+$lastTurn' : '—'),
+                const SizedBox(width: 18),
+                _miniStat(context, 'AVG', avg.toStringAsFixed(1)),
+                const Spacer(),
+                if (checkout.isNotEmpty)
+                  Text(
+                    checkout,
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.tertiary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat(BuildContext context, String label, String value) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+        const SizedBox(height: 2),
+        Text(value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            )),
+      ],
+    );
+  }
+
+  Widget _indigoOtherPlayersStrip(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final others = <int>[];
+    for (int i = 0; i < players.length; i++) {
+      if (i != currentPlayerIndex) others.add(i);
+    }
+    if (others.isEmpty) return const SizedBox.shrink();
+    final shown = others.take(3).toList();
+
+    return Container(
+      color: cs.surface,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: List.generate(shown.length, (idx) {
+          final i = shown[idx];
+          final isLast = idx == shown.length - 1;
+          final last = _lastTurnScored(i);
+          final eliminated = finishedPlayers.contains(i);
+          return Expanded(
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                border: isLast
+                    ? null
+                    : Border(
+                        right: BorderSide(
+                            color: Theme.of(context).dividerColor)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    players[i].name.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${players[i].score}',
+                    style: tt.headlineMedium?.copyWith(
+                      color: eliminated
+                          ? cs.onSurface.withValues(alpha: 0.4)
+                          : cs.onSurface,
+                    ),
+                  ),
+                  Text(
+                    last != null ? 'turn +$last' : '—',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _indigoTurnActionBar(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final canUndo = throwHistory.isNotEmpty;
+    final canAct = !finishedPlayers.contains(currentPlayerIndex);
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          OutlinedButton.icon(
+            onPressed: canUndo ? _undo : null,
+            icon: const Icon(Icons.undo, size: 18),
+            label: const Text('UNDO',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: cs.onSurface,
+              side: BorderSide(color: Theme.of(context).dividerColor),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: canAct ? _onMiss : null,
+            style: TextButton.styleFrom(
+              foregroundColor: cs.onSurfaceVariant,
+              backgroundColor: cs.surfaceContainerHigh,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6)),
+            ),
+            child: const Text('MISS',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5)),
+          ),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: canAct && dartsInTurn > 0 ? _endTurnEarly : null,
+            icon: const Icon(Icons.skip_next, size: 18),
+            label: const Text('END TURN',
+                style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: cs.error,
+              foregroundColor: cs.onError,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6)),
             ),
           ),
         ],
