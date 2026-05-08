@@ -154,7 +154,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
           const SizedBox(height: 12),
           // Column header
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
             decoration: const BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: Color(0x4DFF00AA), width: 1),
@@ -163,22 +163,33 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             child: Row(
               children: [
                 SizedBox(
-                  width: 38,
+                  width: 34,
                   child: Center(
-                    child: Text('RANK',
+                    child: Text('#',
                         style: _vt(12,
                             color: Colors.white60, letterSpacing: 2)),
                   ),
+                ),
+                SizedBox(
+                  width: 56,
+                  child: Text('HANDLE',
+                      style: _vt(12, color: Colors.white60, letterSpacing: 1.5)),
                 ),
                 Expanded(
                   child: Text('PLAYER',
                       style: _vt(12, color: Colors.white60, letterSpacing: 2)),
                 ),
                 SizedBox(
-                  width: 80,
+                  width: 58,
                   child: Text('RATING',
                       textAlign: TextAlign.right,
-                      style: _vt(12, color: Colors.white60, letterSpacing: 2)),
+                      style: _vt(12, color: Colors.white60, letterSpacing: 1.5)),
+                ),
+                SizedBox(
+                  width: 44,
+                  child: Text('WIN%',
+                      textAlign: TextAlign.right,
+                      style: _vt(12, color: Colors.white60, letterSpacing: 1.5)),
                 ),
               ],
             ),
@@ -186,9 +197,22 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
           const SizedBox(height: 6),
           for (var i = 0; i < _topPlayers.length; i++)
             _leaderboardRow(_topPlayers[i], i),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              '▼ MORE ▼',
+              style: _vt(15, color: Colors.white54, letterSpacing: 2),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _handleFor(String name) {
+    final cleaned = name.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+    if (cleaned.length >= 3) return cleaned.substring(0, 3);
+    return cleaned.padRight(3, 'X');
   }
 
   Widget _leaderboardRow(SavedPlayer player, int index) {
@@ -201,10 +225,14 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
     final medals = const ['🥇', '🥈', '🥉'];
     final accent = accents[index];
 
+    final winPct = player.gamesPlayed > 0
+        ? '${(player.winRate * 100).round()}%'
+        : '—';
+
     return Container(
       margin: EdgeInsets.only(bottom: hero ? 8 : 0),
       padding: EdgeInsets.symmetric(
-        horizontal: 12,
+        horizontal: 8,
         vertical: hero ? 14 : 10,
       ),
       decoration: BoxDecoration(
@@ -217,27 +245,44 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 38,
+            width: 34,
             child: Center(
               child: Text(medals[index],
-                  style: TextStyle(fontSize: hero ? 26 : 20)),
+                  style: TextStyle(fontSize: hero ? 24 : 18)),
+            ),
+          ),
+          SizedBox(
+            width: 56,
+            child: Text(
+              _handleFor(player.name),
+              style: _press(hero ? 14 : 11,
+                  color: accent, letterSpacing: 1),
             ),
           ),
           Expanded(
             child: Text(
               player.name.toUpperCase(),
-              style: _vt(hero ? 24 : 20,
-                  color: Colors.white, letterSpacing: 1.5),
+              style: _vt(hero ? 22 : 18,
+                  color: Colors.white, letterSpacing: 1),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           SizedBox(
-            width: 80,
+            width: 58,
             child: Text(
               player.rating.toStringAsFixed(0),
               textAlign: TextAlign.right,
-              style: _press(hero ? 16 : 13,
+              style: _press(hero ? 14 : 11,
                   color: accent, letterSpacing: 0.5),
+            ),
+          ),
+          SizedBox(
+            width: 44,
+            child: Text(
+              winPct,
+              textAlign: TextAlign.right,
+              style: _vt(hero ? 18 : 16,
+                  color: Colors.white60, letterSpacing: 0.5),
             ),
           ),
         ],
