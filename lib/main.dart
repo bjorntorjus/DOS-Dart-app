@@ -1,13 +1,17 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
+import 'services/app_settings.dart';
 import 'services/elo_service.dart';
 import 'services/game_logger.dart';
+import 'theme/classic_theme.dart';
+import 'theme/dossedart_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GameLogger.instance.init();
   await EloService.loadSettings();
+  final useDossedartDesign = await AppSettings.getUseDossedartDesign();
 
   // Catch Flutter framework errors
   FlutterError.onError = (details) {
@@ -25,38 +29,20 @@ void main() async {
     return true;
   };
 
-  runApp(const DartScoringApp());
+  runApp(DartScoringApp(useDossedartDesign: useDossedartDesign));
 }
 
 class DartScoringApp extends StatelessWidget {
-  const DartScoringApp({super.key});
+  const DartScoringApp({super.key, required this.useDossedartDesign});
+
+  final bool useDossedartDesign;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Dart Scorer',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF43A047),
-          brightness: Brightness.dark,
-          primary: const Color(0xFF43A047),
-          secondary: const Color(0xFFFFA726),
-          tertiary: const Color(0xFFFFD54F),
-          error: const Color(0xFFE53935),
-        ),
-        appBarTheme: const AppBarTheme(elevation: 0),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
+      theme: useDossedartDesign ? buildDossedartTheme() : buildClassicTheme(),
       home: const HomeScreen(),
     );
   }
