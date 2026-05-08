@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'screens/dossedart/dossedart_home_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/app_settings.dart';
 import 'services/elo_service.dart';
@@ -43,7 +44,9 @@ class DartScoringApp extends StatelessWidget {
       title: 'Dart Scorer',
       debugShowCheckedModeBanner: false,
       theme: useDossedartDesign ? buildDossedartTheme() : buildClassicTheme(),
-      home: const HomeScreen(),
+      home: useDossedartDesign
+          ? const DossedartHomeScreen()
+          : const HomeScreen(),
     );
   }
 }
