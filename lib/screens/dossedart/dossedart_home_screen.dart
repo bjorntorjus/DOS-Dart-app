@@ -117,7 +117,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '©2026 OFFICE GAMES INC.',
+            '©2026 DOSSE GAMES INC.',
             style: _vt(16, color: Colors.white, letterSpacing: 2),
           ),
         ],
@@ -387,22 +387,21 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
     return InkWell(
       onTap: () => _startGame(mode),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
         decoration: BoxDecoration(
           color: DossedartTokens.surface,
           border: Border.all(color: DossedartTokens.cyan, width: 2),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 22)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label.toUpperCase(),
-                style:
-                    _press(10, color: Colors.white, letterSpacing: 1),
-                overflow: TextOverflow.ellipsis,
-              ),
+            Text(emoji, style: const TextStyle(fontSize: 32)),
+            const SizedBox(height: 8),
+            Text(
+              label.toUpperCase(),
+              style: _press(10, color: Colors.white, letterSpacing: 1),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -412,14 +411,21 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
   Widget _comingSoonCell() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
       decoration: BoxDecoration(
         border: Border.all(
             color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 2),
       ),
       alignment: Alignment.center,
-      child: Text('?? COMING ??',
-          style: _vt(16, color: Colors.white54, letterSpacing: 2)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('✨', style: TextStyle(fontSize: 32)),
+          const SizedBox(height: 8),
+          Text('?? COMING ??',
+              style: _vt(15, color: Colors.white54, letterSpacing: 2)),
+        ],
+      ),
     );
   }
 
