@@ -370,7 +370,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
               crossAxisCount: 2,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
-              mainAxisExtent: 130,
+              mainAxisExtent: 142,
             ),
             itemCount: _savedPlayers.length + 1,
             itemBuilder: (_, i) {
@@ -429,19 +429,19 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
                   Text(
                     sp.name.toUpperCase(),
                     textAlign: TextAlign.center,
-                    style: _vt(20, color: Colors.white, letterSpacing: 1),
+                    style: _vt(23, color: Colors.white, letterSpacing: 1),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         'R ${sp.rating.round()}',
-                        style: _vt(13,
-                            color: Colors.white54, letterSpacing: 1),
+                        style: _vt(17,
+                            color: Colors.white70, letterSpacing: 1),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 16),
                       _buildFormPips(accent),
                     ],
                   ),
@@ -486,7 +486,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
     for (var i = 0; i < 5; i++) {
       final r = i < entries.length ? entries[i] : null;
       pips.add(_pip(r, accent));
-      if (i < 4) pips.add(const SizedBox(width: 3));
+      if (i < 4) pips.add(const SizedBox(width: 4));
     }
     return Row(mainAxisSize: MainAxisSize.min, children: pips);
   }
@@ -496,8 +496,8 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
     final isL = result == false;
     final isPlaceholder = result == null;
     return Container(
-      width: 12,
-      height: 12,
+      width: 18,
+      height: 18,
       decoration: BoxDecoration(
         color: isW ? accent : Colors.transparent,
         border: Border.all(
@@ -506,7 +506,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
               : isL
                   ? Colors.white24
                   : Colors.white24,
-          width: 1,
+          width: 1.5,
         ),
       ),
       alignment: Alignment.center,
@@ -514,7 +514,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
         isW ? 'W' : (isL ? 'L' : '?'),
         style: TextStyle(
           fontFamily: 'PressStart2P',
-          fontSize: 6,
+          fontSize: 8,
           color: isW
               ? DossedartTokens.bg
               : isPlaceholder
