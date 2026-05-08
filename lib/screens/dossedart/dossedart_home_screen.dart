@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/game_mode.dart';
 import '../../models/saved_player.dart';
 import '../../services/player_storage.dart';
@@ -42,7 +41,8 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
   }
 
   TextStyle _press(double size, {Color? color, double letterSpacing = 1}) {
-    return GoogleFonts.pressStart2p(
+    return TextStyle(
+      fontFamily: 'PressStart2P',
       fontSize: size,
       color: color ?? Colors.white,
       letterSpacing: letterSpacing,
@@ -51,7 +51,8 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
   }
 
   TextStyle _vt(double size, {Color? color, double letterSpacing = 1}) {
-    return GoogleFonts.vt323(
+    return TextStyle(
+      fontFamily: 'VT323',
       fontSize: size,
       color: color ?? Colors.white,
       letterSpacing: letterSpacing,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dossedart_tokens.dart';
 
 /// Builds the arcade ThemeData for the DOSSEDART redesign.
@@ -32,8 +31,8 @@ ThemeData buildDossedartTheme() {
     canvasColor: DossedartTokens.bg,
   );
 
-  final display = GoogleFonts.pressStart2pTextTheme(base.textTheme);
-  final caption = GoogleFonts.vt323TextTheme(base.textTheme);
+  final display = base.textTheme.apply(fontFamily: 'PressStart2P');
+  final caption = base.textTheme.apply(fontFamily: 'VT323');
 
   // Display roles use Press Start 2P; body/label roles use VT323.
   final textTheme = base.textTheme.copyWith(

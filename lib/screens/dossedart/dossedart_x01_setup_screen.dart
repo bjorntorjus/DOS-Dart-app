@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/player.dart';
 import '../../models/saved_player.dart';
 import '../../services/player_storage.dart';
@@ -49,7 +48,8 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
   }
 
   TextStyle _press(double size, {Color? color, double letterSpacing = 1}) =>
-      GoogleFonts.pressStart2p(
+      TextStyle(
+        fontFamily: 'PressStart2P',
         fontSize: size,
         color: color ?? Colors.white,
         letterSpacing: letterSpacing,
@@ -57,7 +57,8 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
       );
 
   TextStyle _vt(double size, {Color? color, double letterSpacing = 1}) =>
-      GoogleFonts.vt323(
+      TextStyle(
+        fontFamily: 'VT323',
         fontSize: size,
         color: color ?? Colors.white,
         letterSpacing: letterSpacing,
