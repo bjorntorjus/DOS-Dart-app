@@ -397,50 +397,53 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
           Opacity(
             opacity: selected ? 1.0 : 0.7,
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               decoration: BoxDecoration(
                 color: selected
                     ? const Color(0x10FFD200)
                     : DossedartTokens.surface,
                 border: Border.all(color: accent, width: 3),
               ),
-              child: Row(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: DossedartTokens.bg,
-                      border: Border.all(color: accent, width: 2),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      _handleFor(sp.name),
-                      style: _press(11, color: accent, letterSpacing: 1),
+                  // Handle badge sits in its own row so the name below can
+                  // center across the full tile width.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: DossedartTokens.bg,
+                        border: Border.all(color: accent, width: 2),
+                      ),
+                      child: Text(
+                        _handleFor(sp.name),
+                        style: _press(10, color: accent, letterSpacing: 1),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          sp.name.toUpperCase(),
-                          style: _vt(18,
-                              color: Colors.white, letterSpacing: 1),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'R ${sp.rating.round()}',
-                          style: _vt(13,
-                              color: Colors.white54, letterSpacing: 1),
-                        ),
-                        const SizedBox(height: 6),
-                        _buildFormPips(accent),
-                      ],
-                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    sp.name.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: _vt(20, color: Colors.white, letterSpacing: 1),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'R ${sp.rating.round()}',
+                        style: _vt(13,
+                            color: Colors.white54, letterSpacing: 1),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFormPips(accent),
+                    ],
                   ),
                 ],
               ),
