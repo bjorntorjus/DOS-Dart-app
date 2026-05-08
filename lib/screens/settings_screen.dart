@@ -28,6 +28,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Debug
   LogMode _logMode = LogMode.full;
 
+  // Experimental
+  bool _useDossedartDesign = false;
+
   // Sound & Video
   bool _soundEffectsEnabled = true;
   bool _videoEventsEnabled = true;
@@ -67,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final eloKExp = await AppSettings.getEloKExp();
     final eloThreshold = await AppSettings.getEloThreshold();
     final logMode = await AppSettings.getLogMode();
+    final useDossedartDesign = await AppSettings.getUseDossedartDesign();
 
     await TtsService.instance.init();
     final languages = await TtsService.instance.getLanguages();
@@ -91,6 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _eloKExp = eloKExp;
       _eloThreshold = eloThreshold;
       _logMode = logMode;
+      _useDossedartDesign = useDossedartDesign;
       _isLoading = false;
     });
   }
@@ -545,6 +550,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Experimental section
+                Text('EXPERIMENTAL',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Card(
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        title: const Text('DOSSEDART design (preview)'),
+                        subtitle: const Text(
+                            'Arcade redesign — Home + X01 only. Restart app to apply.'),
+                        value: _useDossedartDesign,
+                        onChanged: (v) async {
+                          await AppSettings.setUseDossedartDesign(v);
+                          setState(() => _useDossedartDesign = v);
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Restart the app to apply the new design.'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
