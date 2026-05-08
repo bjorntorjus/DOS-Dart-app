@@ -25,7 +25,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
   bool _isLoading = true;
 
   // Rules
-  String _outRule = 'double'; // 'free' | 'double' | 'master'
+  String _outRule = 'none'; // 'none' (free) | 'double' | 'master'
   bool _noBust = false;
   bool _handicap = false;
   bool _randomOrder = false;
@@ -370,7 +370,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
               crossAxisCount: 2,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
-              mainAxisExtent: 110,
+              mainAxisExtent: 130,
             ),
             itemCount: _savedPlayers.length + 1,
             itemBuilder: (_, i) {
@@ -437,6 +437,8 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
                           style: _vt(13,
                               color: Colors.white54, letterSpacing: 1),
                         ),
+                        const SizedBox(height: 6),
+                        _buildFormPips(accent),
                       ],
                     ),
                   ),
@@ -463,6 +465,60 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  /// Last-5 W/L pip row.
+  ///
+  /// SavedPlayer doesn't yet store per-game results, so every pip is rendered
+  /// as a placeholder "?" outline. When recent-results tracking lands
+  /// (see project memory), pass the bool list in here:
+  /// - true  -> filled accent pip with "W"
+  /// - false -> outlined pip with "L"
+  /// - null  -> outlined "?" placeholder
+  Widget _buildFormPips(Color accent, {List<bool?>? results}) {
+    final entries = (results ?? List<bool?>.filled(5, null));
+    final pips = <Widget>[];
+    for (var i = 0; i < 5; i++) {
+      final r = i < entries.length ? entries[i] : null;
+      pips.add(_pip(r, accent));
+      if (i < 4) pips.add(const SizedBox(width: 3));
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: pips);
+  }
+
+  Widget _pip(bool? result, Color accent) {
+    final isW = result == true;
+    final isL = result == false;
+    final isPlaceholder = result == null;
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: isW ? accent : Colors.transparent,
+        border: Border.all(
+          color: isW
+              ? accent
+              : isL
+                  ? Colors.white24
+                  : Colors.white24,
+          width: 1,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        isW ? 'W' : (isL ? 'L' : '?'),
+        style: TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 6,
+          color: isW
+              ? DossedartTokens.bg
+              : isPlaceholder
+                  ? Colors.white30
+                  : Colors.white54,
+          height: 1,
+        ),
       ),
     );
   }
@@ -506,9 +562,14 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
   // ─── Start bar ───────────────────────────────────────────────────────────
   Widget _buildStartBar() {
     final canStart = _selectedIds.length >= _minPlayers;
+    final outLabel = switch (_outRule) {
+      'double' => 'DOUBLE OUT',
+      'master' => 'MASTER OUT',
+      _ => 'FREE OUT',
+    };
     final summary = [
       '${_selectedIds.length} PLAYERS',
-      '${_outRule.toUpperCase()} OUT',
+      outLabel,
       if (_noBust) 'NO-BUST',
       if (_handicap) 'HANDICAP',
       if (_randomOrder) 'RANDOM ORDER',
