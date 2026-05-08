@@ -8,6 +8,7 @@ import '../../widgets/dossedart/arcade_frame.dart';
 import '../player_setup_screen.dart';
 import '../settings_screen.dart';
 import '../stats_screen.dart';
+import 'dossedart_x01_setup_screen.dart';
 
 /// DOSSEDART arcade home screen — leaderboard variant B (tight list).
 class DossedartHomeScreen extends StatefulWidget {
@@ -486,15 +487,18 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
   // ─── Navigation ────────────────────────────────────────────────────────────
   Future<void> _startGame(GameMode mode, {int? startingScore}) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PlayerSetupScreen(
-          gameMode: mode,
-          startingScore: startingScore,
-        ),
-      ),
-    );
+    final route = (mode == GameMode.x01 && startingScore != null)
+        ? MaterialPageRoute(
+            builder: (_) =>
+                DossedartX01SetupScreen(startingScore: startingScore),
+          )
+        : MaterialPageRoute(
+            builder: (_) => PlayerSetupScreen(
+              gameMode: mode,
+              startingScore: startingScore,
+            ),
+          );
+    await Navigator.push(context, route);
     _loadTopPlayers();
   }
 }
