@@ -4,9 +4,13 @@ import '../../models/saved_player.dart';
 import '../../services/player_storage.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
-import '../player_setup_screen.dart';
 import '../settings_screen.dart';
 import '../stats_screen.dart';
+import 'dossedart_atc_setup_screen.dart';
+import 'dossedart_cricket_setup_screen.dart';
+import 'dossedart_killer_setup_screen.dart';
+import 'dossedart_shanghai_setup_screen.dart';
+import 'dossedart_splitscore_setup_screen.dart';
 import 'dossedart_x01_setup_screen.dart';
 
 /// DOSSEDART arcade home screen — leaderboard variant B (tight list).
@@ -543,18 +547,22 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
   // ─── Navigation ────────────────────────────────────────────────────────────
   Future<void> _startGame(GameMode mode, {int? startingScore}) async {
-    final route = (mode == GameMode.x01 && startingScore != null)
-        ? MaterialPageRoute(
-            builder: (_) =>
-                DossedartX01SetupScreen(startingScore: startingScore),
-          )
-        : MaterialPageRoute(
-            builder: (_) => PlayerSetupScreen(
-              gameMode: mode,
-              startingScore: startingScore,
-            ),
-          );
-    await Navigator.push(context, route);
+    Widget screen;
+    switch (mode) {
+      case GameMode.x01:
+        screen = DossedartX01SetupScreen(startingScore: startingScore!);
+      case GameMode.cricket:
+        screen = const DossedartCricketSetupScreen();
+      case GameMode.killer:
+        screen = const DossedartKillerSetupScreen();
+      case GameMode.aroundTheClock:
+        screen = const DossedartAtcSetupScreen();
+      case GameMode.halveIt:
+        screen = const DossedartSplitscoreSetupScreen();
+      case GameMode.shanghai:
+        screen = const DossedartShanghaiSetupScreen();
+    }
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _loadTopPlayers();
   }
 }
