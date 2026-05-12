@@ -90,8 +90,11 @@ class ArcadeToggleRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
-          color: value ? accent.withValues(alpha: 0.15) : DossedartTokens.surface,
-          border: Border.all(color: accent, width: 2),
+          color: value ? accent : DossedartTokens.surface,
+          border: Border.all(
+            color: value ? DossedartTokens.yellow : accent.withValues(alpha: 0.4),
+            width: 2,
+          ),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -99,7 +102,8 @@ class ArcadeToggleRow extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'PressStart2P',
             fontSize: 9,
-            color: value ? accent : Colors.white70,
+            color: value ? DossedartTokens.bg : accent.withValues(alpha: 0.6),
+            fontWeight: value ? FontWeight.bold : FontWeight.normal,
             letterSpacing: 0.5,
             height: 1.3,
           ),

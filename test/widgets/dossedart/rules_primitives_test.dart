@@ -116,6 +116,29 @@ void main() {
       expect(find.textContaining('●'), findsOneWidget);
       expect(find.textContaining('○'), findsOneWidget);
     });
+
+    testWidgets('ON toggle border uses DossedartTokens.yellow', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeToggleRow(toggles: [
+              ('BULL', true, DossedartTokens.magenta, (_) {}),
+            ]),
+          ),
+        ),
+      );
+      // Find the toggle's outer container (the one with the BoxDecoration).
+      final containerFinder = find.ancestor(
+        of: find.textContaining('BULL'),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
+      final container = tester.widget<Container>(containerFinder.first);
+      final decoration = container.decoration as BoxDecoration;
+      final border = decoration.border as Border;
+      expect(border.top.color, DossedartTokens.yellow);
+    });
   });
 
   group('ArcadeStepper', () {
