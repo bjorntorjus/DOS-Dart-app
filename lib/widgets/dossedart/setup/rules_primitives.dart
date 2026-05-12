@@ -21,16 +21,7 @@ class ArcadeChipRow<T> extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'VT323',
-            fontSize: 13,
-            color: Colors.white54,
-            letterSpacing: 2,
-          ),
-        ),
-        const SizedBox(height: 6),
+        _arcadeLabel(label),
         Row(
           children: [
             for (var i = 0; i < options.length; i++) ...[
@@ -143,16 +134,7 @@ class ArcadeStepper extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'VT323',
-            fontSize: 13,
-            color: Colors.white54,
-            letterSpacing: 2,
-          ),
-        ),
-        const SizedBox(height: 6),
+        _arcadeLabel(label),
         Row(
           children: [
             _button('-', canDec, () => onChanged(value - 1)),
@@ -188,9 +170,9 @@ class ArcadeStepper extends StatelessWidget {
         width: 48,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: enabled ? DossedartTokens.yellow : Colors.white12,
+          color: enabled ? DossedartTokens.yellow : DossedartTokens.disabledFill,
           border: Border.all(
-            color: enabled ? DossedartTokens.yellow : Colors.white24,
+            color: enabled ? DossedartTokens.yellow : DossedartTokens.disabledBorder,
             width: 2,
           ),
         ),
@@ -200,10 +182,25 @@ class ArcadeStepper extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'PressStart2P',
             fontSize: 16,
-            color: enabled ? DossedartTokens.bg : Colors.white38,
+            color: enabled ? DossedartTokens.bg : DossedartTokens.disabledFg,
           ),
         ),
       ),
     );
   }
 }
+
+/// Section label used above `ArcadeChipRow` and `ArcadeStepper`.
+/// Matches the muted-VT323 label style shared across DOSSEDART RULES.
+Widget _arcadeLabel(String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: 'VT323',
+          fontSize: 13,
+          color: Colors.white54,
+          letterSpacing: 2,
+        ),
+      ),
+    );

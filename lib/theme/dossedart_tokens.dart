@@ -18,6 +18,11 @@ class DossedartTokens {
   static const Color purple = Color(0xFF7B3FFF);
   static const Color orange = Color(0xFFFF7A00);
 
+  // Disabled state (used by primitives that can become unavailable)
+  static const Color disabledFill = Color(0x1FFFFFFF);   // Colors.white12
+  static const Color disabledBorder = Color(0x3DFFFFFF); // Colors.white24
+  static const Color disabledFg = Color(0x61FFFFFF);     // Colors.white38
+
   // Border widths
   static const double borderThin = 1;
   static const double border = 2;
