@@ -72,3 +72,49 @@ class ArcadeChipRow<T> extends StatelessWidget {
     );
   }
 }
+
+/// A row of independent ON/OFF toggles. Each toggle has its own accent color.
+/// Tuple shape: (label, value, accentColor, onChanged).
+class ArcadeToggleRow extends StatelessWidget {
+  const ArcadeToggleRow({super.key, required this.toggles});
+
+  final List<(String, bool, Color, ValueChanged<bool>)> toggles;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < toggles.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(child: _toggle(toggles[i])),
+        ],
+      ],
+    );
+  }
+
+  Widget _toggle((String, bool, Color, ValueChanged<bool>) t) {
+    final (label, value, accent, onChanged) = t;
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: value ? accent.withValues(alpha: 0.15) : DossedartTokens.surface,
+          border: Border.all(color: accent, width: 2),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '$label ${value ? '●' : '○'}',
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 9,
+            color: value ? accent : Colors.white70,
+            letterSpacing: 0.5,
+            height: 1.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}

@@ -69,4 +69,52 @@ void main() {
       expect(decoration.color, DossedartTokens.yellow);
     });
   });
+
+  group('ArcadeToggleRow', () {
+    testWidgets('renders each toggle label', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeToggleRow(toggles: [
+              ('NO-BUST', false, DossedartTokens.magenta, (_) {}),
+              ('HCAP', true, DossedartTokens.cyan, (_) {}),
+            ]),
+          ),
+        ),
+      );
+      expect(find.textContaining('NO-BUST'), findsOneWidget);
+      expect(find.textContaining('HCAP'), findsOneWidget);
+    });
+
+    testWidgets('tap toggles state via callback', (tester) async {
+      bool? captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeToggleRow(toggles: [
+              ('NO-BUST', false, DossedartTokens.magenta, (v) => captured = v),
+            ]),
+          ),
+        ),
+      );
+      await tester.tap(find.textContaining('NO-BUST'));
+      expect(captured, true);
+    });
+
+    testWidgets('ON toggle shows filled indicator, OFF shows empty', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeToggleRow(toggles: [
+              ('A', true, DossedartTokens.magenta, (_) {}),
+              ('B', false, DossedartTokens.magenta, (_) {}),
+            ]),
+          ),
+        ),
+      );
+      // "A" is on, indicator is '●'; "B" is off, indicator is '○'.
+      expect(find.textContaining('●'), findsOneWidget);
+      expect(find.textContaining('○'), findsOneWidget);
+    });
+  });
 }
