@@ -11,6 +11,7 @@ import '../../../services/player_storage.dart';
 import '../../../theme/dossedart_tokens.dart';
 import '../arcade_frame.dart';
 import 'dossedart_player_picker.dart';
+import 'rules_primitives.dart';
 
 /// Shared chrome for all DOSSEDART setup screens.
 ///
@@ -283,42 +284,14 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
                               const SizedBox(height: 6),
                               // Random-order toggle lives in the shared
                               // chrome (every mode has it, always defaults ON).
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () => setState(
-                                          () => _randomOrder = !_randomOrder),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 8, horizontal: 4),
-                                        decoration: BoxDecoration(
-                                          color: _randomOrder
-                                              ? DossedartTokens.purple
-                                                  .withValues(alpha: 0.15)
-                                              : DossedartTokens.surface,
-                                          border: Border.all(
-                                              color: DossedartTokens.purple,
-                                              width: 2),
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          'RANDOM ORDER ${_randomOrder ? '●' : '○'}',
-                                          style: TextStyle(
-                                            fontFamily: 'PressStart2P',
-                                            fontSize: 9,
-                                            color: _randomOrder
-                                                ? DossedartTokens.purple
-                                                : Colors.white70,
-                                            letterSpacing: 0.5,
-                                            height: 1.3,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              ArcadeToggleRow(toggles: [
+                                (
+                                  'RANDOM ORDER',
+                                  _randomOrder,
+                                  DossedartTokens.purple,
+                                  (v) => setState(() => _randomOrder = v),
+                                ),
+                              ]),
                               const SizedBox(height: 18),
                               _buildCastHeader(),
                               const SizedBox(height: 12),
