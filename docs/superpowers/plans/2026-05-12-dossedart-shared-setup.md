@@ -43,8 +43,8 @@ Create `test/widgets/dossedart/rules_primitives_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dart_scoring_app/widgets/dossedart/setup/rules_primitives.dart';
-import 'package:dart_scoring_app/theme/dossedart_tokens.dart';
+import 'package:dart_scoring/widgets/dossedart/setup/rules_primitives.dart';
+import 'package:dart_scoring/theme/dossedart_tokens.dart';
 
 void main() {
   group('ArcadeChipRow', () {
@@ -118,7 +118,7 @@ void main() {
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `flutter test test/widgets/dossedart/rules_primitives_test.dart`
-Expected: FAIL with "Target of URI doesn't exist: 'package:dart_scoring_app/widgets/dossedart/setup/rules_primitives.dart'"
+Expected: FAIL with "Target of URI doesn't exist: 'package:dart_scoring/widgets/dossedart/setup/rules_primitives.dart'"
 
 - [ ] **Step 3: Implement ArcadeChipRow**
 
@@ -1396,10 +1396,10 @@ Create `test/widgets/dossedart/dossedart_setup_scaffold_test.dart`:
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dart_scoring_app/models/player.dart';
-import 'package:dart_scoring_app/models/saved_player.dart';
-import 'package:dart_scoring_app/services/player_storage.dart';
-import 'package:dart_scoring_app/widgets/dossedart/setup/dossedart_setup_scaffold.dart';
+import 'package:dart_scoring/models/player.dart';
+import 'package:dart_scoring/models/saved_player.dart';
+import 'package:dart_scoring/services/player_storage.dart';
+import 'package:dart_scoring/widgets/dossedart/setup/dossedart_setup_scaffold.dart';
 
 Future<void> _seedPlayers(List<String> names) async {
   SharedPreferences.setMockInitialValues({});
