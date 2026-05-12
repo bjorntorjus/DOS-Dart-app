@@ -118,3 +118,92 @@ class ArcadeToggleRow extends StatelessWidget {
     );
   }
 }
+
+/// `[-] N [+]` stepper for range config. Disabled buttons do not call onChanged.
+class ArcadeStepper extends StatelessWidget {
+  const ArcadeStepper({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final canDec = value > min;
+    final canInc = value < max;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'VT323',
+            fontSize: 13,
+            color: Colors.white54,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            _button('-', canDec, () => onChanged(value - 1)),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: DossedartTokens.magenta, width: 2),
+                  color: DossedartTokens.surface,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$value',
+                  style: const TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 14,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            _button('+', canInc, () => onChanged(value + 1)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _button(String glyph, bool enabled, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 48,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: enabled ? DossedartTokens.yellow : Colors.white12,
+          border: Border.all(
+            color: enabled ? DossedartTokens.yellow : Colors.white24,
+            width: 2,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          glyph,
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 16,
+            color: enabled ? DossedartTokens.bg : Colors.white38,
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -117,4 +117,88 @@ void main() {
       expect(find.textContaining('○'), findsOneWidget);
     });
   });
+
+  group('ArcadeStepper', () {
+    testWidgets('renders label and current value', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeStepper(
+              label: 'ROUNDS',
+              value: 9,
+              min: 5,
+              max: 20,
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      expect(find.text('ROUNDS'), findsOneWidget);
+      expect(find.text('9'), findsOneWidget);
+    });
+
+    testWidgets('+ increments value via onChanged', (tester) async {
+      int? captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeStepper(
+              label: 'X', value: 9, min: 5, max: 20,
+              onChanged: (v) => captured = v,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('+'));
+      expect(captured, 10);
+    });
+
+    testWidgets('- decrements value via onChanged', (tester) async {
+      int? captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeStepper(
+              label: 'X', value: 9, min: 5, max: 20,
+              onChanged: (v) => captured = v,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('-'));
+      expect(captured, 8);
+    });
+
+    testWidgets('+ at max does not call onChanged', (tester) async {
+      int? captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeStepper(
+              label: 'X', value: 20, min: 5, max: 20,
+              onChanged: (v) => captured = v,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('+'));
+      expect(captured, isNull);
+    });
+
+    testWidgets('- at min does not call onChanged', (tester) async {
+      int? captured;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ArcadeStepper(
+              label: 'X', value: 5, min: 5, max: 20,
+              onChanged: (v) => captured = v,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('-'));
+      expect(captured, isNull);
+    });
+  });
 }
