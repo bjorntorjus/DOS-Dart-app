@@ -697,8 +697,11 @@ class _GameScreenState extends State<GameScreen> {
 
     // ─── No-bust round-end branch ───────────────────────────────────────────
     if (widget.noBust) {
-      if (_finishes.isEmpty) {
-        // Nobody finished this round — advance to the next round normally.
+      final newFinishersThisRound = finishedPlayers
+          .where((i) => !_finishedBeforeRound.contains(i))
+          .toList();
+      if (newFinishersThisRound.isEmpty) {
+        // No new finishers this round — advance to the next round normally.
         setState(() {
           _roundNumber++;
           _playersCompletedThisRound = {};
@@ -1071,12 +1074,17 @@ class _GameScreenState extends State<GameScreen> {
     _playersCompletedThisRound = {};
     _finishedBeforeRound = [];
 
-    // Find players who finished before this round
+    // Find players who finished before this round.
+    // In no-bust mode a finish can overshoot zero, so also consult _finishes
+    // (which records every no-bust finish by turnId).
     for (final t in throwHistory) {
-      if (t.roundNumber < _roundNumber && t.scoreBefore - t.points == 0) {
-        if (!_finishedBeforeRound.contains(t.playerIndex)) {
-          _finishedBeforeRound.add(t.playerIndex);
-        }
+      if (t.roundNumber >= _roundNumber) continue;
+      final isFinishThrow = (t.scoreBefore - t.points == 0) ||
+          (widget.noBust &&
+              _finishes.any((f) =>
+                  f.turnId == t.turnId && f.playerIndex == t.playerIndex));
+      if (isFinishThrow && !_finishedBeforeRound.contains(t.playerIndex)) {
+        _finishedBeforeRound.add(t.playerIndex);
       }
     }
 
