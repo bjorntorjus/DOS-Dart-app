@@ -38,9 +38,10 @@ class DossedartSetupScaffold extends StatefulWidget {
   final String Function(int playerCount) summaryBuilder;
 
   /// Called when the user taps START. The scaffold supplies the ordered
-  /// player list (with `score: 0` as a placeholder — the mode screen
-  /// overrides if needed, e.g. for X01 handicap) and the randomize flag.
-  /// The mode screen is responsible for any final shuffle and navigation.
+  /// player list (already shuffled if `randomize` is true) and the
+  /// randomize flag itself. The list uses `score: 0` as a placeholder —
+  /// the mode screen overrides if needed (e.g. X01 handicap) before
+  /// navigating to the game screen.
   final void Function(List<Player> players, bool randomize) onStart;
 
   @override
@@ -62,6 +63,7 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
   Future<void> _load() async {
     final players = await PlayerStorage.loadPlayers();
     players.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (!mounted) return;
     setState(() {
       _savedPlayers = players;
       _isLoading = false;
@@ -80,33 +82,40 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
 
   Future<void> _addNewPlayer() async {
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('NEW FIGHTER'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Name'),
-          textCapitalization: TextCapitalization.words,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-    final name = controller.text.trim();
-    controller.dispose();
-    if (ok != true || name.isEmpty) return;
+    bool ok = false;
+    String name = '';
+    try {
+      ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('NEW FIGHTER'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Name'),
+                textCapitalization: TextCapitalization.words,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Create'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      name = controller.text.trim();
+    } finally {
+      controller.dispose();
+    }
+    if (!ok || name.isEmpty) return;
 
     final saved = await PlayerStorage.addPlayer(name);
+    if (!mounted) return;
     setState(() {
       _savedPlayers.add(saved);
       _savedPlayers.sort(
@@ -117,6 +126,7 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
 
   Future<void> _showPlayerProfile(SavedPlayer sp) async {
     final nameController = TextEditingController(text: sp.name);
+    try {
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -140,7 +150,8 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
                     await File(imagePath).copy(dest);
                     sp.avatarPath = dest;
                     await PlayerStorage.savePlayers(_savedPlayers);
-                    setDialogState(() {});
+                    if (!mounted) return;
+                    if (ctx.mounted) setDialogState(() {});
                     setState(() {});
                   },
                   child: CircleAvatar(
@@ -193,7 +204,9 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
         ),
       ),
     );
-    nameController.dispose();
+    } finally {
+      nameController.dispose();
+    }
   }
 
   Future<String?> _pickImage() async {
