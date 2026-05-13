@@ -38,7 +38,10 @@ void main() {
 
     // Fire the game-end + post-game push through the production code path.
     await dynState.onGameEndForTest();
-    await tester.pump(const Duration(milliseconds: 500));
+    // Let the Navigator transition complete. pumpAndSettle is safe here
+    // because _onGameEnd no longer awaits any pending Future (stats moved
+    // into the action handler), and VideoService is disabled by the helper.
+    await tester.pumpAndSettle(const Duration(seconds: 3));
 
     // PostGameScreen should now be visible. The Undo button is labelled
     // '↶ Back' in lib/screens/post_game_screen.dart.
@@ -47,7 +50,7 @@ void main() {
 
     // Tap Undo.
     await tester.tap(find.text('↶ Back').first);
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle(const Duration(seconds: 3));
 
     // Back in ShanghaiGameScreen — verify engine state was restored.
     expect(find.byType(ShanghaiGameScreen), findsOneWidget,
