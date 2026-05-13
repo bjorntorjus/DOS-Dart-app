@@ -74,6 +74,39 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
 
+  /// First player in [finishedPlayers] who has not been removed mid-game.
+  /// Used for winner picking — a removed player must never be declared winner
+  /// even if their index happens to appear first in [finishedPlayers].
+  int? _winnerIndexExcludingRemoved() {
+    for (final i in finishedPlayers) {
+      if (!_removedPlayerIndices.contains(i)) return i;
+    }
+    return null;
+  }
+
+  @visibleForTesting
+  List<int> get finishedPlayersForTest => finishedPlayers;
+
+  @visibleForTesting
+  Set<int> get removedPlayerIndicesForTest => _removedPlayerIndices;
+
+  @visibleForTesting
+  int? get winnerIndexForTest => winnerIndex;
+
+  @visibleForTesting
+  int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+    });
+  }
+
   bool get _isReverse => widget.config.reverse;
   int get _maxTarget => widget.config.includeBull ? 25 : 20;
   int get _startTarget => _isReverse ? (_maxTarget == 25 ? 25 : 20) : 1;
@@ -378,7 +411,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         setState(() {
           if (activePlayers.length == 1) finishedPlayers.add(activePlayers.first);
           _gameFullyOver = true;
-          winnerIndex = finishedPlayers.isNotEmpty ? finishedPlayers.first : null;
+          winnerIndex = _winnerIndexExcludingRemoved();
         });
         _updateStats().then((_) => _showPostGame());
         return;
@@ -421,7 +454,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         .toList();
 
     setState(() {
-      winnerIndex = finishedPlayers.first;
+      winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
       _pendingFinishes.clear();
       _roundNumber++;
       _playersCompletedThisRound = {};
@@ -501,7 +534,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         finishedPlayers.add(pi);
       }
 
-      winnerIndex = finishedPlayers.first;
+      winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
       _suddenDeathPlayers.clear();
       _pendingFinishes.clear();
       _playersCompletedThisRound = {};
@@ -724,7 +757,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         _suddenDeathPlayers.clear();
       }
 
-      winnerIndex = finishedPlayers.isNotEmpty ? finishedPlayers.first : null;
+      winnerIndex = _winnerIndexExcludingRemoved();
       currentPlayerIndex = last.playerIndex;
       currentTargets[currentPlayerIndex] = last.scoreBefore;
       players[currentPlayerIndex].score = last.scoreBefore;
@@ -794,7 +827,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       if (idx < 0) continue;
       final sp = savedPlayers[idx];
       sp.gamesPlayed++;
-      if (finishedPlayers.isNotEmpty && finishedPlayers.first == pi) sp.gamesWon++;
+      if (_winnerIndexExcludingRemoved() == pi) sp.gamesWon++;
     }
 
     // Build placements from finishedPlayers order, then rank remaining by progress
