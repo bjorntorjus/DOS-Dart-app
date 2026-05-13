@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Home overhaul</title>
+<meta name="viewport" content="width=1400"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+  body { margin: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  .intro { max-width: 1100px; margin: 28px auto 6px; padding: 0 28px; color: #2a251f; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #c96442; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 38px; line-height: 1.0; letter-spacing: -1px; margin: 0 0 10px; font-weight: 900; }
+  .intro p { font-size: 15px; line-height: 1.55; color: #5a544a; max-width: 800px; margin: 0; }
+  .intro p + p { margin-top: 8px; }
+  .intro b { color: #2a251f; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Round 3 · home overhaul · 3 leaderboard options</div>
+  <h1>The home, refit.</h1>
+  <p>Two changes: the footer is now <b>STATS / HISTORY / SETTINGS</b> as cabinet buttons (the bar adapts the 3-block idea from 02 Showa, but in the arcade language — neon stripe, button "caps", Press Start labels, VT323 sub-text). And the high-score block has been re-cut three ways so we can pick the one that holds together best.</p>
+  <p><b>A · Podium.</b> Three cabinet blocks at staggered heights, #1 centred and crowned, neon outlines and corner stars. Reads like a hi-score reveal screen at the end of a quarter.</p>
+  <p><b>B · Tight list.</b> Same list idea as before but properly proportioned: bigger row height, clearer columns (RANK · HANDLE · PLAYER · RATING · WIN%), and #1 lifted out as a glowing hero row above the rest.</p>
+  <p><b>C · Champion + two.</b> The runaway leader gets a full-width hero card with recent-form pips (W/L last 5). #2 and #3 sit below as compact rows. Feels closer to a real product — quick read of "who am I chasing" without a wall of numbers.</p>
+</div>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="home-arcade-overhaul.jsx"></script>
+<script type="text/babel" data-presets="react">
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <DesignCanvas><HomeArcadeOverhaul/></DesignCanvas>
+  );
+</script>
+</body>
+</html>

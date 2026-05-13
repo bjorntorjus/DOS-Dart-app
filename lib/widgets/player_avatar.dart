@@ -18,9 +18,10 @@ class PlayerAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = Text(
-      name.isNotEmpty ? name[0].toUpperCase() : '?',
-      style: TextStyle(fontSize: radius * 0.8),
+    final fallback = Icon(
+      Icons.person,
+      size: radius * 1.2,
+      color: Colors.white,
     );
 
     if (avatarPath != null && avatarPath!.isNotEmpty && !kIsWeb) {
@@ -37,7 +38,7 @@ class PlayerAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: radius,
       backgroundColor: backgroundColor ?? Theme.of(context).colorScheme.surfaceContainer,
-      child: initial,
+      child: fallback,
     );
   }
 }

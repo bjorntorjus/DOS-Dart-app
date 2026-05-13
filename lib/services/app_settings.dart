@@ -20,6 +20,19 @@ class AppSettings {
   // Logging
   static const String _logModeKey = 'log_mode';
 
+  // Experimental: DOSSEDART arcade redesign
+  static const String _useDossedartDesignKey = 'use_dossedart_design';
+
+  static Future<bool> getUseDossedartDesign() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_useDossedartDesignKey) ?? false;
+  }
+
+  static Future<void> setUseDossedartDesign(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_useDossedartDesignKey, value);
+  }
+
   // Handicap getters/setters
   static Future<double> getHandicapScale() async {
     final prefs = await SharedPreferences.getInstance();
