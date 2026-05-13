@@ -139,10 +139,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               .toList();
           if (activePlayers.length <= 1) {
             if (activePlayers.length == 1) finishedPlayers.add(activePlayers.first);
-            winnerIndex = finishedPlayers.first;
+            winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
             _gameFullyOver = true;
           } else {
-            winnerIndex = finishedPlayers.first;
+            winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
           }
           return;
         }
@@ -370,7 +370,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         scores[i] = data.scoresBefore[i];
         players[i].score = scores[i];
       }
-      winnerIndex = finishedPlayers.isNotEmpty ? finishedPlayers.first : null;
+      winnerIndex = _winnerIndexExcludingRemoved();
       lastThrowLabel = null;
     });
     _log.logUndo(
@@ -389,6 +389,39 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
+
+  /// First player in [finishedPlayers] who has not been removed mid-game.
+  /// Used for winner picking — a removed player must never be declared winner
+  /// even if their index happens to appear first in [finishedPlayers].
+  int? _winnerIndexExcludingRemoved() {
+    for (final i in finishedPlayers) {
+      if (!_removedPlayerIndices.contains(i)) return i;
+    }
+    return null;
+  }
+
+  @visibleForTesting
+  List<int> get finishedPlayersForTest => finishedPlayers;
+
+  @visibleForTesting
+  Set<int> get removedPlayerIndicesForTest => _removedPlayerIndices;
+
+  @visibleForTesting
+  int? get winnerIndexForTest => winnerIndex;
+
+  @visibleForTesting
+  int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+    });
+  }
 
   /// Computes final placements for all players.
   /// Finished players keep their finish order.

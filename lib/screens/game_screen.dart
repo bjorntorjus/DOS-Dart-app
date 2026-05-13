@@ -63,6 +63,40 @@ class _GameScreenState extends State<GameScreen> {
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
+
+  /// First player in [finishedPlayers] who has not been removed mid-game.
+  /// Used for winner picking — a removed player must never be declared winner
+  /// even if their index happens to appear first in [finishedPlayers].
+  int? _winnerIndexExcludingRemoved() {
+    for (final i in finishedPlayers) {
+      if (!_removedPlayerIndices.contains(i)) return i;
+    }
+    return null;
+  }
+
+  @visibleForTesting
+  List<int> get finishedPlayersForTest => finishedPlayers;
+
+  @visibleForTesting
+  Set<int> get removedPlayerIndicesForTest => _removedPlayerIndices;
+
+  @visibleForTesting
+  int? get winnerIndexForTest => winnerIndex;
+
+  @visibleForTesting
+  int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+    });
+  }
+
   final ScrollController _scoreboardController = ScrollController();
   bool _soundEnabled = true;
   bool _ttsEnabled = false;
@@ -503,7 +537,7 @@ class _GameScreenState extends State<GameScreen> {
 
       final sp = savedPlayers[savedIndex];
       sp.gamesPlayed++;
-      if (finishedPlayers.isNotEmpty && finishedPlayers.first == pi) sp.gamesWon++;
+      if (_winnerIndexExcludingRemoved() == pi) sp.gamesWon++;
 
       // Calculate turn scores for this player
       final playerThrows =
@@ -722,7 +756,7 @@ class _GameScreenState extends State<GameScreen> {
         finishedPlayers
           ..clear()
           ..addAll(orderedFinishers);
-        winnerIndex = finishedPlayers.first;
+        winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
         _roundNumber++;
         _playersCompletedThisRound = {};
         _finishedBeforeRound = List.from(finishedPlayers);
@@ -735,7 +769,7 @@ class _GameScreenState extends State<GameScreen> {
       });
 
       if (_gameFullyOver) {
-        final winner = players[finishedPlayers.first];
+        final winner = players[_winnerIndexExcludingRemoved() ?? finishedPlayers.first];
         _log.logGameEnd(
             playerNames: players.map((p) => p.name).toList(),
             finishedOrder: finishedPlayers,
@@ -817,7 +851,7 @@ class _GameScreenState extends State<GameScreen> {
     _log.logResolve(roundNumber: _roundNumber, details: 'checkouts=[$checkoutSummary] finished=$finishedPlayers active=$activePlayers gameOver=${activePlayers.length <= 1}');
 
     setState(() {
-      winnerIndex = finishedPlayers.first;
+      winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
       _pendingCheckouts.clear();
       _roundNumber++;
       _playersCompletedThisRound = {};
@@ -833,7 +867,7 @@ class _GameScreenState extends State<GameScreen> {
 
     // Only announce winner and play victory sound when game is fully over
     if (_gameFullyOver) {
-      final winner = players[finishedPlayers.first];
+      final winner = players[_winnerIndexExcludingRemoved() ?? finishedPlayers.first];
       _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: true);
       BatterySampler.instance.stop();
       _announcer.stop();
@@ -911,7 +945,7 @@ class _GameScreenState extends State<GameScreen> {
         finishedPlayers.add(pi);
       }
 
-      winnerIndex = finishedPlayers.first;
+      winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
       _suddenDeathPlayers.clear();
       _pendingCheckouts.clear();
       _playersCompletedThisRound = {};
@@ -931,7 +965,7 @@ class _GameScreenState extends State<GameScreen> {
 
     // Only announce winner and play victory sound when game is fully over
     if (_gameFullyOver) {
-      final winner = players[finishedPlayers.first];
+      final winner = players[_winnerIndexExcludingRemoved() ?? finishedPlayers.first];
       _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: true);
       BatterySampler.instance.stop();
       _announcer.stop();
@@ -1053,7 +1087,7 @@ class _GameScreenState extends State<GameScreen> {
         _inSuddenDeath = false;
         _suddenDeathPlayers.clear();
       }
-      winnerIndex = finishedPlayers.isNotEmpty ? finishedPlayers.first : null;
+      winnerIndex = _winnerIndexExcludingRemoved();
       players[lastThrow.playerIndex].score = lastThrow.scoreBefore;
       currentPlayerIndex = lastThrow.playerIndex;
       dartsInTurn = lastThrow.turnNumber;
@@ -1897,9 +1931,7 @@ class _GameScreenState extends State<GameScreen> {
                   if (winnerIndex == null) {
                     winnerIndex = remaining.isNotEmpty
                         ? remaining.first
-                        : finishedPlayers.isNotEmpty
-                            ? finishedPlayers.first
-                            : 0;
+                        : _winnerIndexExcludingRemoved() ?? (finishedPlayers.isNotEmpty ? finishedPlayers.first : 0);
                   }
                   _gameFullyOver = true;
                 }
