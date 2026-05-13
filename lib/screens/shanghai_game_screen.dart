@@ -14,6 +14,7 @@ import '../services/player_storage.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
+import '../services/video_service.dart';
 import '../utils/player_colors.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
@@ -37,6 +38,13 @@ class ShanghaiGameScreen extends StatefulWidget {
 class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   late List<Player> players;
   late ShanghaiGameEngine engine;
+
+  @visibleForTesting
+  ShanghaiGameEngine get engineForTest => engine;
+
+  @visibleForTesting
+  Future<void> onGameEndForTest() => _onGameEnd();
+
   final GameLogger _log = GameLogger.instance;
 
   // Per-turn hit history for the dart-slot display.
@@ -189,10 +197,19 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       gameFullyOver: true,
     );
     BatterySampler.instance.stop();
-
-    await _updateStats(ranking);
+    await _fireWinnerCelebration();
     if (!mounted) return;
     _showPostGame(ranking);
+  }
+
+  Future<void> _fireWinnerCelebration() async {
+    if (engine.isInstantShanghai && _ttsEnabled) {
+      // High-priority announcement — stop any queued TTS so this lands first.
+      TtsService.instance.stop();
+      TtsService.instance.speak('INSTANT SHANGHAI!');
+    }
+    if (!mounted) return;
+    await VideoService.instance.showRandomFromFolder(context, 'winner');
   }
 
   Future<void> _updateStats(List<int> ranking) async {
@@ -284,15 +301,19 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
           result: GameResult(gameMode: 'shanghai', results: results),
         ),
       ),
-    ).then((action) {
+    ).then((action) async {
       if (!mounted) return;
       if (action == 'undo') {
         // User wants to keep playing — undo the game-end and return to game.
         setState(() => engine.undo());
-      } else {
-        // 'home' or back-button: leave the game-screen entirely.
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
       }
+      // 'home' or back-button: persist stats now (deferred from _onGameEnd
+      // so Undo doesn't strand the user with stats they didn't confirm),
+      // then leave the game-screen entirely.
+      await _updateStats(ranking);
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
     });
   }
 
