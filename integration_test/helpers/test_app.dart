@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dart_scoring/services/sound_service.dart';
+import 'package:dart_scoring/services/video_service.dart';
 
 /// Deterministic initial SharedPreferences for integration tests.
 ///
@@ -60,6 +61,12 @@ Future<void> setupTestEnvironment({
   // from settings (which we haven't added one for yet), so call setEnabled
   // explicitly. battery_plus + audioplayers platform channels are mocked below.
   SoundService.instance.setEnabled(false);
+
+  // VideoService.init() reads the prefs flag, but it's only called from
+  // main.dart. Integration tests pump a screen directly, so the singleton
+  // keeps its default _enabled = true. Disable it explicitly here to avoid
+  // showRandomFromFolder opening a modal VideoOverlay that hangs the test.
+  VideoService.instance.setEnabled(false);
 
   // Mock battery_plus channel — return 100 % and 'discharging' state forever.
   // `battery_plus` uses MethodChannel('dev.fluttercommunity.plus/battery') and
