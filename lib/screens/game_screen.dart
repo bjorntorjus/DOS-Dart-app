@@ -97,6 +97,37 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  /// Fast-forwards a player's score to [score] for testing.
+  /// Only updates state — does NOT trigger game-end detection.
+  /// Call [triggerCheckoutForTest] afterwards to fire the post-game path.
+  @visibleForTesting
+  void injectScoreForTest(int playerIndex, int score) {
+    setState(() {
+      players[playerIndex] = Player(
+        name: players[playerIndex].name,
+        score: score,
+        savedPlayerId: players[playerIndex].savedPlayerId,
+        avatarPath: players[playerIndex].avatarPath,
+      );
+    });
+  }
+
+  /// Fires the post-game path as if [playerIndex] just checked out.
+  /// Mirrors the finish branch inside `_onDartHit` / `_resolveRound`:
+  /// sets the player as winner, marks the game fully over, and calls
+  /// `_showPostGame()`.
+  @visibleForTesting
+  void triggerCheckoutForTest(int playerIndex) {
+    setState(() {
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+      winnerIndex = playerIndex;
+      _gameFullyOver = true;
+    });
+    _showPostGame();
+  }
+
   final ScrollController _scoreboardController = ScrollController();
   bool _soundEnabled = true;
   bool _ttsEnabled = false;
