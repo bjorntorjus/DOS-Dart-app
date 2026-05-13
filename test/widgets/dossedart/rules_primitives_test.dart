@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dart_scoring/widgets/dossedart/setup/rules_primitives.dart';
 import 'package:dart_scoring/theme/dossedart_tokens.dart';
+// ignore_for_file: unnecessary_underscores
 
 void main() {
   group('ArcadeChipRow', () {
@@ -76,8 +77,8 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ArcadeToggleRow(toggles: [
-              ('NO-BUST', false, DossedartTokens.magenta, (_) {}),
-              ('HCAP', true, DossedartTokens.cyan, (_) {}),
+              ('NO-BUST', false, (_) {}),
+              ('HCAP', true, (_) {}),
             ]),
           ),
         ),
@@ -92,7 +93,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ArcadeToggleRow(toggles: [
-              ('NO-BUST', false, DossedartTokens.magenta, (v) => captured = v),
+              ('NO-BUST', false, (v) => captured = v),
             ]),
           ),
         ),
@@ -101,20 +102,38 @@ void main() {
       expect(captured, true);
     });
 
-    testWidgets('ON toggle shows filled indicator, OFF shows empty', (tester) async {
+    testWidgets('ON toggle has yellow fill, OFF has surface fill', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: ArcadeToggleRow(toggles: [
-              ('A', true, DossedartTokens.magenta, (_) {}),
-              ('B', false, DossedartTokens.magenta, (_) {}),
+              ('A', true, (_) {}),
+              ('B', false, (_) {}),
             ]),
           ),
         ),
       );
-      // "A" is on, indicator is '●'; "B" is off, indicator is '○'.
-      expect(find.textContaining('●'), findsOneWidget);
-      expect(find.textContaining('○'), findsOneWidget);
+      // "A" is on — container color should be yellow.
+      final aFinder = find.ancestor(
+        of: find.text('A'),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
+      final aContainer = tester.widget<Container>(aFinder.first);
+      final aDecoration = aContainer.decoration as BoxDecoration;
+      expect(aDecoration.color, DossedartTokens.yellow);
+
+      // "B" is off — container color should be surface.
+      final bFinder = find.ancestor(
+        of: find.text('B'),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
+      final bContainer = tester.widget<Container>(bFinder.first);
+      final bDecoration = bContainer.decoration as BoxDecoration;
+      expect(bDecoration.color, DossedartTokens.surface);
     });
 
     testWidgets('ON toggle border uses DossedartTokens.yellow', (tester) async {
@@ -122,7 +141,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ArcadeToggleRow(toggles: [
-              ('BULL', true, DossedartTokens.magenta, (_) {}),
+              ('BULL', true, (_) {}),
             ]),
           ),
         ),

@@ -23,7 +23,7 @@ Widget _harness({
   return MaterialApp(
     home: DossedartSetupScaffold(
       title: 'TEST',
-      rulesSection: const SizedBox.shrink(),
+      rulesSection: (_, __) => const SizedBox.shrink(),
       minPlayers: minPlayers,
       summaryBuilder: summaryBuilder,
       onStart: onStart,

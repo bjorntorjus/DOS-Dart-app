@@ -64,46 +64,46 @@ class ArcadeChipRow<T> extends StatelessWidget {
   }
 }
 
-/// A row of independent ON/OFF toggles. Each toggle has its own accent color.
-/// Tuple shape: (label, value, accentColor, onChanged).
+/// A row of independent ON/OFF toggles. Visually matches `ArcadeChipRow`:
+/// ON = yellow fill on yellow border, OFF = surface fill on magenta border.
+/// Tuple shape: (label, value, onChanged).
 class ArcadeToggleRow extends StatelessWidget {
   const ArcadeToggleRow({super.key, required this.toggles});
 
-  final List<(String, bool, Color, ValueChanged<bool>)> toggles;
+  final List<(String, bool, ValueChanged<bool>)> toggles;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         for (var i = 0; i < toggles.length; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
+          if (i > 0) const SizedBox(width: 4),
           Expanded(child: _toggle(toggles[i])),
         ],
       ],
     );
   }
 
-  Widget _toggle((String, bool, Color, ValueChanged<bool>) t) {
-    final (label, value, accent, onChanged) = t;
+  Widget _toggle((String, bool, ValueChanged<bool>) t) {
+    final (label, value, onChanged) = t;
     return GestureDetector(
       onTap: () => onChanged(!value),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         decoration: BoxDecoration(
-          color: value ? accent : DossedartTokens.surface,
+          color: value ? DossedartTokens.yellow : DossedartTokens.surface,
           border: Border.all(
-            color: value ? DossedartTokens.yellow : accent.withValues(alpha: 0.4),
+            color: value ? DossedartTokens.yellow : DossedartTokens.magenta,
             width: 2,
           ),
         ),
         alignment: Alignment.center,
         child: Text(
-          '$label ${value ? '●' : '○'}',
+          label,
           style: TextStyle(
             fontFamily: 'PressStart2P',
-            fontSize: 9,
-            color: value ? DossedartTokens.bg : accent.withValues(alpha: 0.6),
-            fontWeight: value ? FontWeight.bold : FontWeight.normal,
+            fontSize: 10,
+            color: value ? DossedartTokens.bg : Colors.white,
             letterSpacing: 0.5,
             height: 1.3,
           ),

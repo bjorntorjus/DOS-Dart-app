@@ -11,14 +11,15 @@ import '../../../services/player_storage.dart';
 import '../../../theme/dossedart_tokens.dart';
 import '../arcade_frame.dart';
 import 'dossedart_player_picker.dart';
-import 'rules_primitives.dart';
 
 /// Shared chrome for all DOSSEDART setup screens.
 ///
 /// Owns the player roster, the current selection (in order = play order),
 /// the random-order toggle, and all picker-side dialogs (add-player,
-/// profile-edit). Mode-specific RULES are passed in via [rulesSection],
-/// and the per-mode start logic is delegated to [onStart].
+/// profile-edit). Mode-specific RULES are passed in via [rulesSection] as a
+/// builder that receives the random-order state so each mode can place the
+/// RANDOM ORDER toggle wherever fits its layout.
+/// The per-mode start logic is delegated to [onStart].
 class DossedartSetupScaffold extends StatefulWidget {
   const DossedartSetupScaffold({
     super.key,
@@ -30,7 +31,7 @@ class DossedartSetupScaffold extends StatefulWidget {
   });
 
   final String title;
-  final Widget rulesSection;
+  final Widget Function(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) rulesSection;
   final int minPlayers;
 
   /// Builds the trailing summary string shown under the START button.
@@ -280,18 +281,10 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              widget.rulesSection,
-                              const SizedBox(height: 6),
-                              // Random-order toggle lives in the shared
-                              // chrome (every mode has it, always defaults ON).
-                              ArcadeToggleRow(toggles: [
-                                (
-                                  'RANDOM ORDER',
-                                  _randomOrder,
-                                  DossedartTokens.purple,
-                                  (v) => setState(() => _randomOrder = v),
-                                ),
-                              ]),
+                              widget.rulesSection(
+                                _randomOrder,
+                                (v) => setState(() => _randomOrder = v),
+                              ),
                               const SizedBox(height: 18),
                               _buildCastHeader(),
                               const SizedBox(height: 12),

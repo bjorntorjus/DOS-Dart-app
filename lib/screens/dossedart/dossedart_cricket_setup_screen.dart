@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/game_config.dart';
 import '../../models/player.dart';
-import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/setup/dossedart_setup_scaffold.dart';
 import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../cricket_game_screen.dart';
@@ -19,20 +18,20 @@ class _DossedartCricketSetupScreenState
   bool _isCutthroat = false;
   bool _isRandom = false;
   int _targetCount = 7;
-  bool _includeBull = true;
+  bool _includeBull = false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'CRICKET',
       minPlayers: 2,
-      rulesSection: _buildRules(),
+      rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,
     );
   }
 
-  Widget _buildRules() {
+  Widget _buildRules(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -61,8 +60,8 @@ class _DossedartCricketSetupScreenState
         ],
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
-          ('BULL', _includeBull, DossedartTokens.magenta,
-              (v) => setState(() => _includeBull = v)),
+          ('BULL', _includeBull, (v) => setState(() => _includeBull = v)),
+          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );

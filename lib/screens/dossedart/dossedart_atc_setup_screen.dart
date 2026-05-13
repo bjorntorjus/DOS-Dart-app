@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/game_config.dart';
 import '../../models/player.dart';
-import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/setup/dossedart_setup_scaffold.dart';
 import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../around_the_clock_game_screen.dart';
@@ -24,13 +23,13 @@ class _DossedartAtcSetupScreenState extends State<DossedartAtcSetupScreen> {
     return DossedartSetupScaffold(
       title: 'AROUND THE CLOCK',
       minPlayers: 1,
-      rulesSection: _buildRules(),
+      rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,
     );
   }
 
-  Widget _buildRules() {
+  Widget _buildRules(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -42,10 +41,9 @@ class _DossedartAtcSetupScreenState extends State<DossedartAtcSetupScreen> {
         ),
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
-          ('BULL', _includeBull, DossedartTokens.magenta,
-              (v) => setState(() => _includeBull = v)),
-          ('×MULT', _countMultiples, DossedartTokens.cyan,
-              (v) => setState(() => _countMultiples = v)),
+          ('BULL', _includeBull, (v) => setState(() => _includeBull = v)),
+          ('D/T = ×N', _countMultiples, (v) => setState(() => _countMultiples = v)),
+          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );
@@ -56,7 +54,7 @@ class _DossedartAtcSetupScreenState extends State<DossedartAtcSetupScreen> {
       '$playerCount PLAYERS',
       if (_reverse) '20→1' else '1→20',
       if (_includeBull) 'BULL',
-      if (_countMultiples) '×MULT',
+      if (_countMultiples) 'D/T=×N',
     ].join(' · ');
   }
 

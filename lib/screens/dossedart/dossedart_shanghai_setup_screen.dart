@@ -22,18 +22,27 @@ class _DossedartShanghaiSetupScreenState
     return DossedartSetupScaffold(
       title: 'SHANGHAI',
       minPlayers: 1,
-      rulesSection: _buildRules(),
+      rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,
     );
   }
 
-  Widget _buildRules() {
-    return ArcadeChipRow<int>(
-      label: 'TARGET RANGE',
-      value: _targetEnd,
-      options: const [('1-7', 7), ('1-9', 9), ('1-20', 20)],
-      onChanged: (v) => setState(() => _targetEnd = v),
+  Widget _buildRules(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ArcadeChipRow<int>(
+          label: 'TARGET RANGE',
+          value: _targetEnd,
+          options: const [('1-7', 7), ('1-9', 9), ('1-20', 20)],
+          onChanged: (v) => setState(() => _targetEnd = v),
+        ),
+        const SizedBox(height: 14),
+        ArcadeToggleRow(toggles: [
+          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+        ]),
+      ],
     );
   }
 

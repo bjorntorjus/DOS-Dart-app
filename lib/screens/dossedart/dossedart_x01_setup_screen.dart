@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/player.dart';
-import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/setup/dossedart_setup_scaffold.dart';
 import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../game_screen.dart';
@@ -27,13 +26,13 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
     return DossedartSetupScaffold(
       title: 'NEW MATCH · ${widget.startingScore}',
       minPlayers: 2,
-      rulesSection: _buildRules(),
+      rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,
     );
   }
 
-  Widget _buildRules() {
+  Widget _buildRules(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -49,10 +48,9 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
         ),
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
-          ('NO-BUST', _noBust, DossedartTokens.magenta,
-              (v) => setState(() => _noBust = v)),
-          ('HANDICAP', _handicap, DossedartTokens.cyan,
-              (v) => setState(() => _handicap = v)),
+          ('NO-BUST', _noBust, (v) => setState(() => _noBust = v)),
+          ('HANDICAP', _handicap, (v) => setState(() => _handicap = v)),
+          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );

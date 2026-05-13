@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/game_config.dart';
 import '../../models/player.dart';
-import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/setup/dossedart_setup_scaffold.dart';
 import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../halve_it_game_screen.dart';
@@ -20,20 +19,20 @@ class _DossedartSplitscoreSetupScreenState
   int _roundCount = 9;
   bool _includeDouble = true;
   bool _includeTriple = true;
-  bool _includeBull = true;
+  bool _includeBull = false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'SPLITSCORE',
       minPlayers: 1,
-      rulesSection: _buildRules(),
+      rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,
     );
   }
 
-  Widget _buildRules() {
+  Widget _buildRules(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -54,18 +53,19 @@ class _DossedartSplitscoreSetupScreenState
           ),
           const SizedBox(height: 14),
           ArcadeToggleRow(toggles: [
-            ('DBL', _includeDouble, DossedartTokens.magenta,
-                (v) => setState(() => _includeDouble = v)),
-            ('TPL', _includeTriple, DossedartTokens.cyan,
-                (v) => setState(() => _includeTriple = v)),
-            ('BULL', _includeBull, DossedartTokens.purple,
-                (v) => setState(() => _includeBull = v)),
+            ('DBL', _includeDouble, (v) => setState(() => _includeDouble = v)),
+            ('TPL', _includeTriple, (v) => setState(() => _includeTriple = v)),
+            ('BULL', _includeBull, (v) => setState(() => _includeBull = v)),
+          ]),
+          const SizedBox(height: 14),
+          ArcadeToggleRow(toggles: [
+            ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
           ]),
         ] else ...[
           const SizedBox(height: 14),
           ArcadeToggleRow(toggles: [
-            ('BULL', _includeBull, DossedartTokens.purple,
-                (v) => setState(() => _includeBull = v)),
+            ('BULL', _includeBull, (v) => setState(() => _includeBull = v)),
+            ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
           ]),
         ],
       ],

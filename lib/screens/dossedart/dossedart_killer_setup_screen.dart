@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/game_config.dart';
 import '../../models/player.dart';
-import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/setup/dossedart_setup_scaffold.dart';
 import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../killer_game_screen.dart';
@@ -27,13 +26,13 @@ class _DossedartKillerSetupScreenState
     return DossedartSetupScaffold(
       title: 'KILLER',
       minPlayers: 2,
-      rulesSection: _buildRules(),
+      rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,
     );
   }
 
-  Widget _buildRules() {
+  Widget _buildRules(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -52,12 +51,13 @@ class _DossedartKillerSetupScreenState
         ),
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
-          ('×HITS', _multiplyHits, DossedartTokens.magenta,
-              (v) => setState(() => _multiplyHits = v)),
-          ('SHIELD', _shields, DossedartTokens.cyan,
-              (v) => setState(() => _shields = v)),
-          ('SUICIDE', _suicide, DossedartTokens.purple,
-              (v) => setState(() => _suicide = v)),
+          ('×HITS', _multiplyHits, (v) => setState(() => _multiplyHits = v)),
+          ('SHIELD', _shields, (v) => setState(() => _shields = v)),
+          ('SUICIDE', _suicide, (v) => setState(() => _suicide = v)),
+        ]),
+        const SizedBox(height: 14),
+        ArcadeToggleRow(toggles: [
+          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );
