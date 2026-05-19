@@ -27,11 +27,17 @@ const Map<String, Object> _defaultPrefs = {
 /// Call once at the start of each test, before `pumpWidget`. Optional
 /// [savedPlayers] list seeds `PlayerStorage` (key 'saved_players') so the
 /// test can navigate setup → game without driving the "Add Player" dialog.
+/// Set [useDossedartDesign] to `true` to exercise DOSSEDART screens; default
+/// `false` keeps classic-design coverage stable.
 Future<void> setupTestEnvironment({
   List<String> savedPlayers = const [],
+  bool useDossedartDesign = false,
 }) async {
   // Seed SharedPreferences with deterministic flags + optional players.
   final initial = Map<String, Object>.from(_defaultPrefs);
+  if (useDossedartDesign) {
+    initial['use_dossedart_design'] = true;
+  }
   if (savedPlayers.isNotEmpty) {
     final list = savedPlayers.asMap().entries.map((e) {
       final id = 'test-player-${e.key}';
