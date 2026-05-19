@@ -83,7 +83,7 @@ class DossedartPickerTile extends StatelessWidget {
                           height: 1,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
                       _formPips(accent),
                     ],
                   ),
@@ -125,7 +125,7 @@ class DossedartPickerTile extends StatelessWidget {
     final pips = <Widget>[];
     for (var i = 0; i < 5; i++) {
       pips.add(_pip());
-      if (i < 4) pips.add(const SizedBox(width: 3));
+      if (i < 4) pips.add(const SizedBox(width: 2));
     }
     return Row(mainAxisSize: MainAxisSize.min, children: pips);
   }
