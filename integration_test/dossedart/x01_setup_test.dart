@@ -31,9 +31,7 @@ void main() {
     await tester.tap(find.text('▶ START MATCH ◀'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(GameScreen), findsOneWidget,
-        reason: 'X01 setup Start should push GameScreen via Navigator.pushReplacement');
-    expect(find.byType(DossedartX01SetupScreen), findsNothing,
-        reason: 'pushReplacement should remove the setup screen');
+    expect(find.byType(GameScreen), findsOneWidget);
+    expect(find.byType(DossedartX01SetupScreen), findsNothing);
   });
 }
