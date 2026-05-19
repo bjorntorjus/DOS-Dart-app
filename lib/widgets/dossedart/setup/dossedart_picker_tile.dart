@@ -125,15 +125,15 @@ class DossedartPickerTile extends StatelessWidget {
     final pips = <Widget>[];
     for (var i = 0; i < 5; i++) {
       pips.add(_pip());
-      if (i < 4) pips.add(const SizedBox(width: 4));
+      if (i < 4) pips.add(const SizedBox(width: 3));
     }
     return Row(mainAxisSize: MainAxisSize.min, children: pips);
   }
 
   Widget _pip() {
     return Container(
-      width: 18,
-      height: 18,
+      width: 14,
+      height: 14,
       decoration: BoxDecoration(
         border: Border.all(color: Colors.white24, width: 1.5),
       ),
