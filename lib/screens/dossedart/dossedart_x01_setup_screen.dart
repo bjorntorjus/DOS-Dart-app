@@ -89,6 +89,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
           startingScore: widget.startingScore,
           handicap: _handicap,
           noBust: _noBust,
+          useDossedartDesign: true,
         ),
       ),
     );

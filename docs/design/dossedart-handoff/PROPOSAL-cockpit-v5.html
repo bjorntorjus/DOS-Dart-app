@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — X01 cockpit v5 (CRT)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0014;
+    --surface: #1a0030;
+    --magenta: #FF00AA;
+    --cyan: #00E5FF;
+    --yellow: #FFD200;
+    --green: #3DFF8E;
+    --red: #FF3050;
+    --orange: #FF7A00;
+  }
+  body { margin: 0; background: #1a1714; font-family: 'Inter', system-ui, sans-serif; padding: 28px; }
+  .intro { max-width: 1100px; margin: 0 auto 24px; color: #e5e0d8; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 32px; line-height: 1.05; letter-spacing: -1px; margin: 0 0 8px; font-weight: 900; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #ff9c75; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro p { font-size: 14px; line-height: 1.55; color: #b8b0a0; max-width: 900px; margin: 0 0 6px; }
+  .intro ul { font-size: 13px; line-height: 1.55; color: #b8b0a0; max-width: 900px; padding-left: 22px; }
+  .intro b { color: #e5e0d8; }
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .artboard-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #b8b0a0; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+
+  /* CRT cabinet bezel */
+  .crt {
+    width: 431px;            /* frame + bezel */
+    padding: 10px;
+    background: #2a2422;
+    border-radius: 24px;
+    box-shadow:
+      0 0 0 2px #1a1714,
+      0 12px 40px rgba(0,0,0,0.5),
+      inset 0 2px 6px rgba(255,255,255,0.08);
+  }
+
+  /* Inner glass — the screen itself */
+  .frame {
+    width: 411px; height: 731px;
+    background: var(--bg);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    font-family: 'VT323', monospace;
+    border-radius: 16px;
+    /* Inner CRT-glass darkening at corners */
+    box-shadow:
+      inset 0 0 60px rgba(0,0,0,0.7),
+      inset 0 0 8px rgba(0,0,0,0.9);
+  }
+
+  /* Scanlines — stronger than before */
+  .frame::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(0deg,
+        rgba(0,0,0,0) 0px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0.40) 3px,
+        rgba(0,0,0,0) 4px),
+      repeating-linear-gradient(90deg,
+        rgba(255,0,170,0.018) 0px,
+        rgba(0,229,255,0.018) 1px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0) 3px);
+    pointer-events: none; z-index: 2;
+  }
+  /* Vignette + phosphor screen-bulge */
+  .frame::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%);
+    pointer-events: none; z-index: 3;
+    border-radius: 16px;
+  }
+
+  /* CRT power indicator — small dot bottom-right of bezel */
+  .crt-power {
+    position: absolute; right: 18px; bottom: 18px;
+    width: 6px; height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--green);
+    z-index: 10;
+  }
+  .crt-wrap { position: relative; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 2px solid var(--magenta);
+    background: black;
+    position: relative; z-index: 4;
+  }
+  .exit { font-family: 'VT323', monospace; font-size: 18px; color: var(--cyan); letter-spacing: 2px; flex: 0 0 auto;
+    text-shadow: 0 0 6px rgba(0,229,255,0.6), 1px 0 0 rgba(255,0,170,0.3), -1px 0 0 rgba(0,229,255,0.3);
+  }
+  .title { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--yellow); letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(255,210,0,0.8), 1px 0 0 rgba(255,0,170,0.3), -1px 0 0 rgba(0,229,255,0.3);
+    flex: 1 1 auto; text-align: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .leg { font-family: 'VT323', monospace; font-size: 14px; color: rgba(255,255,255,0.55); letter-spacing: 2px; flex: 0 0 auto; }
+
+  .active-card {
+    margin: 12px 14px 10px; padding: 12px 14px;
+    border: 3px solid var(--magenta);
+    background: linear-gradient(180deg, rgba(255,0,170,0.10), rgba(255,0,170,0.02));
+    position: relative; z-index: 4;
+    box-shadow: 0 0 14px rgba(255,0,170,0.25);
+  }
+  .active-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+  /* Square avatar with player-color border */
+  .avatar-sq {
+    width: 56px; height: 56px;
+    background: #2a0050;
+    border: 3px solid var(--magenta);
+    flex: 0 0 auto;
+    box-shadow: 0 0 10px rgba(255,0,170,0.5);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .avatar-sq svg { width: 40px; height: 40px; opacity: 0.85; }
+  /* Profile pic version: a placeholder colorful pixel-art block to look like a photo */
+  .avatar-sq.pic {
+    background: linear-gradient(135deg, #ff7a8a, #ffc785 50%, #d18860);
+  }
+
+  .name-col { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; gap: 4px; }
+  .name {
+    font-family: 'Press Start 2P', monospace;
+    color: white; letter-spacing: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 18px;
+    text-shadow: 0 0 6px rgba(255,255,255,0.4), 1px 0 0 rgba(255,0,170,0.4), -1px 0 0 rgba(0,229,255,0.4);
+  }
+  /* Dart-dots row */
+  .dots-row { display: flex; align-items: center; gap: 6px; }
+  .dot {
+    width: 9px; height: 9px;
+    border: 2px solid var(--magenta);
+    background: transparent;
+  }
+  .dot.filled {
+    background: var(--magenta);
+    box-shadow: 0 0 6px rgba(255,0,170,0.7);
+  }
+  .dots-caption {
+    font-family: 'VT323', monospace; font-size: 13px;
+    color: rgba(255,255,255,0.55); letter-spacing: 1px;
+    margin-left: 6px;
+  }
+
+  .remaining-row { display: flex; align-items: baseline; justify-content: space-between; margin-top: 14px; }
+  .remaining-label { font-family: 'Press Start 2P', monospace; font-size: 9px; color: rgba(255,255,255,0.7); letter-spacing: 1.5px; }
+  /* CRT chromatic aberration on big number */
+  .remaining-num {
+    font-family: 'Press Start 2P', monospace; font-size: 60px;
+    color: var(--magenta); letter-spacing: 2px; line-height: 1;
+    text-shadow:
+      0 0 16px rgba(255,0,170,0.7),
+      2px 0 0 rgba(255,0,170,0.6),
+      -2px 0 0 rgba(0,229,255,0.6),
+      0 1px 0 rgba(255,255,255,0.15);
+  }
+
+  .last-row {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-top: 10px; padding-top: 8px;
+    border-top: 1px dashed rgba(255,0,170,0.4);
+    gap: 8px;
+  }
+  .last-label { font-family: 'Press Start 2P', monospace; font-size: 9px; color: rgba(255,255,255,0.7); letter-spacing: 1.5px; flex: 0 0 auto; }
+  .last-throws { font-family: 'VT323', monospace; font-size: 20px; color: var(--yellow); letter-spacing: 1.5px; flex: 1 1 auto; text-align: center;
+    text-shadow: 0 0 6px rgba(255,210,0,0.5);
+  }
+  .last-sum { font-family: 'Press Start 2P', monospace; font-size: 13px; color: var(--yellow); letter-spacing: 1px; text-shadow: 0 0 6px rgba(255,210,0,0.5); flex: 0 0 auto; }
+
+  .checkout-tip {
+    margin-top: 10px; padding: 6px 8px;
+    border: 2px dashed var(--green);
+    background: rgba(61,255,142,0.06);
+    font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--green);
+    letter-spacing: 1px; text-align: center;
+    box-shadow: 0 0 14px rgba(61,255,142,0.4);
+    text-shadow: 0 0 4px rgba(61,255,142,0.5);
+  }
+
+  .board-wrap {
+    position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%);
+    z-index: 4;
+  }
+
+  .actionbar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: black; border-top: 2px solid var(--yellow);
+    display: flex; gap: 10px; padding: 12px 14px;
+    z-index: 5;
+    border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;
+  }
+  .btn {
+    flex: 1; padding: 12px 0;
+    font-family: 'Press Start 2P', monospace; font-size: 11px; letter-spacing: 1.5px;
+    background: transparent; color: white;
+    text-align: center;
+    border: 2px solid var(--magenta);
+    text-shadow: 0 0 4px rgba(255,0,170,0.6);
+  }
+  .btn.primary {
+    flex: 2;
+    background: var(--orange); border-color: white; color: black;
+    box-shadow: 0 0 16px rgba(255,122,0,0.55);
+    text-shadow: none;
+  }
+  .btn.menu { border-color: var(--cyan); color: var(--cyan); text-shadow: 0 0 4px rgba(0,229,255,0.6); }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Proposal v5 · 2026-05-20 · CRT + profile pics + dart-dots back</div>
+  <h1>X01 Cockpit V5 — full CRT treatment</h1>
+  <p>Endringer fra V4:</p>
+  <ul>
+    <li><b>Profilbilder</b> — firkantet avatar med player-color border. Fallback = silhouette (Icons.person), matcher eksisterende <code>PlayerAvatar</code></li>
+    <li><b>Dart-prikker</b> tilbake — 3 små prikker under navnet som viser fremgang i nåværende tur (○○○ → ●○○ → ●●○ → ●●●). Subtilt, lite plass.</li>
+    <li><b>CRT-bezel</b> rundt skjermen — grå plastramme, små runde hjørner, power-LED nede i hjørnet</li>
+    <li><b>Sterkere scanlines</b> + horisontal RGB-fargestøy</li>
+    <li><b>Phosphor-glow</b> på all tekst — text-shadow på alle UI-elementer</li>
+    <li><b>Chromatic aberration</b> (RGB-ghost) på den store REMAINING-tallet og titler — klassisk CRT-feil</li>
+    <li><b>Inner glass-bulge</b> — inset shadows simulerer CRT-skjermens kurvatur</li>
+  </ul>
+  <p>To artboards: én med fallback-silhouette, én med "profile picture"-mockup (gradient som stedmark for ekte foto).</p>
+</div>
+
+<div class="stage">
+  <div>
+    <div class="artboard-label">Fallback silhouette avatar</div>
+    <div class="crt-wrap">
+      <div class="crt">
+        <div class="frame">
+          <div class="topbar">
+            <div class="exit">◀ EXIT</div>
+            <div class="title">X01 · 501 · D-OUT</div>
+            <div class="leg">L 1/3</div>
+          </div>
+          <div class="active-card">
+            <div class="active-row">
+              <div class="avatar-sq">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white">
+                  <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+                </svg>
+              </div>
+              <div class="name-col">
+                <div class="name">MIA</div>
+                <div class="dots-row">
+                  <div class="dot filled"></div>
+                  <div class="dot filled"></div>
+                  <div class="dot"></div>
+                  <div class="dots-caption">DART 3/3</div>
+                </div>
+              </div>
+            </div>
+            <div class="remaining-row">
+              <span class="remaining-label">REMAINING</span>
+              <span class="remaining-num">170</span>
+            </div>
+            <div class="last-row">
+              <span class="last-label">LAST</span>
+              <span class="last-throws">T20 · S20 · S20</span>
+              <span class="last-sum">= 80</span>
+            </div>
+            <div class="checkout-tip">▶ T20 › S16 › D-BULL</div>
+          </div>
+          <div class="board-wrap">
+            <svg width="320" height="320" viewBox="-220 -220 440 440">
+              <circle cx="0" cy="0" r="210" fill="#1a0030" stroke="#FF00AA" stroke-width="3"/>
+              <g class="segments"></g>
+              <circle cx="0" cy="0" r="22" fill="#FF7A00" stroke="white" stroke-width="2"/>
+              <circle cx="0" cy="0" r="10" fill="#FF3050" stroke="white" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="actionbar">
+            <div class="btn">↶ UNDO</div>
+            <div class="btn primary">✗ MISS</div>
+            <div class="btn menu">⋯ MENU</div>
+          </div>
+        </div>
+      </div>
+      <div class="crt-power"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="artboard-label">With profile picture</div>
+    <div class="crt-wrap">
+      <div class="crt">
+        <div class="frame">
+          <div class="topbar">
+            <div class="exit">◀ EXIT</div>
+            <div class="title">X01 · 501 · D-OUT</div>
+            <div class="leg">L 1/3</div>
+          </div>
+          <div class="active-card">
+            <div class="active-row">
+              <div class="avatar-sq pic"></div>
+              <div class="name-col">
+                <div class="name">BJØRN T.</div>
+                <div class="dots-row">
+                  <div class="dot filled"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dots-caption">DART 1/3</div>
+                </div>
+              </div>
+            </div>
+            <div class="remaining-row">
+              <span class="remaining-label">REMAINING</span>
+              <span class="remaining-num">268</span>
+            </div>
+            <div class="last-row">
+              <span class="last-label">LAST</span>
+              <span class="last-throws">S5 · S20 · S1</span>
+              <span class="last-sum">= 26</span>
+            </div>
+          </div>
+          <div class="board-wrap">
+            <svg width="320" height="320" viewBox="-220 -220 440 440">
+              <circle cx="0" cy="0" r="210" fill="#1a0030" stroke="#FF00AA" stroke-width="3"/>
+              <g class="segments"></g>
+              <circle cx="0" cy="0" r="22" fill="#FF7A00" stroke="white" stroke-width="2"/>
+              <circle cx="0" cy="0" r="10" fill="#FF3050" stroke="white" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="actionbar">
+            <div class="btn">↶ UNDO</div>
+            <div class="btn primary">✗ MISS</div>
+            <div class="btn menu">⋯ MENU</div>
+          </div>
+        </div>
+      </div>
+      <div class="crt-power"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SEG_ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+// Visual = hit-test: thicker rings than a real board so what you see is what you can tap.
+// Radii as % of board radius (210): bullIn 5%, bull 12%, innerSingle 47%, triple 58%, outerSingle 82%, double 95%, labelBand 100%
+const R = { bullIn: 10, bull: 25, innerSingle: 99, triple: 122, outerSingle: 172, double: 200, edge: 210 };
+function arc(r1, r2, a1, a2) {
+  const toRad = a => (a - 90) * Math.PI / 180;
+  const p = (r, a) => [Math.cos(toRad(a)) * r, Math.sin(toRad(a)) * r];
+  const [x1, y1] = p(r2, a1);
+  const [x2, y2] = p(r2, a2);
+  const [x3, y3] = p(r1, a2);
+  const [x4, y4] = p(r1, a1);
+  const large = (a2 - a1) > 180 ? 1 : 0;
+  return `M ${x1} ${y1} A ${r2} ${r2} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r1} ${r1} 0 ${large} 0 ${x4} ${y4} Z`;
+}
+document.querySelectorAll('.segments').forEach(g => {
+  const SLICE = 360 / 20;
+  for (let i = 0; i < 20; i++) {
+    const startAng = -SLICE / 2 + i * SLICE;
+    const endAng = startAng + SLICE;
+    const value = SEG_ORDER[i];
+    const innerCol = i % 2 === 0 ? '#FF00AA' : '#00E5FF';
+    // Inner single (12% → 47%)
+    g.innerHTML += `<path d="${arc(R.bull, R.innerSingle, startAng, endAng)}" fill="${innerCol}" opacity="0.35" stroke="black" stroke-width="0.5"/>`;
+    // Triple ring (47% → 58%) — thick, green
+    g.innerHTML += `<path d="${arc(R.innerSingle, R.triple, startAng, endAng)}" fill="#3DFF8E" stroke="black" stroke-width="0.5"/>`;
+    // Outer single (58% → 82%)
+    g.innerHTML += `<path d="${arc(R.triple, R.outerSingle, startAng, endAng)}" fill="${innerCol}" opacity="0.35" stroke="black" stroke-width="0.5"/>`;
+    // Double ring (82% → 95%) — thick, yellow
+    g.innerHTML += `<path d="${arc(R.outerSingle, R.double, startAng, endAng)}" fill="#FFD200" stroke="black" stroke-width="0.5"/>`;
+    // Outer label band (95% → 100%) — non-tappable, miss zone
+    g.innerHTML += `<path d="${arc(R.double, R.edge, startAng, endAng)}" fill="#0a0014" stroke="#FF00AA" stroke-width="0.5"/>`;
+    const midAng = (startAng + endAng) / 2;
+    const rad = (midAng - 90) * Math.PI / 180;
+    const lx = Math.cos(rad) * 205;
+    const ly = Math.sin(rad) * 205;
+    g.innerHTML += `<text x="${lx}" y="${ly}" fill="white" font-family="'Press Start 2P', monospace" font-size="10" text-anchor="middle" dominant-baseline="central">${value}</text>`;
+  }
+});
+</script>
+
+</body>
+</html>

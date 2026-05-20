@@ -22,6 +22,13 @@ import '../services/game_logger.dart';
 import 'post_game_screen.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../services/battery_sampler.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/x01/dossedart_x01_active_card.dart';
+import '../widgets/dossedart/x01/dossedart_x01_action_bar.dart';
+import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import '../widgets/dossedart/x01/dossedart_x01_topbar.dart';
+import 'dossedart/x01/dossedart_player_overview_screen.dart';
+import '../theme/dossedart_tokens.dart';
 
 enum _ThrowOutcome { continueTurn, finish, turnEndNoBust, bust }
 
@@ -31,6 +38,7 @@ class GameScreen extends StatefulWidget {
   final int startingScore;
   final bool handicap;
   final bool noBust;
+  final bool useDossedartDesign;
 
   const GameScreen({
     super.key,
@@ -39,6 +47,7 @@ class GameScreen extends StatefulWidget {
     required this.startingScore,
     this.handicap = false,
     this.noBust = false,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -1093,6 +1102,24 @@ class _GameScreenState extends State<GameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
+  /// Returns the label for the player's previously COMPLETED turn (the
+  /// 3 darts before the current in-progress turn). Empty if there are
+  /// fewer than 3 completed darts.
+  String _previousTurnLabel(int playerIndex) {
+    final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
+    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
+    final completedCount = all.length - inTurn;
+    if (completedCount < 3) return '';
+    final lastThree = all.sublist(completedCount - 3, completedCount);
+    return lastThree
+        .map((t) {
+          if (t.segment == 0) return 'MISS';
+          final prefix = t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
+          return '$prefix${t.segment}';
+        })
+        .join(' · ');
+  }
+
   void _undo() {
     if (throwHistory.isEmpty) return;
     _announcer.announceGameEvent('Back');
@@ -1415,6 +1442,183 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    final player = players[currentPlayerIndex];
+    final lastLabel = _previousTurnLabel(currentPlayerIndex);
+    final tip = _checkoutFor(player.score);
+
+    // Last-turn sum (sum of the three throws ending the previous turn).
+    final lastSum = _sumOfLastThreeBeforeCurrentTurn(currentPlayerIndex);
+
+    final title = 'X01 · ${widget.startingScore} · ${_outRuleLabel()}';
+
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DossedartX01TopBar(
+                    title: title,
+                    legIndex: 1,
+                    legCount: 1,
+                    roundNumber: _roundNumber + 1,
+                    onExit: _confirmExit,
+                  ),
+                  DossedartX01ActiveCard(
+                    playerName: player.name,
+                    avatarPath: player.avatarPath,
+                    accentColor: DossedartTokens.magenta,
+                    remaining: player.score,
+                    currentDartIndex: dartsInTurn,
+                    lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
+                    lastTurnSum: lastSum,
+                    checkoutTip: tip.isEmpty ? null : tip,
+                  ),
+                ],
+              ),
+              // Dartboard — fixed position, never shifts with active card height
+              Positioned(
+                left: 14, right: 14, bottom: 74,
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: DossedartTokens.magenta, width: 3),
+                      boxShadow: [
+                        BoxShadow(color: DossedartTokens.magenta.withValues(alpha: 0.4), blurRadius: 14),
+                      ],
+                    ),
+                    child: DossedartX01Dartboard(
+                      onTap: (zone) {
+                        final (seg, mult) = zone.toSegmentMultiplier();
+                        if (seg == 0) {
+                          _onMiss();
+                        } else {
+                          _onDartHit(seg, mult);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0, right: 0, bottom: 0,
+                child: DossedartX01ActionBar(
+                  onUndo: _undo,
+                  onMiss: _onMiss,
+                  onMenu: () => _showDossedartMenu(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _outRuleLabel() {
+    switch (widget.masterOut) {
+      case 'double': return 'D-OUT';
+      case 'master': return 'MASTER';
+      default: return 'FREE';
+    }
+  }
+
+  int _sumOfLastThreeBeforeCurrentTurn(int playerIndex) {
+    final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
+    // Exclude darts in the current in-progress turn only for the active player.
+    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
+    final completedCount = all.length - inTurn;
+    if (completedCount < 3) return 0;
+    final lastThree = all.sublist(completedCount - 3, completedCount);
+    return lastThree.fold(0, (acc, t) => acc + t.segment * t.multiplier);
+  }
+
+  void _showDossedartMenu(BuildContext outerContext) {
+    showModalBottomSheet(
+      context: outerContext,
+      backgroundColor: DossedartTokens.surface,
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.scoreboard, color: DossedartTokens.cyan),
+                title: const Text(
+                  'PLAYER OVERVIEW',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P', fontSize: 11, color: Colors.white, letterSpacing: 1.5,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _openPlayerOverview();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.exit_to_app, color: DossedartTokens.red),
+                title: const Text(
+                  'EXIT MATCH',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P', fontSize: 11, color: Colors.white, letterSpacing: 1.5,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _confirmExit();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openPlayerOverview() {
+    final rows = <PlayerOverviewRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      final pThrows = throwHistory.where((t) => t.playerIndex == i).toList();
+      final hits = pThrows.where((t) => t.segment != 0).length;
+      final total = pThrows.length;
+      final hitPct = total == 0 ? 0 : (hits * 100 / total).round();
+      final missPct = 100 - hitPct;
+      final pointsSum = pThrows.fold<int>(0, (acc, t) => acc + t.segment * t.multiplier);
+      final avg = total == 0 ? 0.0 : (pointsSum / total) * 3;
+      final lastLabel = _previousTurnLabel(i);
+      final lastSum = _sumOfLastThreeBeforeCurrentTurn(i);
+      rows.add(PlayerOverviewRow(
+        name: p.name,
+        avatarPath: p.avatarPath,
+        remaining: p.score,
+        lastTurnLabel: lastLabel.isEmpty ? '— · — · —' : lastLabel,
+        lastTurnSum: lastSum,
+        avg: avg,
+        hitPct: hitPct,
+        missPct: missPct,
+      ));
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => DossedartPlayerOverviewScreen(
+        title: 'CAST · X01 ${widget.startingScore}',
+        roundNumber: _roundNumber + 1,
+        rows: rows,
+      ),
+    ));
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     final currentPlayer = players[currentPlayerIndex];
 
     return Scaffold(
