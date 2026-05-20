@@ -22,6 +22,10 @@ class _Single extends DartZone {
   final int n;
   @override
   (int, int) toSegmentMultiplier() => (n, 1);
+  @override
+  bool operator ==(Object other) => other is _Single && other.n == n;
+  @override
+  int get hashCode => Object.hash(_Single, n);
 }
 
 class _Double extends DartZone {
@@ -29,6 +33,10 @@ class _Double extends DartZone {
   final int n;
   @override
   (int, int) toSegmentMultiplier() => (n, 2);
+  @override
+  bool operator ==(Object other) => other is _Double && other.n == n;
+  @override
+  int get hashCode => Object.hash(_Double, n);
 }
 
 class _Triple extends DartZone {
@@ -36,22 +44,38 @@ class _Triple extends DartZone {
   final int n;
   @override
   (int, int) toSegmentMultiplier() => (n, 3);
+  @override
+  bool operator ==(Object other) => other is _Triple && other.n == n;
+  @override
+  int get hashCode => Object.hash(_Triple, n);
 }
 
 class _Bull extends DartZone {
   const _Bull();
   @override
   (int, int) toSegmentMultiplier() => (25, 1);
+  @override
+  bool operator ==(Object other) => other is _Bull;
+  @override
+  int get hashCode => runtimeType.hashCode;
 }
 
 class _DBull extends DartZone {
   const _DBull();
   @override
   (int, int) toSegmentMultiplier() => (25, 2);
+  @override
+  bool operator ==(Object other) => other is _DBull;
+  @override
+  int get hashCode => runtimeType.hashCode;
 }
 
 class _Miss extends DartZone {
   const _Miss();
   @override
   (int, int) toSegmentMultiplier() => (0, 1);
+  @override
+  bool operator ==(Object other) => other is _Miss;
+  @override
+  int get hashCode => runtimeType.hashCode;
 }
