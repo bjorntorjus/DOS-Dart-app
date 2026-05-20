@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Player Overview v4 (CRT + photos)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0014;
+    --magenta: #FF00AA;
+    --cyan: #00E5FF;
+    --yellow: #FFD200;
+    --green: #3DFF8E;
+    --red: #FF3050;
+  }
+  body { margin: 0; background: #1a1714; font-family: 'Inter', system-ui, sans-serif; padding: 28px; }
+  .intro { max-width: 1100px; margin: 0 auto 24px; color: #e5e0d8; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 32px; line-height: 1.05; letter-spacing: -1px; margin: 0 0 8px; font-weight: 900; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #ff9c75; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro p { font-size: 14px; line-height: 1.55; color: #b8b0a0; max-width: 900px; margin: 0 0 6px; }
+  .intro ul { font-size: 13px; line-height: 1.55; color: #b8b0a0; max-width: 900px; padding-left: 22px; }
+  .intro b { color: #e5e0d8; }
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .artboard-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #b8b0a0; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+
+  .crt {
+    width: 431px;
+    padding: 10px;
+    background: #2a2422;
+    border-radius: 24px;
+    box-shadow:
+      0 0 0 2px #1a1714,
+      0 12px 40px rgba(0,0,0,0.5),
+      inset 0 2px 6px rgba(255,255,255,0.08);
+  }
+  .frame {
+    width: 411px; height: 731px;
+    background: var(--bg);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    font-family: 'VT323', monospace;
+    border-radius: 16px;
+    box-shadow:
+      inset 0 0 60px rgba(0,0,0,0.7),
+      inset 0 0 8px rgba(0,0,0,0.9);
+  }
+  .frame::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(0deg,
+        rgba(0,0,0,0) 0px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0.40) 3px,
+        rgba(0,0,0,0) 4px),
+      repeating-linear-gradient(90deg,
+        rgba(255,0,170,0.018) 0px,
+        rgba(0,229,255,0.018) 1px,
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0) 3px);
+    pointer-events: none; z-index: 2;
+  }
+  .frame::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%);
+    pointer-events: none; z-index: 3;
+    border-radius: 16px;
+  }
+  .crt-power {
+    position: absolute; right: 18px; bottom: 18px;
+    width: 6px; height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--green);
+    z-index: 10;
+  }
+  .crt-wrap { position: relative; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 2px solid var(--magenta);
+    background: black;
+    position: relative; z-index: 4;
+  }
+  .back { font-family: 'VT323', monospace; font-size: 18px; color: var(--cyan); letter-spacing: 2px;
+    text-shadow: 0 0 6px rgba(0,229,255,0.6), 1px 0 0 rgba(255,0,170,0.3), -1px 0 0 rgba(0,229,255,0.3); }
+  .title {
+    font-family: 'Press Start 2P', monospace; font-size: 11px;
+    color: var(--yellow); letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(255,210,0,0.8), 1px 0 0 rgba(255,0,170,0.3), -1px 0 0 rgba(0,229,255,0.3);
+  }
+  .round { font-family: 'VT323', monospace; font-size: 14px; color: rgba(255,255,255,0.55); letter-spacing: 2px; }
+
+  .marquee {
+    text-align: center; padding: 10px 0;
+    font-family: 'Press Start 2P', monospace; font-size: 12px;
+    color: var(--magenta); letter-spacing: 4px;
+    text-shadow:
+      0 0 8px rgba(255,0,170,0.7),
+      2px 0 0 rgba(255,0,170,0.4),
+      -2px 0 0 rgba(0,229,255,0.4);
+    border-bottom: 1px dashed rgba(255,0,170,0.4);
+    background: rgba(0,0,0,0.4);
+    position: relative; z-index: 4;
+  }
+
+  .col-header {
+    display: grid;
+    grid-template-columns: 32px 44px 1fr auto;
+    gap: 10px;
+    padding: 8px 18px 6px;
+    font-family: 'Press Start 2P', monospace; font-size: 8px;
+    color: var(--cyan); letter-spacing: 1.5px;
+    text-shadow: 0 0 4px rgba(0,229,255,0.5);
+    border-bottom: 1px solid rgba(0,229,255,0.3);
+    position: relative; z-index: 4;
+  }
+
+  .list {
+    padding: 6px 14px 14px;
+    position: relative; z-index: 4;
+    max-height: calc(731px - 49px - 36px - 30px - 28px);
+    overflow-y: auto;
+  }
+
+  .row {
+    padding: 10px 4px 12px;
+    border-bottom: 1px dashed rgba(255,255,255,0.18);
+  }
+  .row:last-child { border-bottom: none; }
+
+  .row-line1 {
+    display: grid;
+    grid-template-columns: 32px 44px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .rank {
+    font-family: 'Press Start 2P', monospace; font-size: 16px;
+    color: var(--yellow); letter-spacing: 1px;
+    text-shadow: 0 0 6px rgba(255,210,0,0.5);
+  }
+  /* Square avatar for overview */
+  .av {
+    width: 44px; height: 44px;
+    background: #2a0050;
+    border: 2px solid var(--magenta);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 0 6px rgba(255,0,170,0.4);
+  }
+  .av svg { width: 28px; height: 28px; opacity: 0.85; }
+  .av.pic.a { background: linear-gradient(135deg, #ff7a8a, #ffc785 50%, #d18860); }
+  .av.pic.b { background: linear-gradient(135deg, #6e9bff, #b5d6ff 50%, #7d8aa3); }
+
+  .name {
+    font-family: 'Press Start 2P', monospace;
+    color: white; letter-spacing: 2px;
+    min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 14px;
+    text-shadow: 0 0 6px rgba(255,255,255,0.3), 1px 0 0 rgba(255,0,170,0.4), -1px 0 0 rgba(0,229,255,0.4);
+  }
+  .name.medium { font-size: 12px; letter-spacing: 1.5px; }
+  .name.long { font-size: 10px; letter-spacing: 1.2px; }
+  .remaining {
+    font-family: 'Press Start 2P', monospace; font-size: 26px;
+    color: var(--magenta); letter-spacing: 1px; line-height: 1;
+    text-shadow:
+      0 0 10px rgba(255,0,170,0.7),
+      2px 0 0 rgba(255,0,170,0.5),
+      -2px 0 0 rgba(0,229,255,0.5);
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .row-line2 {
+    margin-top: 8px;
+    padding-left: 88px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: 'VT323', monospace; font-size: 16px;
+    color: rgba(255,255,255,0.75); letter-spacing: 1.5px;
+  }
+  .stats-mini { color: rgba(255,255,255,0.55); }
+  .stats-mini b { color: var(--cyan); font-weight: normal; text-shadow: 0 0 4px rgba(0,229,255,0.5); }
+
+  .row-last {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(255,210,0,0.08);
+    border: 1.5px solid rgba(255,210,0,0.35);
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: 'VT323', monospace; font-size: 22px; letter-spacing: 2px;
+    color: var(--yellow);
+    text-shadow: 0 0 6px rgba(255,210,0,0.6);
+    gap: 8px;
+  }
+  .row-last .label {
+    font-family: 'Press Start 2P', monospace; font-size: 8px;
+    color: rgba(255,210,0,0.65); letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  .row-last .sum {
+    font-family: 'Press Start 2P', monospace; font-size: 12px;
+    color: var(--yellow);
+    flex-shrink: 0;
+  }
+  .row-last .throws {
+    flex: 1; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .footer-marquee {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    text-align: center; padding: 8px 0;
+    border-top: 1px dashed rgba(0,229,255,0.4);
+    background: black;
+    font-family: 'Press Start 2P', monospace; font-size: 9px;
+    color: var(--cyan); letter-spacing: 3px;
+    text-shadow: 0 0 6px rgba(0,229,255,0.6), 1px 0 0 rgba(255,0,170,0.3), -1px 0 0 rgba(0,229,255,0.3);
+    z-index: 5;
+    border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Proposal v4 · 2026-05-20 · CRT + profile pics</div>
+  <h1>Player Overview V4 — full CRT + photos</h1>
+  <p>Endringer fra V3:</p>
+  <ul>
+    <li><b>Profilbilder</b> i kvadratisk avatar med player-color border. Silhouette-fallback hvis ingen photo (matcher eksisterende PlayerAvatar)</li>
+    <li>CRT-bezel rundt skjermen, screen-bulge inset, sterkere scanlines med horisontal RGB-tint, phosphor-glow på all tekst, chromatic aberration på REMAINING + titler</li>
+  </ul>
+</div>
+
+<div class="stage">
+  <div>
+    <div class="artboard-label">Player Overview V4</div>
+    <div class="crt-wrap">
+      <div class="crt">
+        <div class="frame">
+          <div class="topbar">
+            <div class="back">◀ BACK</div>
+            <div class="title">CAST · X01 501</div>
+            <div class="round">RND 7</div>
+          </div>
+
+          <div class="marquee">► SCOREBOARD ◄</div>
+
+          <div class="col-header">
+            <span>#</span>
+            <span></span>
+            <span>PLAYER</span>
+            <span style="text-align:right">REMAIN</span>
+          </div>
+
+          <div class="list">
+            <div class="row">
+              <div class="row-line1">
+                <span class="rank">01</span>
+                <div class="av pic a"></div>
+                <span class="name">MIA</span>
+                <span class="remaining">170</span>
+              </div>
+              <div class="row-line2">
+                <span class="stats-mini">AVG <b>31.3</b> · HIT <b>87%</b></span>
+              </div>
+              <div class="row-last">
+                <span class="label">LAST</span>
+                <span class="throws">T20 · S20 · S20</span>
+                <span class="sum">80</span>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-line1">
+                <span class="rank">02</span>
+                <div class="av pic b"></div>
+                <span class="name medium">BJØRN T.</span>
+                <span class="remaining">268</span>
+              </div>
+              <div class="row-line2">
+                <span class="stats-mini">AVG <b>24.7</b> · HIT <b>82%</b></span>
+              </div>
+              <div class="row-last">
+                <span class="label">LAST</span>
+                <span class="throws">S5 · S20 · S1</span>
+                <span class="sum">26</span>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-line1">
+                <span class="rank">03</span>
+                <div class="av">
+                  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white">
+                    <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+                  </svg>
+                </div>
+                <span class="name long">BJØRN TORJUS</span>
+                <span class="remaining">421</span>
+              </div>
+              <div class="row-line2">
+                <span class="stats-mini">AVG <b>19.8</b> · HIT <b>76%</b></span>
+              </div>
+              <div class="row-last">
+                <span class="label">LAST</span>
+                <span class="throws">S20 · MISS · S5</span>
+                <span class="sum">25</span>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-line1">
+                <span class="rank">04</span>
+                <div class="av">
+                  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white">
+                    <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+                  </svg>
+                </div>
+                <span class="name long">CHRISTOPHER A...</span>
+                <span class="remaining">501</span>
+              </div>
+              <div class="row-line2">
+                <span class="stats-mini">AVG <b>0.0</b> · HIT <b>--</b></span>
+              </div>
+              <div class="row-last">
+                <span class="label">LAST</span>
+                <span class="throws">— · — · —</span>
+                <span class="sum">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer-marquee">★ ★ ★ INSERT DART TO CONTINUE ★ ★ ★</div>
+        </div>
+      </div>
+      <div class="crt-power"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
