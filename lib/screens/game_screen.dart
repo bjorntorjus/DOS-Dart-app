@@ -28,6 +28,7 @@ import '../widgets/dossedart/x01/dossedart_x01_action_bar.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 import '../widgets/dossedart/x01/dossedart_x01_topbar.dart';
 import 'dossedart/x01/dossedart_player_overview_screen.dart';
+import '../theme/dossedart_tokens.dart';
 
 enum _ThrowOutcome { continueTurn, finish, turnEndNoBust, bust }
 
@@ -1101,6 +1102,24 @@ class _GameScreenState extends State<GameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
+  /// Returns the label for the player's previously COMPLETED turn (the
+  /// 3 darts before the current in-progress turn). Empty if there are
+  /// fewer than 3 completed darts.
+  String _previousTurnLabel(int playerIndex) {
+    final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
+    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
+    final completedCount = all.length - inTurn;
+    if (completedCount < 3) return '';
+    final lastThree = all.sublist(completedCount - 3, completedCount);
+    return lastThree
+        .map((t) {
+          if (t.segment == 0) return 'MISS';
+          final prefix = t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
+          return '$prefix${t.segment}';
+        })
+        .join(' · ');
+  }
+
   void _undo() {
     if (throwHistory.isEmpty) return;
     _announcer.announceGameEvent('Back');
@@ -1429,7 +1448,7 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildDossedartCockpit(BuildContext context) {
     final player = players[currentPlayerIndex];
-    final lastLabel = _lastDartsLabel(currentPlayerIndex);
+    final lastLabel = _previousTurnLabel(currentPlayerIndex);
     final tip = _checkoutFor(player.score);
 
     // Last-turn sum (sum of the three throws ending the previous turn).
@@ -1438,7 +1457,7 @@ class _GameScreenState extends State<GameScreen> {
     final title = 'X01 · ${widget.startingScore} · ${_outRuleLabel()}';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0014),
+      backgroundColor: DossedartTokens.bg,
       body: DossedartCrtFrame(
         child: SafeArea(
           child: Stack(
@@ -1451,13 +1470,13 @@ class _GameScreenState extends State<GameScreen> {
                     title: title,
                     legIndex: 1,
                     legCount: 1,
-                    roundNumber: _currentRound(),
+                    roundNumber: _roundNumber + 1,
                     onExit: _confirmExit,
                   ),
                   DossedartX01ActiveCard(
                     playerName: player.name,
                     avatarPath: player.avatarPath,
-                    accentColor: const Color(0xFFFF00AA),
+                    accentColor: DossedartTokens.magenta,
                     remaining: player.score,
                     currentDartIndex: dartsInTurn,
                     lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
@@ -1473,9 +1492,9 @@ class _GameScreenState extends State<GameScreen> {
                   aspectRatio: 1,
                   child: Container(
                     decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFFF00AA), width: 3),
+                      border: Border.all(color: DossedartTokens.magenta, width: 3),
                       boxShadow: [
-                        BoxShadow(color: const Color(0xFFFF00AA).withValues(alpha: 0.4), blurRadius: 14),
+                        BoxShadow(color: DossedartTokens.magenta.withValues(alpha: 0.4), blurRadius: 14),
                       ],
                     ),
                     child: DossedartX01Dartboard(
@@ -1514,12 +1533,6 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  int _currentRound() {
-    // Round number = (total darts thrown by the index-0 player) ~/ 3 + 1.
-    final p0Darts = throwHistory.where((t) => t.playerIndex == 0).length;
-    return (p0Darts ~/ 3) + 1;
-  }
-
   int _sumOfLastThreeBeforeCurrentTurn(int playerIndex) {
     final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
     // Exclude darts in the current in-progress turn only for the active player.
@@ -1533,14 +1546,14 @@ class _GameScreenState extends State<GameScreen> {
   void _showDossedartMenu(BuildContext outerContext) {
     showModalBottomSheet(
       context: outerContext,
-      backgroundColor: const Color(0xFF1A0030),
+      backgroundColor: DossedartTokens.surface,
       builder: (sheetCtx) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.scoreboard, color: Color(0xFF00E5FF)),
+                leading: const Icon(Icons.scoreboard, color: DossedartTokens.cyan),
                 title: const Text(
                   'PLAYER OVERVIEW',
                   style: TextStyle(
@@ -1553,7 +1566,7 @@ class _GameScreenState extends State<GameScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.exit_to_app, color: Color(0xFFFF3050)),
+                leading: const Icon(Icons.exit_to_app, color: DossedartTokens.red),
                 title: const Text(
                   'EXIT MATCH',
                   style: TextStyle(
@@ -1583,7 +1596,7 @@ class _GameScreenState extends State<GameScreen> {
       final missPct = 100 - hitPct;
       final pointsSum = pThrows.fold<int>(0, (acc, t) => acc + t.segment * t.multiplier);
       final avg = total == 0 ? 0.0 : (pointsSum / total) * 3;
-      final lastLabel = _lastDartsLabel(i);
+      final lastLabel = _previousTurnLabel(i);
       final lastSum = _sumOfLastThreeBeforeCurrentTurn(i);
       rows.add(PlayerOverviewRow(
         name: p.name,
@@ -1599,7 +1612,7 @@ class _GameScreenState extends State<GameScreen> {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => DossedartPlayerOverviewScreen(
         title: 'CAST · X01 ${widget.startingScore}',
-        roundNumber: _currentRound(),
+        roundNumber: _roundNumber + 1,
         rows: rows,
       ),
     ));
