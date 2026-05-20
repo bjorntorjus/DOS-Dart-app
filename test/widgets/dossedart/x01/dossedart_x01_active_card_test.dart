@@ -50,4 +50,24 @@ void main() {
     await tester.pumpWidget(harness(name: 'CHRISTOPHER ALEXANDER VON LONGNAME'));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('short name (≤6 chars) renders at 18px font', (tester) async {
+    await tester.pumpWidget(harness(name: 'MIA'));
+    final text = tester.widget<Text>(find.text('MIA'));
+    expect(text.style!.fontSize, 18);
+  });
+
+  testWidgets('medium name (7-10 chars) renders at 15px font',
+      (tester) async {
+    await tester.pumpWidget(harness(name: 'BJORN T.'));
+    final text = tester.widget<Text>(find.text('BJORN T.'));
+    expect(text.style!.fontSize, 15);
+  });
+
+  testWidgets('long name (11-16 chars) renders at 12px font',
+      (tester) async {
+    await tester.pumpWidget(harness(name: 'BJORN TORJUS'));
+    final text = tester.widget<Text>(find.text('BJORN TORJUS'));
+    expect(text.style!.fontSize, 12);
+  });
 }

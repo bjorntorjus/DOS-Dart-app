@@ -202,6 +202,7 @@ class DossedartX01ActiveCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: DossedartTokens.green.withValues(alpha: 0.06),
+                // Spec calls for a dashed border; Flutter has no native dashed support, rendered solid.
                 border: Border.all(color: DossedartTokens.green, width: 2),
                 boxShadow: [
                   BoxShadow(
