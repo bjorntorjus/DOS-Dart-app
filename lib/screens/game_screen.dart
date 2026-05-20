@@ -31,6 +31,7 @@ class GameScreen extends StatefulWidget {
   final int startingScore;
   final bool handicap;
   final bool noBust;
+  final bool useDossedartDesign;
 
   const GameScreen({
     super.key,
@@ -39,6 +40,7 @@ class GameScreen extends StatefulWidget {
     required this.startingScore,
     this.handicap = false,
     this.noBust = false,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -1415,6 +1417,17 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    // Placeholder — Task 12 wires the real cockpit. For now defer to
+    // classic so the app still works during the refactor.
+    return _buildClassicScaffold(context);
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     final currentPlayer = players[currentPlayerIndex];
 
     return Scaffold(
