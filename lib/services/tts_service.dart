@@ -60,7 +60,9 @@ class TtsService {
       if (!_speaking) {
         final cbs = List<VoidCallback>.from(_idleCallbacks);
         _idleCallbacks.clear();
-        for (final cb in cbs) cb();
+        for (final cb in cbs) {
+          cb();
+        }
       }
     });
 

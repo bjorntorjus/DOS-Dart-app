@@ -60,7 +60,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   int _roundNumber = 0;
   Set<int> _playersCompletedThisRound = {};
   List<int> _finishedBeforeRound = [];
-  List<_PendingFinish> _pendingFinishes = [];
+  final List<_PendingFinish> _pendingFinishes = [];
   List<int> _suddenDeathPlayers = [];
   bool _inSuddenDeath = false;
   int _consecutiveMisses = 0;

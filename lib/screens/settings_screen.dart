@@ -574,8 +574,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: _useDossedartDesign,
                         onChanged: (v) async {
                           await AppSettings.setUseDossedartDesign(v);
+                          if (!context.mounted) return;
                           setState(() => _useDossedartDesign = v);
-                          if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Restart the app to apply the new design.'),

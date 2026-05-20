@@ -80,7 +80,7 @@ class GameLogger {
     if (!isGeneralAllowed) return;
     _gameIndex++;
     _write('');
-    _write('${'=' * 60}');
+    _write('=' * 60);
     _write('GAME #$_gameIndex: $gameMode | ${DateTime.now().toIso8601String()}');
     final players = <String>[];
     for (int i = 0; i < playerNames.length; i++) {
@@ -90,7 +90,7 @@ class GameLogger {
     if (config != null && config.isNotEmpty) {
       _write('Config: $config');
     }
-    _write('${'=' * 60}');
+    _write('=' * 60);
   }
 
   void logGameEnd({
@@ -103,7 +103,7 @@ class GameLogger {
         .map((i) => 'P$i:${i < playerNames.length ? playerNames[i] : '?'}')
         .join(', ');
     _write('GAME_END gameOver=$gameFullyOver placements=[$placements]');
-    _write('${'─' * 60}');
+    _write('─' * 60);
   }
 
   // ─── Turn events ────────────────────────────────────────────
