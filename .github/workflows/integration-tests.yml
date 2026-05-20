@@ -27,6 +27,9 @@ jobs:
 
   integration-tests:
     name: Integration tests (Android emulator)
+    # Only run on pull requests, not on push-to-main. Reduces CI minutes
+    # spent re-running the same tests once a PR is merged.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: widget-tests
