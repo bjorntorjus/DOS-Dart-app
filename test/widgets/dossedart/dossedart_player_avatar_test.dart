@@ -8,7 +8,6 @@ void main() {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
         body: DossedartPlayerAvatar(
-          name: 'TEST',
           avatarPath: null,
           size: 56,
           borderColor: Color(0xFFFF00AA),
@@ -23,7 +22,6 @@ void main() {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
         body: DossedartPlayerAvatar(
-          name: 'TEST',
           avatarPath: '/nonexistent/path/to/file.jpg',
           size: 56,
           borderColor: Color(0xFFFF00AA),

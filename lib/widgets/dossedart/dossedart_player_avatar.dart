@@ -11,14 +11,12 @@ import 'package:flutter/material.dart';
 class DossedartPlayerAvatar extends StatelessWidget {
   const DossedartPlayerAvatar({
     super.key,
-    required this.name,
     required this.size,
     required this.borderColor,
     this.avatarPath,
     this.borderWidth = 3,
   });
 
-  final String name;
   final double size;
   final Color borderColor;
   final String? avatarPath;
