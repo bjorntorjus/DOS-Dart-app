@@ -1522,8 +1522,9 @@ class _GameScreenState extends State<GameScreen> {
 
   int _sumOfLastThreeBeforeCurrentTurn(int playerIndex) {
     final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
-    // Exclude darts in the current in-progress turn (those count toward dartsInTurn).
-    final completedCount = all.length - dartsInTurn;
+    // Exclude darts in the current in-progress turn only for the active player.
+    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
+    final completedCount = all.length - inTurn;
     if (completedCount < 3) return 0;
     final lastThree = all.sublist(completedCount - 3, completedCount);
     return lastThree.fold(0, (acc, t) => acc + t.segment * t.multiplier);
