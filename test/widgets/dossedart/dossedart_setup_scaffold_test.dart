@@ -23,7 +23,7 @@ Widget _harness({
   return MaterialApp(
     home: DossedartSetupScaffold(
       title: 'TEST',
-      rulesSection: (_, __) => const SizedBox.shrink(),
+      rulesSection: (_, _) => const SizedBox.shrink(),
       minPlayers: minPlayers,
       summaryBuilder: summaryBuilder,
       onStart: onStart,
@@ -36,7 +36,7 @@ void main() {
   // pumpAndSettle (it would hang). Instead, pump twice — once to render the
   // loading state, once after a small duration to let _load()'s async future
   // resolve.
-  Future<void> _settle(WidgetTester tester) async {
+  Future<void> settle(WidgetTester tester) async {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
   }
@@ -47,9 +47,9 @@ void main() {
     await tester.pumpWidget(_harness(
       minPlayers: 2,
       summaryBuilder: (_) => '',
-      onStart: (_, __) => called = true,
+      onStart: (_, _) => called = true,
     ));
-    await _settle(tester);
+    await settle(tester);
     await tester.tap(find.text('▶ START MATCH ◀'));
     await tester.pump();
     expect(called, isFalse);
@@ -60,9 +60,9 @@ void main() {
     await tester.pumpWidget(_harness(
       minPlayers: 2,
       summaryBuilder: (n) => '$n PLAYERS',
-      onStart: (_, __) {},
+      onStart: (_, _) {},
     ));
-    await _settle(tester);
+    await settle(tester);
     // CAST header shows MIN; we verify the cast header label.
     expect(find.text('0 READY · MIN 2'), findsOneWidget);
   });
@@ -79,7 +79,7 @@ void main() {
         randomized = r;
       },
     ));
-    await _settle(tester);
+    await settle(tester);
     // Tap Alice and Carol. Names render uppercased in tiles.
     await tester.tap(find.text('ALICE'));
     await tester.pump();

@@ -140,7 +140,7 @@ class _GameScreenState extends State<GameScreen> {
   int _roundNumber = 0;
   Set<int> _playersCompletedThisRound = {};
   List<int> _finishedBeforeRound = [];
-  List<_PendingCheckout> _pendingCheckouts = [];
+  final List<_PendingCheckout> _pendingCheckouts = [];
   List<int> _suddenDeathPlayers = [];
   bool _inSuddenDeath = false;
 
@@ -515,8 +515,11 @@ class _GameScreenState extends State<GameScreen> {
             isTurnEnd = true;
             // Turn-end video events
             final turnTotal = scoreAtStartOfTurn - player.score;
-            if (turnTotal >= 120) _pendingVideoEvent ??= 'high_round';
-            else if (turnTotal < 10) _pendingVideoEvent ??= 'low_round';
+            if (turnTotal >= 120) {
+              _pendingVideoEvent ??= 'high_round';
+            } else if (turnTotal < 10) {
+              _pendingVideoEvent ??= 'low_round';
+            }
             // Suppress meme sounds if video will play
             if (_pendingVideoEvent != null && videoRoll) _meme.markSoundPlayed();
             _meme.onTurnEnd();
@@ -529,10 +532,12 @@ class _GameScreenState extends State<GameScreen> {
 
     // Show video at turn end only (awaited so it doesn't get hidden)
     if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
+      if (!context.mounted) return;
+      // ignore: use_build_context_synchronously
       await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
     }
     if (isTurnEnd) _pendingVideoEvent = null;
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     // Check round completion after setState
     if (_isRoundComplete()) {
@@ -1959,11 +1964,9 @@ class _GameScreenState extends State<GameScreen> {
                     .where((i) => !finishedPlayers.contains(i))
                     .toList();
                 if (remaining.length <= 1) {
-                  if (winnerIndex == null) {
-                    winnerIndex = remaining.isNotEmpty
-                        ? remaining.first
-                        : _winnerIndexExcludingRemoved() ?? (finishedPlayers.isNotEmpty ? finishedPlayers.first : 0);
-                  }
+                  winnerIndex ??= remaining.isNotEmpty
+                      ? remaining.first
+                      : _winnerIndexExcludingRemoved() ?? (finishedPlayers.isNotEmpty ? finishedPlayers.first : 0);
                   _gameFullyOver = true;
                 }
               });
