@@ -135,32 +135,37 @@ The active card and dartboard may visually overlap in extreme edge cases (very l
 - Magenta 3px border around the board with glow.
 - No internal state. Hit-test geometry detailed in next section.
 
-### Dartboard geometry — visual vs touch (CRITICAL)
+### Dartboard geometry — visual matches hit-test (CRITICAL)
 
 A real dartboard's double and triple rings are very narrow (~5% of total radius each). Rendered at standard proportions on a phone-sized board (~320-370px), each ring is only ~9-17px wide — too narrow to tap reliably.
 
-**Strategy: visual = realistic; hit-test = generous.** The rings are drawn at proportions a player recognises as a dartboard, but the touch-zone radii used by hit-testing are expanded so each ring meets Material's 44dp minimum tap-target where the board allows.
+**Strategy: visual = hit-test.** What the player SEES is what the player CAN TAP. Rings are rendered thicker than a physical board so each one is a comfortable touch target, and the visible boundary IS the hit-test boundary. No "tap a single, register a double" surprises.
 
-| Ring | Visual outer radius (% of board radius) | Visual width | Hit-test band |
+This sacrifices physical realism for input honesty. The board is still recognisable as a dartboard from segment ordering, colours, and the bull centre — the rings are just chunkier.
+
+| Ring | Outer radius (% of board radius) | Width | Notes |
 |---|---|---|---|
-| Inner bull (D-Bull) | 5% | — | 0 → 5% |
-| Outer bull (Bull) | 10% | 5% | 5% → 12% |
-| Inner single | 50% | 38% | 12% → 47% |
-| **Triple** | **55%** | **5%** | **47% → 58%** |
-| Outer single | 85% | 30% | 58% → 82% |
-| **Double** | **92%** | **7%** | **82% → 95%** |
-| Beyond board edge | — | — | 95%+ = miss |
+| D-Bull (inner bull) | 5% | 5% | centre circle |
+| Bull (outer bull) | 12% | 7% | thin ring |
+| Inner single | 47% | 35% | broad band |
+| **Triple** | **58%** | **11%** | ~2× a real triple |
+| Outer single | 82% | 24% | broad band |
+| **Double** | **95%** | **13%** | ~2× a real double |
+| Outer label band | 100% | 5% | visual chrome only — taps here count as `DartZone.miss` (it's outside the playable area on a real board too) |
 
-Numbers in **bold** are the rings that need touch-zone expansion past their visual bounds. On a 320px board (radius 160), this gives:
-- Triple visible: ~8px wide → hit-band: ~18px wide
-- Double visible: ~11px wide → hit-band: ~21px wide
-- Single zones still own all remaining radius — slightly compressed by ring expansion, but each is still wide enough that ambiguity is minimal.
+Numbers in **bold** are wider than a physical board. The outer 5% is a non-tappable label band where the segment number is rendered (matches the cosmetic ring on real boards just outside the double).
 
-**Algorithm:** convert tap (x,y) → polar (r, θ) relative to board centre. Compare `r` against the hit-test band thresholds (not the visual outer-edge radii) to pick the ring. Compare `θ` against segment angles to pick the number. Outside the outermost band → `DartZone.miss`.
+On a 320px board (radius 160), this gives:
+- Triple: ~18px wide ring — both visually and to tap
+- Double: ~21px wide ring — both visually and to tap
 
-This keeps the look authentic but means the user doesn't have to be pixel-precise to register a double or triple.
+**Algorithm:** convert tap (x,y) → polar (r, θ) relative to board centre. Compare `r` against the radius thresholds in the table to pick the ring. Compare `θ` against segment angles to pick the number. Tap with `r > 95% × board-radius` → `DartZone.miss`.
 
-**Test coverage** for this is mandatory: `dossedart_x01_dartboard_test.dart` includes a fixture of (x, y) tap coordinates spanning visual ring edges, asserting the expected `DartZone` falls correctly under the expanded band.
+**Test coverage** for this is mandatory: `dossedart_x01_dartboard_test.dart` includes a fixture of (x, y) tap coordinates at the inner and outer edges of each ring, asserting the expected `DartZone` falls correctly. Particular cases:
+- 1px inside double-ring outer edge → `DartZone.double(n)`
+- 1px outside double-ring outer edge → `DartZone.miss`
+- 1px inside triple-ring → `DartZone.triple(n)`
+- Anywhere within Bull radius → `DartZone.bull` / `DartZone.dBull`
 
 **`DossedartX01ActionBar`** (stateless):
 - 3 buttons left-to-right:

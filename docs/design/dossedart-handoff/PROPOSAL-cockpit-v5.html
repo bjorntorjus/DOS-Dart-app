@@ -348,7 +348,9 @@
 
 <script>
 const SEG_ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
-const R = { bull: 22, triple: 110, outerSingle: 160, double: 178, edge: 210 };
+// Visual = hit-test: thicker rings than a real board so what you see is what you can tap.
+// Radii as % of board radius (210): bullIn 5%, bull 12%, innerSingle 47%, triple 58%, outerSingle 82%, double 95%, labelBand 100%
+const R = { bullIn: 10, bull: 25, innerSingle: 99, triple: 122, outerSingle: 172, double: 200, edge: 210 };
 function arc(r1, r2, a1, a2) {
   const toRad = a => (a - 90) * Math.PI / 180;
   const p = (r, a) => [Math.cos(toRad(a)) * r, Math.sin(toRad(a)) * r];
@@ -366,16 +368,21 @@ document.querySelectorAll('.segments').forEach(g => {
     const endAng = startAng + SLICE;
     const value = SEG_ORDER[i];
     const innerCol = i % 2 === 0 ? '#FF00AA' : '#00E5FF';
-    g.innerHTML += `<path d="${arc(R.bull, R.triple, startAng, endAng)}" fill="${innerCol}" opacity="0.35" stroke="black" stroke-width="0.5"/>`;
-    g.innerHTML += `<path d="${arc(R.triple, 120, startAng, endAng)}" fill="#3DFF8E" stroke="black" stroke-width="0.5"/>`;
-    g.innerHTML += `<path d="${arc(120, R.outerSingle, startAng, endAng)}" fill="${innerCol}" opacity="0.35" stroke="black" stroke-width="0.5"/>`;
+    // Inner single (12% → 47%)
+    g.innerHTML += `<path d="${arc(R.bull, R.innerSingle, startAng, endAng)}" fill="${innerCol}" opacity="0.35" stroke="black" stroke-width="0.5"/>`;
+    // Triple ring (47% → 58%) — thick, green
+    g.innerHTML += `<path d="${arc(R.innerSingle, R.triple, startAng, endAng)}" fill="#3DFF8E" stroke="black" stroke-width="0.5"/>`;
+    // Outer single (58% → 82%)
+    g.innerHTML += `<path d="${arc(R.triple, R.outerSingle, startAng, endAng)}" fill="${innerCol}" opacity="0.35" stroke="black" stroke-width="0.5"/>`;
+    // Double ring (82% → 95%) — thick, yellow
     g.innerHTML += `<path d="${arc(R.outerSingle, R.double, startAng, endAng)}" fill="#FFD200" stroke="black" stroke-width="0.5"/>`;
+    // Outer label band (95% → 100%) — non-tappable, miss zone
     g.innerHTML += `<path d="${arc(R.double, R.edge, startAng, endAng)}" fill="#0a0014" stroke="#FF00AA" stroke-width="0.5"/>`;
     const midAng = (startAng + endAng) / 2;
     const rad = (midAng - 90) * Math.PI / 180;
-    const lx = Math.cos(rad) * 195;
-    const ly = Math.sin(rad) * 195;
-    g.innerHTML += `<text x="${lx}" y="${ly}" fill="white" font-family="'Press Start 2P', monospace" font-size="11" text-anchor="middle" dominant-baseline="central">${value}</text>`;
+    const lx = Math.cos(rad) * 205;
+    const ly = Math.sin(rad) * 205;
+    g.innerHTML += `<text x="${lx}" y="${ly}" fill="white" font-family="'Press Start 2P', monospace" font-size="10" text-anchor="middle" dominant-baseline="central">${value}</text>`;
   }
 });
 </script>
