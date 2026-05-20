@@ -13,6 +13,11 @@ class ArcadeFrame extends StatefulWidget {
 
   final Widget child;
 
+  /// Tests flip this to skip the perpetual scan-beam `.repeat()` so
+  /// `pumpAndSettle` can actually settle. Production keeps the default.
+  @visibleForTesting
+  static bool disableBeamForTest = false;
+
   @override
   State<ArcadeFrame> createState() => _ArcadeFrameState();
 }
@@ -27,7 +32,10 @@ class _ArcadeFrameState extends State<ArcadeFrame>
     _beam = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
-    )..repeat();
+    );
+    if (!ArcadeFrame.disableBeamForTest) {
+      _beam.repeat();
+    }
   }
 
   @override

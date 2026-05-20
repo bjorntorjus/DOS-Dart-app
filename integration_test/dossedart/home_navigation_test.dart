@@ -14,11 +14,11 @@ void main() {
       (tester) async {
     await setupTestEnvironment(useDossedartDesign: true);
     await pumpScreen(tester, const DossedartHomeScreen());
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     // Tap the 501 X01 card.
     await tester.tap(find.text('501'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     expect(find.byType(DossedartX01SetupScreen), findsOneWidget);
   });

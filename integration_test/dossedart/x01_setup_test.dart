@@ -20,16 +20,16 @@ void main() {
       tester,
       const DossedartX01SetupScreen(startingScore: 501),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     // Select both seeded players.
     await tester.tap(find.text('P0'));
     await tester.tap(find.text('P1'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     // Tap the Start button (exact label from scaffold).
     await tester.tap(find.text('▶ START MATCH ◀'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     expect(find.byType(GameScreen), findsOneWidget);
     expect(find.byType(DossedartX01SetupScreen), findsNothing);

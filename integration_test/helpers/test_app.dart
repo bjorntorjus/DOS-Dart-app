@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dart_scoring/services/sound_service.dart';
 import 'package:dart_scoring/services/video_service.dart';
+import 'package:dart_scoring/widgets/dossedart/arcade_frame.dart';
 
 /// Deterministic initial SharedPreferences for integration tests.
 ///
@@ -73,6 +74,10 @@ Future<void> setupTestEnvironment({
   // keeps its default _enabled = true. Disable it explicitly here to avoid
   // showRandomFromFolder opening a modal VideoOverlay that hangs the test.
   VideoService.instance.setEnabled(false);
+
+  // Stop the perpetual scan-beam .repeat() in ArcadeFrame so pumpAndSettle
+  // can settle on DOSSEDART screens. The beam is decorative only.
+  ArcadeFrame.disableBeamForTest = true;
 
   // Mock battery_plus channel — return 100 % and 'discharging' state forever.
   // `battery_plus` uses MethodChannel('dev.fluttercommunity.plus/battery') and

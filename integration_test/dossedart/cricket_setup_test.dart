@@ -17,14 +17,14 @@ void main() {
       savedPlayers: ['P0', 'P1'],
     );
     await pumpScreen(tester, const DossedartCricketSetupScreen());
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     await tester.tap(find.text('P0'));
     await tester.tap(find.text('P1'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     await tester.tap(find.text('▶ START MATCH ◀'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     expect(find.byType(CricketGameScreen), findsOneWidget);
     expect(find.byType(DossedartCricketSetupScreen), findsNothing);

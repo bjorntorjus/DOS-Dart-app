@@ -17,14 +17,14 @@ void main() {
       savedPlayers: ['P0', 'P1'],
     );
     await pumpScreen(tester, const DossedartKillerSetupScreen());
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     await tester.tap(find.text('P0'));
     await tester.tap(find.text('P1'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     await tester.tap(find.text('▶ START MATCH ◀'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(seconds: 10));
 
     expect(find.byType(KillerGameScreen), findsOneWidget);
     expect(find.byType(DossedartKillerSetupScreen), findsNothing);
