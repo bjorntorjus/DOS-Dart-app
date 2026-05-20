@@ -133,8 +133,34 @@ The active card and dartboard may visually overlap in extreme edge cases (very l
   - Outer label band: dark bg with `Press Start 2P` 11px white segment number
   - Bull outer ring: orange · Bull centre: red
 - Magenta 3px border around the board with glow.
-- Hit-testing uses standard dart geometry (computed angles + radii). Tap outside the outer ring fires `DartZone.miss`.
-- No internal state.
+- No internal state. Hit-test geometry detailed in next section.
+
+### Dartboard geometry — visual vs touch (CRITICAL)
+
+A real dartboard's double and triple rings are very narrow (~5% of total radius each). Rendered at standard proportions on a phone-sized board (~320-370px), each ring is only ~9-17px wide — too narrow to tap reliably.
+
+**Strategy: visual = realistic; hit-test = generous.** The rings are drawn at proportions a player recognises as a dartboard, but the touch-zone radii used by hit-testing are expanded so each ring meets Material's 44dp minimum tap-target where the board allows.
+
+| Ring | Visual outer radius (% of board radius) | Visual width | Hit-test band |
+|---|---|---|---|
+| Inner bull (D-Bull) | 5% | — | 0 → 5% |
+| Outer bull (Bull) | 10% | 5% | 5% → 12% |
+| Inner single | 50% | 38% | 12% → 47% |
+| **Triple** | **55%** | **5%** | **47% → 58%** |
+| Outer single | 85% | 30% | 58% → 82% |
+| **Double** | **92%** | **7%** | **82% → 95%** |
+| Beyond board edge | — | — | 95%+ = miss |
+
+Numbers in **bold** are the rings that need touch-zone expansion past their visual bounds. On a 320px board (radius 160), this gives:
+- Triple visible: ~8px wide → hit-band: ~18px wide
+- Double visible: ~11px wide → hit-band: ~21px wide
+- Single zones still own all remaining radius — slightly compressed by ring expansion, but each is still wide enough that ambiguity is minimal.
+
+**Algorithm:** convert tap (x,y) → polar (r, θ) relative to board centre. Compare `r` against the hit-test band thresholds (not the visual outer-edge radii) to pick the ring. Compare `θ` against segment angles to pick the number. Outside the outermost band → `DartZone.miss`.
+
+This keeps the look authentic but means the user doesn't have to be pixel-precise to register a double or triple.
+
+**Test coverage** for this is mandatory: `dossedart_x01_dartboard_test.dart` includes a fixture of (x, y) tap coordinates spanning visual ring edges, asserting the expected `DartZone` falls correctly under the expanded band.
 
 **`DossedartX01ActionBar`** (stateless):
 - 3 buttons left-to-right:
