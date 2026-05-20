@@ -1,0 +1,37 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+
+import 'package:dart_scoring/screens/dossedart/dossedart_x01_setup_screen.dart';
+import 'package:dart_scoring/screens/game_screen.dart';
+
+import '../helpers/test_app.dart';
+import '../helpers/player_setup.dart';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('DOSSEDART X01 setup: defaults + 2 players → Start opens GameScreen',
+      (tester) async {
+    await setupTestEnvironment(
+      useDossedartDesign: true,
+      savedPlayers: ['P0', 'P1'],
+    );
+    await pumpScreen(
+      tester,
+      const DossedartX01SetupScreen(startingScore: 501),
+    );
+    await tester.pumpAndSettle(const Duration(seconds: 10));
+
+    // Select both seeded players.
+    await tester.tap(find.text('P0'));
+    await tester.tap(find.text('P1'));
+    await tester.pumpAndSettle(const Duration(seconds: 10));
+
+    // Tap the Start button (exact label from scaffold).
+    await tester.tap(find.text('▶ START MATCH ◀'));
+    await tester.pumpAndSettle(const Duration(seconds: 10));
+
+    expect(find.byType(GameScreen), findsOneWidget);
+    expect(find.byType(DossedartX01SetupScreen), findsNothing);
+  });
+}
