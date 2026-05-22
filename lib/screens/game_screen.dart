@@ -1560,36 +1560,15 @@ class _GameScreenState extends State<GameScreen> {
       backgroundColor: DossedartTokens.surface,
       builder: (sheetCtx) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.scoreboard, color: DossedartTokens.cyan),
-                title: const Text(
-                  'PLAYER OVERVIEW',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P', fontSize: 11, color: Colors.white, letterSpacing: 1.5,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _openPlayerOverview();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.exit_to_app, color: DossedartTokens.red),
-                title: const Text(
-                  'EXIT MATCH',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P', fontSize: 11, color: Colors.white, letterSpacing: 1.5,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _confirmExit();
-                },
-              ),
-            ],
+          child: _DossedartMenuSheet(
+            onPlayerOverview: () {
+              Navigator.pop(sheetCtx);
+              _openPlayerOverview();
+            },
+            onExit: () {
+              Navigator.pop(sheetCtx);
+              _confirmExit();
+            },
           ),
         );
       },
@@ -2253,4 +2232,288 @@ class _FinishEntry {
     required this.overshoot,
     required this.turnId,
   });
+}
+
+class _DossedartMenuSheet extends StatefulWidget {
+  const _DossedartMenuSheet({
+    required this.onPlayerOverview,
+    required this.onExit,
+  });
+
+  final VoidCallback onPlayerOverview;
+  final VoidCallback onExit;
+
+  @override
+  State<_DossedartMenuSheet> createState() => _DossedartMenuSheetState();
+}
+
+class _DossedartMenuSheetState extends State<_DossedartMenuSheet> {
+  bool? _sound;
+  bool? _video;
+  bool? _memes;
+  bool? _tts;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final s = await AppSettings.getSoundEffectsEnabled();
+    final v = await AppSettings.getVideoEventsEnabled();
+    final m = await AppSettings.getMemeEnabled();
+    final t = await AppSettings.getTtsEnabled();
+    if (!mounted) return;
+    setState(() {
+      _sound = s;
+      _video = v;
+      _memes = m;
+      _tts = t;
+    });
+  }
+
+  Future<void> _toggle({
+    required bool current,
+    required Future<void> Function(bool) setter,
+    required void Function(bool) localApply,
+  }) async {
+    final next = !current;
+    localApply(next);
+    setState(() {});
+    await setter(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_sound == null || _video == null || _memes == null || _tts == null) {
+      return const SizedBox(
+        height: 240,
+        child: Center(
+          child: CircularProgressIndicator(color: DossedartTokens.cyan),
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 40,
+          height: 4,
+          margin: const EdgeInsets.only(top: 8, bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        _ToggleRow(
+          icon: Icons.volume_up,
+          label: 'SOUND',
+          value: _sound!,
+          onChanged: () => _toggle(
+            current: _sound!,
+            setter: AppSettings.setSoundEffectsEnabled,
+            localApply: (v) => _sound = v,
+          ),
+        ),
+        _ToggleRow(
+          icon: Icons.movie,
+          label: 'VIDEO EVENTS',
+          value: _video!,
+          onChanged: () => _toggle(
+            current: _video!,
+            setter: AppSettings.setVideoEventsEnabled,
+            localApply: (v) => _video = v,
+          ),
+        ),
+        _ToggleRow(
+          icon: Icons.emoji_emotions,
+          label: 'MEMES',
+          value: _memes!,
+          onChanged: () => _toggle(
+            current: _memes!,
+            setter: AppSettings.setMemeEnabled,
+            localApply: (v) => _memes = v,
+          ),
+        ),
+        _ToggleRow(
+          icon: Icons.record_voice_over,
+          label: 'VOICE (TTS)',
+          value: _tts!,
+          onChanged: () => _toggle(
+            current: _tts!,
+            setter: AppSettings.setTtsEnabled,
+            localApply: (v) => _tts = v,
+          ),
+        ),
+        Container(
+          height: 1,
+          margin: const EdgeInsets.fromLTRB(18, 4, 18, 4),
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+        _ActionRow(
+          icon: Icons.scoreboard,
+          iconColor: DossedartTokens.cyan,
+          label: 'PLAYER OVERVIEW',
+          labelColor: Colors.white,
+          onTap: widget.onPlayerOverview,
+        ),
+        _ActionRow(
+          icon: Icons.exit_to_app,
+          iconColor: DossedartTokens.red,
+          label: 'EXIT MATCH',
+          labelColor: DossedartTokens.red,
+          onTap: widget.onExit,
+        ),
+      ],
+    );
+  }
+}
+
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool value;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onChanged,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 26,
+              child: Icon(icon, color: DossedartTokens.cyan, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 11,
+                  color: Colors.white,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+            _Pill(on: value),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.on});
+  final bool on;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 22,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(
+          color: on
+              ? DossedartTokens.green
+              : Colors.white.withValues(alpha: 0.25),
+          width: 2,
+        ),
+        color: on
+            ? DossedartTokens.green.withValues(alpha: 0.18)
+            : Colors.transparent,
+      ),
+      child: Stack(
+        children: [
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            left: on ? null : 2,
+            right: on ? 2 : null,
+            top: 2,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: on
+                    ? DossedartTokens.green
+                    : Colors.white.withValues(alpha: 0.5),
+                boxShadow: on
+                    ? [
+                        BoxShadow(
+                          color: DossedartTokens.green
+                              .withValues(alpha: 0.8),
+                          blurRadius: 6,
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.labelColor,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final Color labelColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 26,
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 11,
+                  color: labelColor,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: labelColor.withValues(alpha: 0.6), size: 18),
+          ],
+        ),
+      ),
+    );
+  }
 }
