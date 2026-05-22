@@ -70,4 +70,24 @@ void main() {
     final text = tester.widget<Text>(find.text('BJORN TORJUS'));
     expect(text.style!.fontSize, 12);
   });
+
+  testWidgets('uses solid surface background (no gradient)', (tester) async {
+    await tester.pumpWidget(harness());
+    // Outer card is the first Container in the widget tree with a magenta
+    // border. Look it up via the BoxDecoration and assert: solid color set,
+    // no gradient.
+    final container = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byType(DossedartX01ActiveCard),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final deco = container.decoration as BoxDecoration;
+    expect(deco.gradient, isNull,
+        reason: 'active card should use a solid bg, not a gradient');
+    expect(deco.color, isNotNull,
+        reason: 'active card should set a solid background color');
+  });
 }

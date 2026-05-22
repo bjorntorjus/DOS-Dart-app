@@ -40,15 +40,8 @@ class DossedartX01ActiveCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
+        color: DossedartTokens.surface,
         border: Border.all(color: accentColor, width: 3),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            accentColor.withValues(alpha: 0.10),
-            accentColor.withValues(alpha: 0.02),
-          ],
-        ),
         boxShadow: [
           BoxShadow(color: accentColor.withValues(alpha: 0.25), blurRadius: 14),
         ],
