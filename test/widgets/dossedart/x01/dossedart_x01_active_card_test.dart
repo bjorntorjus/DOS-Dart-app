@@ -10,6 +10,7 @@ void main() {
     String? lastTurn = 'T20 · S20 · S20',
     int? lastTurnSum = 80,
     String? checkoutTip,
+    double? avg,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -22,6 +23,7 @@ void main() {
           lastTurnLabel: lastTurn,
           lastTurnSum: lastTurnSum,
           checkoutTip: checkoutTip,
+          avg: avg,
         ),
       ),
     );
@@ -89,5 +91,21 @@ void main() {
         reason: 'active card should use a solid bg, not a gradient');
     expect(deco.color, isNotNull,
         reason: 'active card should set a solid background color');
+  });
+
+  testWidgets('shows AVG when avg is non-null', (tester) async {
+    await tester.pumpWidget(harness(avg: 52.8));
+    expect(find.text('AVG'), findsOneWidget);
+    expect(find.text('52.8'), findsOneWidget);
+  });
+
+  testWidgets('formats AVG to 1 decimal', (tester) async {
+    await tester.pumpWidget(harness(avg: 60));
+    expect(find.text('60.0'), findsOneWidget);
+  });
+
+  testWidgets('hides AVG when avg is null', (tester) async {
+    await tester.pumpWidget(harness(avg: null));
+    expect(find.text('AVG'), findsNothing);
   });
 }
