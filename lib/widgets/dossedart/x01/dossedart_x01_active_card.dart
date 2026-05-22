@@ -175,14 +175,14 @@ class DossedartX01ActiveCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             avg!.toStringAsFixed(1),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'PressStart2P',
                               fontSize: 14,
                               color: DossedartTokens.cyan,
                               letterSpacing: 1,
                               shadows: [
                                 Shadow(
-                                  color: Color(0x8000E5FF),
+                                  color: DossedartTokens.cyan.withValues(alpha: 0.5),
                                   blurRadius: 6,
                                 ),
                               ],
@@ -191,44 +191,39 @@ class DossedartX01ActiveCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                  if (lastTurnLabel != null)
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Text(
-                            'LAST',
-                            style: TextStyle(
-                              fontFamily: 'PressStart2P',
-                              fontSize: 9,
-                              color: Colors.white70,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              lastTurnLabel!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'VT323',
-                                fontSize: 20,
-                                color: DossedartTokens.yellow,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ),
-                          if (lastTurnSum != null)
-                            Text(
-                              '= $lastTurnSum',
-                              style: const TextStyle(
-                                fontFamily: 'PressStart2P',
-                                fontSize: 13,
-                                color: DossedartTokens.yellow,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                        ],
+                  if (lastTurnLabel != null) ...[
+                    const Text(
+                      'LAST',
+                      style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 9,
+                        color: Colors.white70,
+                        letterSpacing: 1.5,
                       ),
                     ),
+                    Expanded(
+                      child: Text(
+                        lastTurnLabel!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontFamily: 'VT323',
+                          fontSize: 20,
+                          color: DossedartTokens.yellow,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    if (lastTurnSum != null)
+                      Text(
+                        '= $lastTurnSum',
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 13,
+                          color: DossedartTokens.yellow,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
