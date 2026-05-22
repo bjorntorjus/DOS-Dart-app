@@ -189,7 +189,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
                       style: _vt(12, color: Colors.white60, letterSpacing: 2)),
                 ),
                 SizedBox(
-                  width: 58,
+                  width: 72,
                   child: Text('RATING',
                       textAlign: TextAlign.right,
                       style: _vt(12, color: Colors.white60, letterSpacing: 1.5)),
@@ -277,7 +277,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             ),
           ),
           SizedBox(
-            width: 58,
+            width: 72,
             child: Text(
               player.rating.toStringAsFixed(0),
               textAlign: TextAlign.right,
