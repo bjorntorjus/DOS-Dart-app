@@ -1454,6 +1454,16 @@ class _GameScreenState extends State<GameScreen> {
     // Last-turn sum (sum of the three throws ending the previous turn).
     final lastSum = _sumOfLastThreeBeforeCurrentTurn(currentPlayerIndex);
 
+    // 3-dart match average for the active player (null when no darts yet).
+    final activeThrows = throwHistory
+        .where((t) => t.playerIndex == currentPlayerIndex)
+        .toList();
+    final activePointsSum =
+        activeThrows.fold<int>(0, (acc, t) => acc + t.segment * t.multiplier);
+    final avg = activeThrows.isEmpty
+        ? null
+        : (activePointsSum / activeThrows.length) * 3;
+
     final title = 'X01 · ${widget.startingScore} · ${_outRuleLabel()}';
 
     return Scaffold(
@@ -1482,6 +1492,7 @@ class _GameScreenState extends State<GameScreen> {
                     lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
                     lastTurnSum: lastSum,
                     checkoutTip: tip.isEmpty ? null : tip,
+                    avg: avg,
                   ),
                 ],
               ),
