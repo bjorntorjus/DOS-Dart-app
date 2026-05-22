@@ -1502,23 +1502,15 @@ class _GameScreenState extends State<GameScreen> {
                 left: 14, right: 14, bottom: 74,
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: DossedartTokens.magenta, width: 3),
-                      boxShadow: [
-                        BoxShadow(color: DossedartTokens.magenta.withValues(alpha: 0.4), blurRadius: 14),
-                      ],
-                    ),
-                    child: DossedartX01Dartboard(
-                      onTap: (zone) {
-                        final (seg, mult) = zone.toSegmentMultiplier();
-                        if (seg == 0) {
-                          _onMiss();
-                        } else {
-                          _onDartHit(seg, mult);
-                        }
-                      },
-                    ),
+                  child: DossedartX01Dartboard(
+                    onTap: (zone) {
+                      final (seg, mult) = zone.toSegmentMultiplier();
+                      if (seg == 0) {
+                        _onMiss();
+                      } else {
+                        _onDartHit(seg, mult);
+                      }
+                    },
                   ),
                 ),
               ),
