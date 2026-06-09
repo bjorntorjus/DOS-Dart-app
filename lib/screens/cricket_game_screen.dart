@@ -17,18 +17,27 @@ import '../services/video_service.dart';
 import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 import '../services/battery_sampler.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 class CricketGameScreen extends StatefulWidget {
   final List<Player> players;
   final CricketConfig config;
+  final bool useDossedartDesign;
 
   const CricketGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -637,6 +646,462 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — input model A: the scoreboard IS the input.
+  // The active player's column expands into tappable S/D/T cells; opponents
+  // render read-only phosphor glyphs. A target is dead only when ALL have
+  // closed it (isClosedByAll). No new game logic — every cell feeds the same
+  // _registerHit(segment, multiplier) the classic screen uses.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    final title =
+        'CRICKET · ${widget.config.isCutthroat ? 'CUTTHROAT' : 'STANDARD'}';
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: title,
+                onExit: _confirmExit,
+                trailing: 'RND $_roundNumber',
+              ),
+              _dossedartActiveStrip(),
+              Expanded(child: _dossedartMatrix()),
+              DossedartActionBar(
+                onUndo: _undo,
+                onMiss: _onMiss,
+                onMenu: () => _showDossedartMenu(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartDartDots(int idx, Color c) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        final filled = i < idx;
+        return Container(
+          margin: const EdgeInsets.only(right: 6),
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? c : Colors.transparent,
+            border: Border.all(color: c, width: 2),
+            boxShadow: filled
+                ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)]
+                : null,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _dossedartActiveStrip() {
+    const c = DossedartTokens.cyan;
+    final p = players[currentPlayerIndex];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.12), Colors.transparent],
+        ),
+        border: const Border(bottom: BorderSide(color: c, width: 3)),
+        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.27), blurRadius: 18)],
+      ),
+      child: Row(
+        children: [
+          DossedartPlayerAvatar(
+            size: 52,
+            borderColor: c,
+            avatarPath: p.avatarPath,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '▶ ${p.name.toUpperCase()}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 13,
+                          color: c,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'DART ${dartsInTurn + 1} / 3',
+                      style: const TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: Colors.white54,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    _dossedartDartDots(dartsInTurn, c),
+                    const SizedBox(width: 10),
+                    Text(
+                      'LAST · ',
+                      style: TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(
+                        lastThrowLabel ?? '—',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 9,
+                          color: DossedartTokens.green,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                'POINTS',
+                style: TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 12,
+                  color: Colors.white54,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${scores[currentPlayerIndex]}',
+                style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 36,
+                  color: c,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dossedartMatrix() {
+    final magenta55 = DossedartTokens.magenta.withValues(alpha: 0.33);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: magenta55, width: 2),
+        ),
+        child: Column(
+          children: [
+            _dossedartMatrixHeader(),
+            for (int ti = 0; ti < targets.length; ti++)
+              Expanded(
+                child:
+                    _dossedartMatrixRow(targets[ti], ti == targets.length - 1),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartMatrixHeader() {
+    final magenta = DossedartTokens.magenta;
+    return Container(
+      decoration: BoxDecoration(
+        color: magenta.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(color: magenta.withValues(alpha: 0.33), width: 2),
+        ),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 56,
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Center(
+                  child: Text(
+                    'TGT',
+                    style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 9,
+                      color: Colors.white54,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            for (int pi = 0; pi < players.length; pi++)
+              Expanded(
+                flex: pi == currentPlayerIndex ? 27 : 10,
+                child: _dossedartPlayerHeader(pi),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartPlayerHeader(int pi) {
+    final active = pi == currentPlayerIndex;
+    final c = active ? DossedartTokens.cyan : DossedartTokens.phosphor;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: active ? c.withValues(alpha: 0.11) : Colors.transparent,
+        border: Border(
+          left: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.2), width: 1),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            players[pi].name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: c),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '${scores[pi]}',
+            style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: active ? 18 : 14,
+              color: c,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dossedartMatrixRow(int target, bool isLast) {
+    final closedByAll = _isClosedByAll(target);
+    final isBull = target == 25;
+    final label = isBull ? 'BULL' : '$target';
+    final magenta = DossedartTokens.magenta;
+    return Opacity(
+      opacity: closedByAll ? 0.3 : 1,
+      child: Container(
+        decoration: BoxDecoration(
+          border: isLast
+              ? null
+              : Border(
+                  bottom: BorderSide(
+                      color: magenta.withValues(alpha: 0.13), width: 1),
+                ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 56,
+              child: Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: isBull ? 11 : 18,
+                    color:
+                        closedByAll ? Colors.white38 : DossedartTokens.yellow,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+            ),
+            for (int pi = 0; pi < players.length; pi++)
+              Expanded(
+                flex: pi == currentPlayerIndex ? 27 : 10,
+                child: pi == currentPlayerIndex
+                    ? _dossedartActiveCell(target, closedByAll)
+                    : _dossedartGlyphCell(marks[pi][target] ?? 0),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartActiveCell(int target, bool closedByAll) {
+    const c = DossedartTokens.cyan;
+    final magenta = DossedartTokens.magenta;
+    if (closedByAll) {
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+                color: magenta.withValues(alpha: 0.2), width: 1),
+          ),
+        ),
+        alignment: Alignment.center,
+        child: const Text(
+          '⊗',
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 22,
+            color: DossedartTokens.phosphor,
+          ),
+        ),
+      );
+    }
+    final own = marks[currentPlayerIndex][target] ?? 0;
+    final isBull = target == 25;
+    final List<(String, int)> subs = isBull
+        ? const [('BULL', 1), ('D-BULL', 2)]
+        : [('$target', 1), ('D$target', 2), ('T$target', 3)];
+    return Container(
+      color: c.withValues(alpha: 0.07),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 30,
+            child: Center(
+              child: Text(
+                _dossedartGlyphText(own),
+                style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 16,
+                  color: own >= 3 ? DossedartTokens.green : c,
+                ),
+              ),
+            ),
+          ),
+          for (final (label, mult) in subs)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => _registerHit(target, mult),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.05),
+                    border: Border(
+                      left: BorderSide(
+                          color: c.withValues(alpha: 0.33), width: 1),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 13,
+                        color: c,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dossedartGlyphCell(int n) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.13), width: 1),
+        ),
+      ),
+      alignment: Alignment.center,
+      child: _dossedartGlyph(n, DossedartTokens.phosphor),
+    );
+  }
+
+  Widget _dossedartGlyph(int n, Color color) {
+    if (n <= 0) {
+      return Text(
+        '·',
+        style: TextStyle(
+          fontFamily: 'VT323',
+          fontSize: 16,
+          color: Colors.white.withValues(alpha: 0.18),
+        ),
+      );
+    }
+    if (n >= 3) {
+      return const Text(
+        '⊗',
+        style: TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 20,
+          color: DossedartTokens.green,
+        ),
+      );
+    }
+    return Text(
+      n == 1 ? '/' : 'X',
+      style: TextStyle(
+        fontFamily: 'PressStart2P',
+        fontSize: 20,
+        color: color,
+      ),
+    );
+  }
+
+  String _dossedartGlyphText(int n) {
+    if (n <= 0) return '·';
+    if (n >= 3) return '⊗';
+    return n == 1 ? '/' : 'X';
+  }
+
+  Future<void> _showDossedartMenu(BuildContext outerContext) {
+    return showDossedartCockpitMenu(
+      outerContext,
+      meme: _meme,
+      onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+      onPlayerOverview: _openDossedartPlayerSheet,
+      onExit: _confirmExit,
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     final isGameActive = !finishedPlayers.contains(currentPlayerIndex);
     const targetLabelWidth = 44.0;
 
@@ -1188,6 +1653,32 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: '${p.score}',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: _gameFullyOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
     );
   }
 
