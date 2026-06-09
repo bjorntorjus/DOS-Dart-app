@@ -5,7 +5,7 @@ import '../../services/player_storage.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
 import '../settings_screen.dart';
-import '../stats_screen.dart';
+import 'dossedart_stats_screen.dart';
 import 'dossedart_atc_setup_screen.dart';
 import 'dossedart_cricket_setup_screen.dart';
 import 'dossedart_killer_setup_screen.dart';
@@ -457,7 +457,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
               onTap: () async {
                 await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const StatsScreen()),
+                  MaterialPageRoute(builder: (_) => const DossedartStatsScreen()),
                 );
                 _loadTopPlayers();
               },

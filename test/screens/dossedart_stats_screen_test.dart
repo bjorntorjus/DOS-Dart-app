@@ -1,0 +1,72 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dart_scoring/models/saved_player.dart';
+import 'package:dart_scoring/screens/dossedart/achievements_gallery_screen.dart';
+import 'package:dart_scoring/screens/dossedart/dossedart_stats_screen.dart';
+
+SavedPlayer _player(String id, String name, double rating, {Set<String> unlocked = const {}}) {
+  return SavedPlayer(
+    id: id,
+    name: name,
+    createdAt: DateTime(2020),
+    rating: rating,
+    gamesPlayed: 4,
+    gamesWon: 2,
+    unlockedAchievementIds: {...unlocked},
+  );
+}
+
+Future<void> _seed(List<SavedPlayer> players) async {
+  SharedPreferences.setMockInitialValues({
+    'saved_players': jsonEncode(players.map((p) => p.toJson()).toList()),
+  });
+}
+
+void main() {
+  testWidgets('renders the 4 arcade tabs', (tester) async {
+    await _seed([_player('1', 'Ada', 1300)]);
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('PROFIL'), findsOneWidget);
+    expect(find.text('MODUS'), findsOneWidget);
+    expect(find.text('HEATMAP'), findsOneWidget);
+    expect(find.text('HISTORIKK'), findsOneWidget);
+  });
+
+  testWidgets('PROFIL defaults to highest-rated and selector switches player',
+      (tester) async {
+    await _seed([_player('1', 'Ada', 1300), _player('2', 'Bo', 1200)]);
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+
+    // Default = highest rated (Ada, 1300).
+    expect(find.text('ELO 1300'), findsOneWidget);
+
+    // Tap Bo in the selector → profile switches.
+    await tester.tap(find.text('Bo'));
+    await tester.pumpAndSettle();
+    expect(find.text('ELO 1200'), findsOneWidget);
+  });
+
+  testWidgets('PRESTASJONER shows count and opens the gallery', (tester) async {
+    await _seed([_player('1', 'Ada', 1300, unlocked: {'x_rookie'})]);
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('PRESTASJONER'), findsOneWidget);
+    await tester.ensureVisible(find.text('VIEW ALL'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('VIEW ALL'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AchievementsGalleryScreen), findsOneWidget);
+  });
+
+  testWidgets('empty state when no saved players', (tester) async {
+    await _seed([]);
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('NO SAVED PLAYERS YET'), findsOneWidget);
+  });
+}

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/saved_player.dart';
 import '../models/game_history.dart';
 import '../services/player_storage.dart';
-import 'dossedart/achievements_gallery_screen.dart';
 import '../services/game_history_service.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/heatmap_board.dart';
@@ -189,15 +188,6 @@ class _StatsScreenState extends State<StatsScreen>
                         ),
                       ),
                     ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.emoji_events, size: 20),
-                  tooltip: 'Achievements',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => AchievementsGalleryScreen(player: p),
-                    ),
                   ),
                 ),
                 IconButton(
