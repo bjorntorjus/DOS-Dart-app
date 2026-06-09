@@ -7,9 +7,11 @@ import '../widgets/dart_board.dart';
 import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
 import '../models/saved_player.dart';
+import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
 import '../models/game_outcome.dart';
 import '../services/achievement_service.dart';
+import '../utils/x01_achievement_feats.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
@@ -76,6 +78,9 @@ class _GameScreenState extends State<GameScreen> {
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
+
+  /// Per-game bust count per player index (for the SURGEON achievement etc.).
+  final Map<int, int> _bustsByPlayer = {};
 
   /// First player in [finishedPlayers] who has not been removed mid-game.
   /// Used for winner picking — a removed player must never be declared winner
@@ -313,6 +318,11 @@ class _GameScreenState extends State<GameScreen> {
       // Score 1 is impossible to check out with double-out (min D1=2)
       // or master-out (min D1=2 or T1=3)
       isBust = true;
+    }
+
+    if (isBust) {
+      _bustsByPlayer[currentPlayerIndex] =
+          (_bustsByPlayer[currentPlayerIndex] ?? 0) + 1;
     }
 
     final dartThrow = DartThrow(
@@ -740,11 +750,26 @@ class _GameScreenState extends State<GameScreen> {
   /// the mutated unlock sets.
   void _awardMilestones(List<SavedPlayer> savedPlayers, List<int> placements) {
     final best = placements.reduce((a, b) => a < b ? a : b);
+    final svc = AchievementService.instance;
     for (int i = 0; i < players.length; i++) {
       final id = players[i].savedPlayerId;
       if (id == null) continue;
       final sp = savedPlayers.where((s) => s.id == id).firstOrNull;
       if (sp == null) continue;
+
+      // Event achievements — reconstruct single-game feats from this player's
+      // throws and fire the matching events (queued banner). One-time unlocks,
+      // so re-firing across games is harmless.
+      final feats = X01Feats.analyze(throwHistory.where((t) => t.playerIndex == i));
+      if (feats.hit180) svc.checkEvent(AchievementEvent.score180, sp);
+      if (feats.bullFinish) svc.checkEvent(AchievementEvent.bullFinish, sp);
+      if (feats.maxTreblesInTurn >= 3) {
+        svc.checkEvent(AchievementEvent.threeTreblesTurn, sp);
+      }
+      if (feats.maxBullsInTurn >= 3) {
+        svc.checkEvent(AchievementEvent.threeBullsTurn, sp);
+      }
+
       final opponents = <double>[];
       for (int j = 0; j < players.length; j++) {
         if (j == i) continue;
@@ -752,7 +777,7 @@ class _GameScreenState extends State<GameScreen> {
         final r = oid == null ? null : _ratingsBefore[oid];
         if (r != null) opponents.add(r);
       }
-      AchievementService.instance.evaluateMilestones(
+      svc.evaluateMilestones(
         sp,
         GameOutcome(
           mode: GameMode.x01,
@@ -762,6 +787,7 @@ class _GameScreenState extends State<GameScreen> {
           ratingBefore: _ratingsBefore[id] ?? sp.rating,
           ratingAfter: _ratingsAfter[id] ?? sp.rating,
           opponentRatingsBefore: opponents,
+          gameCounters: {'bustCount': _bustsByPlayer[i] ?? 0},
         ),
       );
     }

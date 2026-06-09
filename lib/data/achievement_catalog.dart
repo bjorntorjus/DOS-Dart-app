@@ -453,6 +453,40 @@ List<Achievement> _build() => [
         mode: 'x01',
         event: AchievementEvent.bullFinish,
       ),
+      Achievement(
+        id: 'x01_treble_trouble',
+        name: 'TREBLE TROUBLE',
+        description: 'Hit three trebles in a single turn',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.scoring,
+        glyph: _g(Icons.filter_3),
+        mode: 'x01',
+        event: AchievementEvent.threeTreblesTurn,
+      ),
+      Achievement(
+        id: 'x01_three_black',
+        name: 'THREE IN THE BLACK',
+        description: 'Hit three bulls in a single turn',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.scoring,
+        glyph: _g(Icons.adjust),
+        mode: 'x01',
+        event: AchievementEvent.threeBullsTurn,
+      ),
+      Achievement(
+        id: 'x01_surgeon',
+        name: 'SURGEON',
+        description: 'Win an X01 game without a single bust',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.scoring,
+        glyph: _g(Icons.healing),
+        mode: 'x01',
+        milestoneTest: (ctx) {
+          final o = ctx.outcome;
+          if (o == null || !o.won || o.mode.name != 'x01') return false;
+          return o.counter('bustCount') == 0;
+        },
+      ),
 
       // ===================== CRICKET =====================
       Achievement(

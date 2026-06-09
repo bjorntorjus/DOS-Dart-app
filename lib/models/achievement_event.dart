@@ -6,6 +6,8 @@ enum AchievementEvent {
   score180,
   bigCheckout, // checkout >= 100
   bullFinish,
+  threeTreblesTurn,
+  threeBullsTurn,
   // Cricket
   nineMarkTurn,
   // Shanghai
