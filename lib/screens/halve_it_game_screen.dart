@@ -19,6 +19,8 @@ import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/game_mode.dart';
+import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 import '../services/battery_sampler.dart';
@@ -484,6 +486,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+    );
+
+    AchievementService.instance.awardGameEnd(
+      mode: GameMode.halveIt,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
     );

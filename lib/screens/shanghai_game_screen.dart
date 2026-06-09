@@ -19,6 +19,9 @@ import '../utils/player_colors.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
+import '../models/game_mode.dart';
+import '../services/achievement_service.dart';
 import '../widgets/player_avatar.dart';
 import 'post_game_screen.dart';
 import '../theme/dossedart_tokens.dart';
@@ -281,6 +284,19 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     );
 
     if (!_midGamePlayerChanges) {
+      final events = <int, List<AchievementEvent>>{};
+      if (engine.isInstantShanghai && engine.winnerIndex != null) {
+        events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
+      }
+      AchievementService.instance.awardGameEnd(
+        mode: GameMode.shanghai,
+        playerIds: players.map((p) => p.savedPlayerId).toList(),
+        savedPlayers: savedPlayers,
+        placements: placements,
+        ratingsBefore: _ratingsBefore,
+        ratingsAfter: _ratingsAfter,
+        eventsByIndex: events,
+      );
       await PlayerStorage.savePlayers(savedPlayers);
     }
   }

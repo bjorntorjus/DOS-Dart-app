@@ -9,7 +9,6 @@ import '../services/player_storage.dart';
 import '../models/saved_player.dart';
 import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
-import '../models/game_outcome.dart';
 import '../services/achievement_service.dart';
 import '../utils/x01_achievement_feats.dart';
 import '../services/elo_service.dart';
@@ -749,48 +748,31 @@ class _GameScreenState extends State<GameScreen> {
   /// banners for new unlocks. Runs before [PlayerStorage.savePlayers] persists
   /// the mutated unlock sets.
   void _awardMilestones(List<SavedPlayer> savedPlayers, List<int> placements) {
-    final best = placements.reduce((a, b) => a < b ? a : b);
-    final svc = AchievementService.instance;
+    // Reconstruct single-game feats per player from their throws → events.
+    final events = <int, List<AchievementEvent>>{};
+    final counters = <int, Map<String, int>>{};
     for (int i = 0; i < players.length; i++) {
-      final id = players[i].savedPlayerId;
-      if (id == null) continue;
-      final sp = savedPlayers.where((s) => s.id == id).firstOrNull;
-      if (sp == null) continue;
-
-      // Event achievements — reconstruct single-game feats from this player's
-      // throws and fire the matching events (queued banner). One-time unlocks,
-      // so re-firing across games is harmless.
-      final feats = X01Feats.analyze(throwHistory.where((t) => t.playerIndex == i));
-      if (feats.hit180) svc.checkEvent(AchievementEvent.score180, sp);
-      if (feats.bullFinish) svc.checkEvent(AchievementEvent.bullFinish, sp);
-      if (feats.maxTreblesInTurn >= 3) {
-        svc.checkEvent(AchievementEvent.threeTreblesTurn, sp);
-      }
-      if (feats.maxBullsInTurn >= 3) {
-        svc.checkEvent(AchievementEvent.threeBullsTurn, sp);
-      }
-
-      final opponents = <double>[];
-      for (int j = 0; j < players.length; j++) {
-        if (j == i) continue;
-        final oid = players[j].savedPlayerId;
-        final r = oid == null ? null : _ratingsBefore[oid];
-        if (r != null) opponents.add(r);
-      }
-      svc.evaluateMilestones(
-        sp,
-        GameOutcome(
-          mode: GameMode.x01,
-          won: placements[i] == best,
-          placement: placements[i],
-          playerCount: players.length,
-          ratingBefore: _ratingsBefore[id] ?? sp.rating,
-          ratingAfter: _ratingsAfter[id] ?? sp.rating,
-          opponentRatingsBefore: opponents,
-          gameCounters: {'bustCount': _bustsByPlayer[i] ?? 0},
-        ),
-      );
+      final feats =
+          X01Feats.analyze(throwHistory.where((t) => t.playerIndex == i));
+      final evs = <AchievementEvent>[
+        if (feats.hit180) AchievementEvent.score180,
+        if (feats.bullFinish) AchievementEvent.bullFinish,
+        if (feats.maxTreblesInTurn >= 3) AchievementEvent.threeTreblesTurn,
+        if (feats.maxBullsInTurn >= 3) AchievementEvent.threeBullsTurn,
+      ];
+      if (evs.isNotEmpty) events[i] = evs;
+      counters[i] = {'bustCount': _bustsByPlayer[i] ?? 0};
     }
+    AchievementService.instance.awardGameEnd(
+      mode: GameMode.x01,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: events,
+      countersByIndex: counters,
+    );
   }
 
   void _advancePlayer() {

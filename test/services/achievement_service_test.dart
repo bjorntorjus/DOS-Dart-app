@@ -62,6 +62,34 @@ void main() {
     expect(emitted, ['max']);
   });
 
+  test('awardGameEnd fires events + milestones for the right players', () {
+    final svc = AchievementService.forTest([
+      _milestone('winner', (ctx) => ctx.outcome?.won ?? false),
+      _milestone('nobust', (ctx) {
+        final o = ctx.outcome;
+        if (o == null) return false;
+        return o.won && o.counter('bustCount') == 0;
+      }),
+      _event('max', AchievementEvent.score180),
+    ]);
+    final ada = SavedPlayer(id: 'a', name: 'Ada', createdAt: DateTime(2020));
+    final bo = SavedPlayer(id: 'b', name: 'Bo', createdAt: DateTime(2020));
+    svc.awardGameEnd(
+      mode: GameMode.x01,
+      playerIds: ['a', 'b'],
+      savedPlayers: [ada, bo],
+      placements: [1, 2],
+      ratingsBefore: {'a': 1200, 'b': 1200},
+      ratingsAfter: {'a': 1210, 'b': 1190},
+      eventsByIndex: {0: [AchievementEvent.score180]},
+      countersByIndex: {0: {'bustCount': 0}},
+    );
+    // Ada won, hit a 180, no busts → all three.
+    expect(ada.unlockedAchievementIds, containsAll(['winner', 'nobust', 'max']));
+    // Bo lost and triggered no event → nothing.
+    expect(bo.unlockedAchievementIds, isEmpty);
+  });
+
   test('retro grants career badges silently, skips per-game predicates', () async {
     final svc = AchievementService.forTest([
       _milestone('career', (ctx) => ctx.player.gamesWon >= 1),

@@ -7,6 +7,8 @@ import '../models/saved_player.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/game_mode.dart';
+import '../services/achievement_service.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
@@ -931,6 +933,15 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+    );
+
+    AchievementService.instance.awardGameEnd(
+      mode: GameMode.aroundTheClock,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
     );

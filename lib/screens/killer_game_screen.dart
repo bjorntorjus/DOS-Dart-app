@@ -21,6 +21,8 @@ import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/game_mode.dart';
+import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
 import '../services/battery_sampler.dart';
 import '../theme/dossedart_tokens.dart';
@@ -683,6 +685,15 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       placements: placements,
       savedPlayers: savedPlayers,
       modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+    );
+
+    AchievementService.instance.awardGameEnd(
+      mode: GameMode.killer,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
     );
