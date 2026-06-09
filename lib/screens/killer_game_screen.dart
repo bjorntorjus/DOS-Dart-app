@@ -21,6 +21,7 @@ import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
 import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
@@ -116,6 +117,17 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
+
+  /// Kills the current player has racked up in the in-progress turn, and the
+  /// best single-turn kill count per player index (for KILLING SPREE).
+  int _killsThisTurn = 0;
+  final Map<int, int> _maxKillsInTurn = {};
+
+  void _commitKillsThisTurn() {
+    final cur = _maxKillsInTurn[currentPlayerIndex] ?? 0;
+    if (_killsThisTurn > cur) _maxKillsInTurn[currentPlayerIndex] = _killsThisTurn;
+    _killsThisTurn = 0;
+  }
 
   // Assignment phase tracking
   int assignmentPlayerIndex = 0;
@@ -319,9 +331,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         extra: extraLog,
       );
 
-      // Log elimination as a finish event
+      // Log elimination as a finish event + tally kills for the active player.
       for (int i = 0; i < players.length; i++) {
         if (isEliminated[i] && !_undoStack.last.isEliminatedBefore[i]) {
+          if (i != currentPlayerIndex) _killsThisTurn++;
           _log.logFinish(
             roundNumber: _roundNumber,
             playerIndex: i,
@@ -334,8 +347,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       _meme.onThrow(dartThrow);
       dartsInTurn++;
       if (winnerIndex != null) {
+        _commitKillsThisTurn();
         _meme.onTurnEnd();
       } else if (dartsInTurn >= 3) {
+        _commitKillsThisTurn();
         _meme.onTurnEnd();
         _advancePlayer();
       }
@@ -689,6 +704,12 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       ratingsAfter: _ratingsAfter,
     );
 
+    final achEvents = <int, List<AchievementEvent>>{};
+    for (int i = 0; i < players.length; i++) {
+      if ((_maxKillsInTurn[i] ?? 0) >= 3) {
+        achEvents[i] = [AchievementEvent.multiKill];
+      }
+    }
     AchievementService.instance.awardGameEnd(
       mode: GameMode.killer,
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -696,6 +717,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);

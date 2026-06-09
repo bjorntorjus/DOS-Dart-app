@@ -19,6 +19,7 @@ import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
 import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
@@ -57,6 +58,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   int dartsInTurn = 0;
   int turnPoints = 0; // points accumulated this turn
   bool turnHasHit = false; // whether any dart hit the target this turn
+
+  /// Players who landed a last-dart hit after the first two missed, saving
+  /// themselves from a halving this game (CLUTCH SAVE).
+  final Set<int> _clutchSavers = {};
   List<DartThrow> throwHistory = [];
   bool gameOver = false;
   String? lastThrowLabel;
@@ -187,6 +192,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       throwHistory.add(dartThrow);
 
       if (hit) {
+        if (dartsInTurn == 2 && !turnHasHit) {
+          _clutchSavers.add(currentPlayerIndex); // first two missed, 3rd saves it
+        }
         turnPoints += points;
         turnHasHit = true;
         lastThrowLabel = '${dartThrow.label} ✓ (+$points)';
@@ -490,6 +498,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       ratingsAfter: _ratingsAfter,
     );
 
+    final achEvents = <int, List<AchievementEvent>>{
+      for (final i in _clutchSavers) i: [AchievementEvent.clutchSave],
+    };
     AchievementService.instance.awardGameEnd(
       mode: GameMode.halveIt,
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -497,6 +508,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);

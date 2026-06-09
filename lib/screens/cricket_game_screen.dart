@@ -18,8 +18,10 @@ import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
 import '../services/achievement_service.dart';
+import '../utils/cricket_achievement_feats.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 import '../services/battery_sampler.dart';
@@ -565,6 +567,15 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
     );
+    final achEvents = <int, List<AchievementEvent>>{};
+    final targetSet = targets.toSet();
+    for (int i = 0; i < players.length; i++) {
+      if (cricketMaxMarksInTurn(
+              throwHistory.where((t) => t.playerIndex == i), targetSet) >=
+          9) {
+        achEvents[i] = [AchievementEvent.nineMarkTurn];
+      }
+    }
     AchievementService.instance.awardGameEnd(
       mode: GameMode.cricket,
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -572,6 +583,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
     );
     await PlayerStorage.savePlayers(savedPlayers);
   }
