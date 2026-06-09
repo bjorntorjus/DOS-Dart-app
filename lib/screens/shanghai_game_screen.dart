@@ -18,17 +18,26 @@ import '../services/video_service.dart';
 import '../utils/player_colors.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/player_avatar.dart';
 import 'post_game_screen.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 class ShanghaiGameScreen extends StatefulWidget {
   final List<Player> players;
   final ShanghaiConfig config;
+  final bool useDossedartDesign;
 
   const ShanghaiGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -372,6 +381,32 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     );
   }
 
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == engine.currentPlayerIndex,
+        isRemoved: engine.isSkipped(i),
+        primary: '${engine.totalScores[i]}',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: engine.gameOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
   void _openPlayerManagement() {
     showMidGamePlayerSheet(
       context: context,
@@ -495,6 +530,354 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — three chase cells (S/D/T of the round number)
+  // are both the input and the Shanghai tracker; a gold banner counts the n/3
+  // chase. Every tap feeds the same engine.recordThrow via _onHit.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: 'SHANGHAI · 1→${engine.targetEnd}',
+                onExit: _confirmExit,
+                trailing: 'RND ${engine.currentRound + 1}/${engine.targetEnd}',
+              ),
+              _shanghaiActiveStrip(),
+              _shanghaiStandings(),
+              _shanghaiBanner(),
+              Expanded(child: Center(child: _shanghaiChaseCells())),
+              _shanghaiRoundLadder(),
+              DossedartActionBar(
+                onUndo: _onUndo,
+                onMiss: () => _onHit(HitType.miss),
+                onMenu: () => showDossedartCockpitMenu(
+                  context,
+                  meme: _meme,
+                  onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+                  onPlayerOverview: _openDossedartPlayerSheet,
+                  onExit: _confirmExit,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shanghaiActiveStrip() {
+    const c = DossedartTokens.cyan;
+    final p = players[engine.currentPlayerIndex];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.12), Colors.transparent],
+        ),
+        border: const Border(bottom: BorderSide(color: c, width: 3)),
+        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.27), blurRadius: 18)],
+      ),
+      child: Row(
+        children: [
+          DossedartPlayerAvatar(size: 52, borderColor: c, avatarPath: p.avatarPath),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '▶ ${p.name.toUpperCase()}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 13,
+                    color: c,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    _shanghaiDartDots(engine.dartNumber, c),
+                    const SizedBox(width: 10),
+                    Text(
+                      'DART ${engine.dartNumber + 1} / 3',
+                      style: const TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: Colors.white54,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text('TOTAL',
+                  style: TextStyle(
+                      fontFamily: 'VT323',
+                      fontSize: 12,
+                      color: Colors.white54,
+                      letterSpacing: 2)),
+              const SizedBox(height: 4),
+              Text(
+                '${engine.totalScores[engine.currentPlayerIndex]}',
+                style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 36,
+                  color: c,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiDartDots(int idx, Color c) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        final filled = i < idx;
+        return Container(
+          margin: const EdgeInsets.only(right: 6),
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? c : Colors.transparent,
+            border: Border.all(color: c, width: 2),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _shanghaiStandings() {
+    final order = [
+      for (int i = 0; i < players.length; i++)
+        if (!engine.isSkipped(i)) i
+    ]..sort((a, b) => engine.totalScores[b].compareTo(engine.totalScores[a]));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          for (int rank = 0; rank < order.length; rank++)
+            Expanded(child: _shanghaiStandChip(order[rank], rank == 0)),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiStandChip(int i, bool leader) {
+    final active = i == engine.currentPlayerIndex;
+    final c = leader
+        ? DossedartTokens.yellow
+        : active
+            ? DossedartTokens.cyan
+            : DossedartTokens.phosphor;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            players[i].name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: c),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${engine.totalScores[i]}',
+            style: TextStyle(
+                fontFamily: 'PressStart2P', fontSize: 13, color: c),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiBanner() {
+    final got = engine.currentTurnHits.length;
+    final oneAway = got == 2;
+    final target = engine.currentTarget;
+    const c = DossedartTokens.yellow;
+    final msg = oneAway
+        ? 'TREFF T$target FOR DIREKTE SEIER!'
+        : 'S + D + T I ÉN TUR = DIREKTE SEIER';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: oneAway ? 0.16 : 0.06),
+        border: Border.all(color: c.withValues(alpha: oneAway ? 1 : 0.33), width: 2),
+        boxShadow: oneAway
+            ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 14)]
+            : null,
+      ),
+      child: Row(
+        children: [
+          const Text('⚡ SHANGHAI',
+              style: TextStyle(
+                  fontFamily: 'PressStart2P', fontSize: 9, color: c)),
+          Expanded(
+            child: Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontFamily: 'VT323', fontSize: 15, color: c, letterSpacing: 1),
+            ),
+          ),
+          Text('$got/3',
+              style: const TextStyle(
+                  fontFamily: 'PressStart2P', fontSize: 11, color: c)),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiChaseCells() {
+    final target = engine.currentTarget;
+    final hits = engine.currentTurnHits;
+    final oneAway = hits.length == 2;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          _shanghaiChaseCell('SINGLE', '$target', HitType.single,
+              hits.contains(HitType.single), oneAway),
+          _shanghaiChaseCell('DOUBLE', 'D$target', HitType.double_,
+              hits.contains(HitType.double_), oneAway),
+          _shanghaiChaseCell('TRIPLE', 'T$target', HitType.triple,
+              hits.contains(HitType.triple), oneAway),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiChaseCell(
+      String cap, String label, HitType type, bool hit, bool oneAway) {
+    final c = hit
+        ? DossedartTokens.green
+        : oneAway
+            ? DossedartTokens.yellow
+            : DossedartTokens.cyan;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: GestureDetector(
+          onTap: () => _onHit(type),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            decoration: BoxDecoration(
+              color: c.withValues(alpha: hit ? 0.18 : 0.07),
+              border: Border.all(color: c, width: hit ? 3 : 2),
+              boxShadow: [
+                BoxShadow(color: c.withValues(alpha: hit ? 0.45 : 0.2), blurRadius: hit ? 16 : 10),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(cap,
+                    style: TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: c,
+                        letterSpacing: 2)),
+                const SizedBox(height: 8),
+                Text(label,
+                    style: TextStyle(
+                        fontFamily: 'PressStart2P', fontSize: 26, color: c)),
+                const SizedBox(height: 8),
+                Text(hit ? '✓ TRUFFET' : '—',
+                    style: TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: hit ? c : Colors.white38,
+                        letterSpacing: 1)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shanghaiRoundLadder() {
+    final cur = engine.currentTarget;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (int r = 1; r <= engine.targetEnd; r++)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: r == cur
+                      ? DossedartTokens.cyan.withValues(alpha: 0.16)
+                      : null,
+                  border: Border.all(
+                    color: r == cur
+                        ? DossedartTokens.cyan
+                        : r < cur
+                            ? DossedartTokens.green.withValues(alpha: 0.6)
+                            : DossedartTokens.phosphor.withValues(alpha: 0.3),
+                    width: r == cur ? 2 : 1,
+                  ),
+                ),
+                child: Text(
+                  r < cur ? '✓' : '$r',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 11,
+                    color: r == cur
+                        ? DossedartTokens.cyan
+                        : r < cur
+                            ? DossedartTokens.green
+                            : DossedartTokens.phosphor.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shanghai'),
