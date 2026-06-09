@@ -6,6 +6,7 @@ import '../models/game_config.dart';
 import '../models/saved_player.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
@@ -21,15 +22,61 @@ import '../models/game_result.dart';
 import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
 import '../services/battery_sampler.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+
+/// Progress arc for the DOSSEDART clock-ring centre: a faint full track with a
+/// green arc covering the fraction of targets the active player has completed.
+class _AtcArcPainter extends CustomPainter {
+  final double fraction;
+  _AtcArcPainter({required this.fraction});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2;
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.08)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6,
+    );
+    if (fraction > 0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        -pi / 2,
+        2 * pi * fraction.clamp(0.0, 1.0),
+        false,
+        Paint()
+          ..color = DossedartTokens.green
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 6
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_AtcArcPainter oldDelegate) =>
+      oldDelegate.fraction != fraction;
+}
 
 class AroundTheClockGameScreen extends StatefulWidget {
   final List<Player> players;
   final AroundTheClockConfig config;
+  final bool useDossedartDesign;
 
   const AroundTheClockGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -95,6 +142,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
   @visibleForTesting
   int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
+
+  @visibleForTesting
+  GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
   void removePlayerForTest(int playerIndex) {
@@ -889,17 +939,21 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   }
 
   GameResult _buildGameResult() {
+    // Players removed mid-game must not appear on the result screen at all —
+    // and never as the winner. Placement is computed from the finish order
+    // with removed players filtered out, so a removed player who happened to
+    // sit at the front of [finishedPlayers] can't bump the real winner.
+    final rankedFinished =
+        finishedPlayers.where((i) => !_removedPlayerIndices.contains(i)).toList();
+
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
+      if (_removedPlayerIndices.contains(i)) continue;
       final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
 
-      int placement;
-      final finishIdx = finishedPlayers.indexOf(i);
-      if (finishIdx >= 0) {
-        placement = finishIdx + 1;
-      } else {
-        placement = finishedPlayers.length + 1;
-      }
+      final finishIdx = rankedFinished.indexOf(i);
+      final placement =
+          finishIdx >= 0 ? finishIdx + 1 : rankedFinished.length + 1;
 
       results.add(PlayerResult(
         name: players[i].name,
@@ -914,14 +968,17 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       ));
     }
 
-    final activePlayers = List.generate(players.length, (i) => i)
-        .where((i) => !finishedPlayers.contains(i))
+    final remainingActive = List.generate(players.length, (i) => i)
+        .where((i) =>
+            !finishedPlayers.contains(i) && !_removedPlayerIndices.contains(i))
         .toList();
+    final activeCount = players.length - _removedPlayerIndices.length;
 
     return GameResult(
       gameMode: 'aroundTheClock',
       results: results,
-      canContinue: !_gameFullyOver && activePlayers.length > 1 && players.length > 2,
+      canContinue:
+          !_gameFullyOver && remainingActive.length > 1 && activeCount > 2,
     );
   }
 
@@ -961,6 +1018,440 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — hero is the clock ring 1→20 (the journey at a
+  // glance). Done segments green, current target cyan, future dim; centre shows
+  // the big target + a progress arc. Input cells feed the same _onDartHit.
+  // ---------------------------------------------------------------------------
+
+  /// Target sequence in play order (matches the engine's advance direction).
+  List<int> _atcSequence() {
+    final nums = _isReverse
+        ? [for (int i = 20; i >= 1; i--) i]
+        : [for (int i = 1; i <= 20; i++) i];
+    if (widget.config.includeBull) {
+      return _isReverse ? [25, ...nums] : [...nums, 25];
+    }
+    return nums;
+  }
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    final dir = _isReverse ? '20→1' : '1→20';
+    final title = 'CLOCK · $dir${widget.config.includeBull ? ' · +BULL' : ''}';
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: title,
+                onExit: _confirmExit,
+                trailing: 'RND ${_roundNumber + 1}',
+              ),
+              _atcActiveStrip(),
+              Expanded(child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _atcClockRing(),
+              )),
+              _atcOpponentMeters(),
+              _atcInputCells(),
+              DossedartActionBar(
+                onUndo: _undo,
+                onMiss: _onMiss,
+                onMenu: () => showDossedartCockpitMenu(
+                  context,
+                  meme: _meme,
+                  onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+                  onPlayerOverview: _openDossedartPlayerSheet,
+                  onExit: _confirmExit,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _atcActiveStrip() {
+    const c = DossedartTokens.cyan;
+    final p = players[currentPlayerIndex];
+    final tgt = currentTargets[currentPlayerIndex];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.12), Colors.transparent],
+        ),
+        border: const Border(bottom: BorderSide(color: c, width: 3)),
+        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.27), blurRadius: 18)],
+      ),
+      child: Row(
+        children: [
+          DossedartPlayerAvatar(size: 52, borderColor: c, avatarPath: p.avatarPath),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '▶ ${p.name.toUpperCase()}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 13,
+                          color: c,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'DART ${dartsInTurn + 1} / 3',
+                      style: const TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: Colors.white54,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    _atcDartDots(dartsInTurn, c),
+                    const SizedBox(width: 10),
+                    Text(
+                      'LAST · ',
+                      style: TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(
+                        lastThrowLabel ?? '—',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 9,
+                          color: DossedartTokens.green,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text('TARGET',
+                  style: TextStyle(
+                      fontFamily: 'VT323',
+                      fontSize: 12,
+                      color: Colors.white54,
+                      letterSpacing: 2)),
+              const SizedBox(height: 4),
+              Text(
+                tgt == 25 ? 'BULL' : '$tgt',
+                style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 28,
+                  color: c,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _atcDartDots(int idx, Color c) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        final filled = i < idx;
+        return Container(
+          margin: const EdgeInsets.only(right: 6),
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? c : Colors.transparent,
+            border: Border.all(color: c, width: 2),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _atcClockRing() {
+    final seq = _atcSequence();
+    final activeTarget = currentTargets[currentPlayerIndex];
+    final activeIdx = seq.indexOf(activeTarget);
+    final doneCount = activeIdx < 0 ? seq.length : activeIdx;
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final size = min(c.maxWidth, c.maxHeight);
+        final radius = size / 2;
+        final numRadius = radius * 0.84;
+        return SizedBox(
+          width: size,
+          height: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: size * 0.58,
+                height: size * 0.58,
+                child: CustomPaint(
+                  painter: _AtcArcPainter(
+                    fraction: seq.isEmpty ? 0 : doneCount / seq.length,
+                  ),
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('TARGET',
+                      style: TextStyle(
+                          fontFamily: 'VT323',
+                          fontSize: 16,
+                          color: Colors.white54,
+                          letterSpacing: 3)),
+                  Text(
+                    activeTarget == 25 ? 'BULL' : '$activeTarget',
+                    style: const TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 60,
+                      color: DossedartTokens.cyan,
+                      height: 1.1,
+                    ),
+                  ),
+                  Text(
+                    '$doneCount OF ${seq.length}',
+                    style: const TextStyle(
+                      fontFamily: 'VT323',
+                      fontSize: 16,
+                      color: DossedartTokens.green,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+              ),
+              for (int i = 0; i < seq.length; i++)
+                _atcRingNumber(seq[i], i, seq.length, radius, numRadius,
+                    activeTarget, activeIdx),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _atcRingNumber(int n, int i, int len, double radius, double numRadius,
+      int activeTarget, int activeIdx) {
+    final angle = -pi / 2 + 2 * pi * i / len;
+    final x = radius + numRadius * cos(angle);
+    final y = radius + numRadius * sin(angle);
+    final isCurrent = n == activeTarget;
+    final isDone = activeIdx < 0 || i < activeIdx;
+    final boxSize = isCurrent ? 40.0 : 30.0;
+    final col = isCurrent
+        ? DossedartTokens.cyan
+        : isDone
+            ? DossedartTokens.green
+            : DossedartTokens.phosphor.withValues(alpha: 0.4);
+    return Positioned(
+      left: x - boxSize / 2,
+      top: y - boxSize / 2,
+      child: Container(
+        width: boxSize,
+        height: boxSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color:
+              isCurrent ? DossedartTokens.cyan.withValues(alpha: 0.12) : null,
+          border: isCurrent
+              ? Border.all(color: DossedartTokens.cyan, width: 2)
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          n == 25 ? 'B' : '$n',
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: isCurrent ? 13 : 10,
+            color: col,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _atcOpponentMeters() {
+    final opps = [
+      for (int i = 0; i < players.length; i++)
+        if (i != currentPlayerIndex) i
+    ];
+    if (opps.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [for (final i in opps) Expanded(child: _atcMeter(i))],
+      ),
+    );
+  }
+
+  Widget _atcMeter(int i) {
+    final seq = _atcSequence();
+    final tgt = currentTargets[i];
+    final idx = seq.indexOf(tgt);
+    final done = idx < 0 ? seq.length : idx;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(
+            color: DossedartTokens.phosphor.withValues(alpha: 0.25), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  players[i].name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 10,
+                    color: DossedartTokens.phosphor,
+                  ),
+                ),
+              ),
+              Text(
+                'ON ${tgt == 25 ? 'B' : tgt}',
+                style: const TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 14,
+                  color: Colors.white54,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 8,
+            child: Row(
+              children: [
+                for (int b = 0; b < seq.length; b++)
+                  Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 1),
+                      color: b < done
+                          ? DossedartTokens.green.withValues(alpha: 0.8)
+                          : b == done
+                              ? DossedartTokens.phosphor
+                              : Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$done / ${seq.length} DONE',
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _atcInputCells() {
+    final tgt = currentTargets[currentPlayerIndex];
+    if (tgt < 1 || tgt > 25) return const SizedBox.shrink();
+    const c = DossedartTokens.cyan;
+    final isBull = tgt == 25;
+    final countMult = widget.config.countMultiples;
+    final List<(String, int)> subs = isBull
+        ? const [('BULL', 1), ('D-BULL', 2)]
+        : [('$tgt', 1), ('D$tgt', 2), ('T$tgt', 3)];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(
+        children: [
+          for (final (label, m) in subs)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () => _onDartHit(tgt, m),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.07),
+                      border: Border.all(color: c, width: 2),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontFamily: 'PressStart2P',
+                            fontSize: 16,
+                            color: c,
+                          ),
+                        ),
+                        if (countMult) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '+$m STEP${m > 1 ? 'S' : ''}',
+                            style: const TextStyle(
+                              fontFamily: 'VT323',
+                              fontSize: 13,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     final currentPlayer = players[currentPlayerIndex];
     final currentTarget = currentTargets[currentPlayerIndex];
 
@@ -1308,6 +1799,32 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: finishedPlayers.contains(i) ? 'DONE' : '${currentTargets[i]}',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: _gameFullyOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
     );
   }
 
