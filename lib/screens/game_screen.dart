@@ -24,10 +24,10 @@ import '../widgets/mid_game_player_sheet.dart';
 import '../services/battery_sampler.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/x01/dossedart_x01_active_card.dart';
-import '../widgets/dossedart/x01/dossedart_x01_action_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
-import '../widgets/dossedart/x01/dossedart_x01_topbar.dart';
-import 'dossedart/x01/dossedart_player_overview_screen.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../theme/dossedart_tokens.dart';
 import '../widgets/dossedart/x01/dossedart_menu_sheet.dart';
 
@@ -1471,56 +1471,64 @@ class _GameScreenState extends State<GameScreen> {
       backgroundColor: DossedartTokens.bg,
       body: DossedartCrtFrame(
         child: SafeArea(
-          child: Stack(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  DossedartX01TopBar(
-                    title: title,
-                    legIndex: 1,
-                    legCount: 1,
-                    roundNumber: _roundNumber + 1,
-                    onExit: _confirmExit,
-                  ),
-                  DossedartX01ActiveCard(
-                    playerName: player.name,
-                    avatarPath: player.avatarPath,
-                    accentColor: DossedartTokens.magenta,
-                    remaining: player.score,
-                    currentDartIndex: dartsInTurn,
-                    lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
-                    lastTurnSum: lastSum,
-                    checkoutTip: tip.isEmpty ? null : tip,
-                    avg: avg,
-                  ),
-                ],
+              DossedartTopBar(
+                title: title,
+                onExit: _confirmExit,
+                trailing: 'RND ${_roundNumber + 1}',
               ),
-              // Dartboard — fixed position, never shifts with active card height
-              Positioned(
-                left: 14, right: 14, bottom: 74,
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: DossedartX01Dartboard(
-                    onTap: (zone) {
-                      final (seg, mult) = zone.toSegmentMultiplier();
-                      if (seg == 0) {
-                        _onMiss();
-                      } else {
-                        _onDartHit(seg, mult);
-                      }
-                    },
-                  ),
+              DossedartX01ActiveCard(
+                playerName: player.name,
+                avatarPath: player.avatarPath,
+                // One-colour logic (locked design rule): the active thrower
+                // is always cyan; chrome stays magenta.
+                accentColor: DossedartTokens.cyan,
+                remaining: player.score,
+                currentDartIndex: dartsInTurn,
+                lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
+                lastTurnSum: lastSum,
+                checkoutTip: tip.isEmpty ? null : tip,
+                avg: avg,
+              ),
+              // The whole field below the score is a MISS zone; the board sits
+              // on top, so any tap off the board (corners, margins, the empty
+              // space around it) registers as a miss.
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _onMiss,
+                      ),
+                    ),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: DossedartX01Dartboard(
+                            onTap: (zone) {
+                              final (seg, mult) = zone.toSegmentMultiplier();
+                              if (seg == 0) {
+                                _onMiss();
+                              } else {
+                                _onDartHit(seg, mult);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Positioned(
-                left: 0, right: 0, bottom: 0,
-                child: DossedartX01ActionBar(
-                  onUndo: _undo,
-                  onMiss: _onMiss,
-                  onMenu: () => _showDossedartMenu(context),
-                ),
+              DossedartActionBar(
+                onUndo: _undo,
+                onMiss: _onMiss,
+                onMenu: () => _showDossedartMenu(context),
               ),
             ],
           ),
@@ -1596,36 +1604,29 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _openPlayerOverview() {
-    final rows = <PlayerOverviewRow>[];
+    final rows = <DossedartStandingRow>[];
     for (int i = 0; i < players.length; i++) {
       final p = players[i];
-      final pThrows = throwHistory.where((t) => t.playerIndex == i).toList();
-      final hits = pThrows.where((t) => t.segment != 0).length;
-      final total = pThrows.length;
-      final hitPct = total == 0 ? 0 : (hits * 100 / total).round();
-      final missPct = 100 - hitPct;
-      final pointsSum = pThrows.fold<int>(0, (acc, t) => acc + t.segment * t.multiplier);
-      final avg = total == 0 ? 0.0 : (pointsSum / total) * 3;
-      final lastLabel = _previousTurnLabel(i);
-      final lastSum = _sumOfLastThreeBeforeCurrentTurn(i);
-      rows.add(PlayerOverviewRow(
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
         name: p.name,
         avatarPath: p.avatarPath,
-        remaining: p.score,
-        lastTurnLabel: lastLabel.isEmpty ? '— · — · —' : lastLabel,
-        lastTurnSum: lastSum,
-        avg: avg,
-        hitPct: hitPct,
-        missPct: missPct,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: '${p.score}',
       ));
     }
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DossedartPlayerOverviewScreen(
-        title: 'CAST · X01 ${widget.startingScore}',
-        roundNumber: _roundNumber + 1,
-        rows: rows,
-      ),
-    ));
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: _gameFullyOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
   }
 
   Widget _buildClassicScaffold(BuildContext context) {
