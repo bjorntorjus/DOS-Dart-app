@@ -18,18 +18,27 @@ import '../services/video_service.dart';
 import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 import '../services/battery_sampler.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 class HalveItGameScreen extends StatefulWidget {
   final List<Player> players;
   final HalveItConfig config;
+  final bool useDossedartDesign;
 
   const HalveItGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -529,6 +538,489 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — scorecard hero + red jeopardy bar + adaptive
+  // input (S/D/T cells for number/bull rounds, a 1–20 keypad for double/triple
+  // rounds). Every tap feeds the same _onDartHit; halving stays in _finishTurn.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: 'SPLITSCORE',
+                onExit: _confirmExit,
+                trailing: 'RUNDE ${currentRoundIndex + 1}/${rounds.length}',
+              ),
+              _splitActiveStrip(),
+              _splitJeopardyBar(),
+              Expanded(child: _splitScorecard()),
+              _splitInput(),
+              DossedartActionBar(
+                onUndo: _undo,
+                onMiss: _onMiss,
+                onMenu: () => showDossedartCockpitMenu(
+                  context,
+                  meme: _meme,
+                  onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+                  onPlayerOverview: _openDossedartPlayerSheet,
+                  onExit: _confirmExit,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _splitActiveStrip() {
+    const c = DossedartTokens.cyan;
+    final p = players[currentPlayerIndex];
+    final round = rounds[currentRoundIndex];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.12), Colors.transparent],
+        ),
+        border: const Border(bottom: BorderSide(color: c, width: 3)),
+        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.27), blurRadius: 18)],
+      ),
+      child: Row(
+        children: [
+          DossedartPlayerAvatar(size: 52, borderColor: c, avatarPath: p.avatarPath),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '▶ ${p.name.toUpperCase()}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 13,
+                          color: c,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'DART ${dartsInTurn + 1} / 3',
+                      style: const TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: Colors.white54,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    _splitDartDots(dartsInTurn, c),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        lastThrowLabel ?? '—',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 9,
+                          color: DossedartTokens.green,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text('MÅL',
+                  style: TextStyle(
+                      fontFamily: 'VT323',
+                      fontSize: 12,
+                      color: Colors.white54,
+                      letterSpacing: 2)),
+              const SizedBox(height: 4),
+              Text(
+                round.label.toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 20,
+                  color: DossedartTokens.yellow,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitDartDots(int idx, Color c) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        final filled = i < idx;
+        return Container(
+          margin: const EdgeInsets.only(right: 6),
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? c : Colors.transparent,
+            border: Border.all(color: c, width: 2),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _splitJeopardyBar() {
+    final round = rounds[currentRoundIndex];
+    final total = totalScores[currentPlayerIndex];
+    final safe = turnHasHit;
+    final c = safe ? DossedartTokens.green : DossedartTokens.red;
+    final text = safe
+        ? '✓ SIKRET · +$turnPoints DENNE RUNDEN'
+        : '⚠ TREFF ${round.label.toUpperCase()} ELLER HALVÉR · $total → ${total ~/ 2}';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.10),
+        border: Border.all(color: c, width: 2),
+        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.35), blurRadius: 12)],
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 10,
+          color: c,
+          letterSpacing: 1,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _splitScorecard() {
+    final magenta55 = DossedartTokens.magenta.withValues(alpha: 0.33);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        decoration: BoxDecoration(border: Border.all(color: magenta55, width: 2)),
+        child: Column(
+          children: [
+            _splitScoreHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (int ri = 0; ri < rounds.length; ri++)
+                      _splitScoreRow(ri),
+                  ],
+                ),
+              ),
+            ),
+            _splitSumRow(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _splitScoreHeader() {
+    final magenta = DossedartTokens.magenta;
+    return Container(
+      decoration: BoxDecoration(
+        color: magenta.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(color: magenta.withValues(alpha: 0.33), width: 2),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 70,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: Text('RUNDE',
+                    style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 8,
+                        color: Colors.white54,
+                        letterSpacing: 1)),
+              ),
+            ),
+          ),
+          for (int pi = 0; pi < players.length; pi++)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                color: pi == currentPlayerIndex
+                    ? DossedartTokens.cyan.withValues(alpha: 0.11)
+                    : null,
+                child: Text(
+                  players[pi].name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: pi == currentPlayerIndex
+                        ? DossedartTokens.cyan
+                        : DossedartTokens.phosphor,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitScoreRow(int ri) {
+    final magenta = DossedartTokens.magenta;
+    final isCurrent = ri == currentRoundIndex;
+    return Container(
+      decoration: BoxDecoration(
+        color: isCurrent ? DossedartTokens.cyan.withValues(alpha: 0.06) : null,
+        border: Border(
+          bottom: BorderSide(color: magenta.withValues(alpha: 0.13), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              child: Text(
+                rounds[ri].label.toUpperCase(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 9,
+                  color: isCurrent
+                      ? DossedartTokens.yellow
+                      : Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+          ),
+          for (int pi = 0; pi < players.length; pi++)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+                color: pi == currentPlayerIndex
+                    ? DossedartTokens.cyan.withValues(alpha: 0.06)
+                    : null,
+                child: Center(child: _splitCellText(roundScores[ri][pi])),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitCellText(int? v) {
+    if (v == null) {
+      return Text('·',
+          style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 16,
+              color: Colors.white.withValues(alpha: 0.18)));
+    }
+    if (v < 0) {
+      return Text('-${-v} ✗',
+          style: const TextStyle(
+              fontFamily: 'VT323', fontSize: 16, color: DossedartTokens.red));
+    }
+    return Text('$v',
+        style: const TextStyle(
+            fontFamily: 'VT323', fontSize: 17, color: Colors.white));
+  }
+
+  Widget _splitSumRow() {
+    int leader = 0;
+    for (int i = 1; i < players.length; i++) {
+      if (totalScores[i] > totalScores[leader]) leader = i;
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: DossedartTokens.magenta.withValues(alpha: 0.08),
+        border: Border(
+          top: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.33), width: 2),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 70,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 9),
+              child: Center(
+                child: Text('SUM',
+                    style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 9,
+                        color: Colors.white70)),
+              ),
+            ),
+          ),
+          for (int pi = 0; pi < players.length; pi++)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Center(
+                  child: Text(
+                    '${totalScores[pi]}',
+                    style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 14,
+                      color: pi == leader
+                          ? DossedartTokens.yellow
+                          : pi == currentPlayerIndex
+                              ? DossedartTokens.cyan
+                              : DossedartTokens.phosphor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitInput() {
+    final round = rounds[currentRoundIndex];
+    switch (round.type) {
+      case HalveItRoundType.number:
+        final n = round.targetNumber!;
+        return _splitCellRow([('$n', n, 1), ('D$n', n, 2), ('T$n', n, 3)]);
+      case HalveItRoundType.bull:
+        return _splitCellRow([('BULL', 25, 1), ('D-BULL', 25, 2)]);
+      case HalveItRoundType.anyDouble:
+        return _splitKeypad(2, includeDBull: true);
+      case HalveItRoundType.anyTriple:
+        return _splitKeypad(3, includeDBull: false);
+    }
+  }
+
+  Widget _splitCellRow(List<(String, int, int)> subs) {
+    const c = DossedartTokens.cyan;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: [
+          for (final (label, seg, mult) in subs)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () => _onDartHit(seg, mult),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.07),
+                      border: Border.all(color: c, width: 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 16,
+                          color: c,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitKeypad(int mult, {required bool includeDBull}) {
+    final prefix = mult == 2 ? 'D' : 'T';
+    final keys = <Widget>[
+      for (int k = 1; k <= 20; k++) _splitKeypadBtn('$prefix$k', k, mult),
+      if (includeDBull) _splitKeypadBtn('D-BULL', 25, 2),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        alignment: WrapAlignment.center,
+        children: [
+          for (final k in keys) SizedBox(width: 58, child: k),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitKeypadBtn(String label, int segment, int mult) {
+    const c = DossedartTokens.cyan;
+    return GestureDetector(
+      onTap: () => _onDartHit(segment, mult),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: c.withValues(alpha: 0.07),
+          border: Border.all(color: c, width: 1.5),
+        ),
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 11,
+              color: c,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     final currentPlayer = players[currentPlayerIndex];
     final currentRound = rounds[currentRoundIndex];
 
@@ -1130,6 +1622,32 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: '${totalScores[i]}',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: gameOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
     );
   }
 
