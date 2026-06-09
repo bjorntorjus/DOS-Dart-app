@@ -7,6 +7,9 @@ import '../widgets/dart_board.dart';
 import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
 import '../models/saved_player.dart';
+import '../models/game_mode.dart';
+import '../models/game_outcome.dart';
+import '../services/achievement_service.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
@@ -727,7 +730,41 @@ class _GameScreenState extends State<GameScreen> {
       ratingsAfter: _ratingsAfter,
     );
 
+    _awardMilestones(savedPlayers, placements);
+
     await PlayerStorage.savePlayers(savedPlayers);
+  }
+
+  /// Evaluate game-end milestone achievements for each saved player, emitting
+  /// banners for new unlocks. Runs before [PlayerStorage.savePlayers] persists
+  /// the mutated unlock sets.
+  void _awardMilestones(List<SavedPlayer> savedPlayers, List<int> placements) {
+    final best = placements.reduce((a, b) => a < b ? a : b);
+    for (int i = 0; i < players.length; i++) {
+      final id = players[i].savedPlayerId;
+      if (id == null) continue;
+      final sp = savedPlayers.where((s) => s.id == id).firstOrNull;
+      if (sp == null) continue;
+      final opponents = <double>[];
+      for (int j = 0; j < players.length; j++) {
+        if (j == i) continue;
+        final oid = players[j].savedPlayerId;
+        final r = oid == null ? null : _ratingsBefore[oid];
+        if (r != null) opponents.add(r);
+      }
+      AchievementService.instance.evaluateMilestones(
+        sp,
+        GameOutcome(
+          mode: GameMode.x01,
+          won: placements[i] == best,
+          placement: placements[i],
+          playerCount: players.length,
+          ratingBefore: _ratingsBefore[id] ?? sp.rating,
+          ratingAfter: _ratingsAfter[id] ?? sp.rating,
+          opponentRatingsBefore: opponents,
+        ),
+      );
+    }
   }
 
   void _advancePlayer() {
