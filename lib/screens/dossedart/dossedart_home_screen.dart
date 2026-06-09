@@ -125,7 +125,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             style: _vt(16, color: Colors.white, letterSpacing: 2),
           ),
           Text(
-            'v1.8.2',
+            'v1.8.3',
             style: _vt(13, color: Colors.white38, letterSpacing: 2),
           ),
         ],
