@@ -112,6 +112,13 @@ class SavedPlayer {
   Map<String, H2HRecord> headToHead;
   List<RatingSnapshot> ratingHistory;
 
+  Set<String> unlockedAchievementIds;
+  Map<String, DateTime> achievementUnlockedAt;
+  bool achievementsRetroGranted;
+  int currentWinStreak;
+  int bestWinStreak;
+  int currentLossStreak;
+
   SavedPlayer({
     required this.id,
     required this.name,
@@ -128,9 +135,17 @@ class SavedPlayer {
     Map<String, ModeStats>? modeStats,
     Map<String, H2HRecord>? headToHead,
     List<RatingSnapshot>? ratingHistory,
+    Set<String>? unlockedAchievementIds,
+    Map<String, DateTime>? achievementUnlockedAt,
+    this.achievementsRetroGranted = false,
+    this.currentWinStreak = 0,
+    this.bestWinStreak = 0,
+    this.currentLossStreak = 0,
   })  : modeStats = modeStats ?? {},
         headToHead = headToHead ?? {},
-        ratingHistory = ratingHistory ?? [];
+        ratingHistory = ratingHistory ?? [],
+        unlockedAchievementIds = unlockedAchievementIds ?? {},
+        achievementUnlockedAt = achievementUnlockedAt ?? {};
 
   double get averageTurnScore =>
       totalTurns > 0 ? totalTurnScore / totalTurns : 0;
@@ -155,6 +170,13 @@ class SavedPlayer {
         'headToHead': headToHead
             .map((key, value) => MapEntry(key, value.toJson())),
         'ratingHistory': ratingHistory.map((s) => s.toJson()).toList(),
+        'unlockedAchievementIds': unlockedAchievementIds.toList(),
+        'achievementUnlockedAt': achievementUnlockedAt
+            .map((k, v) => MapEntry(k, v.toIso8601String())),
+        'achievementsRetroGranted': achievementsRetroGranted,
+        'currentWinStreak': currentWinStreak,
+        'bestWinStreak': bestWinStreak,
+        'currentLossStreak': currentLossStreak,
       };
 
   factory SavedPlayer.fromJson(Map<String, dynamic> json) => SavedPlayer(
@@ -182,5 +204,20 @@ class SavedPlayer {
                 ?.map((e) => RatingSnapshot.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        unlockedAchievementIds:
+            (json['unlockedAchievementIds'] as List<dynamic>?)
+                    ?.map((e) => e as String)
+                    .toSet() ??
+                {},
+        achievementUnlockedAt:
+            (json['achievementUnlockedAt'] as Map<String, dynamic>?)?.map(
+                  (k, v) => MapEntry(k, DateTime.parse(v as String)),
+                ) ??
+                {},
+        achievementsRetroGranted:
+            json['achievementsRetroGranted'] as bool? ?? false,
+        currentWinStreak: json['currentWinStreak'] as int? ?? 0,
+        bestWinStreak: json['bestWinStreak'] as int? ?? 0,
+        currentLossStreak: json['currentLossStreak'] as int? ?? 0,
       );
 }
