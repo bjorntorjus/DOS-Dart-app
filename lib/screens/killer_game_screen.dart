@@ -20,19 +20,63 @@ import '../models/game_result.dart';
 import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/saved_player.dart';
 import '../services/battery_sampler.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 
 enum KillerPhase { assignment, playing }
+
+/// Tints owned/claimed wedges on top of the shared TWILIGHT dartboard, using
+/// the board's own geometry constants. Ownership is shown purely by colour:
+/// your number cyan, enemies red, eliminated/claimed a dark veil.
+class _KillerBoardOverlayPainter extends CustomPainter {
+  final Map<int, Color> tints; // segment number → fill colour
+  _KillerBoardOverlayPainter({required this.tints});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2;
+    final c = Offset(r, r);
+    const slice = pi * 2 / 20;
+    tints.forEach((number, color) {
+      final idx = kSegmentOrder.indexOf(number);
+      if (idx < 0) return;
+      final start = -slice / 2 + idx * slice - pi / 2;
+      final rIn = r * kBullR;
+      final rOut = r * kDoubleR;
+      final path = Path()
+        ..moveTo(c.dx + cos(start) * rIn, c.dy + sin(start) * rIn)
+        ..lineTo(c.dx + cos(start) * rOut, c.dy + sin(start) * rOut)
+        ..arcTo(Rect.fromCircle(center: c, radius: rOut), start, slice, false)
+        ..lineTo(c.dx + cos(start + slice) * rIn, c.dy + sin(start + slice) * rIn)
+        ..arcTo(Rect.fromCircle(center: c, radius: rIn), start + slice, -slice,
+            false)
+        ..close();
+      canvas.drawPath(path, Paint()..color = color);
+    });
+  }
+
+  @override
+  bool shouldRepaint(_KillerBoardOverlayPainter oldDelegate) => true;
+}
 
 class KillerGameScreen extends StatefulWidget {
   final List<Player> players;
   final KillerConfig config;
+  final bool useDossedartDesign;
 
   const KillerGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -696,6 +740,297 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — reuses the TWILIGHT dartboard for both phases.
+  // Ownership is shown purely by wedge colour (you=cyan, enemies=red) plus a
+  // thin status-key strip; the assignment phase dims claimed numbers. Every tap
+  // feeds the same _onDartHit / _onMiss as the classic screen.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: phase == KillerPhase.assignment
+              ? _killerAssignmentView(context)
+              : _killerPlayingView(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _killerBoard(Map<int, Color> tints) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Stack(
+          children: [
+            DossedartX01Dartboard(
+              onTap: (zone) {
+                final (seg, mult) = zone.toSegmentMultiplier();
+                if (seg == 0) {
+                  _onMiss();
+                } else {
+                  _onDartHit(seg, mult);
+                }
+              },
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _KillerBoardOverlayPainter(tints: tints),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  DossedartActionBar _killerActionBar(BuildContext context) {
+    return DossedartActionBar(
+      onUndo: _undo,
+      onMiss: _onMiss,
+      onMenu: () => showDossedartCockpitMenu(
+        context,
+        meme: _meme,
+        onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+        onPlayerOverview: _openDossedartPlayerSheet,
+        onExit: _confirmExit,
+      ),
+    );
+  }
+
+  Widget _killerPlayingView(BuildContext context) {
+    final cfg = widget.config;
+    final title = 'KILLER · ${cfg.lives} LIVES${cfg.shields ? ' · SHIELDS' : ''}';
+    final tints = <int, Color>{};
+    for (int i = 0; i < players.length; i++) {
+      final n = assignedNumbers[i];
+      if (n < 1) continue;
+      if (isEliminated[i]) {
+        tints[n] = Colors.black.withValues(alpha: 0.55);
+      } else if (i == currentPlayerIndex) {
+        tints[n] = DossedartTokens.cyan.withValues(alpha: 0.38);
+      } else {
+        tints[n] = DossedartTokens.red.withValues(alpha: 0.32);
+      }
+    }
+    return Column(
+      children: [
+        DossedartTopBar(
+          title: title,
+          onExit: _confirmExit,
+          trailing: 'RND $_roundNumber',
+        ),
+        _killerStatusKey(),
+        Expanded(child: _killerBoard(tints)),
+        _killerActionBar(context),
+      ],
+    );
+  }
+
+  Widget _killerStatusKey() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.5), width: 2),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [for (int i = 0; i < players.length; i++) _killerKeyRow(i)],
+      ),
+    );
+  }
+
+  Widget _killerKeyRow(int i) {
+    final active = i == currentPlayerIndex;
+    final elim = isEliminated[i];
+    final c = elim
+        ? DossedartTokens.phosphor.withValues(alpha: 0.45)
+        : active
+            ? DossedartTokens.cyan
+            : DossedartTokens.red;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: active ? c.withValues(alpha: 0.12) : Colors.transparent,
+        border: Border.all(
+            color: c.withValues(alpha: active ? 1 : 0.4), width: active ? 2 : 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(border: Border.all(color: c, width: 2)),
+            child: Text(
+              assignedNumbers[i] > 0 ? '${assignedNumbers[i]}' : '—',
+              style: TextStyle(
+                  fontFamily: 'PressStart2P', fontSize: 11, color: c),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              players[i].name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: c,
+                decoration: elim ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+          if (isKiller[i] && !elim)
+            _killerTag('ARMED', DossedartTokens.orange),
+          if (shields[i] > 0 && !elim)
+            _killerTag('SH ${shields[i]}', DossedartTokens.green),
+          const SizedBox(width: 8),
+          Text(
+            elim ? 'OUT' : '♥ ${lives[i]}',
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 16,
+              color: elim ? c : DossedartTokens.red,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _killerTag(String label, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(border: Border.all(color: color, width: 1)),
+      child: Text(
+        label,
+        style: TextStyle(
+            fontFamily: 'PressStart2P', fontSize: 8, color: color),
+      ),
+    );
+  }
+
+  Widget _killerAssignmentView(BuildContext context) {
+    final tints = <int, Color>{};
+    for (final n in assignedNumbers) {
+      if (n > 0) tints[n] = Colors.black.withValues(alpha: 0.5);
+    }
+    return Column(
+      children: [
+        DossedartTopBar(
+          title: 'KILLER · TILDELING',
+          onExit: _confirmExit,
+          trailing: 'SPILLER ${assignmentPlayerIndex + 1}/${players.length}',
+        ),
+        _killerAssignmentPrompt(),
+        Expanded(child: _killerBoard(tints)),
+        _killerRoster(),
+        _killerActionBar(context),
+      ],
+    );
+  }
+
+  Widget _killerAssignmentPrompt() {
+    final claimer = players[assignmentPlayerIndex];
+    const c = DossedartTokens.cyan;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.12), Colors.transparent],
+        ),
+        border: const Border(bottom: BorderSide(color: c, width: 3)),
+      ),
+      child: Row(
+        children: [
+          DossedartPlayerAvatar(
+              size: 48, borderColor: c, avatarPath: claimer.avatarPath),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              '▶ ${claimer.name.toUpperCase()} — KAST FOR Å VELGE DITT TALL',
+              style: const TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 11,
+                color: c,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _killerRoster() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          for (int i = 0; i < players.length; i++) _killerRosterChip(i)
+        ],
+      ),
+    );
+  }
+
+  Widget _killerRosterChip(int i) {
+    final claimed = assignedNumbers[i] > 0;
+    final isCurrent = i == assignmentPlayerIndex;
+    final c = claimed
+        ? DossedartTokens.green
+        : isCurrent
+            ? DossedartTokens.cyan
+            : DossedartTokens.phosphor.withValues(alpha: 0.5);
+    final status = claimed
+        ? '${assignedNumbers[i]} ✓'
+        : isCurrent
+            ? 'VELGER…'
+            : 'VENTER';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: c, width: isCurrent ? 2 : 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            players[i].name,
+            style: TextStyle(
+                fontWeight: FontWeight.w700, fontSize: 12, color: c),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            status,
+            style: TextStyle(
+                fontFamily: 'VT323', fontSize: 14, color: c, letterSpacing: 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(phase == KillerPhase.assignment
@@ -1257,6 +1592,32 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: isEliminated[i] ? 'OUT' : '${lives[i]} ♥',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: winnerIndex != null,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
     );
   }
 
