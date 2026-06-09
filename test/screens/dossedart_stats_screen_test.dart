@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dart_scoring/models/saved_player.dart';
 import 'package:dart_scoring/screens/dossedart/achievements_gallery_screen.dart';
 import 'package:dart_scoring/screens/dossedart/dossedart_stats_screen.dart';
+import 'package:dart_scoring/widgets/dossedart/arcade_frame.dart';
 
 SavedPlayer _player(String id, String name, double rating, {Set<String> unlocked = const {}}) {
   return SavedPlayer(
@@ -25,6 +26,8 @@ Future<void> _seed(List<SavedPlayer> players) async {
 }
 
 void main() {
+  setUpAll(() => ArcadeFrame.disableBeamForTest = true);
+
   testWidgets('renders the 4 arcade tabs', (tester) async {
     await _seed([_player('1', 'Ada', 1300)]);
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));

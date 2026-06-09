@@ -4,7 +4,9 @@ import '../../models/saved_player.dart';
 import '../../services/game_history_service.dart';
 import '../../services/player_storage.dart';
 import '../../theme/dossedart_tokens.dart';
+import '../../widgets/dossedart/arcade_frame.dart';
 import '../../widgets/dossedart/dossedart_player_avatar.dart';
+import '../../widgets/dossedart/dossedart_top_bar.dart';
 import '../../widgets/dossedart/stats/prestasjoner_section.dart';
 import '../../widgets/heatmap_board.dart';
 
@@ -42,6 +44,9 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   @override
   void initState() {
     super.initState();
+    _tabs.addListener(() {
+      if (mounted) setState(() {}); // keep the arcade tab strip in sync
+    });
     _load();
   }
 
@@ -75,49 +80,40 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DossedartTokens.bg,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: DossedartTokens.cyan),
-        title: const Text(
-          'STATISTICS',
-          style: TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 14,
-            color: DossedartTokens.yellow,
-            letterSpacing: 1.5,
+      body: ArcadeFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: 'STATISTICS',
+                onExit: () => Navigator.of(context).maybePop(),
+              ),
+              if (!_loading && _players.isNotEmpty)
+                _ArcadeTabBar(
+                  labels: const ['PROFIL', 'MODUS', 'HEATMAP', 'HISTORIKK'],
+                  index: _tabs.index,
+                  onTap: (i) => _tabs.animateTo(i),
+                ),
+              Expanded(
+                child: _loading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: DossedartTokens.cyan))
+                    : _players.isEmpty
+                        ? const _EmptyState()
+                        : TabBarView(
+                            controller: _tabs,
+                            children: [
+                              _buildProfil(),
+                              _buildModus(),
+                              _buildHeatmap(),
+                              _buildHistorikk(),
+                            ],
+                          ),
+              ),
+            ],
           ),
-        ),
-        bottom: TabBar(
-          controller: _tabs,
-          indicatorColor: DossedartTokens.cyan,
-          labelColor: DossedartTokens.cyan,
-          unselectedLabelColor: DossedartTokens.phosphor,
-          labelStyle: const TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 9,
-            letterSpacing: 1,
-          ),
-          tabs: const [
-            Tab(text: 'PROFIL'),
-            Tab(text: 'MODUS'),
-            Tab(text: 'HEATMAP'),
-            Tab(text: 'HISTORIKK'),
-          ],
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: DossedartTokens.cyan))
-          : _players.isEmpty
-              ? const _EmptyState()
-              : TabBarView(
-                  controller: _tabs,
-                  children: [
-                    _buildProfil(),
-                    _buildModus(),
-                    _buildHeatmap(),
-                    _buildHistorikk(),
-                  ],
-                ),
     );
   }
 
@@ -326,6 +322,52 @@ class _EmptyState extends StatelessWidget {
           ],
         ),
       );
+}
+
+class _ArcadeTabBar extends StatelessWidget {
+  const _ArcadeTabBar({required this.labels, required this.index, required this.onTap});
+  final List<String> labels;
+  final int index;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black,
+      child: Row(
+        children: [
+          for (int i = 0; i < labels.length; i++)
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onTap(i),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: i == index ? DossedartTokens.cyan : DossedartTokens.magenta.withValues(alpha: 0.4),
+                        width: i == index ? 3 : 1,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    labels[i],
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 9,
+                      letterSpacing: 1,
+                      color: i == index ? DossedartTokens.cyan : DossedartTokens.phosphor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SectionCard extends StatelessWidget {
