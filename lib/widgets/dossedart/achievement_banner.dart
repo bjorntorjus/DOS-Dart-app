@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../models/achievement.dart';
 import '../../services/achievement_service.dart';
 import '../../theme/dossedart_tokens.dart';
 import 'achievement_medal.dart';

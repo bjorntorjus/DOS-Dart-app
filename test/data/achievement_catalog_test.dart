@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dart_scoring/data/achievement_catalog.dart';
-import 'package:dart_scoring/models/achievement.dart';
 
 void main() {
   final catalog = achievementCatalog;
