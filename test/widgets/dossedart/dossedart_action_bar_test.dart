@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dart_scoring/widgets/dossedart/x01/dossedart_x01_action_bar.dart';
+import 'package:dart_scoring/widgets/dossedart/dossedart_action_bar.dart';
 
 void main() {
   testWidgets('renders all three labels', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: DossedartX01ActionBar(
+        body: DossedartActionBar(
           onUndo: () {},
           onMiss: () {},
           onMenu: () {},
@@ -22,7 +22,7 @@ void main() {
     var u = false, m = false, x = false;
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: DossedartX01ActionBar(
+        body: DossedartActionBar(
           onUndo: () => u = true,
           onMiss: () => m = true,
           onMenu: () => x = true,

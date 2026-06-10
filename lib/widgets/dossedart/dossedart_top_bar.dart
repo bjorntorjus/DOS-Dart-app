@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
-import '../../../theme/dossedart_tokens.dart';
+import '../../theme/dossedart_tokens.dart';
 
-/// DOSSEDART X01 cockpit top bar: ◀ EXIT · title · L n/m · RND r.
-class DossedartX01TopBar extends StatelessWidget {
-  const DossedartX01TopBar({
+/// Shared DOSSEDART cockpit top bar: ◀ EXIT · centered title · trailing.
+///
+/// Used by every game-mode cockpit so the chrome is identical across modes.
+/// The [trailing] string (e.g. "RND 7", or "L 1/3 · RND 7" for a multi-leg
+/// match) is composed by the screen — this widget stays mode-agnostic.
+class DossedartTopBar extends StatelessWidget {
+  const DossedartTopBar({
     super.key,
     required this.title,
-    required this.legIndex,
-    required this.legCount,
-    required this.roundNumber,
     required this.onExit,
+    this.trailing,
   });
 
   final String title;
-  final int legIndex;
-  final int legCount;
-  final int roundNumber;
   final VoidCallback onExit;
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -58,16 +58,17 @@ class DossedartX01TopBar extends StatelessWidget {
               ),
             ),
           ),
-          Text(
-            'L $legIndex/$legCount · RND $roundNumber',
-            style: const TextStyle(
-              fontFamily: 'VT323',
-              fontSize: 14,
-              color: Colors.white54,
-              letterSpacing: 2,
-              height: 1,
+          if (trailing != null)
+            Text(
+              trailing!,
+              style: const TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 14,
+                color: Colors.white54,
+                letterSpacing: 2,
+                height: 1,
+              ),
             ),
-          ),
         ],
       ),
     );

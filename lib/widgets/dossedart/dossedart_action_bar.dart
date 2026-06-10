@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../../theme/dossedart_tokens.dart';
+import '../../theme/dossedart_tokens.dart';
 
-/// DOSSEDART X01 cockpit action bar: ↶ UNDO · ✗ MISS · ⋯ MENU.
+/// Shared DOSSEDART cockpit action bar: ↶ UNDO · ✗ MISS · ⋯ MENU.
 ///
+/// Identical across every game-mode cockpit.
 /// UNDO — magenta border, flex 1.
-/// MISS — filled orange (primary), flex 2.
+/// MISS — filled orange, flex 2 (the wide primary action).
 /// MENU — cyan border, flex 1.
-class DossedartX01ActionBar extends StatelessWidget {
-  const DossedartX01ActionBar({
+class DossedartActionBar extends StatelessWidget {
+  const DossedartActionBar({
     super.key,
     required this.onUndo,
     required this.onMiss,
@@ -96,8 +97,8 @@ class _Btn extends StatelessWidget {
           boxShadow: glow
               ? [
                   BoxShadow(
-                    color: DossedartTokens.orange.withValues(alpha: 0.55),
-                    blurRadius: 16,
+                    color: DossedartTokens.orange.withValues(alpha: 0.7),
+                    blurRadius: 22,
                   )
                 ]
               : null,
