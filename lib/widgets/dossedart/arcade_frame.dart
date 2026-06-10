@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/dossedart_tokens.dart';
 
@@ -5,7 +6,8 @@ import '../../theme/dossedart_tokens.dart';
 /// - solid CRT background
 /// - static scanline overlay (3px-period horizontal lines)
 /// - radial vignette darkening the corners
-/// - slow cyan "scan beam" sweeping top → bottom every ~6s
+/// - occasional cyan "scan beam" that sweeps top → bottom once, then rests
+///   ~35s before the next sweep (a subtle accent, not a constant strobe)
 ///
 /// All overlays ignore pointer events.
 class ArcadeFrame extends StatefulWidget {
@@ -13,10 +15,13 @@ class ArcadeFrame extends StatefulWidget {
 
   final Widget child;
 
-  /// Tests flip this to skip the perpetual scan-beam `.repeat()` so
-  /// `pumpAndSettle` can actually settle. Production keeps the default.
+  /// Tests flip this to skip the scan-beam timer so `pumpAndSettle` can
+  /// actually settle. Production keeps the default.
   @visibleForTesting
   static bool disableBeamForTest = false;
+
+  /// How long to rest between sweeps (~1.7 sweeps/min).
+  static const Duration _beamInterval = Duration(seconds: 35);
 
   @override
   State<ArcadeFrame> createState() => _ArcadeFrameState();
@@ -25,21 +30,28 @@ class ArcadeFrame extends StatefulWidget {
 class _ArcadeFrameState extends State<ArcadeFrame>
     with SingleTickerProviderStateMixin {
   late final AnimationController _beam;
+  Timer? _beamTimer;
 
   @override
   void initState() {
     super.initState();
+    // The controller drives only the ~1.4s sweep itself; it rests at value 1
+    // (beam off-screen below) between sweeps. A periodic timer kicks off the
+    // next sweep, so the beam appears ~1-2 times a minute rather than looping.
     _beam = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 6),
+      duration: const Duration(milliseconds: 1400),
     );
     if (!ArcadeFrame.disableBeamForTest) {
-      _beam.repeat();
+      _beamTimer = Timer.periodic(ArcadeFrame._beamInterval, (_) {
+        if (mounted) _beam.forward(from: 0);
+      });
     }
   }
 
   @override
   void dispose() {
+    _beamTimer?.cancel();
     _beam.dispose();
     super.dispose();
   }
