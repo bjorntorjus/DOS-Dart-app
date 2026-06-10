@@ -8,6 +8,15 @@ const List<int> kSegmentOrder = [
   20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
 ];
 
+// TWILIGHT board palette (board-specific felt/ring colors — not part of the
+// global role palette in DossedartTokens). Singles alternate dark/light purple
+// felt; triple+double rings alternate cyan/magenta, keyed on (i % 2): dark
+// segments get the cyan ring, light segments the magenta ring.
+const Color _twiSingleDark = Color(0xFF1E0C40);
+const Color _twiSingleLight = Color(0xFF321760);
+const Color _twiRingCyan = Color(0xFF1FB0C9);
+const Color _twiRingMagenta = Color(0xFFC72E94);
+
 // Radius thresholds as fractions of board radius.
 // Visual = hit-test (no surprise misses).
 const double kDBullR = 0.05;
@@ -52,6 +61,9 @@ class DossedartX01Dartboard extends StatelessWidget {
       builder: (ctx, constraints) {
         final size = math.min(constraints.maxWidth, constraints.maxHeight);
         return GestureDetector(
+          // Opaque so the whole square reports taps — corner taps outside the
+          // board circle resolve to a miss instead of falling through.
+          behavior: HitTestBehavior.opaque,
           onTapUp: (details) {
             final centre = Offset(size / 2, size / 2);
             final offset = details.localPosition - centre;
@@ -78,23 +90,24 @@ class _DartboardPainter extends CustomPainter {
     final r = size.width / 2;
     final c = Offset(r, r);
 
-    // Outer frame (magenta border + glow already comes from surrounding
-    // BoxDecoration on the parent; here we just fill background).
-    final bg = Paint()..color = DossedartTokens.surface;
+    // Board background → solid arcade black (#0A0014), not surface-purple, so
+    // the twilight felt reads as clean segments. Glow comes from the parent
+    // BoxDecoration; the painter draws no border ring of its own.
+    final bg = Paint()..color = DossedartTokens.bg;
     canvas.drawCircle(c, r, bg);
 
     const slice = math.pi * 2 / 20;
     for (int i = 0; i < 20; i++) {
       final start = -slice / 2 + i * slice - math.pi / 2;
       final end = start + slice;
-      final segCol = (i % 2 == 0)
-          ? DossedartTokens.magenta.withValues(alpha: 0.35)
-          : DossedartTokens.cyan.withValues(alpha: 0.35);
+      // Singles = twilight purple felt; triple + double = cyan/magenta ring.
+      final singleCol = (i % 2 == 0) ? _twiSingleDark : _twiSingleLight;
+      final ringCol = (i % 2 == 0) ? _twiRingCyan : _twiRingMagenta;
 
-      _wedge(canvas, c, r * kBullR, r * kInnerSingleR, start, end, segCol);
-      _wedge(canvas, c, r * kInnerSingleR, r * kTripleR, start, end, DossedartTokens.green);
-      _wedge(canvas, c, r * kTripleR, r * kOuterSingleR, start, end, segCol);
-      _wedge(canvas, c, r * kOuterSingleR, r * kDoubleR, start, end, DossedartTokens.yellow);
+      _wedge(canvas, c, r * kBullR, r * kInnerSingleR, start, end, singleCol);
+      _wedge(canvas, c, r * kInnerSingleR, r * kTripleR, start, end, ringCol);
+      _wedge(canvas, c, r * kTripleR, r * kOuterSingleR, start, end, singleCol);
+      _wedge(canvas, c, r * kOuterSingleR, r * kDoubleR, start, end, ringCol);
       _wedge(canvas, c, r * kDoubleR, r, start, end, DossedartTokens.bg);
 
       // Segment number label, placed in the outer band.
@@ -116,24 +129,28 @@ class _DartboardPainter extends CustomPainter {
       tp.paint(canvas, Offset(lx - tp.width / 2, ly - tp.height / 2));
     }
 
-    // Bull / D-Bull
-    canvas.drawCircle(c, r * kBullR, Paint()..color = DossedartTokens.orange);
+    // Bull / D-Bull — the one bright pop on the board.
+    canvas.drawCircle(c, r * kBullR, Paint()..color = DossedartTokens.yellow);
     canvas.drawCircle(c, r * kDBullR, Paint()..color = DossedartTokens.red);
 
-    // White stroke around bulls
-    final stroke = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawCircle(c, r * kBullR, stroke);
-    canvas.drawCircle(c, r * kDBullR, stroke);
-
-    // Magenta border ring
-    final border = Paint()
-      ..color = DossedartTokens.magenta
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawCircle(c, r - 1.5, border);
+    // Bull edge = orange, D-Bull edge = yellow.
+    canvas.drawCircle(
+      c,
+      r * kBullR,
+      Paint()
+        ..color = DossedartTokens.orange
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    canvas.drawCircle(
+      c,
+      r * kDBullR,
+      Paint()
+        ..color = DossedartTokens.yellow
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+    // No painter border ring — the frame is a single glow on the parent.
   }
 
   void _wedge(Canvas canvas, Offset c, double rInner, double rOuter,
