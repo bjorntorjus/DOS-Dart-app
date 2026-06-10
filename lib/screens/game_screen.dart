@@ -222,6 +222,7 @@ class _GameScreenState extends State<GameScreen> {
     // Standard X01 (existing logic, expressed via outcomes)
     if (newScore < 0) return _ThrowOutcome.bust;
     if (newScore == 0 && needsSpecialOut && !isValidOut) return _ThrowOutcome.bust;
+    // Score 1 cannot be checked out with double-out (min D1=2) or master-out.
     if (newScore == 1 && needsSpecialOut) return _ThrowOutcome.bust;
     if (newScore == 0) return _ThrowOutcome.finish;
     return _ThrowOutcome.continueTurn;
@@ -1229,10 +1230,11 @@ class _GameScreenState extends State<GameScreen> {
       final throws = entry.value;
       final lastThrow = throws.last;
       final isCheckout = lastThrow.scoreBefore - lastThrow.points == 0;
-      final isBust = lastThrow.scoreBefore == lastThrow.scoreAtStartOfTurn &&
-          throws.length < 3 &&
-          !isCheckout &&
-          lastThrow != throwHistory.last; // Don't count incomplete current turn
+      // Use the stored isBust flag (set by _classifyThrow at throw-time) rather
+      // than re-deriving from score state. The guard `!= throwHistory.last`
+      // prevents counting the current player's still-in-progress turn as done.
+      final isBust =
+          lastThrow.isBust && lastThrow != throwHistory.last;
       final isThirdDart = lastThrow.turnNumber == 2;
 
       if (isCheckout || isBust || isThirdDart) {
