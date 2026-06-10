@@ -18,6 +18,12 @@ class DossedartTokens {
   static const Color purple = Color(0xFF7B3FFF);
   static const Color orange = Color(0xFFFF7A00);
 
+  // Inactive content / non-active opponents (single phosphor tone, not a
+  // per-player colour) + podium placements.
+  static const Color phosphor = Color(0xFFD9D2C2);
+  static const Color silver = Color(0xFFC9D2DA);
+  static const Color bronze = Color(0xFFD08A4A);
+
   // Disabled state (used by primitives that can become unavailable)
   static const Color disabledFill = Color(0x1FFFFFFF);   // Colors.white12
   static const Color disabledBorder = Color(0x3DFFFFFF); // Colors.white24
