@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Splitscore input-fokus</title>
+<meta name="viewport" content="width=2200"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Archivo:wght@900&display=swap" rel="stylesheet"/>
+<style>
+  body { margin: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  .intro { max-width: 980px; margin: 28px auto 6px; padding: 0 28px; color: #2a251f; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #c96442; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 38px; line-height: 1.05; letter-spacing: -1px; margin: 0 0 10px; font-weight: 900; }
+  .intro p { font-size: 15px; line-height: 1.55; color: #5a544a; max-width: 820px; margin: 0; }
+  .intro p + p { margin-top: 8px; }
+  .intro b { color: #2a251f; }
+  .intro code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background:#ece7dd; padding:1px 5px; border-radius:3px; color:#7a4a2a; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Splitscore · input-fokus · 2 alternativer</div>
+  <h1>Inputen følger mål-typen — ikke hele brettet.</h1>
+  <p>Når runden bare ber om <code>14</code> eller <b>alle dobler</b>, er hele dart-brettet unødvendig. Her er to alternativer, hver vist for to runde-typer så du ser inputen tilpasse seg: en <b>TALL-runde</b> (14 → kun <code>14 / D14 / T14</code>) og en <b>DOBBEL-runde</b> (alle tall kan treffes, så lenge det er dobbel → tastatur 1–20 ×2, pluss D-BULL).</p>
+  <p><b>Kun tall</b> (anbefalt): ingen brett — målet styrer cellene. <b>Brett</b> (som B): dart-brettet med alt dimmet utenom live-sonen, for den som vil sikte romlig. Begge beholder jeopardy-baren («treff eller halvér») + en kompakt standings. Spec-kortet viser input-mappingen per mål-type.</p>
+</div>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="splitscore-cockpit.jsx"></script>
+<script type="text/babel" data-presets="react">
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <DesignCanvas><SplitscoreInputFocus/></DesignCanvas>
+  );
+</script>
+</body>
+</html>

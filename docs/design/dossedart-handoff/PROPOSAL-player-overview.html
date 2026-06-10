@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Player Overview (proposal)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0014;
+    --surface: #1a0030;
+    --magenta: #FF00AA;
+    --cyan: #00E5FF;
+    --yellow: #FFD200;
+    --green: #3DFF8E;
+    --red: #FF3050;
+    --purple: #7B3FFF;
+    --orange: #FF7A00;
+  }
+  body { margin: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; padding: 28px; }
+  .intro { max-width: 1100px; margin: 0 auto 24px; color: #2a251f; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 32px; line-height: 1.05; letter-spacing: -1px; margin: 0 0 8px; font-weight: 900; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #c96442; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro p { font-size: 14px; line-height: 1.55; color: #5a544a; max-width: 900px; margin: 0 0 6px; }
+  .intro ul { font-size: 13px; line-height: 1.55; color: #5a544a; max-width: 900px; }
+  .intro b { color: #2a251f; }
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .artboard-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #5a544a; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+  .frame {
+    width: 411px; height: 731px;
+    background: var(--bg);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    font-family: 'VT323', monospace;
+  }
+  .frame::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(0,0,0,0.3) 3px, transparent 4px);
+    pointer-events: none; z-index: 2;
+  }
+  .frame::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%);
+    pointer-events: none; z-index: 3;
+  }
+
+  /* TopBar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 2px solid var(--magenta);
+    background: black;
+    position: relative; z-index: 4;
+  }
+  .back { font-family: 'VT323', monospace; font-size: 18px; color: var(--cyan); letter-spacing: 2px; }
+  .title { font-family: 'Press Start 2P', monospace; font-size: 12px; color: var(--yellow); letter-spacing: 2px; text-shadow: 0 0 6px rgba(255,210,0,0.6); }
+  .count { font-family: 'VT323', monospace; font-size: 14px; color: rgba(255,255,255,0.55); letter-spacing: 2px; }
+
+  /* Scrollable list area */
+  .list {
+    position: absolute; top: 49px; bottom: 0; left: 0; right: 0;
+    overflow-y: auto; padding: 14px;
+    z-index: 4;
+  }
+
+  /* Player row */
+  .row {
+    border: 2px solid var(--magenta);
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    background: rgba(26,0,48,0.4);
+    position: relative;
+  }
+  .row.active {
+    border-color: var(--yellow);
+    background: linear-gradient(180deg, rgba(255,210,0,0.10), rgba(255,210,0,0.02));
+    box-shadow: 0 0 14px rgba(255,210,0,0.35);
+  }
+  .row.cyan { border-color: var(--cyan); }
+  .row.green { border-color: var(--green); }
+
+  .row-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .avatar {
+    width: 44px; height: 44px;
+    background: #2a0050;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Press Start 2P', monospace; font-size: 16px; color: white;
+    border: 2px solid currentColor;
+  }
+  .row.active .avatar { border-color: var(--yellow); }
+  .row .name { font-family: 'Press Start 2P', monospace; font-size: 14px; color: white; letter-spacing: 1.5px; }
+  .active-badge {
+    margin-left: auto;
+    font-family: 'Press Start 2P', monospace; font-size: 9px; letter-spacing: 1.5px;
+    color: black; background: var(--yellow); padding: 3px 6px;
+    box-shadow: 0 0 8px rgba(255,210,0,0.6);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+    margin-top: 6px;
+  }
+  .stat-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .stat-label { font-family: 'Press Start 2P', monospace; font-size: 8px; color: rgba(255,255,255,0.55); letter-spacing: 1.2px; }
+  .stat-value { font-family: 'VT323', monospace; font-size: 16px; color: white; letter-spacing: 1px; }
+  .stat-value.big { font-family: 'Press Start 2P', monospace; font-size: 22px; color: var(--magenta); letter-spacing: 1px; text-shadow: 0 0 8px rgba(255,0,170,0.6); }
+  .row.active .stat-value.big { color: var(--yellow); text-shadow: 0 0 8px rgba(255,210,0,0.6); }
+
+  .last-line {
+    margin-top: 8px;
+    font-family: 'VT323', monospace; font-size: 14px;
+    color: rgba(255,255,255,0.75); letter-spacing: 1px;
+  }
+  .last-line b { color: var(--cyan); font-weight: normal; }
+
+  .checkout-tip {
+    margin-top: 8px; padding: 5px 8px;
+    border: 1.5px dashed var(--green);
+    background: rgba(61,255,142,0.06);
+    font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--green);
+    letter-spacing: 1px; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Proposal · 2026-05-20</div>
+  <h1>Player Overview — egen side fra MENU</h1>
+  <p>Tilgjengelig fra MENU-knappen i cockpit. Viser alle spillere med remaining, siste tur, 3-dart avg, hit%, og checkout-tip når mulig. Aktiv spiller markert med gul ramme + ACTIVE-badge.</p>
+  <p>Scrollbar liste hvis flere enn 3-4 spillere får plass på skjermen.</p>
+</div>
+
+<div class="stage">
+  <div>
+    <div class="artboard-label">Player Overview (3 players)</div>
+    <div class="frame">
+      <div class="topbar">
+        <div class="back">◀ BACK</div>
+        <div class="title">► CAST · X01 501</div>
+        <div class="count">3 PLAYERS</div>
+      </div>
+
+      <div class="list">
+        <!-- Active player -->
+        <div class="row active">
+          <div class="row-head">
+            <div class="avatar">M</div>
+            <div class="name">MIA</div>
+            <div class="active-badge">⚡ ACTIVE</div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-row">
+              <span class="stat-label">REMAINING</span>
+              <span class="stat-value big">170</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">AVG/3</span>
+              <span class="stat-value">31.3</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">HIT %</span>
+              <span class="stat-value">87%</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">MISS %</span>
+              <span class="stat-value">13%</span>
+            </div>
+          </div>
+          <div class="last-line">LAST <b>T20 · S20 · S20</b> = 80</div>
+          <div class="checkout-tip">▶ T20 › S16 › D-BULL</div>
+        </div>
+
+        <!-- Player 2 -->
+        <div class="row cyan">
+          <div class="row-head">
+            <div class="avatar" style="border-color: var(--cyan); color: var(--cyan)">J</div>
+            <div class="name" style="color: var(--cyan)">JON</div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-row">
+              <span class="stat-label">REMAINING</span>
+              <span class="stat-value big" style="color: var(--cyan); text-shadow: 0 0 8px rgba(0,229,255,0.6)">268</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">AVG/3</span>
+              <span class="stat-value">24.7</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">HIT %</span>
+              <span class="stat-value">82%</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">MISS %</span>
+              <span class="stat-value">18%</span>
+            </div>
+          </div>
+          <div class="last-line">LAST <b>S5 · S20 · S1</b> = 26</div>
+        </div>
+
+        <!-- Player 3 -->
+        <div class="row green">
+          <div class="row-head">
+            <div class="avatar" style="border-color: var(--green); color: var(--green)">B</div>
+            <div class="name" style="color: var(--green)">BEA</div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-row">
+              <span class="stat-label">REMAINING</span>
+              <span class="stat-value big" style="color: var(--green); text-shadow: 0 0 8px rgba(61,255,142,0.6)">421</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">AVG/3</span>
+              <span class="stat-value">19.8</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">HIT %</span>
+              <span class="stat-value">76%</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">MISS %</span>
+              <span class="stat-value">24%</span>
+            </div>
+          </div>
+          <div class="last-line">LAST <b>S20 · MISS · S5</b> = 25</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

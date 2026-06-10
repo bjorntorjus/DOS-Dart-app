@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Dartboard colors v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0014;
+    --surface: #1a0030;
+    --magenta: #FF00AA;
+    --cyan: #00E5FF;
+    --yellow: #FFD200;
+    --orange: #FF7A00;
+    --red: #FF3050;
+    --green: #3DFF8E;
+  }
+  body { margin: 0; background: #1a1714; font-family: 'Inter', system-ui, sans-serif; padding: 28px; color: #e5e0d8; }
+  .intro { max-width: 1400px; margin: 0 auto 24px; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 28px; margin: 0 0 8px; font-weight: 900; letter-spacing: -0.5px; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #ff9c75; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro p, .intro li { font-size: 13px; line-height: 1.55; color: #b8b0a0; max-width: 1100px; margin: 0 0 6px; }
+  .intro b { color: #e5e0d8; }
+  .stage { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .artboard { display: flex; flex-direction: column; align-items: center; }
+  .artboard-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #b8b0a0; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .desc { width: 360px; font-size: 12px; color: #b8b0a0; line-height: 1.5; margin-top: 10px; text-align: center; }
+  .desc b { color: #e5e0d8; }
+
+  /* Each board sits in a 360 frame */
+  .frame {
+    width: 360px; height: 360px;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid #2a2422;
+    border-radius: 8px;
+  }
+  .frame.bg-black { background: #000000; }
+  .frame.bg-darker { background: #0a0014; }
+  .frame.bg-purple { background: var(--surface); }
+  .frame.bg-deepnavy { background: #061321; }
+
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Proposal · 2026-05-22 · dartboard colors</div>
+  <h1>Dartboard — tre retninger for å fikse "fargene er stygge"</h1>
+  <p><b>Hva du sa:</b> rainbow fungerer ikke, triple/double skriker, brett-bg gjør at ingenting står ut. <b>Hva som blir foreslått:</b></p>
+  <ul>
+    <li><b>A — Tradisjonell dartboard, DOSSEDART-tint:</b> alternerende cream + dark singles, alternerende red+green triple og double (klassisk dart-look). Bg byttet til solid svart så fargene popper.</li>
+    <li><b>B — Mono-cyan DOSSEDART:</b> singles vekselvis surface + lett lysere surface (b/w-vibe), triple solid magenta, double solid cyan. Kun 2 hovedfarger. Bg svart.</li>
+    <li><b>C — Solid neon, ingen alpha:</b> singles solide magenta/cyan (alpha 0.35 → 1.0), triple og double dempet ned (mer "olivengrønn"/"messing" enn neon). Bg svart.</li>
+  </ul>
+  <p>Bull (orange) og D-Bull (rød) er like i alle tre — det er <i>standard</i> for et dart-board.</p>
+</div>
+
+<div class="stage">
+  <!-- A: Traditional dart -->
+  <div class="artboard">
+    <div class="artboard-label">A — Tradisjonell dart-look</div>
+    <div class="frame bg-black">
+      <svg id="boardA" width="320" height="320" viewBox="-220 -220 440 440"></svg>
+    </div>
+    <div class="desc">
+      <b>Singles:</b> alternerende cream (#E8DCC0) + dark (surface).
+      <b>Triple/double:</b> alternerende red + green per segment.
+      <b>Bg:</b> solid svart.
+      Gjenkjennbart som dart-board. Mer 'sport', mindre 'arcade'.
+    </div>
+  </div>
+
+  <!-- B: Mono-DOSSEDART -->
+  <div class="artboard">
+    <div class="artboard-label">B — Mono DOSSEDART</div>
+    <div class="frame bg-black">
+      <svg id="boardB" width="320" height="320" viewBox="-220 -220 440 440"></svg>
+    </div>
+    <div class="desc">
+      <b>Singles:</b> alternerende mørk surface + lett lysere variant.
+      <b>Triple:</b> solid magenta.
+      <b>Double:</b> solid cyan.
+      <b>Bg:</b> solid svart.
+      Bruker hovedfarger fra DOSSEDART, men kun TO. Ingen rainbow.
+    </div>
+  </div>
+
+  <!-- C: Solid neon, dempet triple/double -->
+  <div class="artboard">
+    <div class="artboard-label">C — Solid neon, dempet triple/double</div>
+    <div class="frame bg-black">
+      <svg id="boardC" width="320" height="320" viewBox="-220 -220 440 440"></svg>
+    </div>
+    <div class="desc">
+      <b>Singles:</b> solide magenta/cyan (samme som i dag, men 100 % alpha).
+      <b>Triple:</b> dempet olivengrønn (#7A8A3C).
+      <b>Double:</b> dempet brass/messing (#B8923A).
+      <b>Bg:</b> solid svart.
+      Bevarer "mer enn 2 farger" men uten skrik.
+    </div>
+  </div>
+</div>
+
+<script>
+  const SEG = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+  const R = 210;
+  const kBull = 0.12, kInner = 0.47, kTriple = 0.58, kOuter = 0.82, kDouble = 0.95;
+
+  function addPath(svg, d, fill) {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('fill', fill);
+    svg.appendChild(p);
+  }
+  function addCircle(svg, cx, cy, r, fill, stroke, sw) {
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+    if (fill) c.setAttribute('fill', fill); else c.setAttribute('fill', 'none');
+    if (stroke) { c.setAttribute('stroke', stroke); c.setAttribute('stroke-width', sw); }
+    svg.appendChild(c);
+  }
+  function wedgePath(rIn, rOut, ang0, ang1) {
+    const x0 = Math.cos(ang0) * rIn * R, y0 = Math.sin(ang0) * rIn * R;
+    const x1 = Math.cos(ang0) * rOut * R, y1 = Math.sin(ang0) * rOut * R;
+    const x2 = Math.cos(ang1) * rOut * R, y2 = Math.sin(ang1) * rOut * R;
+    const x3 = Math.cos(ang1) * rIn * R, y3 = Math.sin(ang1) * rIn * R;
+    return `M ${x0} ${y0} L ${x1} ${y1} A ${rOut * R} ${rOut * R} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn * R} ${rIn * R} 0 0 0 ${x0} ${y0} Z`;
+  }
+  function drawNumbers(svg) {
+    const slice = Math.PI * 2 / 20;
+    for (let i = 0; i < 20; i++) {
+      const ang = (-slice / 2 + i * slice - Math.PI / 2 + slice / 2);
+      const lx = Math.cos(ang) * 0.975 * R, ly = Math.sin(ang) * 0.975 * R;
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', lx); t.setAttribute('y', ly + 4);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', 'Press Start 2P, monospace');
+      t.setAttribute('font-size', '11');
+      t.setAttribute('fill', 'white');
+      t.textContent = SEG[i];
+      svg.appendChild(t);
+    }
+  }
+  function drawBull(svg) {
+    addCircle(svg, 0, 0, 22, '#FF7A00', 'white', 2);
+    addCircle(svg, 0, 0, 10, '#FF3050', 'white', 2);
+  }
+  function drawOuterRing(svg) {
+    addCircle(svg, 0, 0, R, null, '#FF00AA', 3);
+  }
+
+  // A: Traditional dart palette
+  function drawA() {
+    const svg = document.getElementById('boardA');
+    const slice = Math.PI * 2 / 20;
+    const CREAM = '#E8DCC0';
+    const DARK = '#1a0030';
+    const RED = '#C73E2A';
+    const GREEN = '#2A7B4A';
+    for (let i = 0; i < 20; i++) {
+      const start = -slice / 2 + i * slice - Math.PI / 2;
+      const end = start + slice;
+      const singleCol = (i % 2 === 0) ? CREAM : DARK;
+      const ringCol = (i % 2 === 0) ? RED : GREEN;
+      addPath(svg, wedgePath(kBull, kInner, start, end), singleCol);
+      addPath(svg, wedgePath(kInner, kTriple, start, end), ringCol);
+      addPath(svg, wedgePath(kTriple, kOuter, start, end), singleCol);
+      addPath(svg, wedgePath(kOuter, kDouble, start, end), ringCol);
+      addPath(svg, wedgePath(kDouble, 1.0, start, end), '#000');
+    }
+    drawNumbers(svg);
+    drawOuterRing(svg);
+    drawBull(svg);
+  }
+
+  // B: Mono DOSSEDART
+  function drawB() {
+    const svg = document.getElementById('boardB');
+    const slice = Math.PI * 2 / 20;
+    const DARK = '#1a0030';
+    const LIGHT = '#3a1054'; // lighter purple
+    const MAGENTA = '#FF00AA';
+    const CYAN = '#00E5FF';
+    for (let i = 0; i < 20; i++) {
+      const start = -slice / 2 + i * slice - Math.PI / 2;
+      const end = start + slice;
+      const singleCol = (i % 2 === 0) ? LIGHT : DARK;
+      addPath(svg, wedgePath(kBull, kInner, start, end), singleCol);
+      addPath(svg, wedgePath(kInner, kTriple, start, end), MAGENTA);
+      addPath(svg, wedgePath(kTriple, kOuter, start, end), singleCol);
+      addPath(svg, wedgePath(kOuter, kDouble, start, end), CYAN);
+      addPath(svg, wedgePath(kDouble, 1.0, start, end), '#000');
+    }
+    drawNumbers(svg);
+    drawOuterRing(svg);
+    drawBull(svg);
+  }
+
+  // C: Solid neon singles + dempet triple/double
+  function drawC() {
+    const svg = document.getElementById('boardC');
+    const slice = Math.PI * 2 / 20;
+    const MAGENTA = '#FF00AA';
+    const CYAN = '#00E5FF';
+    const OLIVE = '#7A8A3C';
+    const BRASS = '#B8923A';
+    for (let i = 0; i < 20; i++) {
+      const start = -slice / 2 + i * slice - Math.PI / 2;
+      const end = start + slice;
+      const singleCol = (i % 2 === 0) ? MAGENTA : CYAN;
+      addPath(svg, wedgePath(kBull, kInner, start, end), singleCol);
+      addPath(svg, wedgePath(kInner, kTriple, start, end), OLIVE);
+      addPath(svg, wedgePath(kTriple, kOuter, start, end), singleCol);
+      addPath(svg, wedgePath(kOuter, kDouble, start, end), BRASS);
+      addPath(svg, wedgePath(kDouble, 1.0, start, end), '#000');
+    }
+    drawNumbers(svg);
+    drawOuterRing(svg);
+    drawBull(svg);
+  }
+
+  drawA();
+  drawB();
+  drawC();
+</script>
+
+</body>
+</html>

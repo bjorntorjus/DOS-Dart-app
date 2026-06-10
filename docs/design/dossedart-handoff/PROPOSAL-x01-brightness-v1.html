@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — X01 brightness v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0014;
+    --surface: #1a0030;
+    --magenta: #FF00AA;
+    --cyan: #00E5FF;
+    --yellow: #FFD200;
+    --orange: #FF7A00;
+    --red: #FF3050;
+    --green: #3DFF8E;
+  }
+  body { margin: 0; background: #1a1714; font-family: 'Inter', system-ui, sans-serif; padding: 28px; color: #e5e0d8; }
+  .intro { max-width: 1300px; margin: 0 auto 24px; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 28px; margin: 0 0 8px; font-weight: 900; letter-spacing: -0.5px; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #ff9c75; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro p, .intro li { font-size: 13px; line-height: 1.55; color: #b8b0a0; max-width: 1000px; margin: 0 0 6px; }
+  .intro b { color: #e5e0d8; }
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .artboard-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #b8b0a0; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+
+  .frame {
+    width: 411px; height: 731px;
+    background: var(--bg);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    font-family: 'VT323', monospace;
+    border-radius: 12px;
+    border: 2px solid #2a2422;
+  }
+  /* Scanlines — full coverage */
+  .frame.dark::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.30) 3px, rgba(0,0,0,0) 4px);
+    pointer-events: none; z-index: 8;
+  }
+  .frame.dark::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%);
+    pointer-events: none; z-index: 9;
+  }
+  /* Bright variant: scanlines + vignette stop above the board, board area is clean */
+  .frame.bright::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 220px;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.30) 3px, rgba(0,0,0,0) 4px);
+    pointer-events: none; z-index: 8;
+  }
+  .frame.bright::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 220px;
+    background: radial-gradient(ellipse at top, transparent 50%, rgba(0,0,0,0.5) 100%);
+    pointer-events: none; z-index: 9;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 2px solid var(--magenta);
+    background: black; position: relative; z-index: 4;
+  }
+  .exit { font-family: 'VT323', monospace; font-size: 18px; color: var(--cyan); letter-spacing: 2px; }
+  .title { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--yellow); letter-spacing: 2px; text-shadow: 0 0 8px rgba(255,210,0,0.6); }
+  .leg { font-family: 'VT323', monospace; font-size: 14px; color: rgba(255,255,255,0.55); letter-spacing: 2px; }
+
+  .active-card {
+    margin: 12px 14px 10px; padding: 12px 14px;
+    border: 3px solid var(--magenta);
+    background: linear-gradient(180deg, rgba(255,0,170,0.10), rgba(255,0,170,0.02));
+    position: relative; z-index: 4;
+    box-shadow: 0 0 14px rgba(255,0,170,0.25);
+  }
+  .active-row { display: flex; align-items: center; gap: 12px; }
+  .avatar-sq { width: 56px; height: 56px; background: #2a0050; border: 3px solid var(--magenta); display: flex; align-items: center; justify-content: center; }
+  .avatar-sq svg { width: 40px; height: 40px; opacity: 0.85; fill: white; }
+  .name-col { display: flex; flex-direction: column; flex: 1; gap: 4px; }
+  .name { font-family: 'Press Start 2P', monospace; color: white; font-size: 18px; letter-spacing: 2px; }
+  .remaining-row { display: flex; align-items: baseline; justify-content: space-between; margin-top: 14px; }
+  .remaining-label { font-family: 'Press Start 2P', monospace; font-size: 9px; color: rgba(255,255,255,0.7); letter-spacing: 1.5px; }
+  .remaining-num { font-family: 'Press Start 2P', monospace; font-size: 60px; color: var(--magenta); letter-spacing: 2px; line-height: 1; text-shadow: 0 0 16px rgba(255,0,170,0.7); }
+
+  /* Board wrap */
+  .board-wrap {
+    position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%);
+    z-index: 4; width: 320px; height: 320px;
+  }
+  /* Dark variant: faded segments (alpha 0.35 like current Flutter code) */
+  .board-wrap.dark svg .segA { fill: rgba(255,0,170,0.35); }
+  .board-wrap.dark svg .segB { fill: rgba(0,229,255,0.35); }
+  /* Bright variant: full opacity segments */
+  .board-wrap.bright svg .segA { fill: rgba(255,0,170,0.95); }
+  .board-wrap.bright svg .segB { fill: rgba(0,229,255,0.95); }
+  /* triple/double rings always full */
+  .board-wrap svg .triple { fill: var(--green); }
+  .board-wrap svg .double { fill: var(--yellow); }
+
+  .actionbar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: black; border-top: 2px solid var(--yellow);
+    display: flex; gap: 10px; padding: 12px 14px;
+    z-index: 5;
+  }
+  .btn { flex: 1; padding: 12px 0; font-family: 'Press Start 2P', monospace; font-size: 11px; letter-spacing: 1.5px; background: transparent; color: white; text-align: center; border: 2px solid var(--magenta); }
+  .btn.primary { flex: 2; background: var(--orange); border-color: white; color: black; }
+  .btn.menu { border-color: var(--cyan); color: var(--cyan); }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Proposal · 2026-05-22 · X01 cockpit brightness</div>
+  <h1>X01 — dartboard løftet ut av mørket</h1>
+  <p><b>Problem:</b> Dartboardet er nesten usynlig. Tre lag jobber mot brettet samtidig:</p>
+  <ul>
+    <li><b>Segmentene</b> rendres med <code>alpha 0.35</code> (magenta/cyan på mørk surface) → 65 % gjennomsiktige</li>
+    <li><b>Scanlines</b> (30 % svart, hver 4. px) ligger over <i>alt</i>, inkludert brettet</li>
+    <li><b>Vignette</b> (60 % svart fra senter ut til kant) bidrar litt på siden</li>
+  </ul>
+  <p><b>Forslag:</b> sett segment-alpha til 0.95, og avgrens scanline+vignette til topbar/active-card-området (øverste ~220 px). CRT-følelsen beholdes der den hører hjemme (UI-chrome), men brettet — som er funksjonell info — får full lesbarhet.</p>
+</div>
+
+<div class="stage">
+  <!-- LEFT: current dark -->
+  <div>
+    <div class="artboard-label">I dag — alpha 0.35 + scanlines/vignette over alt</div>
+    <div class="frame dark">
+      <div class="topbar">
+        <div class="exit">◀ EXIT</div>
+        <div class="title">X01 · 501 · D-OUT</div>
+        <div class="leg">L 1/3</div>
+      </div>
+      <div class="active-card">
+        <div class="active-row">
+          <div class="avatar-sq"><svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg></div>
+          <div class="name-col"><div class="name">BJØRN T.</div></div>
+        </div>
+        <div class="remaining-row"><span class="remaining-label">REMAINING</span><span class="remaining-num">170</span></div>
+      </div>
+      <div class="board-wrap dark">
+        <svg id="boardDark" width="320" height="320" viewBox="-220 -220 440 440"></svg>
+      </div>
+      <div class="actionbar">
+        <div class="btn">↶ UNDO</div>
+        <div class="btn primary">✗ MISS</div>
+        <div class="btn menu">⋯ MENU</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: proposed bright -->
+  <div>
+    <div class="artboard-label">Forslag — alpha 0.95, scanlines/vignette kun øverst</div>
+    <div class="frame bright">
+      <div class="topbar">
+        <div class="exit">◀ EXIT</div>
+        <div class="title">X01 · 501 · D-OUT</div>
+        <div class="leg">L 1/3</div>
+      </div>
+      <div class="active-card">
+        <div class="active-row">
+          <div class="avatar-sq"><svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg></div>
+          <div class="name-col"><div class="name">BJØRN T.</div></div>
+        </div>
+        <div class="remaining-row"><span class="remaining-label">REMAINING</span><span class="remaining-num">170</span></div>
+      </div>
+      <div class="board-wrap bright">
+        <svg id="boardBright" width="320" height="320" viewBox="-220 -220 440 440"></svg>
+      </div>
+      <div class="actionbar">
+        <div class="btn">↶ UNDO</div>
+        <div class="btn primary">✗ MISS</div>
+        <div class="btn menu">⋯ MENU</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const SEG = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+  function drawBoard(svgId) {
+    const svg = document.getElementById(svgId);
+    const R = 210;
+    const kBull = 0.12, kInner = 0.47, kTriple = 0.58, kOuter = 0.82, kDouble = 0.95;
+    function wedge(rIn, rOut, ang0, ang1, cls) {
+      const x0 = Math.cos(ang0) * rIn * R, y0 = Math.sin(ang0) * rIn * R;
+      const x1 = Math.cos(ang0) * rOut * R, y1 = Math.sin(ang0) * rOut * R;
+      const x2 = Math.cos(ang1) * rOut * R, y2 = Math.sin(ang1) * rOut * R;
+      const x3 = Math.cos(ang1) * rIn * R, y3 = Math.sin(ang1) * rIn * R;
+      const d = `M ${x0} ${y0} L ${x1} ${y1} A ${rOut * R} ${rOut * R} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn * R} ${rIn * R} 0 0 0 ${x0} ${y0} Z`;
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('class', cls);
+      svg.appendChild(p);
+    }
+    const slice = Math.PI * 2 / 20;
+    for (let i = 0; i < 20; i++) {
+      const start = -slice / 2 + i * slice - Math.PI / 2;
+      const end = start + slice;
+      const cls = (i % 2 === 0) ? 'segA' : 'segB';
+      wedge(kBull, kInner, start, end, cls);
+      wedge(kInner, kTriple, start, end, 'triple');
+      wedge(kTriple, kOuter, start, end, cls);
+      wedge(kOuter, kDouble, start, end, 'double');
+      // number label
+      const ang = (start + end) / 2;
+      const lx = Math.cos(ang) * 0.975 * R, ly = Math.sin(ang) * 0.975 * R;
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', lx); t.setAttribute('y', ly + 4);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', 'Press Start 2P, monospace');
+      t.setAttribute('font-size', '11');
+      t.setAttribute('fill', 'white');
+      t.textContent = SEG[i];
+      svg.appendChild(t);
+    }
+    // Outer ring
+    const outer = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    outer.setAttribute('cx', 0); outer.setAttribute('cy', 0); outer.setAttribute('r', R);
+    outer.setAttribute('fill', 'none'); outer.setAttribute('stroke', '#FF00AA'); outer.setAttribute('stroke-width', '3');
+    svg.appendChild(outer);
+    // Bull / D-Bull
+    const bull = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bull.setAttribute('cx', 0); bull.setAttribute('cy', 0); bull.setAttribute('r', 22);
+    bull.setAttribute('fill', '#FF7A00'); bull.setAttribute('stroke', 'white'); bull.setAttribute('stroke-width', '2');
+    svg.appendChild(bull);
+    const dbull = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dbull.setAttribute('cx', 0); dbull.setAttribute('cy', 0); dbull.setAttribute('r', 10);
+    dbull.setAttribute('fill', '#FF3050'); dbull.setAttribute('stroke', 'white'); dbull.setAttribute('stroke-width', '2');
+    svg.appendChild(dbull);
+  }
+  drawBoard('boardDark');
+  drawBoard('boardBright');
+</script>
+
+</body>
+</html>
