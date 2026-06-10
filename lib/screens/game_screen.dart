@@ -78,9 +78,6 @@ class _GameScreenState extends State<GameScreen> {
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
 
-  /// Per-game bust count per player index (for the SURGEON achievement etc.).
-  final Map<int, int> _bustsByPlayer = {};
-
   /// First player in [finishedPlayers] who has not been removed mid-game.
   /// Used for winner picking — a removed player must never be declared winner
   /// even if their index happens to appear first in [finishedPlayers].
@@ -113,6 +110,21 @@ class _GameScreenState extends State<GameScreen> {
       }
     });
   }
+
+  /// Busts derived from history — undo pops the throw, so this is always
+  /// consistent (a counter would survive undo and corrupt SURGEON).
+  int _bustCountFor(int playerIndex) =>
+      throwHistory.where((t) => t.playerIndex == playerIndex && t.isBust).length;
+
+  @visibleForTesting
+  int bustCountForTest(int playerIndex) => _bustCountFor(playerIndex);
+
+  @visibleForTesting
+  Future<void> onDartHitForTest(int segment, int multiplier) =>
+      _onDartHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
 
   /// Fast-forwards a player's score to [score] for testing.
   /// Only updates state — does NOT trigger game-end detection.
@@ -304,11 +316,6 @@ class _GameScreenState extends State<GameScreen> {
     // Single source of truth for outcome classification — no-bust mode never
     // produces a bust (overshoot is a legal turn end there).
     final isBust = _classifyThrow(newScore, multiplier) == _ThrowOutcome.bust;
-
-    if (isBust) {
-      _bustsByPlayer[currentPlayerIndex] =
-          (_bustsByPlayer[currentPlayerIndex] ?? 0) + 1;
-    }
 
     final dartThrow = DartThrow(
       playerIndex: currentPlayerIndex,
@@ -748,7 +755,7 @@ class _GameScreenState extends State<GameScreen> {
         if (feats.maxBullsInTurn >= 3) AchievementEvent.threeBullsTurn,
       ];
       if (evs.isNotEmpty) events[i] = evs;
-      counters[i] = {'bustCount': _bustsByPlayer[i] ?? 0};
+      counters[i] = {'bustCount': _bustCountFor(i)};
     }
     AchievementService.instance.awardGameEnd(
       mode: GameMode.x01,
