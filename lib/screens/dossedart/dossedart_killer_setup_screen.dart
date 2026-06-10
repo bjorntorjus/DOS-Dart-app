@@ -57,7 +57,7 @@ class _DossedartKillerSetupScreenState
         ]),
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
-          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+          ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );
@@ -80,6 +80,7 @@ class _DossedartKillerSetupScreenState
       MaterialPageRoute(
         builder: (_) => KillerGameScreen(
           players: players,
+          useDossedartDesign: true,
           config: KillerConfig(
             throwToPick: _throwToPick,
             lives: _lives,

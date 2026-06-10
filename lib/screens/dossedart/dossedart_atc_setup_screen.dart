@@ -43,7 +43,7 @@ class _DossedartAtcSetupScreenState extends State<DossedartAtcSetupScreen> {
         ArcadeToggleRow(toggles: [
           ('BULL', _includeBull, (v) => setState(() => _includeBull = v)),
           ('D/T = ×N', _countMultiples, (v) => setState(() => _countMultiples = v)),
-          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+          ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );
@@ -64,6 +64,7 @@ class _DossedartAtcSetupScreenState extends State<DossedartAtcSetupScreen> {
       MaterialPageRoute(
         builder: (_) => AroundTheClockGameScreen(
           players: players,
+          useDossedartDesign: true,
           config: AroundTheClockConfig(
             includeBull: _includeBull,
             countMultiples: _countMultiples,

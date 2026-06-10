@@ -83,40 +83,14 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
   }
 
   Future<void> _addNewPlayer() async {
-    final controller = TextEditingController();
-    bool ok = false;
-    String name = '';
-    try {
-      ok = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('NEW FIGHTER'),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: 'Name'),
-                textCapitalization: TextCapitalization.words,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Create'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      name = controller.text.trim();
-    } finally {
-      controller.dispose();
-    }
-    if (!ok || name.isEmpty) return;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => const _NameInputDialog(title: 'NEW FIGHTER'),
+    );
+    final trimmed = (name ?? '').trim();
+    if (trimmed.isEmpty) return;
 
-    final saved = await PlayerStorage.addPlayer(name);
+    final saved = await PlayerStorage.addPlayer(trimmed);
     if (!mounted) return;
     setState(() {
       _savedPlayers.add(saved);
@@ -127,109 +101,14 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
   }
 
   Future<void> _showPlayerProfile(SavedPlayer sp) async {
-    final nameController = TextEditingController(text: sp.name);
-    try {
     await showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Player profile'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    final imagePath = await _pickImage();
-                    if (imagePath == null) return;
-                    final dir = await getApplicationDocumentsDirectory();
-                    final avatarDir = Directory('${dir.path}/avatars');
-                    if (!avatarDir.existsSync()) {
-                      avatarDir.createSync(recursive: true);
-                    }
-                    final ext = p.extension(imagePath);
-                    final dest = '${avatarDir.path}/${sp.id}$ext';
-                    await File(imagePath).copy(dest);
-                    sp.avatarPath = dest;
-                    await PlayerStorage.savePlayers(_savedPlayers);
-                    if (!mounted) return;
-                    if (ctx.mounted) setDialogState(() {});
-                    setState(() {});
-                  },
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundImage: sp.avatarPath != null
-                        ? FileImage(File(sp.avatarPath!))
-                        : null,
-                    child: sp.avatarPath == null
-                        ? const Icon(Icons.add_a_photo, size: 32)
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 16),
-                _stat('Rating', sp.rating.round().toString()),
-                _stat('Games played', sp.gamesPlayed.toString()),
-                _stat('Win rate',
-                    '${(sp.winRate * 100).toStringAsFixed(0)}%'),
-                _stat('Avg turn score', sp.averageTurnScore.toStringAsFixed(1)),
-                _stat('Best turn', sp.highestTurnScore.toString()),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final newName = nameController.text.trim();
-                if (newName.isNotEmpty && newName != sp.name) {
-                  sp.name = newName;
-                  await PlayerStorage.savePlayers(_savedPlayers);
-                  setState(() {});
-                }
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-    } finally {
-      nameController.dispose();
-    }
-  }
-
-  Future<String?> _pickImage() async {
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 512,
-      maxHeight: 512,
-    );
-    return image?.path;
-  }
-
-  Widget _stat(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
+      builder: (_) => _PlayerProfileDialog(
+        player: sp,
+        savedPlayers: _savedPlayers,
+        onChanged: () {
+          if (mounted) setState(() {});
+        },
       ),
     );
   }
@@ -453,6 +332,182 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A name-entry dialog that owns its own [TextEditingController]. Binding the
+/// controller to this widget's State means it is disposed only when the dialog
+/// route fully unmounts (after its exit transition) — never synchronously while
+/// the reverse animation is still rebuilding the field, which crashed with
+/// "TextEditingController used after being disposed".
+class _NameInputDialog extends StatefulWidget {
+  const _NameInputDialog({required this.title});
+
+  final String title;
+
+  @override
+  State<_NameInputDialog> createState() => _NameInputDialogState();
+}
+
+class _NameInputDialogState extends State<_NameInputDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.pop(context, _controller.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Name'),
+        textCapitalization: TextCapitalization.words,
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Player-profile dialog (avatar + name + stats). Owns its name controller for
+/// the same lifecycle reason as [_NameInputDialog]. Persists edits to
+/// [savedPlayers] and notifies the parent via [onChanged].
+class _PlayerProfileDialog extends StatefulWidget {
+  const _PlayerProfileDialog({
+    required this.player,
+    required this.savedPlayers,
+    required this.onChanged,
+  });
+
+  final SavedPlayer player;
+  final List<SavedPlayer> savedPlayers;
+  final VoidCallback onChanged;
+
+  @override
+  State<_PlayerProfileDialog> createState() => _PlayerProfileDialogState();
+}
+
+class _PlayerProfileDialogState extends State<_PlayerProfileDialog> {
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.player.name);
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _editAvatar() async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+    );
+    if (image == null) return;
+    final sp = widget.player;
+    final dir = await getApplicationDocumentsDirectory();
+    final avatarDir = Directory('${dir.path}/avatars');
+    if (!avatarDir.existsSync()) avatarDir.createSync(recursive: true);
+    final ext = p.extension(image.path);
+    final dest = '${avatarDir.path}/${sp.id}$ext';
+    await File(image.path).copy(dest);
+    sp.avatarPath = dest;
+    await PlayerStorage.savePlayers(widget.savedPlayers);
+    if (!mounted) return;
+    setState(() {});
+    widget.onChanged();
+  }
+
+  Future<void> _save() async {
+    final sp = widget.player;
+    final newName = _nameController.text.trim();
+    if (newName.isNotEmpty && newName != sp.name) {
+      sp.name = newName;
+      await PlayerStorage.savePlayers(widget.savedPlayers);
+      widget.onChanged();
+    }
+    if (mounted) Navigator.pop(context);
+  }
+
+  Widget _stat(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sp = widget.player;
+    return AlertDialog(
+      title: const Text('Player profile'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: _editAvatar,
+              child: CircleAvatar(
+                radius: 40,
+                backgroundImage: sp.avatarPath != null
+                    ? FileImage(File(sp.avatarPath!))
+                    : null,
+                child: sp.avatarPath == null
+                    ? const Icon(Icons.add_a_photo, size: 32)
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                border: OutlineInputBorder(),
+              ),
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            _stat('Rating', sp.rating.round().toString()),
+            _stat('Games played', sp.gamesPlayed.toString()),
+            _stat('Win rate', '${(sp.winRate * 100).toStringAsFixed(0)}%'),
+            _stat('Avg turn score', sp.averageTurnScore.toStringAsFixed(1)),
+            _stat('Best turn', sp.highestTurnScore.toString()),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

@@ -50,7 +50,7 @@ class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
         ArcadeToggleRow(toggles: [
           ('NO-BUST', _noBust, (v) => setState(() => _noBust = v)),
           ('HANDICAP', _handicap, (v) => setState(() => _handicap = v)),
-          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+          ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );
