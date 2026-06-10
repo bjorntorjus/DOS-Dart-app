@@ -9,6 +9,10 @@ class DartThrow {
   final int turnId; // monotonically increasing ID per turn, unique even if score unchanged
   final int roundNumber; // which round (full cycle of all players) this throw belongs to
 
+  /// True when this dart busted the turn (standard X01 rules). No-bust mode
+  /// never sets this — overshoot there is a legal turn end, not a bust.
+  final bool isBust;
+
   DartThrow({
     required this.playerIndex,
     required this.segment,
@@ -19,6 +23,7 @@ class DartThrow {
     required this.scoreAtStartOfTurn,
     this.turnId = 0,
     this.roundNumber = 0,
+    this.isBust = false,
   });
 
   String get label {

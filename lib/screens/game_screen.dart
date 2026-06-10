@@ -300,24 +300,9 @@ class _GameScreenState extends State<GameScreen> {
     final scoreBefore = player.score;
     final newScore = player.score - points;
 
-    bool isBust = false;
-
-    final needsSpecialOut = widget.masterOut != 'none';
-    final isValidOut = widget.masterOut == 'double'
-        ? multiplier == 2
-        : widget.masterOut == 'master'
-            ? multiplier >= 2
-            : true;
-
-    if (newScore < 0) {
-      isBust = true;
-    } else if (newScore == 0 && needsSpecialOut && !isValidOut) {
-      isBust = true;
-    } else if (newScore == 1 && needsSpecialOut) {
-      // Score 1 is impossible to check out with double-out (min D1=2)
-      // or master-out (min D1=2 or T1=3)
-      isBust = true;
-    }
+    // Single source of truth for outcome classification — no-bust mode never
+    // produces a bust (overshoot is a legal turn end there).
+    final isBust = _classifyThrow(newScore, multiplier) == _ThrowOutcome.bust;
 
     if (isBust) {
       _bustsByPlayer[currentPlayerIndex] =
@@ -334,6 +319,7 @@ class _GameScreenState extends State<GameScreen> {
       scoreAtStartOfTurn: scoreAtStartOfTurn,
       turnId: _turnIdCounter,
       roundNumber: _roundNumber,
+      isBust: isBust,
     );
 
     // Pre-roll video dice and track per-dart events
