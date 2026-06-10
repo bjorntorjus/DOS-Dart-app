@@ -126,4 +126,42 @@ void main() {
     expect(winner, equals(1),
         reason: 'P1 should be the winner — P0 was removed mid-game');
   });
+
+  testWidgets('ATC: removed player is excluded from the result screen',
+      (tester) async {
+    final players = [
+      Player(name: 'P0', score: 0),
+      Player(name: 'P1', score: 0),
+      Player(name: 'P2', score: 0),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: AroundTheClockGameScreen(
+        players: players,
+        config: const AroundTheClockConfig(
+          includeBull: false,
+          countMultiples: false,
+          reverse: false,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final state = tester.state<State<AroundTheClockGameScreen>>(
+        find.byType(AroundTheClockGameScreen));
+    final dynamic dynState = state;
+
+    dynState.removePlayerForTest(0); // removed → sits first in finishedPlayers
+    await tester.pumpAndSettle();
+    dynState.finishedPlayersForTest.add(1); // P1 actually finishes
+
+    final result = dynState.buildGameResultForTest();
+    final names = [for (final r in result.results) r.name as String];
+
+    expect(names.contains('P0'), isFalse,
+        reason: 'removed player must not appear on the result screen');
+    final p1 = result.results.firstWhere((r) => r.name == 'P1');
+    expect(p1.placement, equals(1),
+        reason: 'the real finisher P1 takes 1st, not the removed P0');
+  });
 }
