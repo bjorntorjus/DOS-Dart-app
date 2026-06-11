@@ -123,6 +123,19 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   int _killsThisTurn = 0;
   final Map<int, int> _maxKillsInTurn = {};
 
+  @visibleForTesting
+  int get killsThisTurnForTest => _killsThisTurn;
+
+  @visibleForTesting
+  Map<int, int> get maxKillsInTurnForTest => _maxKillsInTurn;
+
+  @visibleForTesting
+  Future<void> onDartHitForTest(int segment, int multiplier) =>
+      _onDartHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
+
   void _commitKillsThisTurn() {
     final cur = _maxKillsInTurn[currentPlayerIndex] ?? 0;
     if (_killsThisTurn > cur) _maxKillsInTurn[currentPlayerIndex] = _killsThisTurn;
@@ -250,6 +263,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isEliminatedBefore: List.from(isEliminated),
       shieldsBefore: List.from(shields),
       roundNumber: _roundNumber,
+      killsThisTurnBefore: _killsThisTurn,
+      maxKillsInTurnBefore: Map.of(_maxKillsInTurn),
     ));
 
     final dartThrow = DartThrow(
@@ -558,6 +573,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isKiller = data.isKillerBefore;
       isEliminated = data.isEliminatedBefore;
       shields = data.shieldsBefore;
+      _killsThisTurn = data.killsThisTurnBefore;
+      _maxKillsInTurn
+        ..clear()
+        ..addAll(data.maxKillsInTurnBefore);
       _roundNumber = data.roundNumber;
       winnerIndex = null;
       lastThrowLabel = null;
@@ -1783,6 +1802,8 @@ class _KillerUndoData {
   final List<bool> isEliminatedBefore;
   final List<int> shieldsBefore;
   final int roundNumber;
+  final int killsThisTurnBefore;
+  final Map<int, int> maxKillsInTurnBefore;
 
   _KillerUndoData({
     required this.playerIndex,
@@ -1792,5 +1813,7 @@ class _KillerUndoData {
     required this.isEliminatedBefore,
     required this.shieldsBefore,
     required this.roundNumber,
+    required this.killsThisTurnBefore,
+    required this.maxKillsInTurnBefore,
   });
 }
