@@ -16,6 +16,7 @@ Future<void> showDossedartCockpitMenu(
   required MemeService meme,
   required VoidCallback onPlayerOverview,
   required VoidCallback onExit,
+  ValueChanged<bool>? onSoundChanged,
   ValueChanged<bool>? onTtsChanged,
 }) async {
   final sound = await AppSettings.getSoundEffectsEnabled();
@@ -36,6 +37,7 @@ Future<void> showDossedartCockpitMenu(
           onSoundChanged: (v) {
             SoundService.instance.setEnabled(v);
             AppSettings.setSoundEffectsEnabled(v);
+            onSoundChanged?.call(v);
           },
           onVideoChanged: (v) {
             VideoService.instance.setEnabled(v);

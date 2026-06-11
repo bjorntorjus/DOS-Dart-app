@@ -33,7 +33,7 @@ import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../theme/dossedart_tokens.dart';
-import '../widgets/dossedart/x01/dossedart_menu_sheet.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 enum _ThrowOutcome { continueTurn, finish, turnEndNoBust, bust }
 
@@ -1612,51 +1612,14 @@ class _GameScreenState extends State<GameScreen> {
     return lastThree.fold(0, (acc, t) => acc + t.segment * t.multiplier);
   }
 
-  Future<void> _showDossedartMenu(BuildContext outerContext) async {
-    final sound = await AppSettings.getSoundEffectsEnabled();
-    final video = await AppSettings.getVideoEventsEnabled();
-    final memes = await AppSettings.getMemeEnabled();
-    final tts = await AppSettings.getTtsEnabled();
-    if (!outerContext.mounted) return;
-    showModalBottomSheet(
-      context: outerContext,
-      backgroundColor: DossedartTokens.surface,
-      builder: (sheetCtx) {
-        return SafeArea(
-          child: DossedartMenuSheet(
-            initialSound: sound,
-            initialVideo: video,
-            initialMemes: memes,
-            initialTts: tts,
-            onSoundChanged: (v) {
-              setState(() => _soundEnabled = v);
-              SoundService.instance.setEnabled(v);
-              AppSettings.setSoundEffectsEnabled(v);
-            },
-            onVideoChanged: (v) {
-              VideoService.instance.setEnabled(v);
-              AppSettings.setVideoEventsEnabled(v);
-            },
-            onMemesChanged: (v) {
-              _meme.setEnabled(v);
-              AppSettings.setMemeEnabled(v);
-            },
-            onTtsChanged: (v) {
-              setState(() => _ttsEnabled = v);
-              TtsService.instance.setEnabled(v);
-              AppSettings.setTtsEnabled(v);
-            },
-            onPlayerOverview: () {
-              Navigator.pop(sheetCtx);
-              _openPlayerOverview();
-            },
-            onExit: () {
-              Navigator.pop(sheetCtx);
-              _confirmExit();
-            },
-          ),
-        );
-      },
+  Future<void> _showDossedartMenu(BuildContext outerContext) {
+    return showDossedartCockpitMenu(
+      outerContext,
+      meme: _meme,
+      onSoundChanged: (v) => setState(() => _soundEnabled = v),
+      onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+      onPlayerOverview: _openPlayerOverview,
+      onExit: _confirmExit,
     );
   }
 
