@@ -91,8 +91,9 @@ class _DartboardPainter extends CustomPainter {
     final c = Offset(r, r);
 
     // Board background → solid arcade black (#0A0014), not surface-purple, so
-    // the twilight felt reads as clean segments. Glow comes from the parent
-    // BoxDecoration; the painter draws no border ring of its own.
+    // the twilight felt reads as clean segments. Glow comes from the circular
+    // BoxDecoration the cockpits wrap the board in (game_screen /
+    // killer_game_screen); the painter draws no border ring of its own.
     final bg = Paint()..color = DossedartTokens.bg;
     canvas.drawCircle(c, r, bg);
 
@@ -150,7 +151,9 @@ class _DartboardPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
-    // No painter border ring — the frame is a single glow on the parent.
+    // No painter border ring — the frame is the single glow from the circular
+    // BoxDecoration the cockpits wrap the board in (game_screen /
+    // killer_game_screen).
   }
 
   void _wedge(Canvas canvas, Offset c, double rInner, double rOuter,

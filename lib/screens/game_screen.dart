@@ -1544,11 +1544,28 @@ class _GameScreenState extends State<GameScreen> {
                         onTap: _onMiss,
                       ),
                     ),
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        child: AspectRatio(
-                          aspectRatio: 1,
+                    // Bottom-anchored so active-card height changes eat the
+                    // gap ABOVE the board — tap targets never move between
+                    // darts.
+                    Positioned(
+                      left: 14,
+                      right: 14,
+                      bottom: 10,
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            // Spec (x01-cockpit-final): no frame, glow only —
+                            // 0 0 70px magenta @ 0x3a ≈ alpha 0.23.
+                            boxShadow: [
+                              BoxShadow(
+                                color: DossedartTokens.magenta
+                                    .withValues(alpha: 0.23),
+                                blurRadius: 70,
+                              ),
+                            ],
+                          ),
                           child: DossedartX01Dartboard(
                             onTap: (zone) {
                               final (seg, mult) = zone.toSegmentMultiplier();

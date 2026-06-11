@@ -821,26 +821,39 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       padding: const EdgeInsets.all(16),
       child: AspectRatio(
         aspectRatio: 1,
-        child: Stack(
-          children: [
-            DossedartX01Dartboard(
-              onTap: (zone) {
-                final (seg, mult) = zone.toSegmentMultiplier();
-                if (seg == 0) {
-                  _onMiss();
-                } else {
-                  _onDartHit(seg, mult);
-                }
-              },
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _KillerBoardOverlayPainter(tints: tints),
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            // Spec (x01-cockpit-final): no frame, glow only —
+            // 0 0 70px magenta @ 0x3a ≈ alpha 0.23.
+            boxShadow: [
+              BoxShadow(
+                color: DossedartTokens.magenta.withValues(alpha: 0.23),
+                blurRadius: 70,
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              DossedartX01Dartboard(
+                onTap: (zone) {
+                  final (seg, mult) = zone.toSegmentMultiplier();
+                  if (seg == 0) {
+                    _onMiss();
+                  } else {
+                    _onDartHit(seg, mult);
+                  }
+                },
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _KillerBoardOverlayPainter(tints: tints),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
