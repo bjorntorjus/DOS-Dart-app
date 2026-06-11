@@ -1,20 +1,29 @@
 import '../models/dart_throw.dart';
 
-/// Marks a single dart is worth in Cricket: the multiplier on an open target
-/// (single/double/treble = 1/2/3), single/double bull = 1/2, else 0.
-int cricketMarksForDart(DartThrow t, Set<int> targets) =>
-    targets.contains(t.segment) ? t.multiplier : 0;
-
-/// The most marks landed in any single turn (grouped by turnId). 9 marks ⇒
-/// three trebles in one turn (THE NINE).
-int cricketMaxMarksInTurn(Iterable<DartThrow> playerThrows, Set<int> targets) {
-  final byTurn = <int, int>{};
-  for (final t in playerThrows) {
-    byTurn[t.turnId] = (byTurn[t.turnId] ?? 0) + cricketMarksForDart(t, targets);
+/// Max real marks scored by [playerIndex] in a single turn, replayed from the
+/// FULL chronological [allThrows] (every player) so closure state is known at
+/// each dart: a hit on a target closed by ALL players (dead) scores 0 marks.
+/// History-derived → automatically undo-safe.
+int cricketMaxMarksInTurn(
+  List<DartThrow> allThrows,
+  Set<int> targets,
+  int playerIndex,
+  int playerCount,
+) {
+  final marks = List.generate(playerCount, (_) => <int, int>{});
+  final marksByTurn = <int, int>{};
+  for (final t in allThrows) {
+    if (!targets.contains(t.segment)) continue;
+    if (t.playerIndex >= playerCount) continue;
+    final dead = List.generate(
+            playerCount, (p) => (marks[p][t.segment] ?? 0) >= 3)
+        .every((closed) => closed);
+    final gained = dead ? 0 : t.multiplier;
+    marks[t.playerIndex][t.segment] =
+        (marks[t.playerIndex][t.segment] ?? 0) + t.multiplier;
+    if (t.playerIndex == playerIndex && gained > 0) {
+      marksByTurn[t.turnId] = (marksByTurn[t.turnId] ?? 0) + gained;
+    }
   }
-  var max = 0;
-  for (final m in byTurn.values) {
-    if (m > max) max = m;
-  }
-  return max;
+  return marksByTurn.values.fold(0, (m, v) => v > m ? v : m);
 }

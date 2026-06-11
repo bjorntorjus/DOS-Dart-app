@@ -57,6 +57,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   late List<int> scores;
   int currentPlayerIndex = 0;
   int dartsInTurn = 0;
+  int _turnIdCounter = 0;
   List<DartThrow> throwHistory = [];
   int? winnerIndex;
   String? lastThrowLabel;
@@ -188,6 +189,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       scoreBefore: scores[currentPlayerIndex],
       turnNumber: dartsInTurn,
       scoreAtStartOfTurn: scores[currentPlayerIndex],
+      turnId: _turnIdCounter,
     );
 
     // Pre-roll video dice and track per-dart events
@@ -350,6 +352,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   void _advancePlayer() {
     final fromIndex = currentPlayerIndex;
     dartsInTurn = 0;
+    _turnIdCounter++;
     do {
       currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
     } while (finishedPlayers.contains(currentPlayerIndex));
@@ -371,6 +374,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     _announcer.announceGameEvent('Back');
     setState(() {
       throwHistory.removeLast();
+      _turnIdCounter = lastThrow.turnId;
       final data = _undoStack.removeLast();
       finishedPlayers = List.from(data.finishedPlayersBefore);
       _gameFullyOver = false;
@@ -424,6 +428,13 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
   @visibleForTesting
   int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
+
+  @visibleForTesting
+  Future<void> registerHitForTest(int segment, int multiplier) =>
+      _registerHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
 
   @visibleForTesting
   void removePlayerForTest(int playerIndex) {
@@ -571,7 +582,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final targetSet = targets.toSet();
     for (int i = 0; i < players.length; i++) {
       if (cricketMaxMarksInTurn(
-              throwHistory.where((t) => t.playerIndex == i), targetSet) >=
+              throwHistory, targetSet, i, players.length) >=
           9) {
         achEvents[i] = [AchievementEvent.nineMarkTurn];
       }
