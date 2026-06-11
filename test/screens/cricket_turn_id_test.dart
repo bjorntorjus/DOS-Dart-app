@@ -44,15 +44,27 @@ void main() {
     expect(history.take(3).map((t) => t.turnId).toSet().length, 1,
         reason: 'all three darts of P0\'s turn share one turnId');
 
-    // Undo P1's dart — the counter must rewind to P1's turnId so a re-thrown
-    // dart lands in the same turn (multi-undo across the turn boundary).
+    final p0TurnId = history.first.turnId;
+
+    // Multi-undo across the turn boundary: remove P1's dart AND P0's third
+    // dart. The counter must rewind to P0's turnId so the re-thrown dart
+    // lands back in P0's original turn instead of minting a fresh turnId.
     state.undoForTest();
     await tester.pumpAndSettle();
-    await state.registerHitForTest(18, 1);
+    state.undoForTest();
+    await tester.pumpAndSettle();
+
+    // Rethrow P0's third dart (auto-advances to P1) and P1's first dart.
+    await state.registerHitForTest(20, 1);
+    await tester.pumpAndSettle();
+    await state.registerHitForTest(19, 1);
     await tester.pumpAndSettle();
 
     final historyAfter = state.throwHistory as List<DartThrow>;
+    expect(historyAfter.length, 4);
+    expect(historyAfter[2].turnId, p0TurnId,
+        reason: "P0's re-thrown third dart must reuse P0's original turnId");
     expect(historyAfter.map((t) => t.turnId).toSet().length, 2,
-        reason: 'undo + rethrow must reuse the same turnId, not mint a third');
+        reason: 'undo + rethrow must reuse the same turnIds, not mint a third');
   });
 }
