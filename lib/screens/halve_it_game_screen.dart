@@ -722,12 +722,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           const SizedBox(
             width: 70,
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: Text('RUNDE',
                     style: TextStyle(
                         fontFamily: 'PressStart2P',
-                        fontSize: 8,
+                        fontSize: 10,
                         color: Colors.white54,
                         letterSpacing: 1)),
               ),
@@ -736,7 +736,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           for (int pi = 0; pi < players.length; pi++)
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                 color: pi == currentPlayerIndex
                     ? DossedartTokens.cyan.withValues(alpha: 0.11)
                     : null,
@@ -747,7 +747,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 12,
+                    fontSize: 14,
                     color: pi == currentPlayerIndex
                         ? DossedartTokens.cyan
                         : DossedartTokens.phosphor,
@@ -775,13 +775,13 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           SizedBox(
             width: 70,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
               child: Text(
                 rounds[ri].label.toUpperCase(),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'PressStart2P',
-                  fontSize: 9,
+                  fontSize: 11,
                   color: isCurrent
                       ? DossedartTokens.yellow
                       : Colors.white.withValues(alpha: 0.6),
@@ -792,7 +792,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           for (int pi = 0; pi < players.length; pi++)
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 2),
                 color: pi == currentPlayerIndex
                     ? DossedartTokens.cyan.withValues(alpha: 0.06)
                     : null,
@@ -809,17 +809,17 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       return Text('·',
           style: TextStyle(
               fontFamily: 'VT323',
-              fontSize: 16,
+              fontSize: 20,
               color: Colors.white.withValues(alpha: 0.18)));
     }
     if (v < 0) {
       return Text('-${-v} ✗',
           style: const TextStyle(
-              fontFamily: 'VT323', fontSize: 16, color: DossedartTokens.red));
+              fontFamily: 'VT323', fontSize: 20, color: DossedartTokens.red));
     }
     return Text('$v',
         style: const TextStyle(
-            fontFamily: 'VT323', fontSize: 17, color: Colors.white));
+            fontFamily: 'VT323', fontSize: 22, color: Colors.white));
   }
 
   Widget _splitSumRow() {
@@ -840,12 +840,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           const SizedBox(
             width: 70,
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 9),
+              padding: EdgeInsets.symmetric(vertical: 13),
               child: Center(
                 child: Text('SUM',
                     style: TextStyle(
                         fontFamily: 'PressStart2P',
-                        fontSize: 9,
+                        fontSize: 11,
                         color: Colors.white70)),
               ),
             ),
@@ -853,13 +853,13 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           for (int pi = 0; pi < players.length; pi++)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Center(
                   child: Text(
                     '${totalScores[pi]}',
                     style: TextStyle(
                       fontFamily: 'PressStart2P',
-                      fontSize: 14,
+                      fontSize: 16,
                       color: pi == leader
                           ? DossedartTokens.yellow
                           : pi == currentPlayerIndex
