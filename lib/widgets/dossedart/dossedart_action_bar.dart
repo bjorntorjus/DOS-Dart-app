@@ -5,7 +5,7 @@ import '../../theme/dossedart_tokens.dart';
 ///
 /// Identical across every game-mode cockpit.
 /// UNDO — magenta border, flex 1.
-/// MISS — filled orange, flex 2 (the wide primary action).
+/// MISS — filled orange, flex 3 (the wide primary action).
 /// MENU — cyan border, flex 1.
 class DossedartActionBar extends StatelessWidget {
   const DossedartActionBar({
@@ -42,7 +42,7 @@ class DossedartActionBar extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: _Btn(
               label: '✗ MISS',
               borderColor: Colors.white,
@@ -90,7 +90,7 @@ class _Btn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: bg,
           border: Border.all(color: borderColor, width: 2),

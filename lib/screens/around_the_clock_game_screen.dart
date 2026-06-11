@@ -1099,7 +1099,6 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 padding: const EdgeInsets.all(16),
                 child: _atcClockRing(),
               )),
-              _atcOpponentMeters(),
               _atcInputCells(),
               DossedartActionBar(
                 onUndo: _undo,
@@ -1223,93 +1222,6 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     );
   }
 
-  Widget _atcOpponentMeters() {
-    final opps = [
-      for (int i = 0; i < players.length; i++)
-        if (i != currentPlayerIndex) i
-    ];
-    if (opps.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [for (final i in opps) Expanded(child: _atcMeter(i))],
-      ),
-    );
-  }
-
-  Widget _atcMeter(int i) {
-    final seq = _atcSequence();
-    final tgt = currentTargets[i];
-    final idx = seq.indexOf(tgt);
-    final done = idx < 0 ? seq.length : idx;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: DossedartTokens.phosphor.withValues(alpha: 0.25), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  players[i].name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 10,
-                    color: DossedartTokens.phosphor,
-                  ),
-                ),
-              ),
-              Text(
-                'ON ${tgt == 25 ? 'B' : tgt}',
-                style: const TextStyle(
-                  fontFamily: 'VT323',
-                  fontSize: 14,
-                  color: Colors.white54,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 8,
-            child: Row(
-              children: [
-                for (int b = 0; b < seq.length; b++)
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 1),
-                      color: b < done
-                          ? DossedartTokens.green.withValues(alpha: 0.8)
-                          : b == done
-                              ? DossedartTokens.phosphor
-                              : Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$done / ${seq.length} DONE',
-            style: TextStyle(
-              fontFamily: 'VT323',
-              fontSize: 13,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _atcInputCells() {
     final tgt = currentTargets[currentPlayerIndex];
     if (tgt < 1 || tgt > 25) return const SizedBox.shrink();
@@ -1320,7 +1232,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         ? const [('BULL', 1), ('D-BULL', 2)]
         : [('$tgt', 1), ('D$tgt', 2), ('T$tgt', 3)];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
       child: Row(
         children: [
           for (final (label, m) in subs)
