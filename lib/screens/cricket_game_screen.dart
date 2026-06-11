@@ -994,7 +994,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         '·',
         style: TextStyle(
           fontFamily: 'VT323',
-          fontSize: 16,
+          fontSize: 22,
           color: Colors.white.withValues(alpha: 0.18),
         ),
       );
@@ -1004,7 +1004,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         '⊗',
         style: TextStyle(
           fontFamily: 'PressStart2P',
-          fontSize: 20,
+          fontSize: 26,
           color: DossedartTokens.green,
         ),
       );
@@ -1013,7 +1013,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       n == 1 ? '/' : 'X',
       style: TextStyle(
         fontFamily: 'PressStart2P',
-        fontSize: 20,
+        fontSize: 26,
         color: color,
       ),
     );
