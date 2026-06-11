@@ -42,6 +42,22 @@ class StatsRecorder {
         mode.won++;
       }
 
+      // Win/loss streaks (cross-mode). Sole best = win; shared best = draw
+      // (breaks both streaks); everything else = loss.
+      if (placements[i] == bestPlacement && !bestIsShared) {
+        sp.currentWinStreak++;
+        if (sp.currentWinStreak > sp.bestWinStreak) {
+          sp.bestWinStreak = sp.currentWinStreak;
+        }
+        sp.currentLossStreak = 0;
+      } else if (placements[i] == bestPlacement) {
+        sp.currentWinStreak = 0;
+        sp.currentLossStreak = 0;
+      } else {
+        sp.currentLossStreak++;
+        sp.currentWinStreak = 0;
+      }
+
       // Merge mode-specific counters
       if (modeCounters != null && modeCounters.containsKey(playerId)) {
         final counters = modeCounters[playerId]!;
