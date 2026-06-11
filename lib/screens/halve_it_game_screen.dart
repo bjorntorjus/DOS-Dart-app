@@ -62,6 +62,17 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// Players who landed a last-dart hit after the first two missed, saving
   /// themselves from a halving this game (CLUTCH SAVE).
   final Set<int> _clutchSavers = {};
+
+  @visibleForTesting
+  Set<int> get clutchSaversForTest => _clutchSavers;
+
+  @visibleForTesting
+  Future<void> onDartHitForTest(int segment, int multiplier) =>
+      _onDartHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
+
   List<DartThrow> throwHistory = [];
   bool gameOver = false;
   String? lastThrowLabel;
@@ -168,6 +179,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       turnHasHit: turnHasHit,
       totalScoreBefore: totalScores[currentPlayerIndex],
       roundScoreBefore: roundScores[currentRoundIndex][currentPlayerIndex],
+      clutchSaversBefore: Set.of(_clutchSavers),
     ));
 
     // Pre-roll video dice before setState
@@ -345,6 +357,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       dartsInTurn = data.dartsInTurn;
       turnPoints = data.turnPoints;
       turnHasHit = data.turnHasHit;
+      _clutchSavers
+        ..clear()
+        ..addAll(data.clutchSaversBefore);
       totalScores[data.playerIndex] = data.totalScoreBefore;
       roundScores[data.roundIndex][data.playerIndex] = data.roundScoreBefore;
       players[data.playerIndex].score = data.totalScoreBefore;
@@ -1795,6 +1810,7 @@ class _HalveItUndoData {
   final bool turnHasHit;
   final int totalScoreBefore;
   final int? roundScoreBefore;
+  final Set<int> clutchSaversBefore;
 
   _HalveItUndoData({
     required this.roundIndex,
@@ -1804,5 +1820,6 @@ class _HalveItUndoData {
     required this.turnHasHit,
     required this.totalScoreBefore,
     required this.roundScoreBefore,
+    required this.clutchSaversBefore,
   });
 }
