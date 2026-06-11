@@ -24,6 +24,11 @@ void main() async {
   final savedPlayers = await PlayerStorage.loadPlayers();
   var retroChanged = false;
   for (final p in savedPlayers) {
+    // Revoke before retro-grant: the falsely granted ids are either
+    // event-based or outcome-gated, so retro-grant cannot re-add them.
+    if (AchievementService.instance.revokeFalseUnlocks(p)) {
+      retroChanged = true;
+    }
     if (!p.achievementsRetroGranted) {
       AchievementService.instance.retroGrantSilently(p);
       retroChanged = true;

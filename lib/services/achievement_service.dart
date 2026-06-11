@@ -111,6 +111,29 @@ class AchievementService {
     }
   }
 
+  /// Pre-1.8.4 builds granted these falsely (bust-tainted feats, missing
+  /// turnId, tie-as-win). One-time strip; players re-earn them legitimately.
+  static const falselyGrantedIds = {
+    'cri_the_nine',
+    'x01_maximum',
+    'x01_bullseye_finish',
+    'kil_killing_spree',
+    'spl_clutch_save',
+    'x_natural_talent',
+    'x_giant_slayer',
+  };
+
+  /// One-time revocation of the badges 1.8.3 granted via since-fixed bugs.
+  /// Returns true when the player record changed (flag flipped).
+  bool revokeFalseUnlocks(SavedPlayer player) {
+    if (player.falseUnlocksRevoked) return false;
+    player.unlockedAchievementIds.removeAll(falselyGrantedIds);
+    player.achievementUnlockedAt
+        .removeWhere((k, _) => falselyGrantedIds.contains(k));
+    player.falseUnlocksRevoked = true;
+    return true;
+  }
+
   /// One-time silent retro grant: unlock career-provable milestone badges with
   /// no banner. Per-game predicates see a null outcome and return false.
   void retroGrantSilently(SavedPlayer player) {

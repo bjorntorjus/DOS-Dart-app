@@ -115,6 +115,7 @@ class SavedPlayer {
   Set<String> unlockedAchievementIds;
   Map<String, DateTime> achievementUnlockedAt;
   bool achievementsRetroGranted;
+  bool falseUnlocksRevoked;
   int currentWinStreak;
   int bestWinStreak;
   int currentLossStreak;
@@ -138,6 +139,7 @@ class SavedPlayer {
     Set<String>? unlockedAchievementIds,
     Map<String, DateTime>? achievementUnlockedAt,
     this.achievementsRetroGranted = false,
+    this.falseUnlocksRevoked = false,
     this.currentWinStreak = 0,
     this.bestWinStreak = 0,
     this.currentLossStreak = 0,
@@ -174,6 +176,7 @@ class SavedPlayer {
         'achievementUnlockedAt': achievementUnlockedAt
             .map((k, v) => MapEntry(k, v.toIso8601String())),
         'achievementsRetroGranted': achievementsRetroGranted,
+        'falseUnlocksRevoked': falseUnlocksRevoked,
         'currentWinStreak': currentWinStreak,
         'bestWinStreak': bestWinStreak,
         'currentLossStreak': currentLossStreak,
@@ -216,6 +219,7 @@ class SavedPlayer {
                 {},
         achievementsRetroGranted:
             json['achievementsRetroGranted'] as bool? ?? false,
+        falseUnlocksRevoked: json['falseUnlocksRevoked'] as bool? ?? false,
         currentWinStreak: json['currentWinStreak'] as int? ?? 0,
         bestWinStreak: json['bestWinStreak'] as int? ?? 0,
         currentLossStreak: json['currentLossStreak'] as int? ?? 0,
