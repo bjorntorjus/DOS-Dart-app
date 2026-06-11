@@ -28,7 +28,7 @@ import '../theme/dossedart_tokens.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
-import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 /// Progress arc for the DOSSEDART clock-ring centre: a faint full track with a
@@ -1064,7 +1064,37 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 onExit: _confirmExit,
                 trailing: 'RND ${_roundNumber + 1}',
               ),
-              _atcActiveStrip(),
+              DossedartActiveStrip(
+                playerName: players[currentPlayerIndex].name,
+                avatarPath: players[currentPlayerIndex].avatarPath,
+                accentColor: DossedartTokens.cyan,
+                dartsInTurn: dartsInTurn,
+                lastThrowLabel: lastThrowLabel,
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('TARGET',
+                        style: TextStyle(
+                            fontFamily: 'VT323',
+                            fontSize: 12,
+                            color: Colors.white54,
+                            letterSpacing: 2)),
+                    const SizedBox(height: 4),
+                    Text(
+                      currentTargets[currentPlayerIndex] == 25
+                          ? 'BULL'
+                          : '${currentTargets[currentPlayerIndex]}',
+                      style: const TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 28,
+                        color: DossedartTokens.cyan,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Expanded(child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: _atcClockRing(),
@@ -1086,130 +1116,6 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _atcActiveStrip() {
-    const c = DossedartTokens.cyan;
-    final p = players[currentPlayerIndex];
-    final tgt = currentTargets[currentPlayerIndex];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [c.withValues(alpha: 0.12), Colors.transparent],
-        ),
-        border: const Border(bottom: BorderSide(color: c, width: 3)),
-        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.27), blurRadius: 18)],
-      ),
-      child: Row(
-        children: [
-          DossedartPlayerAvatar(size: 52, borderColor: c, avatarPath: p.avatarPath),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '▶ ${p.name.toUpperCase()}',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 13,
-                          color: c,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      'DART ${dartsInTurn + 1} / 3',
-                      style: const TextStyle(
-                        fontFamily: 'VT323',
-                        fontSize: 14,
-                        color: Colors.white54,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Row(
-                  children: [
-                    _atcDartDots(dartsInTurn, c),
-                    const SizedBox(width: 10),
-                    Text(
-                      'LAST · ',
-                      style: TextStyle(
-                        fontFamily: 'VT323',
-                        fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.7),
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    Flexible(
-                      child: Text(
-                        lastThrowLabel ?? '—',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 9,
-                          color: DossedartTokens.green,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text('TARGET',
-                  style: TextStyle(
-                      fontFamily: 'VT323',
-                      fontSize: 12,
-                      color: Colors.white54,
-                      letterSpacing: 2)),
-              const SizedBox(height: 4),
-              Text(
-                tgt == 25 ? 'BULL' : '$tgt',
-                style: const TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 28,
-                  color: c,
-                  height: 1,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _atcDartDots(int idx, Color c) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        final filled = i < idx;
-        return Container(
-          margin: const EdgeInsets.only(right: 6),
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? c : Colors.transparent,
-            border: Border.all(color: c, width: 2),
-          ),
-        );
-      }),
     );
   }
 

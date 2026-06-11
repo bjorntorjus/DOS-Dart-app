@@ -28,7 +28,7 @@ import '../theme/dossedart_tokens.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
-import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 class ShanghaiGameScreen extends StatefulWidget {
@@ -62,6 +62,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   // Per-turn hit history for the dart-slot display.
   // Reset whenever a new turn starts. Length matches engine.dartNumber.
   final List<HitType> _turnHits = [];
+
+  // Label of the most recent throw for the active strip (cleared on undo,
+  // same behaviour as the other DOSSEDART cockpits).
+  String? _lastThrowLabel;
 
   final MemeService _meme = MemeService();
   bool _memeEnabled = false;
@@ -150,6 +154,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     setState(() {
       engine.recordThrow(type);
       _turnHits.add(type);
+      _lastThrowLabel =
+          type == HitType.miss ? 'Miss' : _logLabelForHit(type, target);
     });
 
     final scoreAfter = engine.totalScores[playerIdx];
@@ -361,6 +367,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (_turnHits.isNotEmpty) {
         _turnHits.removeLast();
       }
+      _lastThrowLabel = null;
     });
     _log.logUndo(
       playerIndex: engine.currentPlayerIndex,
@@ -568,7 +575,35 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 onExit: _confirmExit,
                 trailing: 'RND ${engine.currentRound + 1}/${engine.targetEnd}',
               ),
-              _shanghaiActiveStrip(),
+              DossedartActiveStrip(
+                playerName: players[engine.currentPlayerIndex].name,
+                avatarPath: players[engine.currentPlayerIndex].avatarPath,
+                accentColor: DossedartTokens.cyan,
+                dartsInTurn: engine.dartNumber,
+                lastThrowLabel: _lastThrowLabel,
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('TOTAL',
+                        style: TextStyle(
+                            fontFamily: 'VT323',
+                            fontSize: 12,
+                            color: Colors.white54,
+                            letterSpacing: 2)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${engine.totalScores[engine.currentPlayerIndex]}',
+                      style: const TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 36,
+                        color: DossedartTokens.cyan,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               _shanghaiStandings(),
               _shanghaiBanner(),
               Expanded(child: Center(child: _shanghaiChaseCells())),
@@ -588,103 +623,6 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _shanghaiActiveStrip() {
-    const c = DossedartTokens.cyan;
-    final p = players[engine.currentPlayerIndex];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [c.withValues(alpha: 0.12), Colors.transparent],
-        ),
-        border: const Border(bottom: BorderSide(color: c, width: 3)),
-        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.27), blurRadius: 18)],
-      ),
-      child: Row(
-        children: [
-          DossedartPlayerAvatar(size: 52, borderColor: c, avatarPath: p.avatarPath),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '▶ ${p.name.toUpperCase()}',
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 13,
-                    color: c,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Row(
-                  children: [
-                    _shanghaiDartDots(engine.dartNumber, c),
-                    const SizedBox(width: 10),
-                    Text(
-                      'DART ${engine.dartNumber + 1} / 3',
-                      style: const TextStyle(
-                        fontFamily: 'VT323',
-                        fontSize: 14,
-                        color: Colors.white54,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text('TOTAL',
-                  style: TextStyle(
-                      fontFamily: 'VT323',
-                      fontSize: 12,
-                      color: Colors.white54,
-                      letterSpacing: 2)),
-              const SizedBox(height: 4),
-              Text(
-                '${engine.totalScores[engine.currentPlayerIndex]}',
-                style: const TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 36,
-                  color: c,
-                  height: 1,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _shanghaiDartDots(int idx, Color c) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        final filled = i < idx;
-        return Container(
-          margin: const EdgeInsets.only(right: 6),
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? c : Colors.transparent,
-            border: Border.all(color: c, width: 2),
-          ),
-        );
-      }),
     );
   }
 
