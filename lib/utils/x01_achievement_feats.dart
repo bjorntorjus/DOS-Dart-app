@@ -26,6 +26,8 @@ class X01Feats {
     var maxTre = 0;
     var maxBull = 0;
     for (final turn in byTurn.values) {
+      // A busted turn scores nothing — its darts grant no feats.
+      if (turn.any((t) => t.isBust)) continue;
       final total = turn.fold<int>(0, (s, t) => s + t.points);
       if (total == 180) hit180 = true;
       final tre = turn.where((t) => t.multiplier == 3).length;
@@ -34,8 +36,8 @@ class X01Feats {
       if (bull > maxBull) maxBull = bull;
     }
     // A finishing dart brings the score to exactly 0 → scoreBefore == points.
-    final bullFinish =
-        playerThrows.any((t) => t.segment == 25 && t.scoreBefore == t.points);
+    final bullFinish = playerThrows
+        .any((t) => t.segment == 25 && t.scoreBefore == t.points && !t.isBust);
     return X01Feats(
       hit180: hit180,
       bullFinish: bullFinish,

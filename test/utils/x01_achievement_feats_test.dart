@@ -8,6 +8,7 @@ DartThrow _t({
   int? points,
   required int turnId,
   int scoreBefore = 200,
+  bool isBust = false,
 }) =>
     DartThrow(
       playerIndex: 0,
@@ -18,6 +19,7 @@ DartThrow _t({
       turnNumber: 0,
       scoreAtStartOfTurn: scoreBefore,
       turnId: turnId,
+      isBust: isBust,
     );
 
 void main() {
@@ -63,6 +65,40 @@ void main() {
       _t(seg: 25, mult: 1, points: 25, scoreBefore: 70, turnId: 3),
     ]);
     expect(feats.maxBullsInTurn, 3);
+  });
+
+  test('busted 180 does not grant MAXIMUM', () {
+    // 181 left: T20, T20, T20 — third dart leaves 1 → bust in double-out.
+    final throws = [
+      _t(seg: 20, mult: 3, scoreBefore: 181, turnId: 1),
+      _t(seg: 20, mult: 3, scoreBefore: 121, turnId: 1),
+      _t(seg: 20, mult: 3, scoreBefore: 61, turnId: 1, isBust: true),
+    ];
+    final feats = X01Feats.analyze(throws);
+    expect(feats.hit180, isFalse);
+  });
+
+  test('clean 180 still grants MAXIMUM', () {
+    final throws = [
+      _t(seg: 20, mult: 3, scoreBefore: 501, turnId: 1),
+      _t(seg: 20, mult: 3, scoreBefore: 441, turnId: 1),
+      _t(seg: 20, mult: 3, scoreBefore: 381, turnId: 1),
+    ];
+    expect(X01Feats.analyze(throws).hit180, isTrue);
+  });
+
+  test('busted single bull at 25 does not grant BULLSEYE FINISH', () {
+    final throws = [
+      _t(seg: 25, mult: 1, scoreBefore: 25, turnId: 1, isBust: true),
+    ];
+    expect(X01Feats.analyze(throws).bullFinish, isFalse);
+  });
+
+  test('D-bull checkout grants BULLSEYE FINISH', () {
+    final throws = [
+      _t(seg: 25, mult: 2, scoreBefore: 50, turnId: 1),
+    ];
+    expect(X01Feats.analyze(throws).bullFinish, isTrue);
   });
 
   test('empty throws → no feats', () {
