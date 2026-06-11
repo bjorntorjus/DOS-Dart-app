@@ -132,10 +132,55 @@ class _MedalRow extends StatelessWidget {
           for (final a in items)
             Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: AchievementMedal(achievement: a, unlocked: unlocked, size: 44),
+              child: GestureDetector(
+                onTap: () => _showAchievementInfo(context, a, unlocked),
+                child: AchievementMedal(
+                    achievement: a, unlocked: unlocked, size: 44),
+              ),
             ),
         ],
       ),
     );
   }
+}
+
+void _showAchievementInfo(BuildContext context, Achievement a, bool unlocked) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => Dialog(
+      backgroundColor: DossedartTokens.surface,
+      shape: Border.all(color: DossedartTokens.cyan, width: 2),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AchievementMedal(achievement: a, unlocked: unlocked, size: 64),
+            const SizedBox(height: 12),
+            Text(
+              a.name,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 12,
+                color: Colors.white,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              a.description,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 18,
+                color: DossedartTokens.phosphor,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

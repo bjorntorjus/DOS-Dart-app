@@ -82,8 +82,8 @@ class _AchievementsGalleryScreenState extends State<AchievementsGalleryScreen> {
             child: GridView.builder(
               padding: const EdgeInsets.all(16),
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 120,
-                childAspectRatio: 0.8,
+                maxCrossAxisExtent: 150,
+                childAspectRatio: 0.62,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -146,27 +146,39 @@ class _GalleryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: achievement.description,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AchievementMedal(achievement: achievement, unlocked: unlocked, size: 64),
-          const SizedBox(height: 6),
-          Text(
-            achievement.name,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 9,
-              fontFamily: 'PressStart2P',
-              height: 1.3,
-              color: unlocked ? Colors.white : DossedartTokens.disabledFg,
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AchievementMedal(achievement: achievement, unlocked: unlocked, size: 64),
+        const SizedBox(height: 6),
+        Text(
+          achievement.name,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 9,
+            fontFamily: 'PressStart2P',
+            height: 1.3,
+            color: unlocked ? Colors.white : DossedartTokens.disabledFg,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          achievement.description,
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontFamily: 'VT323',
+            height: 1.15,
+            color: unlocked
+                ? Colors.white70
+                : Colors.white.withValues(alpha: 0.35),
+          ),
+        ),
+      ],
     );
   }
 }
