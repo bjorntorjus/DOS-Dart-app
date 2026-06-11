@@ -407,6 +407,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         winnerIdx = i;
       }
     }
+    // A shared best score is a draw — nobody gets win credit.
+    final tieForBest =
+        totalScores.where((s) => s == bestScore).length > 1;
 
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
@@ -415,7 +418,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       if (idx < 0) continue;
       final sp = savedPlayers[idx];
       sp.gamesPlayed++;
-      if (pi == winnerIdx) sp.gamesWon++;
+      if (pi == winnerIdx && !tieForBest) sp.gamesWon++;
 
       // Turn stats: each round is a "turn"
       for (int ri = 0; ri < rounds.length; ri++) {

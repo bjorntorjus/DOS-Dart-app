@@ -64,7 +64,8 @@ class AchievementService {
   /// events then evaluate milestones, building the [GameOutcome] from the
   /// per-player data the screen already has. [eventsByIndex] / [countersByIndex]
   /// are keyed by player index. The winner is whoever has the best (lowest)
-  /// placement. Caller persists [savedPlayers] afterwards.
+  /// placement; a shared best placement is a draw (no winner). Caller
+  /// persists [savedPlayers] afterwards.
   void awardGameEnd({
     required GameMode mode,
     required List<String?> playerIds,
@@ -77,6 +78,8 @@ class AchievementService {
   }) {
     if (placements.isEmpty) return;
     final best = placements.reduce((a, b) => a < b ? a : b);
+    // A shared best placement is a draw — nobody gets win credit.
+    final bestIsShared = placements.where((p) => p == best).length > 1;
     for (int i = 0; i < playerIds.length; i++) {
       final id = playerIds[i];
       if (id == null) continue;
@@ -96,7 +99,7 @@ class AchievementService {
         sp,
         GameOutcome(
           mode: mode,
-          won: placements[i] == best,
+          won: placements[i] == best && !bestIsShared,
           placement: placements[i],
           playerCount: playerIds.length,
           ratingBefore: ratingsBefore[id] ?? sp.rating,

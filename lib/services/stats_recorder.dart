@@ -22,8 +22,11 @@ class StatsRecorder {
   }) {
     final now = DateTime.now();
 
-    // Find the best placement (lowest number = winner)
+    // Find the best placement (lowest number = winner).
+    // A shared best placement is a draw — nobody gets win credit.
     final bestPlacement = placements.reduce((a, b) => a < b ? a : b);
+    final bestIsShared =
+        placements.where((p) => p == bestPlacement).length > 1;
 
     for (int i = 0; i < playerIds.length; i++) {
       final playerId = playerIds[i];
@@ -35,7 +38,7 @@ class StatsRecorder {
       // Per-mode stats
       final mode = sp.modeStats.putIfAbsent(gameMode, () => ModeStats());
       mode.played++;
-      if (placements[i] == bestPlacement) {
+      if (placements[i] == bestPlacement && !bestIsShared) {
         mode.won++;
       }
 

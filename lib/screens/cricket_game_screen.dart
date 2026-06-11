@@ -510,13 +510,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
     final placements = _computeExitPlacements();
+    // A shared first place (possible when the game ends early and remaining
+    // players tie on score) is a draw — nobody gets win credit.
+    final firstIsShared = placements.where((p) => p == 1).length > 1;
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
       if (idx < 0) continue;
       savedPlayers[idx].gamesPlayed++;
-      if (placements[pi] == 1) {
+      if (placements[pi] == 1 && !firstIsShared) {
         savedPlayers[idx].gamesWon++;
       }
     }
