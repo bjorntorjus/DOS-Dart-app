@@ -599,7 +599,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               DossedartTopBar(
                 title: 'SPLITSCORE',
                 onExit: _confirmExit,
-                trailing: 'RUNDE ${currentRoundIndex + 1}/${rounds.length}',
+                trailing: 'RND ${currentRoundIndex + 1}/${rounds.length}',
               ),
               _splitActiveStrip(),
               _splitJeopardyBar(),
