@@ -782,6 +782,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
+  /// Future rounds stay a surprise in random mode.
+  String _roundLabelFor(int ri) {
+    if (widget.config.isRandom && ri > currentRoundIndex) return '?';
+    return rounds[ri].label.toUpperCase();
+  }
+
   Widget _splitScoreRow(int ri) {
     final magenta = DossedartTokens.magenta;
     final isCurrent = ri == currentRoundIndex;
@@ -799,7 +805,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
               child: Text(
-                rounds[ri].label.toUpperCase(),
+                _roundLabelFor(ri),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'PressStart2P',
