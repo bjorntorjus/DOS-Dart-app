@@ -959,18 +959,30 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
   Widget _splitKeypad(int mult, {required bool includeDBull}) {
     final prefix = mult == 2 ? 'D' : 'T';
-    final keys = <Widget>[
-      for (int k = 1; k <= 20; k++) _splitKeypadBtn('$prefix$k', k, mult),
-      if (includeDBull) _splitKeypadBtn('D-BULL', 25, 2),
-    ];
+    Widget row(List<int> nums) => Row(
+          children: [
+            for (final k in nums) ...[
+              Expanded(child: _splitKeypadBtn('$prefix$k', k, mult)),
+              if (k != nums.last) const SizedBox(width: 8),
+            ],
+          ],
+        );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        alignment: WrapAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (final k in keys) SizedBox(width: 58, child: k),
+          row([1, 2, 3, 4, 5]),
+          const SizedBox(height: 8),
+          row([6, 7, 8, 9, 10]),
+          const SizedBox(height: 8),
+          row([11, 12, 13, 14, 15]),
+          const SizedBox(height: 8),
+          row([16, 17, 18, 19, 20]),
+          if (includeDBull) ...[
+            const SizedBox(height: 8),
+            _splitKeypadBtn('D-BULL', 25, 2),
+          ],
         ],
       ),
     );
@@ -981,7 +993,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     return GestureDetector(
       onTap: () => _onDartHit(segment, mult),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: c.withValues(alpha: 0.07),
           border: Border.all(color: c, width: 1.5),
@@ -993,7 +1005,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             label,
             style: const TextStyle(
               fontFamily: 'PressStart2P',
-              fontSize: 11,
+              fontSize: 15,
               color: c,
             ),
           ),
