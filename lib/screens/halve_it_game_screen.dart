@@ -712,11 +712,14 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _splitScoreHeader(),
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
+                    // Inside the scroll view so the card can shrink below the
+                    // header height without overflowing on short screens; on
+                    // the tablet target nothing scrolls, so it stays pinned.
+                    _splitScoreHeader(),
                     for (int ri = 0; ri < rounds.length; ri++)
                       _splitScoreRow(ri),
                     _splitSumRow(),

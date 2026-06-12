@@ -11,9 +11,10 @@ import 'package:dart_scoring/screens/halve_it_game_screen.dart';
 //   0: 15, 1: 16, 2: anyDouble, 3: 17, 4: 18, 5: anyTriple, 6: 19, 7: 20, 8: bull
 // so the D-keypad shows in round index 2 and the T-keypad in round index 5.
 
-Future<dynamic> _pumpSplitscore(WidgetTester tester) async {
-  // Tablet portrait (Galaxy Tab A target).
-  tester.view.physicalSize = const Size(800, 1280);
+Future<dynamic> _pumpSplitscore(WidgetTester tester,
+    {Size size = const Size(800, 1280)}) async {
+  // Defaults to tablet portrait (Galaxy Tab A target).
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -135,5 +136,26 @@ void main() {
 
     expect(tester.takeException(), isNull,
         reason: 'the keypad must build without overflow');
+  });
+
+  testWidgets(
+      'scorecard does not overflow on a short phone screen in the double round',
+      (tester) async {
+    // 440x640: short enough that the taller D-keypad squeezes the scorecard
+    // below its header height (the 27px overflow seen on 360x640 phones), but
+    // wide enough that DossedartActiveStrip's pre-existing horizontal
+    // overflows at <=400 width don't fire and mask this assertion.
+    final dynamic state =
+        await _pumpSplitscore(tester, size: const Size(440, 640));
+
+    await _playRound(state, tester, segment: 15, mult: 1); // round 0
+    await _playRound(state, tester, segment: 16, mult: 1); // round 1
+    expect(state.rounds[state.currentRoundIndex].type,
+        HalveItRoundType.anyDouble,
+        reason: 'sanity: round index 2 of the fixed config is Any Double');
+
+    expect(tester.takeException(), isNull,
+        reason: 'the taller D-keypad must not make the scorecard column '
+            'overflow on a short phone screen');
   });
 }
