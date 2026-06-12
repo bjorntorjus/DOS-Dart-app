@@ -121,6 +121,15 @@ void main() {
     );
   });
 
+  testWidgets('drops AVG decimal when rounding pushes it to 100',
+      (tester) async {
+    // 99.95 < 100 but toStringAsFixed(1) rounds it to '100.0' (5 chars),
+    // which is exactly the overflow the formatter exists to prevent.
+    await tester.pumpWidget(harness(avg: 99.95));
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('100.0'), findsNothing);
+  });
+
   testWidgets('shows AVG placeholder value when avg is null', (tester) async {
     await tester.pumpWidget(harness(avg: null));
     expect(find.text('AVG'), findsOneWidget);

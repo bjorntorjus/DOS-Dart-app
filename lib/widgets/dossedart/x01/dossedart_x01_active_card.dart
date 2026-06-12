@@ -27,11 +27,14 @@ class DossedartX01ActiveCard extends StatelessWidget {
   final String? checkoutTip;
   final double? avg;
 
-  /// Formats the turn average for the narrow AVG column. Values >= 100 drop
-  /// the decimal ('180' not '180.0') so the PressStart2P text stays within
+  /// Formats the turn average for the narrow AVG column: at most 4 chars.
+  /// If the 1-decimal form is longer ('180.0', or '100.0' from 99.95
+  /// rounding up), drop the decimal so the PressStart2P text stays within
   /// the column instead of painting over the adjacent LAST label.
-  static String _formatAvg(double avg) =>
-      avg >= 100 ? avg.toStringAsFixed(0) : avg.toStringAsFixed(1);
+  static String _formatAvg(double avg) {
+    final s = avg.toStringAsFixed(1);
+    return s.length > 4 ? avg.toStringAsFixed(0) : s; // 99.95 -> '100'
+  }
 
   double _nameFontSize() {
     final len = playerName.length;
