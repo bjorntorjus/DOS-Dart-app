@@ -641,7 +641,18 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 ),
               ),
               _splitJeopardyBar(),
-              Expanded(child: _splitScorecard()),
+              // The scorecard shrink-wraps to its content (the inner Column
+              // is mainAxisSize.min with a Flexible scroll wrapper); Align
+              // pins it to the top of the flexible share so freed space sits
+              // between the card and the input area instead of as empty
+              // bordered space inside the card. Input + action bar stay
+              // anchored at the bottom.
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: _splitScorecard(),
+                ),
+              ),
               _splitInput(),
               DossedartActionBar(
                 onUndo: _undo,

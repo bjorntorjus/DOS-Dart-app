@@ -183,6 +183,44 @@ void main() {
     );
   });
 
+  testWidgets(
+      'Splitscore scorecard shrink-wraps to content — freed space sits '
+      'below the card, not inside the magenta border', (tester) async {
+    // Tall, tablet-like surface so the flexible share offered to the
+    // scorecard slot is larger than the fixed-round content height — the
+    // regime where the old Expanded slot left empty bordered space under
+    // the SUM row.
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpSplitscore(tester);
+
+    final sum = find.text('SUM');
+    final scroll =
+        find.ancestor(of: sum, matching: find.byType(SingleChildScrollView));
+    // Nearest Container ancestor of the scroll view = the bordered card.
+    final card =
+        find.ancestor(of: scroll.first, matching: find.byType(Container));
+    final cardRect = tester.getRect(card.first);
+    // Nearest Container ancestor of the SUM text = the SUM row itself.
+    final sumRowRect = tester
+        .getRect(find.ancestor(of: sum, matching: find.byType(Container)).first);
+
+    expect(cardRect.bottom - sumRowRect.bottom, lessThan(5),
+        reason: 'the bordered card must end right under the SUM row '
+            '(shrink-wrap); the old Expanded slot stretched the border far '
+            'below it');
+
+    // The freed space flows below the card: a clear gap separates the card
+    // from the input area, which stays anchored at the bottom.
+    final inputTop = tester.getRect(find.text('D15')).top;
+    expect(inputTop - cardRect.bottom, greaterThan(100),
+        reason: 'freed vertical space must sit between the card and the '
+            'input area, not inside the card border');
+  });
+
   testWidgets('Shanghai strip accumulates live and falls back between turns',
       (tester) async {
     final dynamic state = await _pumpShanghai(tester);
