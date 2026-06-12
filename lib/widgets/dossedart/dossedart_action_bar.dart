@@ -7,6 +7,9 @@ import '../../theme/dossedart_tokens.dart';
 /// UNDO — magenta border, flex 1.
 /// MISS — filled orange, flex 3 (the wide primary action).
 /// MENU — cyan border, flex 1.
+///
+/// Outer padding: 14 h, 12 top, 20 bottom (lifts clear of the system gesture
+/// zone). Button vertical padding: 20 (taller tap target).
 class DossedartActionBar extends StatelessWidget {
   const DossedartActionBar({
     super.key,
@@ -22,7 +25,7 @@ class DossedartActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
       decoration: const BoxDecoration(
         color: Colors.black,
         border: Border(
@@ -90,7 +93,7 @@ class _Btn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
           color: bg,
           border: Border.all(color: borderColor, width: 2),
