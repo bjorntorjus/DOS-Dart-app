@@ -10,6 +10,7 @@ import '../../../models/saved_player.dart';
 import '../../../services/player_storage.dart';
 import '../../../theme/dossedart_tokens.dart';
 import '../arcade_frame.dart';
+import 'dossedart_picker_tile.dart';
 import 'dossedart_player_picker.dart';
 
 /// Shared chrome for all DOSSEDART setup screens.
@@ -55,11 +56,15 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
   final List<String> _selectedIds = []; // preserves slot order
   bool _isLoading = true;
   bool _randomOrder = true; // default ON per spec
+  bool _archiveExpanded = false; // deliberately not persisted
 
   /// Players shown in the picker. Archived players are hidden here but kept
-  /// in [_savedPlayers] so the ARKIV restore row (Task 13) can reach them.
+  /// in [_savedPlayers] so the ARCHIVE restore row can reach them.
   List<SavedPlayer> get _visiblePlayers =>
       _savedPlayers.where((p) => !p.archived).toList();
+
+  List<SavedPlayer> get _archivedPlayers =>
+      _savedPlayers.where((p) => p.archived).toList();
 
   @override
   void initState() {
@@ -112,7 +117,12 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
         player: sp,
         savedPlayers: _savedPlayers,
         onChanged: () {
-          if (mounted) setState(() {});
+          if (!mounted) return;
+          setState(() {
+            // A just-archived player must not linger in the selection.
+            final visibleIds = _visiblePlayers.map((p) => p.id).toSet();
+            _selectedIds.removeWhere((id) => !visibleIds.contains(id));
+          });
         },
       ),
     );
@@ -179,6 +189,14 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
                                 onLongPress: _showPlayerProfile,
                                 onAdd: _addNewPlayer,
                               ),
+                              if (_archivedPlayers.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _buildArchiveRow(),
+                                if (_archiveExpanded) ...[
+                                  const SizedBox(height: 8),
+                                  _buildArchivedList(),
+                                ],
+                              ],
                               const SizedBox(height: 16),
                             ],
                           ),
@@ -276,6 +294,62 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Dim full-width row toggling the archived-players list. Only built when
+  /// at least one player is archived.
+  Widget _buildArchiveRow() {
+    return GestureDetector(
+      onTap: () => setState(() => _archiveExpanded = !_archiveExpanded),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white24, width: 1),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          'ARCHIVE (${_archivedPlayers.length})',
+          style: const TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 10,
+            color: Colors.white38,
+            letterSpacing: 1.5,
+            height: 1.3,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Archived players rendered with the regular picker tile at reduced
+  /// opacity. Tap or long-press opens the profile dialog, which offers
+  /// RESTORE for archived players.
+  Widget _buildArchivedList() {
+    final archived = _archivedPlayers;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        mainAxisExtent: 142,
+      ),
+      itemCount: archived.length,
+      itemBuilder: (_, i) {
+        final sp = archived[i];
+        return Opacity(
+          opacity: 0.45,
+          child: DossedartPickerTile(
+            player: sp,
+            selected: false,
+            onTap: () => _showPlayerProfile(sp),
+            onLongPress: () => _showPlayerProfile(sp),
+          ),
+        );
+      },
     );
   }
 
@@ -451,6 +525,44 @@ class _PlayerProfileDialogState extends State<_PlayerProfileDialog> {
     if (mounted) Navigator.pop(context);
   }
 
+  /// Archive (after confirmation) or restore the player. Mutates the player
+  /// inside the FULL [widget.savedPlayers] list and persists that — never a
+  /// filtered list (archived players must survive every save).
+  Future<void> _toggleArchived() async {
+    final sp = widget.player;
+    if (sp.archived) {
+      sp.archived = false;
+      await PlayerStorage.savePlayers(widget.savedPlayers);
+      widget.onChanged();
+      if (mounted) Navigator.pop(context);
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('ARCHIVE PLAYER?'),
+        content: Text(
+            '${sp.name} is hidden from all lists. Stats are kept and the '
+            'player can be restored from the ARCHIVE row.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ARCHIVE'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    sp.archived = true;
+    await PlayerStorage.savePlayers(widget.savedPlayers);
+    widget.onChanged();
+    if (mounted) Navigator.pop(context);
+  }
+
   Widget _stat(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -500,6 +612,19 @@ class _PlayerProfileDialogState extends State<_PlayerProfileDialog> {
             _stat('Win rate', '${(sp.winRate * 100).toStringAsFixed(0)}%'),
             _stat('Avg turn score', sp.averageTurnScore.toStringAsFixed(1)),
             _stat('Best turn', sp.highestTurnScore.toString()),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: _toggleArchived,
+                style: TextButton.styleFrom(
+                  foregroundColor: sp.archived
+                      ? null
+                      : Theme.of(context).colorScheme.error,
+                ),
+                child: Text(sp.archived ? 'RESTORE' : 'ARCHIVE PLAYER'),
+              ),
+            ),
           ],
         ),
       ),
