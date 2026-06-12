@@ -48,6 +48,11 @@ class ShanghaiGameEngine {
 
   int get currentTarget => currentRound + 1;
   int get playerCount => totalScores.length;
+
+  /// Whether [undo] has anything to roll back. Add/remove player clears the
+  /// stack, so callers keeping parallel history (e.g. the screen's throw
+  /// history) must check this before rewinding their own state.
+  bool get canUndo => _undoStack.isNotEmpty;
   bool isSkipped(int i) => _skipped.contains(i);
   int get activePlayerCount => playerCount - _skipped.length;
 

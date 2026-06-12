@@ -189,4 +189,30 @@ void main() {
     expect(_stripLabel(tester), isNull,
         reason: 'undo must remove the dart from the live strip');
   });
+
+  testWidgets('Shanghai undo after add-player does not desync the strip',
+      (tester) async {
+    final dynamic state = await _pumpShanghai(tester);
+
+    // P0 throws one dart — strip shows it.
+    state.onHitForTest(HitType.single);
+    await tester.pump();
+    expect(_stripLabel(tester), 'S1');
+
+    // Mid-game add clears the engine's undo stack (same as the screen's
+    // _addSavedPlayerMidGame path does via engine.addPlayer).
+    state.engineForTest.addPlayer();
+    expect(state.engineForTest.canUndo, isFalse,
+        reason: 'sanity: add-player must clear the engine undo stack');
+
+    // UNDO now: the engine no-ops, so the screen-side history must not
+    // rewind either — otherwise the strip desyncs and the next dart merges
+    // into the wrong turn group.
+    state.onUndoForTest();
+    await tester.pump();
+    expect(_stripLabel(tester), 'S1',
+        reason: 'undo with an empty engine stack must leave the strip alone');
+    expect(state.engineForTest.totalScores[0], 1,
+        reason: 'the engine score must be untouched by the no-op undo');
+  });
 }

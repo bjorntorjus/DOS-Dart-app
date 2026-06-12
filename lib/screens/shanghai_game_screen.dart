@@ -363,6 +363,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (!mounted) return;
       if (action == 'undo') {
         // User wants to keep playing — undo the game-end and return to game.
+        // Same guard as _onUndo: a stack emptied by add/remove player must
+        // not rewind the screen-side history the engine cannot match.
+        if (!engine.canUndo) return;
         setState(() {
           engine.undo();
           if (throwHistory.isNotEmpty) {
@@ -395,6 +398,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
 
   void _onUndo() {
     if (engine.gameOver) return;
+    // Add/remove player clears the engine's undo stack and engine.undo()
+    // silently no-ops when empty — rewinding the screen-side history then
+    // would desync the strip's turn grouping.
+    if (!engine.canUndo) return;
     setState(() {
       engine.undo();
       if (_turnHits.isNotEmpty) {
