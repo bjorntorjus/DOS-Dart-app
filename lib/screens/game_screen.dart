@@ -1142,16 +1142,15 @@ class _GameScreenState extends State<GameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
-  /// Returns the label for the player's previously COMPLETED turn (the
-  /// 3 darts before the current in-progress turn). Empty if there are
-  /// fewer than 3 completed darts.
-  String _previousTurnLabel(int playerIndex) {
+  /// Label for the player's most recent turn — an in-progress turn counts as
+  /// most recent, so the row updates live per dart. Falls back to the last
+  /// completed turn between the player's turns.
+  String _recentTurnLabel(int playerIndex) {
     final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
-    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
-    final completedCount = all.length - inTurn;
-    if (completedCount < 3) return '';
-    final lastThree = all.sublist(completedCount - 3, completedCount);
-    return lastThree
+    if (all.isEmpty) return '';
+    final lastTurnId = all.last.turnId;
+    return all
+        .where((t) => t.turnId == lastTurnId)
         .map((t) {
           if (t.segment == 0) return 'MISS';
           final prefix = t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
@@ -1489,11 +1488,11 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildDossedartCockpit(BuildContext context) {
     final player = players[currentPlayerIndex];
-    final lastLabel = _previousTurnLabel(currentPlayerIndex);
+    final lastLabel = _recentTurnLabel(currentPlayerIndex);
     final tip = _checkoutFor(player.score);
 
-    // Last-turn sum (sum of the three throws ending the previous turn).
-    final lastSum = _sumOfLastThreeBeforeCurrentTurn(currentPlayerIndex);
+    // Sum of the most recent turn (in-progress turn included — updates live).
+    final lastSum = _recentTurnSum(currentPlayerIndex);
 
     // 3-dart match average for the active player (null when no darts yet).
     final activeThrows = throwHistory
@@ -1528,7 +1527,7 @@ class _GameScreenState extends State<GameScreen> {
                 remaining: player.score,
                 currentDartIndex: dartsInTurn,
                 lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
-                lastTurnSum: lastSum,
+                lastTurnSum: lastLabel.isEmpty ? null : lastSum,
                 checkoutTip: tip.isEmpty ? null : tip,
                 avg: avg,
               ),
@@ -1602,14 +1601,15 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  int _sumOfLastThreeBeforeCurrentTurn(int playerIndex) {
+  /// Sum of the player's most recent turn (same turnId grouping as
+  /// [_recentTurnLabel] — includes the in-progress turn).
+  int _recentTurnSum(int playerIndex) {
     final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
-    // Exclude darts in the current in-progress turn only for the active player.
-    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
-    final completedCount = all.length - inTurn;
-    if (completedCount < 3) return 0;
-    final lastThree = all.sublist(completedCount - 3, completedCount);
-    return lastThree.fold(0, (acc, t) => acc + t.segment * t.multiplier);
+    if (all.isEmpty) return 0;
+    final lastTurnId = all.last.turnId;
+    return all
+        .where((t) => t.turnId == lastTurnId)
+        .fold(0, (acc, t) => acc + t.segment * t.multiplier);
   }
 
   Future<void> _showDossedartMenu(BuildContext outerContext) {
