@@ -699,19 +699,20 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       child: Container(
         decoration: BoxDecoration(border: Border.all(color: magenta55, width: 2)),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _splitScoreHeader(),
-            Expanded(
+            Flexible(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
                     for (int ri = 0; ri < rounds.length; ri++)
                       _splitScoreRow(ri),
+                    _splitSumRow(),
                   ],
                 ),
               ),
             ),
-            _splitSumRow(),
           ],
         ),
       ),

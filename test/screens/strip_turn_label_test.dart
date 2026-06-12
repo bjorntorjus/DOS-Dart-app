@@ -160,6 +160,29 @@ void main() {
         reason: 'the completed turn advanced play to P1 again');
   });
 
+  testWidgets(
+      'Splitscore scorecard renders the SUM row inside the scroll content, '
+      'directly under the round rows, without overflow', (tester) async {
+    await _pumpSplitscore(tester);
+
+    expect(tester.takeException(), isNull,
+        reason: 'the cockpit must build without overflow with the fixed '
+            'round config');
+
+    // The SUM row scrolls with the round rows (no pinned row with dead
+    // space above it) — it must be a descendant of the scorecard's
+    // SingleChildScrollView.
+    expect(
+      find.descendant(
+        of: find.byType(SingleChildScrollView),
+        matching: find.text('SUM'),
+      ),
+      findsOneWidget,
+      reason: 'the SUM row must sit in the scrollable column, directly '
+          'under the round rows',
+    );
+  });
+
   testWidgets('Shanghai strip accumulates live and falls back between turns',
       (tester) async {
     final dynamic state = await _pumpShanghai(tester);
