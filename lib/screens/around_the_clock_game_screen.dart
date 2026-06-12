@@ -1245,7 +1245,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         ? const [('BULL', 1), ('D-BULL', 2)]
         : [('$tgt', 1), ('D$tgt', 2), ('T$tgt', 3)];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 22),
       child: Row(
         children: [
           for (final (label, m) in subs)
