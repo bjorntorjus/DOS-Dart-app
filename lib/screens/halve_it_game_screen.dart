@@ -349,22 +349,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// In-progress turn's darts joined live (e.g. "S5 \u00b7 S6 \u00b7 MISS"); falls back
   /// to the active player's previous turn between turns. Per-dart suffixes
   /// ("\u2713 (+points)") are dropped \u2014 they do not fit the joined 3-dart row.
-  String? get _stripTurnLabel {
-    final all = throwHistory
-        .where((t) => t.playerIndex == currentPlayerIndex)
-        .toList();
-    if (all.isEmpty) return null;
-    final lastTurnId = all.last.turnId;
-    return all
-        .where((t) => t.turnId == lastTurnId)
-        .map((t) {
-          if (t.segment == 0) return 'MISS';
-          final prefix =
-              t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
-          return '$prefix${t.segment}';
-        })
-        .join(' \u00b7 ');
-  }
+  String? get _stripTurnLabel =>
+      throwHistory.recentTurnLabel(currentPlayerIndex);
 
   void _undo() {
     if (throwHistory.isEmpty || _undoStack.isEmpty) return;

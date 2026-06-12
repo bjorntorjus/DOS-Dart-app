@@ -1145,19 +1145,10 @@ class _GameScreenState extends State<GameScreen> {
   /// Label for the player's most recent turn — an in-progress turn counts as
   /// most recent, so the row updates live per dart. Falls back to the last
   /// completed turn between the player's turns.
-  String _recentTurnLabel(int playerIndex) {
-    final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
-    if (all.isEmpty) return '';
-    final lastTurnId = all.last.turnId;
-    return all
-        .where((t) => t.turnId == lastTurnId)
-        .map((t) {
-          if (t.segment == 0) return 'MISS';
-          final prefix = t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
-          return '$prefix${t.segment}';
-        })
-        .join(' · ');
-  }
+  /// Empty string (not null) when the player has no throws — the call site
+  /// maps '' → null for the strip props.
+  String _recentTurnLabel(int playerIndex) =>
+      throwHistory.recentTurnLabel(playerIndex) ?? '';
 
   void _undo() {
     if (throwHistory.isEmpty) return;
@@ -1603,14 +1594,8 @@ class _GameScreenState extends State<GameScreen> {
 
   /// Sum of the player's most recent turn (same turnId grouping as
   /// [_recentTurnLabel] — includes the in-progress turn).
-  int _recentTurnSum(int playerIndex) {
-    final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
-    if (all.isEmpty) return 0;
-    final lastTurnId = all.last.turnId;
-    return all
-        .where((t) => t.turnId == lastTurnId)
-        .fold(0, (acc, t) => acc + t.segment * t.multiplier);
-  }
+  int _recentTurnSum(int playerIndex) =>
+      throwHistory.recentTurnSum(playerIndex);
 
   Future<void> _showDossedartMenu(BuildContext outerContext) {
     return showDossedartCockpitMenu(

@@ -152,22 +152,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
 
   /// In-progress turn's darts joined live (e.g. "S5 · S6 · MISS"); falls back
   /// to the active player's previous turn between turns.
-  String? get _stripTurnLabel {
-    final all = throwHistory
-        .where((t) => t.playerIndex == engine.currentPlayerIndex)
-        .toList();
-    if (all.isEmpty) return null;
-    final lastTurnId = all.last.turnId;
-    return all
-        .where((t) => t.turnId == lastTurnId)
-        .map((t) {
-          if (t.segment == 0) return 'MISS';
-          final prefix =
-              t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
-          return '$prefix${t.segment}';
-        })
-        .join(' · ');
-  }
+  String? get _stripTurnLabel =>
+      throwHistory.recentTurnLabel(engine.currentPlayerIndex);
 
   void _onHit(HitType type) {
     if (engine.gameOver) return;

@@ -59,3 +59,40 @@ class DartThrow {
     return '$segment';
   }
 }
+
+/// Shared turn-grouping for the DOSSEDART last-turn displays: the most
+/// recent turnId for a player — in-progress turns count — formatted as
+/// 'T20 · S19 · MISS'. Bull renders as Bull/D-Bull like [DartThrow.shortLabel]
+/// (singles get an explicit 'S' prefix, misses are upper-case — both differ
+/// from shortLabel, hence the dedicated formatter).
+extension RecentTurn on List<DartThrow> {
+  /// Joined label of [playerIndex]'s most recent turn, or null when the
+  /// player has no throws yet.
+  String? recentTurnLabel(int playerIndex) {
+    final turn = _recentTurn(playerIndex);
+    if (turn.isEmpty) return null;
+    return turn.map(_stripDartLabel).join(' · ');
+  }
+
+  /// Points sum of [playerIndex]'s most recent turn (0 when no throws).
+  int recentTurnSum(int playerIndex) => _recentTurn(playerIndex)
+      .fold(0, (acc, t) => acc + t.segment * t.multiplier);
+
+  List<DartThrow> _recentTurn(int playerIndex) {
+    final all = where((t) => t.playerIndex == playerIndex).toList();
+    if (all.isEmpty) return const [];
+    final lastTurnId = all.last.turnId;
+    return all.where((t) => t.turnId == lastTurnId).toList();
+  }
+
+  static String _stripDartLabel(DartThrow t) {
+    if (t.segment == 0) return 'MISS';
+    if (t.segment == 25) return t.shortLabel; // 'Bull' / 'D-Bull'
+    final prefix = t.multiplier == 3
+        ? 'T'
+        : t.multiplier == 2
+            ? 'D'
+            : 'S';
+    return '$prefix${t.segment}';
+  }
+}
