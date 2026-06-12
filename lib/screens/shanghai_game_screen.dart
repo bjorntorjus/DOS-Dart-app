@@ -57,15 +57,22 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   @visibleForTesting
   Future<void> onGameEndForTest() => _onGameEnd();
 
+  @visibleForTesting
+  void onHitForTest(HitType type) => _onHit(type);
+
+  @visibleForTesting
+  void onUndoForTest() => _onUndo();
+
   final GameLogger _log = GameLogger.instance;
 
   // Per-turn hit history for the dart-slot display.
   // Reset whenever a new turn starts. Length matches engine.dartNumber.
   final List<HitType> _turnHits = [];
 
-  // Label of the most recent throw for the active strip (cleared on undo,
-  // same behaviour as the other DOSSEDART cockpits).
-  String? _lastThrowLabel;
+  // Per-dart history feeding the active strip's live turn label (same
+  // turnId-grouped pattern as the other DOSSEDART cockpits).
+  List<DartThrow> throwHistory = [];
+  int _turnIdCounter = 0;
 
   final MemeService _meme = MemeService();
   bool _memeEnabled = false;
@@ -143,6 +150,25 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     }
   }
 
+  /// In-progress turn's darts joined live (e.g. "S5 · S6 · MISS"); falls back
+  /// to the active player's previous turn between turns.
+  String? get _stripTurnLabel {
+    final all = throwHistory
+        .where((t) => t.playerIndex == engine.currentPlayerIndex)
+        .toList();
+    if (all.isEmpty) return null;
+    final lastTurnId = all.last.turnId;
+    return all
+        .where((t) => t.turnId == lastTurnId)
+        .map((t) {
+          if (t.segment == 0) return 'MISS';
+          final prefix =
+              t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
+          return '$prefix${t.segment}';
+        })
+        .join(' · ');
+  }
+
   void _onHit(HitType type) {
     if (engine.gameOver) return;
     final playerIdx = engine.currentPlayerIndex;
@@ -154,8 +180,6 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     setState(() {
       engine.recordThrow(type);
       _turnHits.add(type);
-      _lastThrowLabel =
-          type == HitType.miss ? 'Miss' : _logLabelForHit(type, target);
     });
 
     final scoreAfter = engine.totalScores[playerIdx];
@@ -180,8 +204,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       scoreBefore: scoreBefore,
       turnNumber: dart,
       scoreAtStartOfTurn: wasTurnStart ? scoreBefore : (scoreBefore - 0),
+      turnId: _turnIdCounter,
       roundNumber: engine.currentRound,
     );
+    throwHistory.add(dartThrow);
 
     // Play core sound (miss/nice) before meme so meme can mark and skip TTS.
     if (type == HitType.miss) {
@@ -200,6 +226,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     if (turnEnded) {
       _meme.onTurnEnd();
       _turnHits.clear();
+      _turnIdCounter++;
     }
 
     if (engine.gameOver) {
@@ -336,7 +363,13 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (!mounted) return;
       if (action == 'undo') {
         // User wants to keep playing — undo the game-end and return to game.
-        setState(() => engine.undo());
+        setState(() {
+          engine.undo();
+          if (throwHistory.isNotEmpty) {
+            final lastThrow = throwHistory.removeLast();
+            _turnIdCounter = lastThrow.turnId;
+          }
+        });
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
@@ -367,7 +400,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (_turnHits.isNotEmpty) {
         _turnHits.removeLast();
       }
-      _lastThrowLabel = null;
+      if (throwHistory.isNotEmpty) {
+        final lastThrow = throwHistory.removeLast();
+        _turnIdCounter = lastThrow.turnId;
+      }
     });
     _log.logUndo(
       playerIndex: engine.currentPlayerIndex,
@@ -580,7 +616,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 avatarPath: players[engine.currentPlayerIndex].avatarPath,
                 accentColor: DossedartTokens.cyan,
                 dartsInTurn: engine.dartNumber,
-                lastThrowLabel: _lastThrowLabel,
+                lastThrowLabel: _stripTurnLabel,
                 trailing: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,

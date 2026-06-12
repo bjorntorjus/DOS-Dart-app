@@ -680,6 +680,26 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return last3.map((t) => t.shortLabel).join(' · ');
   }
 
+  /// In-progress turn's darts joined live (e.g. "S5 · S6 · MISS"); falls back
+  /// to the active player's previous turn between turns. Per-dart suffixes
+  /// (mark glyphs) are dropped — they do not fit the joined 3-dart row.
+  String? get _stripTurnLabel {
+    final all = throwHistory
+        .where((t) => t.playerIndex == currentPlayerIndex)
+        .toList();
+    if (all.isEmpty) return null;
+    final lastTurnId = all.last.turnId;
+    return all
+        .where((t) => t.turnId == lastTurnId)
+        .map((t) {
+          if (t.segment == 0) return 'MISS';
+          final prefix =
+              t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
+          return '$prefix${t.segment}';
+        })
+        .join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
@@ -713,7 +733,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                 avatarPath: players[currentPlayerIndex].avatarPath,
                 accentColor: DossedartTokens.cyan,
                 dartsInTurn: dartsInTurn,
-                lastThrowLabel: lastThrowLabel,
+                lastThrowLabel: _stripTurnLabel,
                 trailing: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,

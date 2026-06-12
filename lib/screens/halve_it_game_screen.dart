@@ -56,6 +56,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   int currentRoundIndex = 0;
   int currentPlayerIndex = 0;
   int dartsInTurn = 0;
+  int _turnIdCounter = 0;
   int turnPoints = 0; // points accumulated this turn
   bool turnHasHit = false; // whether any dart hit the target this turn
 
@@ -163,6 +164,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       scoreBefore: totalScores[currentPlayerIndex],
       turnNumber: dartsInTurn,
       scoreAtStartOfTurn: totalScores[currentPlayerIndex],
+      turnId: _turnIdCounter,
     );
 
     // Save undo data
@@ -281,6 +283,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
     // Next player or next round
     dartsInTurn = 0;
+    _turnIdCounter++;
     turnPoints = 0;
     turnHasHit = false;
 
@@ -343,6 +346,26 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
+  /// In-progress turn's darts joined live (e.g. "S5 \u00b7 S6 \u00b7 MISS"); falls back
+  /// to the active player's previous turn between turns. Per-dart suffixes
+  /// ("\u2713 (+points)") are dropped \u2014 they do not fit the joined 3-dart row.
+  String? get _stripTurnLabel {
+    final all = throwHistory
+        .where((t) => t.playerIndex == currentPlayerIndex)
+        .toList();
+    if (all.isEmpty) return null;
+    final lastTurnId = all.last.turnId;
+    return all
+        .where((t) => t.turnId == lastTurnId)
+        .map((t) {
+          if (t.segment == 0) return 'MISS';
+          final prefix =
+              t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
+          return '$prefix${t.segment}';
+        })
+        .join(' \u00b7 ');
+  }
+
   void _undo() {
     if (throwHistory.isEmpty || _undoStack.isEmpty) return;
     final undoneThrow = throwHistory.last;
@@ -351,6 +374,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
     setState(() {
       throwHistory.removeLast();
+      _turnIdCounter = undoneThrow.turnId;
       final data = _undoStack.removeLast();
       currentRoundIndex = data.roundIndex;
       currentPlayerIndex = data.playerIndex;
@@ -606,7 +630,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 avatarPath: players[currentPlayerIndex].avatarPath,
                 accentColor: DossedartTokens.cyan,
                 dartsInTurn: dartsInTurn,
-                lastThrowLabel: lastThrowLabel,
+                lastThrowLabel: _stripTurnLabel,
                 trailing: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -1672,6 +1696,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 }
                 if (playerIndex == currentPlayerIndex) {
                   dartsInTurn = 0;
+                  _turnIdCounter++;
                   _advanceToNextActive();
                 }
               });

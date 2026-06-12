@@ -146,6 +146,13 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
 
   @visibleForTesting
+  Future<void> onDartHitForTest(int segment, int multiplier) =>
+      _onDartHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
+
+  @visibleForTesting
   GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
@@ -785,6 +792,26 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
+  /// In-progress turn's darts joined live (e.g. "S5 \u00b7 S6 \u00b7 MISS"); falls back
+  /// to the active player's previous turn between turns. Per-dart suffixes
+  /// ("+2 steps") are dropped \u2014 they do not fit the joined 3-dart row.
+  String? get _stripTurnLabel {
+    final all = throwHistory
+        .where((t) => t.playerIndex == currentPlayerIndex)
+        .toList();
+    if (all.isEmpty) return null;
+    final lastTurnId = all.last.turnId;
+    return all
+        .where((t) => t.turnId == lastTurnId)
+        .map((t) {
+          if (t.segment == 0) return 'MISS';
+          final prefix =
+              t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
+          return '$prefix${t.segment}';
+        })
+        .join(' \u00b7 ');
+  }
+
   void _undo() {
     if (throwHistory.isEmpty) return;
     _announcer.announceGameEvent('Back');
@@ -1069,7 +1096,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 avatarPath: players[currentPlayerIndex].avatarPath,
                 accentColor: DossedartTokens.cyan,
                 dartsInTurn: dartsInTurn,
-                lastThrowLabel: lastThrowLabel,
+                lastThrowLabel: _stripTurnLabel,
                 trailing: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
