@@ -1540,7 +1540,7 @@ class _GameScreenState extends State<GameScreen> {
                     Positioned(
                       left: 14,
                       right: 14,
-                      bottom: 10,
+                      bottom: 24,
                       child: AspectRatio(
                         aspectRatio: 1,
                         child: Container(
