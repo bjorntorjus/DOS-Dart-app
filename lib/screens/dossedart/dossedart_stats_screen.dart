@@ -4,6 +4,7 @@ import '../../models/saved_player.dart';
 import '../../services/game_history_service.dart';
 import '../../services/player_storage.dart';
 import '../../theme/dossedart_tokens.dart';
+import '../../utils/rating_rank.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
 import '../../widgets/dossedart/dossedart_player_avatar.dart';
 import '../../widgets/dossedart/dossedart_top_bar.dart';
@@ -137,7 +138,12 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
           child: SizedBox(
             height: 120,
             child: CustomPaint(
-              painter: _RatingSparkline(p.ratingHistory.map((s) => s.rating).toList()),
+              painter: _RatingSparkline(
+                p.ratingHistory.map((s) => s.rating).toList(),
+                deriveRankHistory(p, _players.toList())
+                    .map((r) => r.rank)
+                    .toList(),
+              ),
               size: Size.infinite,
             ),
           ),
@@ -721,10 +727,12 @@ class _HistoryRow extends StatelessWidget {
   }
 }
 
-/// Minimal arcade sparkline of a player's rating history.
+/// Minimal arcade sparkline of a player's rating history, with markers at
+/// every snapshot where the leaderboard rank changed (▲#N up / ▼#N down).
 class _RatingSparkline extends CustomPainter {
-  _RatingSparkline(this.values);
+  _RatingSparkline(this.values, this.ranks);
   final List<double> values;
+  final List<int> ranks; // same length as values
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -759,8 +767,34 @@ class _RatingSparkline extends CustomPainter {
         ..strokeWidth = 2
         ..color = DossedartTokens.cyan,
     );
+
+    // Rank-change markers: a dot on the line + ▲#N / ▼#N label.
+    if (ranks.length != values.length) return;
+    for (int i = 1; i < values.length; i++) {
+      if (ranks[i] == ranks[i - 1]) continue;
+      final up = ranks[i] < ranks[i - 1]; // lower number = better
+      final color = up ? DossedartTokens.green : DossedartTokens.red;
+      final x = dx * i;
+      final y = size.height - ((values[i] - minV) / range) * size.height;
+      canvas.drawCircle(Offset(x, y), 4, Paint()..color = color);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${up ? '▲' : '▼'}#${ranks[i]}',
+          style: TextStyle(
+              color: color, fontSize: 10, fontFamily: 'PressStart2P'),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      // Label above the point when rising, below when falling; clamp into bounds.
+      final ly = up ? y - tp.height - 6 : y + 6;
+      tp.paint(
+          canvas,
+          Offset((x - tp.width / 2).clamp(0.0, size.width - tp.width).toDouble(),
+              ly.clamp(0.0, size.height - tp.height).toDouble()));
+    }
   }
 
   @override
-  bool shouldRepaint(_RatingSparkline old) => old.values != values;
+  bool shouldRepaint(_RatingSparkline old) =>
+      old.values != values || old.ranks != ranks;
 }

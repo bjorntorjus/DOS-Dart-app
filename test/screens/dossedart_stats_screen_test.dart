@@ -7,7 +7,8 @@ import 'package:dart_scoring/screens/dossedart/achievements_gallery_screen.dart'
 import 'package:dart_scoring/screens/dossedart/dossedart_stats_screen.dart';
 import 'package:dart_scoring/widgets/dossedart/arcade_frame.dart';
 
-SavedPlayer _player(String id, String name, double rating, {Set<String> unlocked = const {}}) {
+SavedPlayer _player(String id, String name, double rating,
+    {Set<String> unlocked = const {}, List<RatingSnapshot>? history}) {
   return SavedPlayer(
     id: id,
     name: name,
@@ -16,6 +17,7 @@ SavedPlayer _player(String id, String name, double rating, {Set<String> unlocked
     gamesPlayed: 4,
     gamesWon: 2,
     unlockedAchievementIds: {...unlocked},
+    ratingHistory: history,
   );
 }
 
@@ -64,6 +66,28 @@ void main() {
     await tester.tap(find.text('VIEW ALL'));
     await tester.pumpAndSettle();
     expect(find.byType(AchievementsGalleryScreen), findsOneWidget);
+  });
+
+  testWidgets('PROFIL sparkline paints rank-change markers without errors',
+      (tester) async {
+    // Ada overtakes Bo at the 2nd snapshot → rank 2 → 1 marker is drawn.
+    await _seed([
+      _player('1', 'Ada', 1300, history: [
+        RatingSnapshot(date: DateTime(2026, 1, 1), rating: 1200),
+        RatingSnapshot(date: DateTime(2026, 1, 2), rating: 1250),
+        RatingSnapshot(date: DateTime(2026, 1, 3), rating: 1300),
+      ]),
+      _player('2', 'Bo', 1250, history: [
+        RatingSnapshot(date: DateTime(2026, 1, 1), rating: 1230),
+        RatingSnapshot(date: DateTime(2026, 1, 2), rating: 1240),
+        RatingSnapshot(date: DateTime(2026, 1, 3), rating: 1250),
+      ]),
+    ]);
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('RATING HISTORY'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('empty state when no saved players', (tester) async {
