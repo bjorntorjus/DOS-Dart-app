@@ -69,7 +69,9 @@ class _MidGameSheetState extends State<_MidGameSheet> {
         .whereType<String>()
         .toSet();
     if (!mounted) return;
-    final list = saved.where((sp) => !existingIds.contains(sp.id)).toList()
+    final list = saved
+        .where((sp) => !sp.archived && !existingIds.contains(sp.id))
+        .toList()
       ..sort((a, b) =>
           a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     setState(() {

@@ -31,9 +31,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadTopPlayers() async {
     final players = await PlayerStorage.loadPlayers();
-    players.sort((a, b) => b.rating.compareTo(a.rating));
+    final visible = players.where((p) => !p.archived).toList()
+      ..sort((a, b) => b.rating.compareTo(a.rating));
     setState(() {
-      _topPlayers = players.take(3).toList();
+      _topPlayers = visible.take(3).toList();
     });
   }
 

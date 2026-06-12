@@ -56,6 +56,11 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
   bool _isLoading = true;
   bool _randomOrder = true; // default ON per spec
 
+  /// Players shown in the picker. Archived players are hidden here but kept
+  /// in [_savedPlayers] so the ARKIV restore row (Task 13) can reach them.
+  List<SavedPlayer> get _visiblePlayers =>
+      _savedPlayers.where((p) => !p.archived).toList();
+
   @override
   void initState() {
     super.initState();
@@ -168,7 +173,7 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
                               _buildCastHeader(),
                               const SizedBox(height: 12),
                               DossedartPlayerPicker(
-                                savedPlayers: _savedPlayers,
+                                savedPlayers: _visiblePlayers,
                                 selectedIds: _selectedIds,
                                 onToggle: _toggleSelected,
                                 onLongPress: _showPlayerProfile,

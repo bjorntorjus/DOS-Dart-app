@@ -118,8 +118,12 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
+          // _savedPlayers stays unfiltered (it is persisted wholesale via
+          // savePlayers); archived players are only hidden from the picker.
           final available = _savedPlayers
-              .where((sp) => !_selectedPlayers.any((sel) => sel.id == sp.id))
+              .where((sp) =>
+                  !sp.archived &&
+                  !_selectedPlayers.any((sel) => sel.id == sp.id))
               .toList();
 
           return DraggableScrollableSheet(

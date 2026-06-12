@@ -19,6 +19,11 @@ class _StatsScreenState extends State<StatsScreen>
   List<SavedPlayer> _players = [];
   List<GameHistoryEntry> _history = [];
   bool _isLoading = true;
+
+  /// Players shown in lists and leaderboards. [_players] keeps the full
+  /// list so id lookups (H2H names, heatmap) still resolve archived players.
+  List<SavedPlayer> get _visiblePlayers =>
+      _players.where((p) => !p.archived).toList();
   late TabController _tabController;
   String? _heatmapPlayer1Id;
   String? _heatmapPlayer2Id;
@@ -107,7 +112,7 @@ class _StatsScreenState extends State<StatsScreen>
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _players.isEmpty
+          : _visiblePlayers.isEmpty
               ? const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -144,10 +149,11 @@ class _StatsScreenState extends State<StatsScreen>
   // ──────────────────────────────────────────
 
   Widget _buildPlayersTab() {
+    final visible = _visiblePlayers;
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _players.length,
-      itemBuilder: (context, index) => _buildPlayerCard(_players[index]),
+      itemCount: visible.length,
+      itemBuilder: (context, index) => _buildPlayerCard(visible[index]),
     );
   }
 
@@ -274,7 +280,7 @@ class _StatsScreenState extends State<StatsScreen>
   // ──────────────────────────────────────────
 
   Widget _buildModeTab(String modeKey, String modeLabel) {
-    final playersWithMode = _players
+    final playersWithMode = _visiblePlayers
         .where((p) => p.modeStats.containsKey(modeKey))
         .toList()
       ..sort((a, b) {
@@ -808,7 +814,7 @@ class _StatsScreenState extends State<StatsScreen>
             items: [
               if (allowNone)
                 const DropdownMenuItem(value: null, child: Text('None')),
-              ..._players.map((p) => DropdownMenuItem(
+              ..._visiblePlayers.map((p) => DropdownMenuItem(
                     value: p.id,
                     child: Text(p.name, overflow: TextOverflow.ellipsis),
                   )),

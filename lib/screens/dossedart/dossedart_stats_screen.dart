@@ -37,6 +37,12 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   List<GameHistoryEntry> _history = [];
   bool _loading = true;
 
+  /// Players shown in selectors, leaderboards and rank computations.
+  /// [_players] keeps the full list so H2H rows can still resolve the
+  /// names of archived opponents.
+  List<SavedPlayer> get _visiblePlayers =>
+      _players.where((p) => !p.archived).toList();
+
   String? _selectedPlayerId; // PROFIL
   int _modeIndex = 0; // MODUS
   int _heatmapModeIndex = 0; // HEATMAP
@@ -62,11 +68,12 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     final history = await GameHistoryService.load();
     players.sort((a, b) => b.rating.compareTo(a.rating));
     if (!mounted) return;
+    final visible = players.where((p) => !p.archived).toList();
     setState(() {
       _players = players;
       _history = history;
-      _selectedPlayerId ??= players.isNotEmpty ? players.first.id : null;
-      _heatmapPlayerId ??= players.isNotEmpty ? players.first.id : null;
+      _selectedPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
+      _heatmapPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
       _loading = false;
     });
   }
@@ -74,8 +81,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   SavedPlayer? get _selected =>
       _players.where((p) => p.id == _selectedPlayerId).firstOrNull;
 
-  int _rankOf(SavedPlayer p) =>
-      _players.indexWhere((x) => x.id == p.id) + 1; // _players is rating-sorted
+  int _rankOf(SavedPlayer p) => _visiblePlayers.indexWhere((x) => x.id == p.id) +
+      1; // _players is rating-sorted, so the filtered view is too
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +96,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
                 title: 'STATISTICS',
                 onExit: () => Navigator.of(context).maybePop(),
               ),
-              if (!_loading && _players.isNotEmpty)
+              if (!_loading && _visiblePlayers.isNotEmpty)
                 _ArcadeTabBar(
                   labels: const ['PROFIL', 'MODUS', 'HEATMAP', 'HISTORIKK'],
                   index: _tabs.index,
@@ -99,7 +106,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
                 child: _loading
                     ? const Center(
                         child: CircularProgressIndicator(color: DossedartTokens.cyan))
-                    : _players.isEmpty
+                    : _visiblePlayers.isEmpty
                         ? const _EmptyState()
                         : TabBarView(
                             controller: _tabs,
@@ -121,17 +128,17 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   // ───────────────────────── PROFIL ─────────────────────────
 
   Widget _buildProfil() {
-    final p = _selected ?? _players.first;
+    final p = _selected ?? _visiblePlayers.first;
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
         _PlayerSelector(
-          players: _players,
+          players: _visiblePlayers,
           selectedId: p.id,
           onSelect: (id) => setState(() => _selectedPlayerId = id),
         ),
         const SizedBox(height: 14),
-        _ProfileHero(player: p, rank: _rankOf(p), total: _players.length),
+        _ProfileHero(player: p, rank: _rankOf(p), total: _visiblePlayers.length),
         const SizedBox(height: 14),
         _SectionCard(
           title: 'RATING HISTORY',
@@ -140,7 +147,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
             child: CustomPaint(
               painter: _RatingSparkline(
                 p.ratingHistory.map((s) => s.rating).toList(),
-                deriveRankHistory(p, _players.toList())
+                deriveRankHistory(p, _players.where((q) => !q.archived).toList())
                     .map((r) => r.rank)
                     .toList(),
               ),
@@ -223,7 +230,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
 
   Widget _buildModus() {
     final mode = _modes[_modeIndex];
-    final ranked = _players
+    final ranked = _visiblePlayers
         .where((p) => (p.modeStats[mode.$1]?.played ?? 0) > 0)
         .toList()
       ..sort((a, b) {
@@ -272,7 +279,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         ),
         const SizedBox(height: 12),
         _PlayerSelector(
-          players: _players,
+          players: _visiblePlayers,
           selectedId: _heatmapPlayerId,
           onSelect: (id) => setState(() => _heatmapPlayerId = id),
         ),

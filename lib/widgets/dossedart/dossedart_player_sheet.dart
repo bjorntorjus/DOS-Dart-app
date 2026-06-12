@@ -38,7 +38,9 @@ Future<void> showDossedartPlayerSheet(
   String? addInfoText,
 }) async {
   final saved = await PlayerStorage.loadPlayers();
-  final available = saved.where((sp) => !excludeSavedIds.contains(sp.id)).toList()
+  final available = saved
+      .where((sp) => !sp.archived && !excludeSavedIds.contains(sp.id))
+      .toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   if (!context.mounted) return;
   await showModalBottomSheet(
