@@ -104,6 +104,23 @@ void main() {
     expect(find.text('60.0'), findsOneWidget);
   });
 
+  testWidgets('drops AVG decimal at >=100 so it fits the column',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(lastTurn: null, lastTurnSum: null, avg: null),
+    );
+    final placeholderHeight =
+        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+
+    await tester.pumpWidget(harness(avg: 180.0));
+    expect(find.text('180'), findsOneWidget);
+    expect(find.text('180.0'), findsNothing);
+    expect(
+      tester.getSize(find.byType(DossedartX01ActiveCard)).height,
+      placeholderHeight,
+    );
+  });
+
   testWidgets('shows AVG placeholder value when avg is null', (tester) async {
     await tester.pumpWidget(harness(avg: null));
     expect(find.text('AVG'), findsOneWidget);
