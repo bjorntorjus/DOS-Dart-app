@@ -147,7 +147,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
             child: CustomPaint(
               painter: _RatingSparkline(
                 p.ratingHistory.map((s) => s.rating).toList(),
-                deriveRankHistory(p, _players.where((q) => !q.archived).toList())
+                deriveRankHistory(p, _visiblePlayers)
                     .map((r) => r.rank)
                     .toList(),
               ),
