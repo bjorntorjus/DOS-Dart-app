@@ -104,8 +104,37 @@ void main() {
     expect(find.text('60.0'), findsOneWidget);
   });
 
-  testWidgets('hides AVG when avg is null', (tester) async {
+  testWidgets('shows AVG placeholder value when avg is null', (tester) async {
     await tester.pumpWidget(harness(avg: null));
-    expect(find.text('AVG'), findsNothing);
+    expect(find.text('AVG'), findsOneWidget);
+    expect(find.text('–'), findsOneWidget);
+  });
+
+  testWidgets('renders AVG/LAST placeholders when no data yet',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(lastTurn: null, lastTurnSum: null, avg: null),
+    );
+    expect(find.text('AVG'), findsOneWidget);
+    expect(find.text('LAST'), findsOneWidget);
+    expect(find.text('— · — · —'), findsOneWidget);
+    expect(find.text('–'), findsOneWidget); // AVG placeholder value
+  });
+
+  testWidgets('card height is identical with and without LAST/AVG data',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(lastTurn: null, lastTurnSum: null, avg: null),
+    );
+    final heightA =
+        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+
+    await tester.pumpWidget(
+      harness(lastTurn: 'T20 · S20 · S20', lastTurnSum: 100, avg: 55.0),
+    );
+    final heightB =
+        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+
+    expect(heightA, heightB);
   });
 }
