@@ -8,14 +8,17 @@ const List<int> kSegmentOrder = [
   20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
 ];
 
-// TWILIGHT board palette (board-specific felt/ring colors — not part of the
-// global role palette in DossedartTokens). Singles alternate dark/light purple
-// felt; triple+double rings alternate cyan/magenta, keyed on (i % 2): dark
-// segments get the cyan ring, light segments the magenta ring.
-const Color _twiSingleDark = Color(0xFF1E0C40);
-const Color _twiSingleLight = Color(0xFF321760);
-const Color _twiRingCyan = Color(0xFF1FB0C9);
-const Color _twiRingMagenta = Color(0xFFC72E94);
+// TWILIGHT board palette — BALANSERT (board-specific felt/ring colors, not part
+// of the global role palette in DossedartTokens). Full neon hues with brightness
+// dialed down. Singles alternate dark/light purple felt; triple+double rings
+// alternate magenta/cyan, keyed on (i % 2) to mirror a real bristle board:
+// segment 20 (i == 0) is the DARK felt and carries the MAGENTA ring; light
+// segments carry the CYAN ring.
+const Color _twiBase = Color(0xFF05000E); // disc/surround behind the felt
+const Color _twiSingleDark = Color(0xFF190B32);
+const Color _twiSingleLight = Color(0xFF3C2472);
+const Color _twiRingCyan = Color(0xFF2FC4DD);
+const Color _twiRingMagenta = Color(0xFFE637A8);
 
 // Radius thresholds as fractions of board radius.
 // Visual = hit-test (no surprise misses).
@@ -90,26 +93,27 @@ class _DartboardPainter extends CustomPainter {
     final r = size.width / 2;
     final c = Offset(r, r);
 
-    // Board background → solid arcade black (#0A0014), not surface-purple, so
+    // Board background → BALANSERT disc (#05000E), darker than the app bg, so
     // the twilight felt reads as clean segments. Glow comes from the circular
     // BoxDecoration the cockpits wrap the board in (game_screen /
     // killer_game_screen); the painter draws no border ring of its own.
-    final bg = Paint()..color = DossedartTokens.bg;
+    final bg = Paint()..color = _twiBase;
     canvas.drawCircle(c, r, bg);
 
     const slice = math.pi * 2 / 20;
     for (int i = 0; i < 20; i++) {
       final start = -slice / 2 + i * slice - math.pi / 2;
       final end = start + slice;
-      // Singles = twilight purple felt; triple + double = cyan/magenta ring.
+      // Singles = twilight purple felt; triple + double = magenta/cyan ring.
+      // Dark felt (i even, e.g. segment 20) → magenta ring; light felt → cyan.
       final singleCol = (i % 2 == 0) ? _twiSingleDark : _twiSingleLight;
-      final ringCol = (i % 2 == 0) ? _twiRingCyan : _twiRingMagenta;
+      final ringCol = (i % 2 == 0) ? _twiRingMagenta : _twiRingCyan;
 
       _wedge(canvas, c, r * kBullR, r * kInnerSingleR, start, end, singleCol);
       _wedge(canvas, c, r * kInnerSingleR, r * kTripleR, start, end, ringCol);
       _wedge(canvas, c, r * kTripleR, r * kOuterSingleR, start, end, singleCol);
       _wedge(canvas, c, r * kOuterSingleR, r * kDoubleR, start, end, ringCol);
-      _wedge(canvas, c, r * kDoubleR, r, start, end, DossedartTokens.bg);
+      _wedge(canvas, c, r * kDoubleR, r, start, end, _twiBase);
 
       // Segment number label, placed in the outer band.
       final midAng = (start + end) / 2;
