@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dart_scoring/models/game_history.dart';
 import 'package:dart_scoring/models/saved_player.dart';
 import 'package:dart_scoring/screens/dossedart/achievements_gallery_screen.dart';
 import 'package:dart_scoring/screens/dossedart/dossedart_stats_screen.dart';
+import 'package:dart_scoring/screens/dossedart/game_detail_screen.dart';
 import 'package:dart_scoring/widgets/dossedart/arcade_frame.dart';
 
 SavedPlayer _player(String id, String name, double rating,
@@ -88,6 +90,36 @@ void main() {
 
     expect(find.text('RATING HISTORY'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tapping a HISTORIKK row opens KAMPDETALJER', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final entry = GameHistoryEntry(
+      id: '1', gameMode: 'x01', date: DateTime(2026, 6, 16),
+      gameConfig: '501 · Double-Out',
+      players: [
+        GameHistoryPlayer(name: 'Ada', placement: 1, stats: const {}),
+        GameHistoryPlayer(name: 'Bo', placement: 2, stats: const {}),
+      ],
+    );
+    SharedPreferences.setMockInitialValues({
+      'saved_players': jsonEncode([_player('1', 'Ada', 1300).toJson()]),
+      'game_history_v1': GameHistoryEntry.encodeList([entry]),
+    });
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('HISTORIKK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DETALJER ›'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GameDetailScreen), findsOneWidget);
+    expect(find.text('KAMPDETALJER'), findsOneWidget);
   });
 
   testWidgets('empty state when no saved players', (tester) async {

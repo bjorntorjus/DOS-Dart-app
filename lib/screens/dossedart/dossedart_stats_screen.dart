@@ -10,6 +10,7 @@ import '../../widgets/dossedart/dossedart_player_avatar.dart';
 import '../../widgets/dossedart/dossedart_top_bar.dart';
 import '../../widgets/dossedart/stats/prestasjoner_section.dart';
 import '../../widgets/heatmap_board.dart';
+import 'game_detail_screen.dart';
 
 /// Arcade statistics hub — 4 tabs: PROFIL / MODUS / HEATMAP / HISTORIKK.
 /// Reads SavedPlayer / ModeStats / GameHistory (no new storage). The classic
@@ -311,7 +312,12 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     return ListView.builder(
       padding: const EdgeInsets.all(14),
       itemCount: sorted.length,
-      itemBuilder: (ctx, i) => _HistoryRow(entry: sorted[i]),
+      itemBuilder: (ctx, i) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(ctx).push(MaterialPageRoute(
+            builder: (_) => GameDetailScreen(entry: sorted[i]))),
+        child: _HistoryRow(entry: sorted[i]),
+      ),
     );
   }
 }
@@ -695,6 +701,12 @@ class _HistoryRow extends StatelessWidget {
                 '${entry.date.day}.${entry.date.month}.${entry.date.year}',
                 style: const TextStyle(color: DossedartTokens.phosphor, fontSize: 11),
               ),
+              const SizedBox(width: 8),
+              const Text('DETALJER ›',
+                  style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 8,
+                      color: DossedartTokens.cyan)),
             ],
           ),
           const SizedBox(height: 8),
