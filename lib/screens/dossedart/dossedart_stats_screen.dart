@@ -276,11 +276,13 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   }
 
   List<Widget> _h2hRows(SavedPlayer p) {
+    final nemesis = nemesisId(p);
     final entries = p.headToHead.entries.toList()
       ..sort((a, b) => b.value.total.compareTo(a.value.total));
     return entries.take(4).map((e) {
       final name = _players.where((x) => x.id == e.key).firstOrNull?.name ?? '???';
       final r = e.value;
+      final isNemesis = e.key == nemesis;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
@@ -291,6 +293,12 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: Colors.white, fontSize: 13)),
             ),
+            if (isNemesis)
+              const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: Text('· nemesis',
+                    style: TextStyle(fontFamily: 'VT323', fontSize: 13, color: DossedartTokens.red)),
+              ),
             Text('${r.wins}',
                 style: const TextStyle(color: DossedartTokens.green, fontSize: 13)),
             const Text(' - ', style: TextStyle(color: DossedartTokens.phosphor)),

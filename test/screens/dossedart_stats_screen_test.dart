@@ -222,4 +222,23 @@ void main() {
     expect(find.text('PER MODE'), findsOneWidget);
     expect(find.textContaining('best 140'), findsOneWidget);
   });
+
+  testWidgets('HEAD-TO-HEAD marks the nemesis', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _seed([
+      SavedPlayer(
+        id: '1', name: 'Ada', createdAt: DateTime(2026), rating: 1300,
+        gamesPlayed: 20, gamesWon: 10,
+        headToHead: {'2': H2HRecord(wins: 2, losses: 9)},
+      ),
+      _player('2', 'Bo', 1200),
+    ]);
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('nemesis'), findsOneWidget);
+  });
 }
