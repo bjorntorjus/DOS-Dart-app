@@ -136,6 +136,21 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   @visibleForTesting
   void undoForTest() => _undo();
 
+  @visibleForTesting
+  Set<int> get removedPlayerIndicesForTest => _removedPlayerIndices;
+
+  @visibleForTesting
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      isEliminated[playerIndex] = true;
+    });
+  }
+
   void _commitKillsThisTurn() {
     final cur = _maxKillsInTurn[currentPlayerIndex] ?? 0;
     if (_killsThisTurn > cur) _maxKillsInTurn[currentPlayerIndex] = _killsThisTurn;
@@ -758,8 +773,28 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     );
     BatterySampler.instance.stop();
 
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+          builder: (_) => PostGameScreen(result: _buildGameResult())),
+    );
+    if (!mounted) return;
+    if (result == 'undo') {
+      _log.logPostGame(action: 'undo', details: 'user chose undo from post-game');
+      _undo();
+    } else {
+      _log.logPostGame(action: 'exit', details: 'user exited to home');
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
+  GameResult _buildGameResult() {
+    // Players removed mid-game must not appear on the result screen at all —
+    // and never as the winner. (winnerIndex is already removed-safe: removed
+    // players are flagged eliminated, so they never end up the last one alive.)
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
+      if (_removedPlayerIndices.contains(i)) continue;
       results.add(PlayerResult(
         name: players[i].name,
         avatarPath: players[i].avatarPath,
@@ -773,21 +808,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             : null,
       ));
     }
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(
-          builder: (_) => PostGameScreen(
-                result: GameResult(gameMode: 'killer', results: results),
-              )),
-    );
-    if (!mounted) return;
-    if (result == 'undo') {
-      _log.logPostGame(action: 'undo', details: 'user chose undo from post-game');
-      _undo();
-    } else {
-      _log.logPostGame(action: 'exit', details: 'user exited to home');
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    return GameResult(gameMode: 'killer', results: results);
   }
 
   @override

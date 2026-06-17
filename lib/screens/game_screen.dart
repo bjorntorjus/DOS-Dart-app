@@ -101,6 +101,9 @@ class _GameScreenState extends State<GameScreen> {
   int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
 
   @visibleForTesting
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
   void removePlayerForTest(int playerIndex) {
     setState(() {
       _midGamePlayerChanges = true;
@@ -1345,8 +1348,16 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   GameResult _buildGameResult() {
+    // Players removed mid-game must not appear on the result screen at all —
+    // and never as the winner. Placement is computed from the finish order with
+    // removed players filtered out, so a removed player who happened to land
+    // first in [finishedPlayers] can no longer take 1st place.
+    final rankedFinished =
+        finishedPlayers.where((i) => !_removedPlayerIndices.contains(i)).toList();
+
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
+      if (_removedPlayerIndices.contains(i)) continue;
       final p = players[i];
       final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
@@ -1384,11 +1395,11 @@ class _GameScreenState extends State<GameScreen> {
 
       // Determine placement
       int placement;
-      final finishIdx = finishedPlayers.indexOf(i);
+      final finishIdx = rankedFinished.indexOf(i);
       if (finishIdx >= 0) {
         placement = finishIdx + 1;
       } else {
-        placement = finishedPlayers.length + 1;
+        placement = rankedFinished.length + 1;
       }
 
       results.add(PlayerResult(

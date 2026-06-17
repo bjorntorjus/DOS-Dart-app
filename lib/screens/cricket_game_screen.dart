@@ -430,6 +430,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
 
   @visibleForTesting
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
   Future<void> registerHitForTest(int segment, int multiplier) =>
       _registerHit(segment, multiplier);
 
@@ -453,11 +456,17 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   /// then closed targets (desc), then total marks (desc). Ties share a rank.
   List<int> _computeExitPlacements() {
     final result = List<int>.filled(players.length, 0);
-    for (int i = 0; i < finishedPlayers.length; i++) {
-      result[finishedPlayers[i]] = i + 1;
+    // Removed players forfeited — exclude them from the finish ranking so a
+    // removed player who landed first in [finishedPlayers] cannot push the real
+    // finishers down a place (or take 1st themselves).
+    final rankedFinished =
+        finishedPlayers.where((p) => !_removedPlayerIndices.contains(p)).toList();
+    for (int i = 0; i < rankedFinished.length; i++) {
+      result[rankedFinished[i]] = i + 1;
     }
     final remaining = List.generate(players.length, (i) => i)
-        .where((i) => !finishedPlayers.contains(i))
+        .where((i) =>
+            !finishedPlayers.contains(i) && !_removedPlayerIndices.contains(i))
         .toList();
     if (remaining.isEmpty) return result;
 
@@ -474,7 +483,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       return marksB.compareTo(marksA);
     });
 
-    final base = finishedPlayers.length + 1;
+    final base = rankedFinished.length + 1;
     int place = base;
     for (int i = 0; i < remaining.length; i++) {
       if (i > 0) {
@@ -606,6 +615,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final placements = _computeExitPlacements();
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
+      // Players removed mid-game must not appear on the result screen at all —
+      // and never as the winner.
+      if (_removedPlayerIndices.contains(i)) continue;
       final closedCount = targets.where((t) => marks[i][t]! >= 3).length;
       results.add(PlayerResult(
         name: players[i].name,

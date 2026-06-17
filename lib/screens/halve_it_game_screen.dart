@@ -74,6 +74,20 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   @visibleForTesting
   void undoForTest() => _undo();
 
+  @visibleForTesting
+  Set<int> get removedPlayerIndicesForTest => _removedPlayerIndices;
+
+  @visibleForTesting
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+    });
+  }
+
   List<DartThrow> throwHistory = [];
   bool gameOver = false;
   String? lastThrowLabel;
@@ -554,6 +568,30 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
     BatterySampler.instance.stop();
 
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+          builder: (_) => PostGameScreen(result: _buildGameResult())),
+    );
+    if (!mounted) return;
+    if (result == 'undo') {
+      _log.logPostGame(action: 'undo');
+      _undo();
+    } else {
+      _log.logPostGame(action: 'exit');
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
+  GameResult _buildGameResult() {
+    // Players removed mid-game must not appear on the result screen at all —
+    // and never as the winner. Rank only the remaining players by total score
+    // (higher = better) so a removed leader cannot take 1st place.
+    final indexed = List.generate(players.length, (i) => i)
+        .where((i) => !_removedPlayerIndices.contains(i))
+        .toList()
+      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+
     final results = <PlayerResult>[];
     for (int rank = 0; rank < indexed.length; rank++) {
       final i = indexed[rank];
@@ -571,20 +609,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         ratingAfter: players[i].savedPlayerId != null ? _ratingsAfter[players[i].savedPlayerId!] : null,
       ));
     }
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => PostGameScreen(
-        result: GameResult(gameMode: 'halveIt', results: results),
-      )),
-    );
-    if (!mounted) return;
-    if (result == 'undo') {
-      _log.logPostGame(action: 'undo');
-      _undo();
-    } else {
-      _log.logPostGame(action: 'exit');
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    return GameResult(gameMode: 'halveIt', results: results);
   }
 
   @override
