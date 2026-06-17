@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../models/earned_feat.dart';
 import '../../models/game_history.dart';
 import '../../theme/dossedart_tokens.dart';
+import '../../widgets/dossedart/achievement_medal.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
 import '../../widgets/dossedart/dossedart_player_avatar.dart';
 import '../../widgets/dossedart/dossedart_top_bar.dart';
@@ -43,6 +45,11 @@ class GameDetailScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (entry.players.any((p) => (p.earnedFeats ?? []).isNotEmpty))
+                      _DetailSection(
+                        title: 'PRESTASJONER DENNE KAMPEN',
+                        child: _FeatsGrid(players: entry.players),
+                      ),
                   ],
                 ),
               ),
@@ -147,6 +154,75 @@ class _Banner extends StatelessWidget {
                   fontSize: 16,
                   color: Colors.white70,
                   letterSpacing: 1)),
+        ],
+      ),
+    );
+  }
+}
+
+/// 2-column grid of feat chips, one per (player, earnedFeat). A ✦ feat is an
+/// in-game moment; a ★ unlock is a newly-earned achievement.
+class _FeatsGrid extends StatelessWidget {
+  const _FeatsGrid({required this.players});
+  final List<GameHistoryPlayer> players;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <Widget>[
+      for (final p in players)
+        for (final f in p.earnedFeats ?? const <EarnedFeat>[])
+          _FeatChip(playerName: p.name, feat: f),
+    ];
+    return Wrap(spacing: 8, runSpacing: 8, children: chips);
+  }
+}
+
+class _FeatChip extends StatelessWidget {
+  const _FeatChip({required this.playerName, required this.feat});
+  final String playerName;
+  final EarnedFeat feat;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AchievementMedal.tierColor(feat.tier);
+    final marker = feat.kind == FeatKind.unlock ? '★' : '✦';
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        border: Border.all(color: color, width: DossedartTokens.borderThin),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(marker, style: TextStyle(color: color, fontSize: 13)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(feat.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(feat.note ?? playerName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: DossedartTokens.phosphor, fontSize: 10)),
+          if (feat.note != null)
+            Text(playerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: DossedartTokens.phosphor, fontSize: 9)),
         ],
       ),
     );
