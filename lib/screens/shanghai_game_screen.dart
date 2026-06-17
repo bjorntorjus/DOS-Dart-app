@@ -21,6 +21,8 @@ import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
+import '../models/earned_feat.dart';
+import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../widgets/player_avatar.dart';
 import 'post_game_screen.dart';
@@ -80,6 +82,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   bool _ttsEnabled = false;
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
 
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
@@ -291,6 +294,25 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    var earnedFeats = <int, List<EarnedFeat>>{};
+    if (!_midGamePlayerChanges) {
+      final events = <int, List<AchievementEvent>>{};
+      if (engine.isInstantShanghai && engine.winnerIndex != null) {
+        events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
+      }
+      final unlocks = AchievementService.instance.awardGameEnd(
+        mode: GameMode.shanghai,
+        playerIds: players.map((p) => p.savedPlayerId).toList(),
+        savedPlayers: savedPlayers,
+        placements: placements,
+        ratingsBefore: _ratingsBefore,
+        ratingsAfter: _ratingsAfter,
+        eventsByIndex: events,
+      );
+      earnedFeats =
+          buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
+    }
+
     StatsRecorder.recordGame(
       gameMode: 'shanghai',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -300,22 +322,13 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      gameConfig: 'Shanghai',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex: earnedFeats,
     );
 
     if (!_midGamePlayerChanges) {
-      final events = <int, List<AchievementEvent>>{};
-      if (engine.isInstantShanghai && engine.winnerIndex != null) {
-        events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
-      }
-      AchievementService.instance.awardGameEnd(
-        mode: GameMode.shanghai,
-        playerIds: players.map((p) => p.savedPlayerId).toList(),
-        savedPlayers: savedPlayers,
-        placements: placements,
-        ratingsBefore: _ratingsBefore,
-        ratingsAfter: _ratingsAfter,
-        eventsByIndex: events,
-      );
       await PlayerStorage.savePlayers(savedPlayers);
     }
   }
