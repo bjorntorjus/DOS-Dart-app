@@ -1232,10 +1232,12 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         alignment: Alignment.center,
         child: Text(
           n == 25 ? 'B' : '$n',
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: 'PressStart2P',
             fontSize: isCurrent ? 13 : 10,
             color: col,
+            height: 1.0, // tight line-box so the glyph centres in the circle
           ),
         ),
       ),
