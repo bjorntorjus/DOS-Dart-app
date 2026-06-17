@@ -8,8 +8,10 @@ import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
 import '../models/saved_player.dart';
 import '../models/achievement_event.dart';
+import '../models/earned_feat.dart';
 import '../models/game_mode.dart';
 import '../services/achievement_service.dart';
+import '../utils/earned_feats_builder.dart';
 import '../utils/x01_achievement_feats.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
@@ -72,6 +74,7 @@ class _GameScreenState extends State<GameScreen> {
   final MemeService _meme = MemeService();
   final GameLogger _log = GameLogger.instance;
   List<int> finishedPlayers = [];
+  final DateTime _gameStart = DateTime.now();
   bool _gameFullyOver = false;
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
@@ -725,6 +728,8 @@ class _GameScreenState extends State<GameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final earnedFeats = _awardMilestones(savedPlayers, placements);
+
     StatsRecorder.recordGame(
       gameMode: 'x01',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -734,9 +739,11 @@ class _GameScreenState extends State<GameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      gameConfig: _gameConfigLabel,
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex: earnedFeats,
     );
-
-    _awardMilestones(savedPlayers, placements);
 
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -744,7 +751,10 @@ class _GameScreenState extends State<GameScreen> {
   /// Evaluate game-end milestone achievements for each saved player, emitting
   /// banners for new unlocks. Runs before [PlayerStorage.savePlayers] persists
   /// the mutated unlock sets.
-  void _awardMilestones(List<SavedPlayer> savedPlayers, List<int> placements) {
+  /// Evaluates game-end achievements and returns the per-player earned feats
+  /// (✦ in-game events + ★ new unlocks) for capture on the game-history entry.
+  Map<int, List<EarnedFeat>> _awardMilestones(
+      List<SavedPlayer> savedPlayers, List<int> placements) {
     // Reconstruct single-game feats per player from their throws → events.
     final events = <int, List<AchievementEvent>>{};
     final counters = <int, Map<String, int>>{};
@@ -760,7 +770,7 @@ class _GameScreenState extends State<GameScreen> {
       if (evs.isNotEmpty) events[i] = evs;
       counters[i] = {'bustCount': _bustCountFor(i)};
     }
-    AchievementService.instance.awardGameEnd(
+    final unlocks = AchievementService.instance.awardGameEnd(
       mode: GameMode.x01,
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       savedPlayers: savedPlayers,
@@ -770,6 +780,17 @@ class _GameScreenState extends State<GameScreen> {
       eventsByIndex: events,
       countersByIndex: counters,
     );
+    return buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
+  }
+
+  /// Banner label for the game-history entry, e.g. "501 · Double-Out".
+  String get _gameConfigLabel {
+    final outLabel = widget.masterOut == 'double'
+        ? 'Double-Out'
+        : widget.masterOut == 'master'
+            ? 'Master-Out'
+            : 'Free-Out';
+    return '${widget.startingScore} · $outLabel${widget.noBust ? ' · No-Bust' : ''}';
   }
 
   void _advancePlayer() {
