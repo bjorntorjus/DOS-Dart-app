@@ -197,4 +197,29 @@ void main() {
     expect(find.text('180'), findsWidgets);
     expect(find.text('høyeste runde'), findsOneWidget);
   });
+
+  testWidgets('PER MODE row shows depth stats (avg/best) for X01', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    SharedPreferences.setMockInitialValues({
+      'saved_players': jsonEncode([
+        SavedPlayer(
+          id: '1', name: 'Ada', createdAt: DateTime(2026), rating: 1300,
+          gamesPlayed: 5, gamesWon: 3,
+          modeStats: {
+            'x01': ModeStats(played: 5, won: 3, counters: {
+              'highestTurn': 140, 'totalTurnScore': 250, 'totalTurns': 5,
+            }),
+          },
+        ).toJson(),
+      ]),
+    });
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('PER MODE'), findsOneWidget);
+    expect(find.textContaining('best 140'), findsOneWidget);
+  });
 }

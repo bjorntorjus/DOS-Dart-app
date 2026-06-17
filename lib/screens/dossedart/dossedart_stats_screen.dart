@@ -186,7 +186,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         const SizedBox(height: 14),
         _SectionCard(
           title: 'PER MODE',
-          child: Column(children: [for (final m in _modes) _modeWinRow(p, m)]),
+          child: Column(children: [for (final m in _modes) _modeDepthRow(p, m)]),
         ),
         if (_h2hRows(p).isNotEmpty) ...[
           const SizedBox(height: 14),
@@ -200,31 +200,79 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     );
   }
 
-  Widget _modeWinRow(SavedPlayer p, (String, String) mode) {
+  Widget _modeDepthRow(SavedPlayer p, (String, String) mode) {
     final ms = p.modeStats[mode.$1];
     final played = ms?.played ?? 0;
     if (played == 0) return const SizedBox.shrink();
     final won = ms?.won ?? 0;
     final pct = (won * 100 / played).round();
+    final extras = _modeExtras(mode.$1, ms!);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 110,
-            child: Text(mode.$2,
-                style: const TextStyle(color: DossedartTokens.phosphor, fontSize: 12)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(mode.$2,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              ),
+              Text('$pct% · $won/$played',
+                  style: const TextStyle(color: DossedartTokens.cyan, fontSize: 12)),
+            ],
           ),
-          Expanded(
-            child: Text('$won / $played',
-                style: const TextStyle(color: Colors.white, fontSize: 13)),
-          ),
-          Text('$pct%',
-              style: const TextStyle(
-                  color: DossedartTokens.cyan, fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 6),
+          LayoutBuilder(builder: (context, c) {
+            return Container(
+              height: 6,
+              color: Colors.white.withValues(alpha: 0.08),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(width: c.maxWidth * pct / 100, color: DossedartTokens.green),
+              ),
+            );
+          }),
+          if (extras.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(extras.join('   ·   '),
+                style: const TextStyle(fontFamily: 'VT323', fontSize: 14, color: DossedartTokens.phosphor, letterSpacing: 1)),
+          ],
         ],
       ),
     );
+  }
+
+  /// Per-mode key stats line. Reads only stored counters.
+  List<String> _modeExtras(String modeKey, ModeStats ms) {
+    switch (modeKey) {
+      case 'x01':
+        final avg = ms.get('totalTurns') > 0
+            ? (ms.get('totalTurnScore') / ms.get('totalTurns')).toStringAsFixed(1)
+            : '–';
+        return ['snitt $avg', 'best ${ms.get('highestTurn')}', '100+ ${ms.get('turnsOver100')}'];
+      case 'cricket':
+        final mpr = ms.get('totalDarts') > 0
+            ? (ms.get('marksScored') / (ms.get('totalDarts') / 3)).toStringAsFixed(1)
+            : '–';
+        return ['MPR $mpr', 'best ${ms.get('bestPoints')}'];
+      case 'aroundTheClock':
+        final rate = ms.get('totalDarts') > 0
+            ? (ms.get('totalHits') * 100 / ms.get('totalDarts')).round()
+            : 0;
+        return ['treff $rate%'];
+      case 'shanghai':
+        final avg = ms.get('totalGames') > 0
+            ? (ms.get('totalScore') / ms.get('totalGames')).toStringAsFixed(0)
+            : '–';
+        return ['best ${ms.get('bestScore')}', 'snitt $avg'];
+      case 'halveIt':
+        return ['best ${ms.get('bestScore')}', 'halvering ${ms.get('biggestHalving')}'];
+      case 'killer':
+        return ['kills ${ms.get('kills')}'];
+      default:
+        return const [];
+    }
   }
 
   List<Widget> _h2hRows(SavedPlayer p) {
