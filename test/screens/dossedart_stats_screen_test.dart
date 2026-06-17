@@ -122,6 +122,13 @@ void main() {
     expect(find.text('KAMPDETALJER'), findsOneWidget);
   });
 
+  testWidgets('hero shows games count and member-since', (tester) async {
+    await _seed([_player('1', 'Ada', 1300)]); // _player sets gamesPlayed: 4
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('4 kamper'), findsOneWidget);
+  });
+
   testWidgets('empty state when no saved players', (tester) async {
     await _seed([]);
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));

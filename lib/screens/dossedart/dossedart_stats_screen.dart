@@ -564,9 +564,23 @@ class _ProfileHero extends StatelessWidget {
                         fontSize: 11,
                         color: DossedartTokens.cyan)),
                 const SizedBox(height: 4),
-                Text('RANK #$rank of $total',
-                    style: TextStyle(
-                        fontFamily: 'PressStart2P', fontSize: 9, color: rankColor)),
+                Row(
+                  children: [
+                    Text('RANK #$rank/$total',
+                        style: TextStyle(
+                            fontFamily: 'PressStart2P', fontSize: 9, color: rankColor)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '· ${player.gamesPlayed} kamper · siden ${_monthAbbr(player.createdAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontFamily: 'VT323', fontSize: 13, color: DossedartTokens.phosphor),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -817,3 +831,9 @@ class _RatingSparkline extends CustomPainter {
   bool shouldRepaint(_RatingSparkline old) =>
       old.values != values || old.ranks != ranks;
 }
+
+const _months = [
+  'jan', 'feb', 'mar', 'apr', 'mai', 'jun',
+  'jul', 'aug', 'sep', 'okt', 'nov', 'des'
+];
+String _monthAbbr(DateTime d) => "${_months[d.month - 1]} '${d.year % 100}";
