@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/dart_throw.dart';
 import '../../models/earned_feat.dart';
 import '../../models/game_history.dart';
 import '../../stats/mode_progression.dart';
@@ -55,6 +56,12 @@ class GameDetailScreen extends StatelessWidget {
                       _DetailSection(
                         title: 'SPILLFORLØP',
                         child: _ProgressSection(entry: entry),
+                      ),
+                    if (entry.throwHistory != null &&
+                        entry.throwHistory!.isNotEmpty)
+                      _DetailSection(
+                        title: 'RUNDE FOR RUNDE',
+                        child: _RoundLog(entry: entry),
                       ),
                   ],
                 ),
@@ -373,6 +380,153 @@ class _ProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ProgressPainter old) =>
       old.series != series || old.progression != progression;
+}
+
+/// Round-by-round throw log. Collapsed to the first [_collapsedRounds] rounds
+/// with a "VIS ALLE N RUNDER ›" expander.
+class _RoundLog extends StatefulWidget {
+  const _RoundLog({required this.entry});
+  final GameHistoryEntry entry;
+  @override
+  State<_RoundLog> createState() => _RoundLogState();
+}
+
+class _RoundLogState extends State<_RoundLog> {
+  static const _collapsedRounds = 5;
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final throws = widget.entry.throwHistory!;
+    final byRound = <int, List<DartThrow>>{};
+    for (final t in throws) {
+      (byRound[t.roundNumber] ??= []).add(t);
+    }
+    final rounds = byRound.keys.toList()..sort();
+    final shown = _expanded ? rounds : rounds.take(_collapsedRounds).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final r in shown) _RoundBlock(round: r, darts: byRound[r]!, players: widget.entry.players),
+        if (!_expanded && rounds.length > _collapsedRounds)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _expanded = true),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('VIS ALLE ${rounds.length} RUNDER ›',
+                  style: const TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 9,
+                      color: DossedartTokens.cyan)),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _RoundBlock extends StatelessWidget {
+  const _RoundBlock(
+      {required this.round, required this.darts, required this.players});
+  final int round;
+  final List<DartThrow> darts;
+  final List<GameHistoryPlayer> players;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('R$round',
+              style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 9,
+                  color: DossedartTokens.phosphor)),
+          const SizedBox(height: 4),
+          for (var i = 0; i < players.length; i++)
+            if (darts.any((d) => d.playerIndex == i))
+              _RoundPlayerLine(
+                name: players[i].name,
+                darts: darts.where((d) => d.playerIndex == i).toList(),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoundPlayerLine extends StatelessWidget {
+  const _RoundPlayerLine({required this.name, required this.darts});
+  final String name;
+  final List<DartThrow> darts;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = darts.fold<int>(0, (s, d) => s + d.points);
+    final is180 = total == 180;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+          Expanded(
+            child: Wrap(
+              spacing: 5,
+              runSpacing: 4,
+              children: [for (final d in darts) _ThrowChip(dart: d)],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('$total',
+              style: TextStyle(
+                  color: is180 ? DossedartTokens.yellow : DossedartTokens.phosphor,
+                  fontSize: 13,
+                  fontWeight: is180 ? FontWeight.bold : FontWeight.normal)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThrowChip extends StatelessWidget {
+  const _ThrowChip({required this.dart});
+  final DartThrow dart;
+
+  @override
+  Widget build(BuildContext context) {
+    // Triple = cyan, double = magenta, single = dim, miss/bust = dim red.
+    final Color color;
+    if (dart.isBust) {
+      color = DossedartTokens.red;
+    } else if (dart.segment == 0) {
+      color = DossedartTokens.phosphor;
+    } else if (dart.multiplier == 3) {
+      color = DossedartTokens.cyan;
+    } else if (dart.multiplier == 2) {
+      color = DossedartTokens.magenta;
+    } else {
+      color = DossedartTokens.phosphor;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        border: Border.all(color: color, width: DossedartTokens.borderThin),
+      ),
+      child: Text(dart.shortLabel,
+          style: TextStyle(color: color, fontSize: 11, fontFamily: 'VT323')),
+    );
+  }
 }
 
 class _StandingRow extends StatelessWidget {

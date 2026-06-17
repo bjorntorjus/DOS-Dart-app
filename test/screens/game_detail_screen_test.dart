@@ -92,5 +92,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('SPILLFORLØP'), findsOneWidget);
+    expect(find.text('RUNDE FOR RUNDE'), findsOneWidget);
+    expect(find.text('T20'), findsWidgets); // round-log throw chips
   });
 }
