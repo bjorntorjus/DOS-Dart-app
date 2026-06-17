@@ -20,6 +20,7 @@ import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../utils/cricket_achievement_feats.dart';
 import '../models/saved_player.dart';
@@ -403,6 +404,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
@@ -580,16 +582,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
-    StatsRecorder.recordGame(
-      gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
-      playerIds: players.map((p) => p.savedPlayerId).toList(),
-      playerNames: players.map((p) => p.name).toList(),
-      placements: placements,
-      savedPlayers: savedPlayers,
-      modeCounters: modeCounters,
-      ratingsBefore: _ratingsBefore,
-      ratingsAfter: _ratingsAfter,
-    );
     final achEvents = <int, List<AchievementEvent>>{};
     final targetSet = targets.toSet();
     for (int i = 0; i < players.length; i++) {
@@ -599,7 +591,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         achEvents[i] = [AchievementEvent.nineMarkTurn];
       }
     }
-    AchievementService.instance.awardGameEnd(
+    final unlocks = AchievementService.instance.awardGameEnd(
       mode: GameMode.cricket,
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       savedPlayers: savedPlayers,
@@ -607,6 +599,21 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: achEvents,
+    );
+    StatsRecorder.recordGame(
+      gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+      modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      gameConfig: widget.config.isCutthroat ? 'Cricket · Cutthroat' : 'Cricket',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex:
+          buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
     );
     await PlayerStorage.savePlayers(savedPlayers);
   }
