@@ -3,6 +3,7 @@ import '../../models/game_history.dart';
 import '../../models/saved_player.dart';
 import '../../services/game_history_service.dart';
 import '../../services/player_storage.dart';
+import '../../stats/profile_stats.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../utils/rating_rank.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
@@ -85,6 +86,9 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   int _rankOf(SavedPlayer p) => _visiblePlayers.indexWhere((x) => x.id == p.id) +
       1; // _players is rating-sorted, so the filtered view is too
 
+  List<FormResult> _recentForm(SavedPlayer p) =>
+      recentForm(_history, p.id, limit: 8);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -141,6 +145,13 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         const SizedBox(height: 14),
         _ProfileHero(player: p, rank: _rankOf(p), total: _visiblePlayers.length),
         const SizedBox(height: 14),
+        if (_recentForm(p).isNotEmpty) ...[
+          _SectionCard(
+            title: 'FORM',
+            child: _FormStrip(results: _recentForm(p)),
+          ),
+          const SizedBox(height: 14),
+        ],
         _SectionCard(
           title: 'RATING HISTORY',
           child: SizedBox(
@@ -414,6 +425,51 @@ class _SectionCard extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+class _FormStrip extends StatelessWidget {
+  const _FormStrip({required this.results});
+  final List<FormResult> results;
+
+  @override
+  Widget build(BuildContext context) {
+    (String, Color) cell(FormOutcome o) => switch (o) {
+          FormOutcome.win => ('W', DossedartTokens.green),
+          FormOutcome.loss => ('L', DossedartTokens.red),
+          FormOutcome.draw => ('U', DossedartTokens.yellow),
+        };
+    // Oldest → newest reads left-to-right like a form guide.
+    final ordered = results.reversed.toList();
+    return Row(
+      children: [
+        for (final f in ordered)
+          Expanded(
+            child: Builder(builder: (_) {
+              final (letter, c) = cell(f.outcome);
+              final d = f.ratingDelta;
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: c.withValues(alpha: 0.07),
+                  border: Border.all(color: c.withValues(alpha: 0.5)),
+                ),
+                child: Column(
+                  children: [
+                    Text(letter, style: TextStyle(fontFamily: 'PressStart2P', fontSize: 11, color: c)),
+                    const SizedBox(height: 5),
+                    Text(
+                      d == null ? '–' : '${d >= 0 ? '+' : ''}${d.round()}',
+                      style: TextStyle(fontFamily: 'VT323', fontSize: 13, color: c),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+      ],
     );
   }
 }

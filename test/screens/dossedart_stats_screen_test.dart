@@ -135,4 +135,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('NO SAVED PLAYERS YET'), findsOneWidget);
   });
+
+  testWidgets('PROFIL shows FORM strip from game history', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'saved_players': jsonEncode([_player('1', 'Ada', 1300).toJson()]),
+      'game_history_v1': GameHistoryEntry.encodeList([
+        GameHistoryEntry(
+          id: 'g', gameMode: 'x01', date: DateTime(2026, 6, 1),
+          players: [
+            GameHistoryPlayer(name: 'Ada', savedPlayerId: '1', placement: 1,
+                stats: const {}, ratingBefore: 1290, ratingAfter: 1300),
+            GameHistoryPlayer(name: 'Bo', placement: 2, stats: const {}),
+          ],
+        ),
+      ]),
+    });
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('FORM'), findsOneWidget);
+    expect(find.text('W'), findsWidgets);
+  });
 }
