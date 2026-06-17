@@ -125,4 +125,21 @@ void main() {
     final worse = tester.widget<Text>(find.text('60.0'));
     expect(worse.style?.color, Colors.white);
   });
+
+  testWidgets('old match without throwHistory shows empty-state line, no chart',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+        MaterialApp(home: GameDetailScreen(entry: _x01Entry()))); // throws: null
+    await tester.pumpAndSettle();
+
+    expect(find.text('Forløp ikke lagret for denne kampen'), findsOneWidget);
+    expect(find.text('RUNDE FOR RUNDE'), findsNothing);
+    expect(find.text('SLUTTSTILLING'), findsOneWidget); // standings still shown
+    expect(find.text('PER SPILLER'), findsOneWidget); // grid (from stored stats)
+  });
 }

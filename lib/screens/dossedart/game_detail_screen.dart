@@ -53,16 +53,22 @@ class GameDetailScreen extends StatelessWidget {
                         title: 'PRESTASJONER DENNE KAMPEN',
                         child: _FeatsGrid(players: entry.players),
                       ),
-                    if (entry.throwHistory != null)
+                    if (entry.throwHistory != null &&
+                        entry.throwHistory!.isNotEmpty) ...[
                       _DetailSection(
                         title: 'SPILLFORLØP',
                         child: _ProgressSection(entry: entry),
                       ),
-                    if (entry.throwHistory != null &&
-                        entry.throwHistory!.isNotEmpty)
                       _DetailSection(
                         title: 'RUNDE FOR RUNDE',
                         child: _RoundLog(entry: entry),
+                      ),
+                    ] else
+                      const _DetailSection(
+                        title: 'SPILLFORLØP',
+                        child: Text('Forløp ikke lagret for denne kampen',
+                            style: TextStyle(
+                                color: DossedartTokens.phosphor, fontSize: 12)),
                       ),
                     _DetailSection(
                       title: 'PER SPILLER',
