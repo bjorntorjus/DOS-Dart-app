@@ -173,4 +173,28 @@ void main() {
     expect(find.text('STREAKS & TOPP'), findsOneWidget);
     expect(find.textContaining('1361'), findsWidgets); // rating peak
   });
+
+  testWidgets('PROFIL shows REKORDER tiles', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    SharedPreferences.setMockInitialValues({
+      'saved_players': jsonEncode([
+        SavedPlayer(
+          id: '1', name: 'Ada', createdAt: DateTime(2026), rating: 1300,
+          gamesPlayed: 4, gamesWon: 2,
+          modeStats: {
+            'x01': ModeStats(played: 5, won: 3, counters: {'highestTurn': 180}),
+          },
+        ).toJson(),
+      ]),
+    });
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('REKORDER'), findsOneWidget);
+    expect(find.text('180'), findsWidgets);
+    expect(find.text('høyeste runde'), findsOneWidget);
+  });
 }

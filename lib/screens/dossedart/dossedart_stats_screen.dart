@@ -13,6 +13,16 @@ import '../../widgets/dossedart/stats/prestasjoner_section.dart';
 import '../../widgets/heatmap_board.dart';
 import 'game_detail_screen.dart';
 
+const _modeAccent = <String, Color>{
+  'x01': DossedartTokens.yellow,
+  'cricket': DossedartTokens.green,
+  'cricket_cutthroat': DossedartTokens.green,
+  'shanghai': DossedartTokens.cyan,
+  'halveIt': DossedartTokens.purple,
+  'killer': DossedartTokens.magenta,
+  'aroundTheClock': DossedartTokens.orange,
+};
+
 /// Arcade statistics hub — 4 tabs: PROFIL / MODUS / HEATMAP / HISTORIKK.
 /// Reads SavedPlayer / ModeStats / GameHistory (no new storage). The classic
 /// Material StatsScreen stays for the non-arcade path; this is the DOSSEDART one.
@@ -154,6 +164,10 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         ],
         _SectionCard(title: 'STREAKS & TOPP', child: _StreaksCard(player: p)),
         const SizedBox(height: 14),
+        if (careerRecords(p).isNotEmpty) ...[
+          _SectionCard(title: 'REKORDER', child: _RecordsGrid(records: careerRecords(p))),
+          const SizedBox(height: 14),
+        ],
         _SectionCard(
           title: 'RATING HISTORY',
           child: SizedBox(
@@ -515,6 +529,70 @@ class _StreaksCard extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _RecordsGrid extends StatelessWidget {
+  const _RecordsGrid({required this.records});
+  final List<RecordTile> records;
+
+  @override
+  Widget build(BuildContext context) {
+    // Compute the half-width here (bounded section width) and hand it down, so
+    // each cell gets a definite width inside the Wrap without a nested
+    // LayoutBuilder seeing unbounded constraints.
+    return LayoutBuilder(builder: (context, c) {
+      final w = (c.maxWidth - 10) / 2; // 2-up grid
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          for (final r in records)
+            _RecordCell(
+              record: r,
+              color: _modeAccent[r.mode] ?? DossedartTokens.phosphor,
+              width: w,
+            ),
+        ],
+      );
+    });
+  }
+}
+
+class _RecordCell extends StatelessWidget {
+  const _RecordCell({required this.record, required this.color, required this.width});
+  final RecordTile record;
+  final Color color;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.04),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              color: color,
+              child: Text(record.mode.toUpperCase(),
+                  style: const TextStyle(fontFamily: 'PressStart2P', fontSize: 8, color: DossedartTokens.bg)),
+            ),
+            const SizedBox(height: 6),
+            Text(record.value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+            const SizedBox(height: 4),
+            Text(record.label,
+                style: const TextStyle(fontFamily: 'VT323', fontSize: 14, color: DossedartTokens.phosphor)),
+          ],
+        ),
+      ),
     );
   }
 }
