@@ -21,6 +21,7 @@ import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
@@ -111,6 +112,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
@@ -529,6 +531,19 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final achEvents = <int, List<AchievementEvent>>{
+      for (final i in _clutchSavers) i: [AchievementEvent.clutchSave],
+    };
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.halveIt,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
+    );
+
     StatsRecorder.recordGame(
       gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -538,19 +553,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
-    );
-
-    final achEvents = <int, List<AchievementEvent>>{
-      for (final i in _clutchSavers) i: [AchievementEvent.clutchSave],
-    };
-    AchievementService.instance.awardGameEnd(
-      mode: GameMode.halveIt,
-      playerIds: players.map((p) => p.savedPlayerId).toList(),
-      savedPlayers: savedPlayers,
-      placements: placements,
-      ratingsBefore: _ratingsBefore,
-      ratingsAfter: _ratingsAfter,
-      eventsByIndex: achEvents,
+      gameConfig: 'Splitscore',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex:
+          buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
