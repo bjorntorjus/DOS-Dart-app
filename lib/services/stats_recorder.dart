@@ -1,5 +1,7 @@
 import '../models/saved_player.dart';
 import '../models/game_history.dart';
+import '../models/dart_throw.dart';
+import '../models/earned_feat.dart';
 import '../services/game_history_service.dart';
 import '../services/player_storage.dart';
 
@@ -19,6 +21,10 @@ class StatsRecorder {
     Map<String, Map<String, int>>? modeCounters,
     Map<String, double>? ratingsBefore,
     Map<String, double>? ratingsAfter,
+    String? gameConfig,
+    int? durationSeconds,
+    List<DartThrow>? throwHistory,
+    Map<int, List<EarnedFeat>>? earnedFeatsByIndex,
   }) {
     final now = DateTime.now();
 
@@ -110,6 +116,7 @@ class StatsRecorder {
         stats: Map<String, int>.from(stats),
         ratingBefore: rb,
         ratingAfter: ra,
+        earnedFeats: earnedFeatsByIndex?[i],
       );
     });
 
@@ -118,6 +125,9 @@ class StatsRecorder {
       gameMode: gameMode,
       date: now,
       players: historyPlayers,
+      gameConfig: gameConfig,
+      durationSeconds: durationSeconds,
+      throwHistory: throwHistory,
     );
 
     GameHistoryService.record(entry);
