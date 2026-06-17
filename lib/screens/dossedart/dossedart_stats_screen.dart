@@ -144,6 +144,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
 
   Widget _buildProfil() {
     final p = _selected ?? _visiblePlayers.first;
+    final form = _recentForm(p);
+    final records = careerRecords(p);
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
@@ -155,17 +157,17 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         const SizedBox(height: 14),
         _ProfileHero(player: p, rank: _rankOf(p), total: _visiblePlayers.length),
         const SizedBox(height: 14),
-        if (_recentForm(p).isNotEmpty) ...[
+        if (form.isNotEmpty) ...[
           _SectionCard(
             title: 'FORM',
-            child: _FormStrip(results: _recentForm(p)),
+            child: _FormStrip(results: form),
           ),
           const SizedBox(height: 14),
         ],
         _SectionCard(title: 'STREAKS & TOPP', child: _StreaksCard(player: p)),
         const SizedBox(height: 14),
-        if (careerRecords(p).isNotEmpty) ...[
-          _SectionCard(title: 'REKORDER', child: _RecordsGrid(records: careerRecords(p))),
+        if (records.isNotEmpty) ...[
+          _SectionCard(title: 'REKORDER', child: _RecordsGrid(records: records)),
           const SizedBox(height: 14),
         ],
         _SectionCard(
