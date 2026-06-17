@@ -8,6 +8,7 @@ import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
@@ -119,6 +120,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
@@ -939,6 +941,15 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.aroundTheClock,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+    );
+
     StatsRecorder.recordGame(
       gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -948,15 +959,11 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
-    );
-
-    AchievementService.instance.awardGameEnd(
-      mode: GameMode.aroundTheClock,
-      playerIds: players.map((p) => p.savedPlayerId).toList(),
-      savedPlayers: savedPlayers,
-      placements: placements,
-      ratingsBefore: _ratingsBefore,
-      ratingsAfter: _ratingsAfter,
+      gameConfig: 'Around the Clock',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex:
+          buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks),
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
