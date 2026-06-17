@@ -95,4 +95,34 @@ void main() {
     expect(find.text('RUNDE FOR RUNDE'), findsOneWidget);
     expect(find.text('T20'), findsWidgets); // round-log throw chips
   });
+
+  testWidgets('per-player grid highlights the better average in green',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final throws = [
+      // P0: a 180 turn → avg 180.
+      for (var d = 0; d < 3; d++)
+        DartThrow(playerIndex: 0, segment: 20, multiplier: 3, points: 60,
+            scoreBefore: 501, turnNumber: d, scoreAtStartOfTurn: 501,
+            turnId: 1, roundNumber: 1),
+      // P1: a 60 turn → avg 60.
+      for (var d = 0; d < 3; d++)
+        DartThrow(playerIndex: 1, segment: 20, multiplier: 1, points: 20,
+            scoreBefore: 501, turnNumber: d, scoreAtStartOfTurn: 501,
+            turnId: 2, roundNumber: 1),
+    ];
+    await tester.pumpWidget(
+        MaterialApp(home: GameDetailScreen(entry: _x01Entry(throws: throws))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('PER SPILLER'), findsOneWidget);
+    final better = tester.widget<Text>(find.text('180.0'));
+    expect(better.style?.color, const Color(0xFF3DFF8E)); // DossedartTokens.green
+    final worse = tester.widget<Text>(find.text('60.0'));
+    expect(worse.style?.color, Colors.white);
+  });
 }

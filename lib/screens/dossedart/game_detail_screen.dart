@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/dart_throw.dart';
 import '../../models/earned_feat.dart';
 import '../../models/game_history.dart';
+import '../../stats/game_detail_stats.dart';
 import '../../stats/mode_progression.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/achievement_medal.dart';
@@ -63,6 +64,10 @@ class GameDetailScreen extends StatelessWidget {
                         title: 'RUNDE FOR RUNDE',
                         child: _RoundLog(entry: entry),
                       ),
+                    _DetailSection(
+                      title: 'PER SPILLER',
+                      child: _StatGrid(entry: entry),
+                    ),
                   ],
                 ),
               ),
@@ -525,6 +530,130 @@ class _ThrowChip extends StatelessWidget {
       ),
       child: Text(dart.shortLabel,
           style: TextStyle(color: color, fontSize: 11, fontFamily: 'VT323')),
+    );
+  }
+}
+
+class _GridRowData {
+  _GridRowData(this.label, this.values, this.display, this.higherIsBetter);
+  final String label;
+  final List<num?> values; // null = missing
+  final List<String> display;
+  final bool higherIsBetter;
+}
+
+/// Side-by-side per-player comparison. X01 derives rich rows from throwHistory;
+/// other modes (or pre-throwHistory games) fall back to the stored counters.
+class _StatGrid extends StatelessWidget {
+  const _StatGrid({required this.entry});
+  final GameHistoryEntry entry;
+
+  List<_GridRowData> _rows() {
+    final players = entry.players;
+    if (entry.gameMode == 'x01' && entry.throwHistory != null) {
+      final s = [
+        for (var i = 0; i < players.length; i++)
+          x01GridStats(entry.throwHistory!, playerIndex: i),
+      ];
+      return [
+        _GridRowData('3-DART AVG', [for (final x in s) x.avg3],
+            [for (final x in s) x.avg3.toStringAsFixed(1)], true),
+        _GridRowData('BEST TURN', [for (final x in s) x.bestTurn],
+            [for (final x in s) '${x.bestTurn}'], true),
+        _GridRowData('180s', [for (final x in s) x.n180],
+            [for (final x in s) '${x.n180}'], true),
+        _GridRowData('140+', [for (final x in s) x.n140],
+            [for (final x in s) '${x.n140}'], true),
+        _GridRowData('DOUBLES', [for (final x in s) x.doublesHit],
+            [for (final x in s) '${x.doublesHit}'], true),
+        _GridRowData('DARTS', [for (final x in s) x.darts],
+            [for (final x in s) '${x.darts}'], false),
+      ];
+    }
+    // Fallback: union of stored counter keys, higher assumed better, — if absent.
+    final keys = <String>{for (final p in players) ...p.stats.keys}.toList();
+    return [
+      for (final k in keys)
+        _GridRowData(
+          k.toUpperCase(),
+          [for (final p in players) p.stats[k]],
+          [for (final p in players) p.stats.containsKey(k) ? '${p.stats[k]}' : '—'],
+          true,
+        ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final players = entry.players;
+    final rows = _rows();
+    return Column(
+      children: [
+        // Header: player names.
+        Row(
+          children: [
+            const SizedBox(width: 96),
+            for (final p in players)
+              Expanded(
+                child: Text(p.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: DossedartTokens.cyan,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final row in rows) _StatGridRow(row: row),
+      ],
+    );
+  }
+}
+
+class _StatGridRow extends StatelessWidget {
+  const _StatGridRow({required this.row});
+  final _GridRowData row;
+
+  @override
+  Widget build(BuildContext context) {
+    // Best value among present cells (max or min by higherIsBetter).
+    final present = row.values.whereType<num>().toList();
+    num? best;
+    if (present.length > 1) {
+      best = row.higherIsBetter
+          ? present.reduce((a, b) => a > b ? a : b)
+          : present.reduce((a, b) => a < b ? a : b);
+      // Don't highlight when everyone ties.
+      if (present.every((v) => v == best)) best = null;
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 96,
+            child: Text(row.label,
+                style: const TextStyle(
+                    color: DossedartTokens.phosphor, fontSize: 11)),
+          ),
+          for (var i = 0; i < row.display.length; i++)
+            Expanded(
+              child: Text(row.display[i],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: (best != null && row.values[i] == best)
+                          ? DossedartTokens.green
+                          : Colors.white,
+                      fontSize: 13,
+                      fontWeight: (best != null && row.values[i] == best)
+                          ? FontWeight.bold
+                          : FontWeight.normal)),
+            ),
+        ],
+      ),
     );
   }
 }
