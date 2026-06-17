@@ -26,6 +26,32 @@ class DartThrow {
     this.isBust = false,
   });
 
+  Map<String, dynamic> toJson() => {
+        'pi': playerIndex,
+        'seg': segment,
+        'mul': multiplier,
+        'pts': points,
+        'sb': scoreBefore,
+        'tn': turnNumber,
+        'sst': scoreAtStartOfTurn,
+        'tid': turnId,
+        'rnd': roundNumber,
+        if (isBust) 'bust': true,
+      };
+
+  factory DartThrow.fromJson(Map<String, dynamic> j) => DartThrow(
+        playerIndex: j['pi'] as int,
+        segment: j['seg'] as int,
+        multiplier: j['mul'] as int,
+        points: j['pts'] as int,
+        scoreBefore: j['sb'] as int,
+        turnNumber: j['tn'] as int,
+        scoreAtStartOfTurn: j['sst'] as int,
+        turnId: (j['tid'] as int?) ?? 0,
+        roundNumber: (j['rnd'] as int?) ?? 0,
+        isBust: (j['bust'] as bool?) ?? false,
+      );
+
   String get label {
     if (segment == 0) return 'Miss';
     if (segment == 25) {
