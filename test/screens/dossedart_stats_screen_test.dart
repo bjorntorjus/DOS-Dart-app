@@ -58,6 +58,11 @@ void main() {
   });
 
   testWidgets('PRESTASJONER shows count and opens the gallery', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await _seed([_player('1', 'Ada', 1300, unlocked: {'x_rookie'})]);
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
     await tester.pumpAndSettle();
@@ -154,5 +159,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('FORM'), findsOneWidget);
     expect(find.text('W'), findsWidgets);
+  });
+
+  testWidgets('PROFIL shows streaks & rating peak', (tester) async {
+    await _seed([
+      _player('1', 'Ada', 1300, history: [
+        RatingSnapshot(date: DateTime(2026, 1, 1), rating: 1361, placement: 1),
+        RatingSnapshot(date: DateTime(2026, 1, 2), rating: 1300, placement: 2),
+      ]),
+    ]);
+    await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('STREAKS & TOPP'), findsOneWidget);
+    expect(find.textContaining('1361'), findsWidgets); // rating peak
   });
 }

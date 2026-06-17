@@ -152,6 +152,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
           ),
           const SizedBox(height: 14),
         ],
+        _SectionCard(title: 'STREAKS & TOPP', child: _StreaksCard(player: p)),
+        const SizedBox(height: 14),
         _SectionCard(
           title: 'RATING HISTORY',
           child: SizedBox(
@@ -468,6 +470,49 @@ class _FormStrip extends StatelessWidget {
                 ),
               );
             }),
+          ),
+      ],
+    );
+  }
+}
+
+class _StreaksCard extends StatelessWidget {
+  const _StreaksCard({required this.player});
+  final SavedPlayer player;
+
+  @override
+  Widget build(BuildContext context) {
+    final onStreak = player.currentWinStreak > 0;
+    final peak = peakRating(player);
+    final best = bestRank(player);
+    final tiles = <(String, String, Color)>[
+      (
+        'NÅ PÅ RAD',
+        onStreak ? '🔥 ${player.currentWinStreak}' : '${player.currentLossStreak} tap',
+        onStreak ? DossedartTokens.orange : DossedartTokens.red,
+      ),
+      ('BESTE STREAK', '${player.bestWinStreak}', DossedartTokens.green),
+      ('RATING-TOPP', peak == null ? '–' : '${peak.round()}', DossedartTokens.yellow),
+      ('BESTE RANK', best == null ? '–' : '#$best', DossedartTokens.silver),
+    ];
+    return Row(
+      children: [
+        for (final (k, v, c) in tiles)
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+              decoration: BoxDecoration(
+                  border: Border.all(color: DossedartTokens.phosphor.withValues(alpha: 0.25))),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(k, style: const TextStyle(fontFamily: 'VT323', fontSize: 12, color: DossedartTokens.phosphor)),
+                  const SizedBox(height: 6),
+                  Text(v, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c)),
+                ],
+              ),
+            ),
           ),
       ],
     );
