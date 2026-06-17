@@ -39,3 +39,77 @@ List<FormResult> recentForm(
   }
   return out;
 }
+
+class RecordTile {
+  final String mode;  // mode key, drives the accent colour at the call site
+  final String value; // pre-formatted display value
+  final String label; // e.g. 'høyeste runde'
+  const RecordTile({required this.mode, required this.value, required this.label});
+}
+
+ModeStats? _firstMode(SavedPlayer p, List<String> keys) {
+  for (final k in keys) {
+    final m = p.modeStats[k];
+    if (m != null && m.played > 0) return m;
+  }
+  return null;
+}
+
+/// Career personal bests, one tile per available record. Only emits a tile when
+/// the underlying counter exists (> 0) so unplayed modes are skipped.
+List<RecordTile> careerRecords(SavedPlayer p) {
+  final out = <RecordTile>[];
+  final x01 = _firstMode(p, ['x01']);
+  if (x01 != null && x01.get('highestTurn') > 0) {
+    out.add(RecordTile(mode: 'x01', value: '${x01.get('highestTurn')}', label: 'høyeste runde'));
+  }
+  if (x01 != null && x01.get('bestCheckout') > 0) {
+    out.add(RecordTile(mode: 'x01', value: '${x01.get('bestCheckout')}', label: 'beste checkout'));
+  }
+  final cri = _firstMode(p, ['cricket', 'cricket_cutthroat']);
+  if (cri != null && cri.get('bestPoints') > 0) {
+    out.add(RecordTile(mode: 'cricket', value: '${cri.get('bestPoints')}', label: 'beste poeng'));
+  }
+  final sh = _firstMode(p, ['shanghai']);
+  if (sh != null && sh.get('bestScore') > 0) {
+    out.add(RecordTile(mode: 'shanghai', value: '${sh.get('bestScore')}', label: 'beste score'));
+  }
+  final spl = _firstMode(p, ['halveIt']);
+  if (spl != null && spl.get('biggestHalving') > 0) {
+    out.add(RecordTile(mode: 'halveIt', value: '${spl.get('biggestHalving')}', label: 'største halvering'));
+  }
+  final kil = _firstMode(p, ['killer']);
+  if (kil != null && kil.get('kills') > 0) {
+    out.add(RecordTile(mode: 'killer', value: '${kil.get('kills')}', label: 'kills totalt'));
+  }
+  final atc = _firstMode(p, ['aroundTheClock']);
+  if (atc != null && atc.get('totalDarts') > 0) {
+    final rate = (atc.get('totalHits') * 100 / atc.get('totalDarts')).round();
+    out.add(RecordTile(mode: 'aroundTheClock', value: '$rate%', label: 'treff-rate'));
+  }
+  return out;
+}
+
+double? peakRating(SavedPlayer p) => p.ratingHistory.isEmpty
+    ? null
+    : p.ratingHistory.map((s) => s.rating).reduce((a, b) => a > b ? a : b);
+
+int? bestRank(SavedPlayer p) {
+  final ranks = p.ratingHistory.map((s) => s.placement).whereType<int>();
+  return ranks.isEmpty ? null : ranks.reduce((a, b) => a < b ? a : b);
+}
+
+/// Opponent the player has the worst record against (most losses over wins).
+/// Null when no opponent has a losing surplus.
+String? nemesisId(SavedPlayer p) {
+  String? worst;
+  var worstDeficit = 0;
+  p.headToHead.forEach((id, r) {
+    final deficit = r.losses - r.wins;
+    if (deficit > 0 && deficit > worstDeficit) {
+      worstDeficit = deficit;
+      worst = id;
+    }
+  });
+  return worst;
+}
