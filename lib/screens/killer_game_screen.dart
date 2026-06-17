@@ -23,6 +23,7 @@ import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
 import '../services/battery_sampler.dart';
@@ -114,6 +115,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
@@ -727,6 +729,22 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final achEvents = <int, List<AchievementEvent>>{};
+    for (int i = 0; i < players.length; i++) {
+      if ((_maxKillsInTurn[i] ?? 0) >= 3) {
+        achEvents[i] = [AchievementEvent.multiKill];
+      }
+    }
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.killer,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
+    );
+
     StatsRecorder.recordGame(
       gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -736,22 +754,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
-    );
-
-    final achEvents = <int, List<AchievementEvent>>{};
-    for (int i = 0; i < players.length; i++) {
-      if ((_maxKillsInTurn[i] ?? 0) >= 3) {
-        achEvents[i] = [AchievementEvent.multiKill];
-      }
-    }
-    AchievementService.instance.awardGameEnd(
-      mode: GameMode.killer,
-      playerIds: players.map((p) => p.savedPlayerId).toList(),
-      savedPlayers: savedPlayers,
-      placements: placements,
-      ratingsBefore: _ratingsBefore,
-      ratingsAfter: _ratingsAfter,
-      eventsByIndex: achEvents,
+      gameConfig: 'Killer · ${widget.config.lives} lives',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex:
+          buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
