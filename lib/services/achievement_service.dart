@@ -66,7 +66,9 @@ class AchievementService {
   /// are keyed by player index. The winner is whoever has the best (lowest)
   /// placement; a shared best placement is a draw (no winner). Caller
   /// persists [savedPlayers] afterwards.
-  void awardGameEnd({
+  /// Returns the achievements newly unlocked this game, keyed by player index
+  /// (used to surface ★ unlocks on KAMPDETALJER). Empty when nothing unlocked.
+  Map<int, List<Achievement>> awardGameEnd({
     required GameMode mode,
     required List<String?> playerIds,
     required List<SavedPlayer> savedPlayers,
@@ -76,17 +78,19 @@ class AchievementService {
     Map<int, List<AchievementEvent>> eventsByIndex = const {},
     Map<int, Map<String, int>> countersByIndex = const {},
   }) {
-    if (placements.isEmpty) return;
+    if (placements.isEmpty) return const {};
     final best = placements.reduce((a, b) => a < b ? a : b);
     // A shared best placement is a draw — nobody gets win credit.
     final bestIsShared = placements.where((p) => p == best).length > 1;
+    final unlockedByIndex = <int, List<Achievement>>{};
     for (int i = 0; i < playerIds.length; i++) {
       final id = playerIds[i];
       if (id == null) continue;
       final sp = savedPlayers.where((s) => s.id == id).firstOrNull;
       if (sp == null) continue;
+      final newly = <Achievement>[];
       for (final e in eventsByIndex[i] ?? const <AchievementEvent>[]) {
-        checkEvent(e, sp);
+        newly.addAll(checkEvent(e, sp));
       }
       final opponents = <double>[];
       for (int j = 0; j < playerIds.length; j++) {
@@ -95,7 +99,7 @@ class AchievementService {
         final r = oid == null ? null : ratingsBefore[oid];
         if (r != null) opponents.add(r);
       }
-      evaluateMilestones(
+      newly.addAll(evaluateMilestones(
         sp,
         GameOutcome(
           mode: mode,
@@ -107,8 +111,10 @@ class AchievementService {
           opponentRatingsBefore: opponents,
           gameCounters: countersByIndex[i] ?? const {},
         ),
-      );
+      ));
+      if (newly.isNotEmpty) unlockedByIndex[i] = newly;
     }
+    return unlockedByIndex;
   }
 
   /// Pre-1.8.4 builds granted these falsely (bust-tainted feats, missing
