@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/earned_feat.dart';
 import '../../models/game_history.dart';
+import '../../stats/mode_progression.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/achievement_medal.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
@@ -49,6 +50,11 @@ class GameDetailScreen extends StatelessWidget {
                       _DetailSection(
                         title: 'PRESTASJONER DENNE KAMPEN',
                         child: _FeatsGrid(players: entry.players),
+                      ),
+                    if (entry.throwHistory != null)
+                      _DetailSection(
+                        title: 'SPILLFORLØP',
+                        child: _ProgressSection(entry: entry),
                       ),
                   ],
                 ),
@@ -227,6 +233,146 @@ class _FeatChip extends StatelessWidget {
       ),
     );
   }
+}
+
+const List<Color> _playerPalette = [
+  DossedartTokens.cyan,
+  DossedartTokens.magenta,
+  DossedartTokens.green,
+  DossedartTokens.orange,
+  DossedartTokens.yellow,
+  DossedartTokens.purple,
+];
+
+/// Picks the progression strategy for a recorded game. Returns null for modes
+/// whose race can't be derived from throws alone (Killer) — those show no chart.
+ModeProgression? progressionForEntry(GameHistoryEntry entry) {
+  final throws = entry.throwHistory ?? const [];
+  switch (entry.gameMode) {
+    case 'x01':
+      final start = throws.fold<int>(
+          0, (m, t) => t.scoreAtStartOfTurn > m ? t.scoreAtStartOfTurn : m);
+      return X01Progression(startScore: start > 0 ? start : 501);
+    case 'cricket':
+    case 'cricket_cutthroat':
+      return CricketProgression(
+          targets: const {15, 16, 17, 18, 19, 20, 25}, maxValue: 0);
+    case 'aroundTheClock':
+      return AtcProgression();
+    case 'shanghai':
+    case 'halveIt':
+      return CumulativeScoreProgression(maxValue: 0);
+    default:
+      return null; // Killer & unknown → round log only
+  }
+}
+
+class _ProgressSection extends StatelessWidget {
+  const _ProgressSection({required this.entry});
+  final GameHistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final progression = progressionForEntry(entry);
+    if (progression == null) {
+      return const Text('Graf utilgjengelig for denne modusen',
+          style: TextStyle(color: DossedartTokens.phosphor, fontSize: 12));
+    }
+    final throws = entry.throwHistory!;
+    final series = [
+      for (var i = 0; i < entry.players.length; i++)
+        progression.seriesFor(throws, playerIndex: i),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 160,
+          child: CustomPaint(
+            painter: _ProgressPainter(progression: progression, series: series),
+            size: Size.infinite,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (var i = 0; i < entry.players.length; i++)
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                    width: 12,
+                    height: 3,
+                    color: _playerPalette[i % _playerPalette.length]),
+                const SizedBox(width: 6),
+                Text(entry.players[i].name,
+                    style: const TextStyle(
+                        color: DossedartTokens.phosphor, fontSize: 11)),
+              ]),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ProgressPainter extends CustomPainter {
+  _ProgressPainter({required this.progression, required this.series});
+  final ModeProgression progression;
+  final List<List<num>> series;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final dataMax =
+        series.expand((s) => s).fold<num>(0, (m, v) => v > m ? v : m);
+    final top = progression.descending
+        ? (progression.maxValue > 0 ? progression.maxValue : (dataMax > 0 ? dataMax : 1))
+        : (dataMax > 0 ? dataMax : 1);
+    final maxLen = series.fold<int>(1, (m, s) => s.length > m ? s.length : m);
+
+    // Gridlines.
+    final grid = Paint()
+      ..color = DossedartTokens.phosphor.withValues(alpha: 0.15)
+      ..strokeWidth = 1;
+    for (var g = 0; g <= 4; g++) {
+      final y = size.height * g / 4;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+
+    final dx = maxLen > 1 ? size.width / (maxLen - 1) : size.width;
+    for (var p = 0; p < series.length; p++) {
+      final s = series[p];
+      if (s.isEmpty) continue;
+      final color = _playerPalette[p % _playerPalette.length];
+      final path = Path();
+      for (var i = 0; i < s.length; i++) {
+        final x = dx * i;
+        final y = size.height - (s[i] / top) * size.height;
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = color,
+      );
+      // Finish flag for race-to-0 modes when a series reaches 0.
+      if (progression.descending && s.last <= 0) {
+        final x = dx * (s.length - 1);
+        canvas.drawCircle(
+            Offset(x, size.height), 4, Paint()..color = color);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ProgressPainter old) =>
+      old.series != series || old.progression != progression;
 }
 
 class _StandingRow extends StatelessWidget {

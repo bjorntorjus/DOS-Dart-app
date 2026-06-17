@@ -72,4 +72,25 @@ void main() {
     expect(find.text('PRESTASJONER DENNE KAMPEN'), findsOneWidget);
     expect(find.text('180!'), findsOneWidget);
   });
+
+  testWidgets('renders progression chart when throwHistory present',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final throws = [
+      for (var p = 0; p < 2; p++)
+        for (var r = 1; r <= 2; r++)
+          DartThrow(playerIndex: p, segment: 20, multiplier: 3, points: 60,
+              scoreBefore: 501, turnNumber: 0, scoreAtStartOfTurn: 501 - (r - 1) * 60,
+              turnId: r, roundNumber: r),
+    ];
+    await tester.pumpWidget(
+        MaterialApp(home: GameDetailScreen(entry: _x01Entry(throws: throws))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SPILLFORLØP'), findsOneWidget);
+  });
 }
