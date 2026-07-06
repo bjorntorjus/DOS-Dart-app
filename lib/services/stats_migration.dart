@@ -58,17 +58,26 @@ class StatsMigration {
     return changed;
   }
 
+  /// Modes whose live code writes [SavedPlayer.highestTurnScore]. Best turn is
+  /// X01/Splitscore-scoped (decision 2026-07-06): other modes' throws must
+  /// never feed the recompute — Killer doesn't even set turnIds, so a whole
+  /// Killer game would collapse into one giant "turn".
+  static const _bestTurnModes = ['x01', 'halveIt'];
+
   /// Repairs the cross-mode [SavedPlayer.highestTurnScore] ("best turn"), which
   /// X01 and Splitscore both write. Only X01 carried the merge bug, but the
   /// field is a single max so the contributions can't be separated: recompute
-  /// the true best 3-dart turn across all the player's games when history fully
-  /// covers them, otherwise just clamp the impossible value to 180.
+  /// the true best 3-dart turn across the player's X01/Splitscore games when
+  /// history fully covers them, otherwise just clamp the impossible value.
   static bool _fixBestTurn(SavedPlayer player, List<GameHistoryEntry> history) {
     final games = history
-        .where((e) => e.players.any((gp) => gp.savedPlayerId == player.id))
+        .where((e) =>
+            _bestTurnModes.contains(e.gameMode) &&
+            e.players.any((gp) => gp.savedPlayerId == player.id))
         .toList();
-    final fullyCovered =
-        player.gamesPlayed > 0 && games.length >= player.gamesPlayed;
+    final playedInModes = _bestTurnModes.fold<int>(
+        0, (sum, m) => sum + (player.modeStats[m]?.played ?? 0));
+    final fullyCovered = playedInModes > 0 && games.length >= playedInModes;
 
     int best;
     if (fullyCovered) {
@@ -77,13 +86,14 @@ class StatsMigration {
         final idx =
             game.players.indexWhere((gp) => gp.savedPlayerId == player.id);
         if (idx < 0) continue;
-        final throws = game.throwHistory;
-        if (throws != null) {
-          for (final t in x01TurnTotals(throws, playerIndex: idx)) {
+        final totals = _usableTurnTotals(game, idx);
+        if (totals != null) {
+          for (final t in totals) {
             if (t > best) best = t;
           }
         } else {
-          // No raw throws — fall back to the game's stored best turn (clamped).
+          // No raw throws (or legacy turnId-less throws that merge into an
+          // impossible turn) — fall back to the game's stored best (clamped).
           final s = game.players[idx].stats;
           final h = s['max:highestTurn'] ?? s['highestTurn'] ?? 0;
           final clamped = h > _maxTurn ? _maxTurn : h;
@@ -100,6 +110,17 @@ class StatsMigration {
       return true;
     }
     return false;
+  }
+
+  /// Per-turn totals for [game], or null when they can't be trusted: either no
+  /// raw throws were stored, or the throws predate turnId (all decode as
+  /// turnId 0) so whole games merge into single impossible >180 "turns".
+  static List<int>? _usableTurnTotals(GameHistoryEntry game, int playerIndex) {
+    final throws = game.throwHistory;
+    if (throws == null) return null;
+    final totals = x01TurnTotals(throws, playerIndex: playerIndex);
+    if (totals.any((t) => t > _maxTurn)) return null;
+    return totals;
   }
 
   static bool _fixMode(SavedPlayer player, String mode, ModeStats ms,
@@ -123,17 +144,18 @@ class StatsMigration {
     var highest = 0, turns = 0, score = 0, over100 = 0;
     for (final game in games) {
       final idx = game.players.indexWhere((gp) => gp.savedPlayerId == player.id);
-      final throws = game.throwHistory;
-      if (throws != null && idx >= 0) {
-        final totals = x01TurnTotals(throws, playerIndex: idx);
+      if (idx < 0) continue;
+      final totals = _usableTurnTotals(game, idx);
+      if (totals != null) {
         for (final t in totals) {
           if (t > highest) highest = t;
           turns++;
           score += t;
           if (t >= 100) over100++;
         }
-      } else if (idx >= 0) {
-        // No raw throws kept for this game — fall back to its stored snapshot,
+      } else {
+        // No raw throws kept (or legacy turnId-less throws that merge into an
+        // impossible turn) — fall back to the game's stored snapshot,
         // clamping the (possibly merged) highest turn to the 180 ceiling.
         final s = game.players[idx].stats;
         final h = (s['max:highestTurn'] ?? s['highestTurn'] ?? 0);
