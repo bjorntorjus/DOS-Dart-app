@@ -233,7 +233,55 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     BatterySampler.instance.stop();
     await _fireWinnerCelebration();
     if (!mounted) return;
+    // Preview rating deltas so they're visible on the result screen even
+    // though recording is deferred until the user leaves (audit F17).
+    await _prepareRatingPreview(ranking);
+    if (!mounted) return;
     _showPostGame(ranking);
+  }
+
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording stays
+  /// deferred until the user leaves the result screen.
+  Future<void> _prepareRatingPreview(List<int> ranking) async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(ranking),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Placements from [ranking]; equal totals share a placement.
+  List<int> _buildPlacements(List<int> ranking) {
+    final placements = List.filled(players.length, 0);
+    for (int rank = 0; rank < ranking.length; rank++) {
+      final idx = ranking[rank];
+      if (rank > 0 &&
+          engine.totalScores[idx] == engine.totalScores[ranking[rank - 1]]) {
+        placements[idx] = placements[ranking[rank - 1]];
+      } else {
+        placements[idx] = rank + 1;
+      }
+    }
+    return placements;
   }
 
   Future<void> _fireWinnerCelebration() async {
@@ -256,16 +304,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
-    final placements = List.filled(players.length, 0);
-    for (int rank = 0; rank < ranking.length; rank++) {
-      final idx = ranking[rank];
-      if (rank > 0 &&
-          engine.totalScores[idx] == engine.totalScores[ranking[rank - 1]]) {
-        placements[idx] = placements[ranking[rank - 1]];
-      } else {
-        placements[idx] = rank + 1;
-      }
-    }
+    final placements = _buildPlacements(ranking);
 
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {

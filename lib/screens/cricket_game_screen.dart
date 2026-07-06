@@ -64,7 +64,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   String? lastThrowLabel;
   List<int> finishedPlayers = [];
   bool _gameFullyOver = false;
-  bool _statsRecorded = false;
 
   final List<_CricketUndoData> _undoStack = [];
   final GameAnnouncer _announcer = GameAnnouncer();
@@ -505,6 +504,38 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return result;
   }
 
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stale or duplicate stats behind — the fix for the
+  /// 2026-07-06 audit's F3 (the old _statsRecorded flag was never reset by
+  /// undo, so a replayed ending was silently dropped).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _computeExitPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
   Future<void> _updateStats() async {
     if (_midGamePlayerChanges) {
       await StatsRecorder.recordMidGameChanges(
@@ -657,10 +688,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       gameFullyOver: _gameFullyOver,
     );
     BatterySampler.instance.stop();
-    // Compute stats before showing post-game so rating changes are visible (mirrors X01 behaviour)
-    if (_gameFullyOver && !_statsRecorded) {
-      _statsRecorded = true;
-      await _updateStats();
+    // Preview rating deltas so they're visible on the result screen; actual
+    // recording is deferred until the user leaves (defer-until-leave).
+    if (_gameFullyOver) {
+      await _prepareRatingPreview();
     }
     if (!mounted) return;
     final result = await Navigator.push<String>(
@@ -680,12 +711,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       });
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
-      if (!_statsRecorded) {
-        // Game not fully over — user exiting early; record stats now
-        _statsRecorded = true;
-        _gameFullyOver = true;
-        await _updateStats();
-      }
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     }

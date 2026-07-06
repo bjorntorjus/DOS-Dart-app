@@ -398,7 +398,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       _announcer.announceWinner(players[winnerIndex!].name);
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     }
   }
 
@@ -608,6 +608,56 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     );
   }
 
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stats behind — the double-record fix from the
+  /// 2026-07-06 audit (F2).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp =
+          savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp =
+          savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Rank: winner 1st, others by remaining lives (more = better).
+  List<int> _buildPlacements() {
+    final placements = List.filled(players.length, 0);
+    placements[winnerIndex!] = 1;
+    final nonWinners = List.generate(players.length, (i) => i)
+      ..removeWhere((i) => i == winnerIndex);
+    nonWinners.sort((a, b) => lives[b].compareTo(lives[a]));
+    int rank = 2;
+    for (int i = 0; i < nonWinners.length; i++) {
+      if (i > 0 && lives[nonWinners[i]] < lives[nonWinners[i - 1]]) {
+        rank = i + 2;
+      }
+      placements[nonWinners[i]] = rank;
+    }
+    return placements;
+  }
+
   Future<void> _updateStats() async {
     if (_midGamePlayerChanges) {
       await StatsRecorder.recordMidGameChanges(
@@ -638,18 +688,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     }
 
     // Rank: winner 1st, others by remaining lives (more = better)
-    final placements = List.filled(players.length, 0);
-    placements[winnerIndex!] = 1;
-    final nonWinners = List.generate(players.length, (i) => i)
-      ..removeWhere((i) => i == winnerIndex);
-    nonWinners.sort((a, b) => lives[b].compareTo(lives[a]));
-    int rank = 2;
-    for (int i = 0; i < nonWinners.length; i++) {
-      if (i > 0 && lives[nonWinners[i]] < lives[nonWinners[i - 1]]) {
-        rank = i + 2;
-      }
-      placements[nonWinners[i]] = rank;
-    }
+    final placements = _buildPlacements();
     // Compute per-player killer stats from undo stack and game state
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -791,6 +830,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       _undo();
     } else {
       _log.logPostGame(action: 'exit', details: 'user exited to home');
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
+      await _updateStats();
+      if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }

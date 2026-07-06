@@ -274,7 +274,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     if (gameOver) {
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     }
   }
 
@@ -413,6 +413,52 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     await _updateStatsInternal();
   }
 
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stats behind — the double-record fix from the
+  /// 2026-07-06 audit (F2).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Rank by total score (higher = better placement); equal scores tie.
+  List<int> _buildPlacements() {
+    final sorted = List.generate(players.length, (i) => i)
+      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+    final placements = List.filled(players.length, 0);
+    for (int rank = 0; rank < sorted.length; rank++) {
+      if (rank > 0 && totalScores[sorted[rank]] == totalScores[sorted[rank - 1]]) {
+        placements[sorted[rank]] = placements[sorted[rank - 1]]; // tie
+      } else {
+        placements[sorted[rank]] = rank + 1;
+      }
+    }
+    return placements;
+  }
+
   Future<void> _updateStatsInternal() async {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
@@ -460,16 +506,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       }
     }
     // Rank by total score (higher = better placement)
-    final sorted = List.generate(players.length, (i) => i)
-      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
-    final placements = List.filled(players.length, 0);
-    for (int rank = 0; rank < sorted.length; rank++) {
-      if (rank > 0 && totalScores[sorted[rank]] == totalScores[sorted[rank - 1]]) {
-        placements[sorted[rank]] = placements[sorted[rank - 1]]; // tie
-      } else {
-        placements[sorted[rank]] = rank + 1;
-      }
-    }
+    final placements = _buildPlacements();
     // Compute per-player Halve It stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -586,6 +623,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       _undo();
     } else {
       _log.logPostGame(action: 'exit');
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
+      await _updateStats();
+      if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
