@@ -108,15 +108,10 @@ class _GameScreenState extends State<GameScreen> {
   GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
-  void removePlayerForTest(int playerIndex) {
-    setState(() {
-      _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
-      if (!finishedPlayers.contains(playerIndex)) {
-        finishedPlayers.add(playerIndex);
-      }
-    });
-  }
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int get currentPlayerIndexForTest => currentPlayerIndex;
 
   /// Busts derived from history — undo pops the throw, so this is always
   /// consistent (a counter would survive undo and corrupt SURGEON).
@@ -1219,9 +1214,12 @@ class _GameScreenState extends State<GameScreen> {
 
       final lastThrow = throwHistory.removeLast();
       _log.logUndo(playerIndex: lastThrow.playerIndex, playerName: players[lastThrow.playerIndex].name, throwLabel: lastThrow.label, scoreRestored: lastThrow.scoreBefore, roundNumber: lastThrow.roundNumber);
-      // If the undone throw was a checkout, remove from finished list and pending
-      if (lastThrow.scoreBefore - lastThrow.points == 0 ||
-          finishedPlayers.contains(lastThrow.playerIndex)) {
+      // If the undone throw was a checkout, remove from finished list and
+      // pending. A removed player's membership in finishedPlayers encodes the
+      // removal, not a finish — never resurrect them (audit 2026-07-06, F9).
+      if ((lastThrow.scoreBefore - lastThrow.points == 0 ||
+              finishedPlayers.contains(lastThrow.playerIndex)) &&
+          !_removedPlayerIndices.contains(lastThrow.playerIndex)) {
         finishedPlayers.remove(lastThrow.playerIndex);
         _pendingCheckouts.removeWhere((c) => c.playerIndex == lastThrow.playerIndex);
         _gameFullyOver = false;
@@ -1239,6 +1237,9 @@ class _GameScreenState extends State<GameScreen> {
 
       // Rebuild round state from throw history
       _rebuildRoundState();
+      if (_removedPlayerIndices.contains(currentPlayerIndex)) {
+        _advancePlayer();
+      }
       _log.logState({'afterUndo': true, 'round': _roundNumber, 'currentPlayer': currentPlayerIndex, 'dartsInTurn': dartsInTurn, 'completedThisRound': _playersCompletedThisRound, 'finishedBefore': _finishedBeforeRound, 'finishedPlayers': finishedPlayers});
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
@@ -1433,7 +1434,9 @@ class _GameScreenState extends State<GameScreen> {
     return GameResult(
       gameMode: 'x01',
       results: results,
-      canContinue: !_gameFullyOver && activePlayers.length > 1 && players.length > 2,
+      canContinue: !_gameFullyOver &&
+          activePlayers.length > 1 &&
+          players.length - _removedPlayerIndices.length > 2,
       canUndo: !_hadSuddenDeath,
       statsSkipped: _midGamePlayerChanges,
     );
@@ -2164,6 +2167,42 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      finishedPlayers.remove(playerIndex);
+      // Mark as finished so they're skipped in rotation
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+      // If removed player was current, advance
+      if (playerIndex == currentPlayerIndex) {
+        dartsInTurn = 0;
+        _meme.resetTurn();
+        _advancePlayer();
+      }
+      // If only 1 (or 0) active players remain, end the game
+      final remaining = List.generate(players.length, (i) => i)
+          .where((i) => !finishedPlayers.contains(i))
+          .toList();
+      if (remaining.length <= 1) {
+        winnerIndex ??= remaining.isNotEmpty
+            ? remaining.first
+            : _winnerIndexExcludingRemoved() ?? (finishedPlayers.isNotEmpty ? finishedPlayers.first : 0);
+        _gameFullyOver = true;
+      }
+    });
+    if (_gameFullyOver) {
+      _prepareRatingPreview().then((_) => _showPostGame());
+    }
+  }
+
   void _removePlayerMidGame(int playerIndex) {
     showDialog(
       context: context,
@@ -2182,38 +2221,7 @@ class _GameScreenState extends State<GameScreen> {
                 foregroundColor: Theme.of(ctx).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                finishedPlayers.remove(playerIndex);
-                // Mark as finished so they're skipped in rotation
-                if (!finishedPlayers.contains(playerIndex)) {
-                  finishedPlayers.add(playerIndex);
-                }
-                // If removed player was current, advance
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _meme.resetTurn();
-                  _advancePlayer();
-                }
-                // If only 1 (or 0) active players remain, end the game
-                final remaining = List.generate(players.length, (i) => i)
-                    .where((i) => !finishedPlayers.contains(i))
-                    .toList();
-                if (remaining.length <= 1) {
-                  winnerIndex ??= remaining.isNotEmpty
-                      ? remaining.first
-                      : _winnerIndexExcludingRemoved() ?? (finishedPlayers.isNotEmpty ? finishedPlayers.first : 0);
-                  _gameFullyOver = true;
-                }
-              });
-              if (_gameFullyOver) {
-                _prepareRatingPreview().then((_) => _showPostGame());
-              }
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),

@@ -145,13 +145,16 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
-  void removePlayerForTest(int playerIndex) {
-    setState(() {
-      _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
-      isEliminated[playerIndex] = true;
-    });
-  }
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int? get winnerIndexForTest => winnerIndex;
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
+  @visibleForTesting
+  List<int> get livesForTest => lives;
 
   void _commitKillsThisTurn() {
     final cur = _maxKillsInTurn[currentPlayerIndex] ?? 0;
@@ -518,8 +521,12 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   void _advancePlayer() {
     final fromIndex = currentPlayerIndex;
     dartsInTurn = 0;
+    final startIndex = currentPlayerIndex;
     do {
       currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      // Safety: prevent infinite loop when every player is eliminated/removed
+      // (audit 2026-07-06, F7).
+      if (currentPlayerIndex == startIndex) break;
     } while (isEliminated[currentPlayerIndex] && winnerIndex == null);
     // Increment round when we wrap back to or past the first alive player
     if (currentPlayerIndex <= fromIndex) {
@@ -1810,7 +1817,40 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isKiller.add(false); // must qualify
       isEliminated.add(false);
       shields.add(0);
+      // Undo snapshots taken before the add hold whole lists of the old
+      // length — restoring one would shrink state below players.length and
+      // crash. Roster changes reset undo history (audit 2026-07-06, F8).
+      _undoStack.clear();
     });
+  }
+
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      // Mark as eliminated so rotation skips
+      isEliminated[playerIndex] = true;
+      // Undo snapshots predate the removal and would resurrect the player
+      // wholesale — roster changes reset undo history (audit 2026-07-06,
+      // F8/F9).
+      _undoStack.clear();
+      // Removing the second-to-last alive player must end the game
+      // (audit 2026-07-06, F7 — removal never checked for a winner).
+      _checkForWinner();
+      if (playerIndex == currentPlayerIndex && winnerIndex == null) {
+        dartsInTurn = 0;
+        _advancePlayer();
+      }
+    });
+    if (winnerIndex != null) {
+      _announcer.announceWinner(players[winnerIndex!].name);
+      _prepareRatingPreview().then((_) => _showPostGame());
+    }
   }
 
   void _removePlayerMidGame(int playerIndex) {
@@ -1818,7 +1858,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Rating will not be updated for this game.'),
+        content: const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1830,20 +1870,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                 foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                // Mark as eliminated so rotation skips
-                isEliminated[playerIndex] = true;
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _advancePlayer();
-                }
-              });
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),

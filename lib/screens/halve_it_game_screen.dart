@@ -82,12 +82,16 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
-  void removePlayerForTest(int playerIndex) {
-    setState(() {
-      _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
-    });
-  }
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int get currentPlayerIndexForTest => currentPlayerIndex;
+
+  @visibleForTesting
+  int get currentRoundIndexForTest => currentRoundIndex;
+
+  @visibleForTesting
+  List<int> get totalScoresForTest => totalScores;
 
   List<DartThrow> throwHistory = [];
   bool gameOver = false;
@@ -371,6 +375,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   void _undo() {
     if (throwHistory.isEmpty || _undoStack.isEmpty) return;
     final undoneThrow = throwHistory.last;
+    // A removed player's throws are frozen: undoing one would make them the
+    // current thrower again (audit 2026-07-06, F9).
+    if (_removedPlayerIndices.contains(undoneThrow.playerIndex)) return;
     final undoData = _undoStack.last;
     _announcer.announceGameEvent('Back');
 
@@ -1763,12 +1770,41 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     });
   }
 
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      if (playerIndex == currentPlayerIndex) {
+        // The removed player's half-played turn must not leak to the next
+        // player (audit 2026-07-06, F6).
+        dartsInTurn = 0;
+        _turnIdCounter++;
+        turnPoints = 0;
+        turnHasHit = false;
+        _advanceAfterRemoval();
+      }
+      // If only 1 (or 0) active players remain, end the game.
+      final remaining = List.generate(players.length, (i) => i)
+          .where((i) => !_removedPlayerIndices.contains(i))
+          .toList();
+      if (remaining.length <= 1) gameOver = true;
+    });
+    if (gameOver) {
+      _prepareRatingPreview().then((_) => _showPostGame());
+    }
+  }
+
   void _removePlayerMidGame(int playerIndex) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Rating will not be updated for this game.'),
+        content: const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1780,19 +1816,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _turnIdCounter++;
-                  _advanceToNextActive();
-                }
-              });
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),
@@ -1801,12 +1825,34 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
-  void _advanceToNextActive() {
-    final start = currentPlayerIndex;
-    do {
-      currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-      if (currentPlayerIndex == start) break;
-    } while (_removedPlayerIndices.contains(currentPlayerIndex));
+  /// Advances past a removed current player with the same round rules as
+  /// [_finishTurn]: reaching the end of the rotation moves to the next round
+  /// (or ends the game) — a modulo-wrap would replay the current round and
+  /// double-count earlier players' turns (audit 2026-07-06, F6).
+  void _advanceAfterRemoval() {
+    int next = currentPlayerIndex + 1;
+    while (next < players.length && _removedPlayerIndices.contains(next)) {
+      next++;
+    }
+    if (next < players.length) {
+      currentPlayerIndex = next;
+      return;
+    }
+    // End of round
+    if (currentRoundIndex == rounds.length - 1) {
+      gameOver = true;
+      return;
+    }
+    currentRoundIndex++;
+    int first = 0;
+    while (first < players.length && _removedPlayerIndices.contains(first)) {
+      first++;
+    }
+    if (first >= players.length) {
+      gameOver = true;
+    } else {
+      currentPlayerIndex = first;
+    }
   }
 
   void _confirmExit() {

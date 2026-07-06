@@ -170,15 +170,16 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
-  void removePlayerForTest(int playerIndex) {
-    setState(() {
-      _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
-      if (!finishedPlayers.contains(playerIndex)) {
-        finishedPlayers.add(playerIndex);
-      }
-    });
-  }
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  bool isRoundCompleteForTest() => _isRoundComplete();
+
+  @visibleForTesting
+  int get roundNumberForTest => _roundNumber;
+
+  @visibleForTesting
+  int get currentPlayerIndexForTest => currentPlayerIndex;
 
   bool get _isReverse => widget.config.reverse;
   int get _maxTarget => widget.config.includeBull ? 25 : 20;
@@ -450,6 +451,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     }
     for (int i = 0; i < players.length; i++) {
       if (_finishedBeforeRound.contains(i)) continue;
+      // Removed mid-game (or finished this round) — they will never throw
+      // again, so they can't hold the round open (audit 2026-07-06, F5).
+      if (finishedPlayers.contains(i)) continue;
       if (!_playersCompletedThisRound.contains(i)) return false;
     }
     return true;
@@ -833,7 +837,11 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     setState(() {
       final last = throwHistory.removeLast();
 
-      if (finishedPlayers.contains(last.playerIndex)) {
+      // A removed player's membership in finishedPlayers encodes the removal,
+      // not a finish — undoing their old throw must not resurrect them into
+      // the rotation (audit 2026-07-06, F9).
+      if (finishedPlayers.contains(last.playerIndex) &&
+          !_removedPlayerIndices.contains(last.playerIndex)) {
         finishedPlayers.remove(last.playerIndex);
         _pendingFinishes.removeWhere((f) => f.playerIndex == last.playerIndex);
         _gameFullyOver = false;
@@ -851,6 +859,10 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       lastThrowLabel = null;
 
       _rebuildRoundState();
+
+      if (_removedPlayerIndices.contains(currentPlayerIndex)) {
+        _advancePlayer();
+      }
     });
   }
 
@@ -1785,13 +1797,47 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     });
   }
 
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+      if (playerIndex == currentPlayerIndex) {
+        dartsInTurn = 0;
+        _advancePlayer();
+      }
+      // If only 1 (or 0) active players remain, end the game
+      // (audit 2026-07-06, F7 — mirrors X01).
+      final remaining = List.generate(players.length, (i) => i)
+          .where((i) => !finishedPlayers.contains(i))
+          .toList();
+      if (remaining.length <= 1) {
+        if (remaining.length == 1) {
+          finishedPlayers.add(remaining.first);
+        }
+        winnerIndex = _winnerIndexExcludingRemoved();
+        _gameFullyOver = true;
+      }
+    });
+    if (_gameFullyOver) {
+      _prepareRatingPreview().then((_) => _showPostGame());
+    }
+  }
+
   void _removePlayerMidGame(int playerIndex) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
         content:
-            const Text('Rating will not be updated for this game.'),
+            const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1803,21 +1849,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                if (!finishedPlayers.contains(playerIndex)) {
-                  finishedPlayers.add(playerIndex);
-                }
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _advancePlayer();
-                }
-              });
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),

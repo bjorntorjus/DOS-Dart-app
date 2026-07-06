@@ -353,8 +353,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final fromIndex = currentPlayerIndex;
     dartsInTurn = 0;
     _turnIdCounter++;
+    final startIndex = currentPlayerIndex;
     do {
       currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      // Safety: prevent infinite loop when every index is in finishedPlayers
+      // (e.g. removals emptied the rotation) — audit 2026-07-06, F7.
+      if (currentPlayerIndex == startIndex) break;
     } while (finishedPlayers.contains(currentPlayerIndex));
     _log.logAdvance(
       roundNumber: _roundNumber,
@@ -377,6 +381,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       _turnIdCounter = lastThrow.turnId;
       final data = _undoStack.removeLast();
       finishedPlayers = List.from(data.finishedPlayersBefore);
+      // The snapshot predates any mid-game removals — re-assert them so an
+      // undo can never resurrect a removed player into the rotation
+      // (audit 2026-07-06, F9).
+      for (final r in _removedPlayerIndices) {
+        if (!finishedPlayers.contains(r)) finishedPlayers.add(r);
+      }
       _gameFullyOver = false;
       currentPlayerIndex = data.playerIndex;
       dartsInTurn = data.dartsInTurn;
@@ -389,6 +399,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       }
       winnerIndex = _winnerIndexExcludingRemoved();
       lastThrowLabel = null;
+      if (_removedPlayerIndices.contains(currentPlayerIndex)) {
+        _advancePlayer();
+      }
     });
     _log.logUndo(
       playerIndex: lastThrow.playerIndex,
@@ -441,15 +454,13 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   void undoForTest() => _undo();
 
   @visibleForTesting
-  void removePlayerForTest(int playerIndex) {
-    setState(() {
-      _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
-      if (!finishedPlayers.contains(playerIndex)) {
-        finishedPlayers.add(playerIndex);
-      }
-    });
-  }
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int get currentPlayerIndexForTest => currentPlayerIndex;
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   /// Computes final placements for all players.
   /// Finished players keep their finish order.
@@ -1719,7 +1730,44 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       ));
       marks.add(newMarks);
       scores.add(avgPoints);
+      // Undo snapshots taken before the add have the old list lengths —
+      // restoring one would RangeError. Roster changes reset undo history
+      // (audit 2026-07-06, F8; same rule as the Shanghai engine).
+      _undoStack.clear();
     });
+  }
+
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+      if (playerIndex == currentPlayerIndex) {
+        dartsInTurn = 0;
+        _advancePlayer();
+      }
+      // If only 1 (or 0) active players remain, end the game — otherwise the
+      // rotation has nobody left to advance to (audit 2026-07-06, F7).
+      final remaining = List.generate(players.length, (i) => i)
+          .where((i) => !finishedPlayers.contains(i))
+          .toList();
+      if (remaining.length <= 1) {
+        if (remaining.length == 1 &&
+            !finishedPlayers.contains(remaining.first)) {
+          finishedPlayers.add(remaining.first);
+        }
+        winnerIndex = _winnerIndexExcludingRemoved();
+        _gameFullyOver = true;
+      }
+    });
+    if (_gameFullyOver) _showPostGame();
   }
 
   void _removePlayerMidGame(int playerIndex) {
@@ -1727,31 +1775,19 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Rating will not be updated for this game.'),
+        content: const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                if (!finishedPlayers.contains(playerIndex)) {
-                  finishedPlayers.add(playerIndex);
-                }
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _advancePlayer();
-                }
-              });
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),
