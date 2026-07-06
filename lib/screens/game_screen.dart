@@ -133,6 +133,9 @@ class _GameScreenState extends State<GameScreen> {
   @visibleForTesting
   void undoForTest() => _undo();
 
+  @visibleForTesting
+  int get throwCountForTest => throwHistory.length;
+
   /// Fast-forwards a player's score to [score] for testing.
   /// Only updates state — does NOT trigger game-end detection.
   /// Call [triggerCheckoutForTest] afterwards to fire the post-game path.
@@ -179,6 +182,18 @@ class _GameScreenState extends State<GameScreen> {
   final List<_PendingCheckout> _pendingCheckouts = [];
   List<int> _suddenDeathPlayers = [];
   bool _inSuddenDeath = false;
+  bool _hadSuddenDeath = false;
+
+  /// throwHistory length when the (first) sudden death began. Throws from
+  /// that index on are tiebreak throws: they decide placement but must never
+  /// feed stats — an SD turn of 180 is not a real 180, and the parked score
+  /// of 999 is not a real checkout (audit 2026-07-06, F4).
+  int? _suddenDeathThrowStart;
+
+  /// The throws that count toward stats: everything before sudden death.
+  List<DartThrow> get _statThrows => _suddenDeathThrowStart == null
+      ? throwHistory
+      : throwHistory.sublist(0, _suddenDeathThrowStart!);
 
   // No-bust mode state (only populated when widget.noBust == true)
   List<int> _totalDartsPerPlayer = [];
@@ -641,8 +656,8 @@ class _GameScreenState extends State<GameScreen> {
       // Per-turn point totals, grouped by turnId and excluding busted turns.
       // (Grouping by scoreAtStartOfTurn would merge a busted turn into the
       // next one at the same score and inflate totals past the 180 max —
-      // see x01TurnTotals.)
-      final turnTotals = x01TurnTotals(throwHistory, playerIndex: pi);
+      // see x01TurnTotals.) Sudden-death throws never count (_statThrows).
+      final turnTotals = x01TurnTotals(_statThrows, playerIndex: pi);
       sp.totalTurns += turnTotals.length;
       sp.totalTurnScore += turnTotals.fold<int>(0, (s, t) => s + t);
       for (final t in turnTotals) {
@@ -657,7 +672,7 @@ class _GameScreenState extends State<GameScreen> {
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
-      final playerThrows = throwHistory.where((t) => t.playerIndex == pi).toList();
+      final playerThrows = _statThrows.where((t) => t.playerIndex == pi).toList();
 
       int totalDarts = playerThrows.length;
       int doublesHit = 0;
@@ -686,7 +701,7 @@ class _GameScreenState extends State<GameScreen> {
       }
 
       // Turn-based stats: grouped by turnId, busted turns excluded.
-      final turnTotals = x01TurnTotals(throwHistory, playerIndex: pi);
+      final turnTotals = x01TurnTotals(_statThrows, playerIndex: pi);
       final totalTurnsMode = turnTotals.length;
       final totalTurnScoreMode = turnTotals.fold<int>(0, (s, t) => s + t);
       final highestTurnMode = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
@@ -741,7 +756,7 @@ class _GameScreenState extends State<GameScreen> {
       ratingsAfter: _ratingsAfter,
       gameConfig: _gameConfigLabel,
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
-      throwHistory: List<DartThrow>.from(throwHistory),
+      throwHistory: List<DartThrow>.from(_statThrows),
       earnedFeatsByIndex: earnedFeats,
     );
 
@@ -760,7 +775,7 @@ class _GameScreenState extends State<GameScreen> {
     final counters = <int, Map<String, int>>{};
     for (int i = 0; i < players.length; i++) {
       final feats =
-          X01Feats.analyze(throwHistory.where((t) => t.playerIndex == i));
+          X01Feats.analyze(_statThrows.where((t) => t.playerIndex == i));
       final evs = <AchievementEvent>[
         if (feats.hit180) AchievementEvent.score180,
         if (feats.bullFinish) AchievementEvent.bullFinish,
@@ -993,6 +1008,8 @@ class _GameScreenState extends State<GameScreen> {
     _log.log('SUDDEN_DEATH starting for ${tiedPlayers.map((i) => 'P$i(${players[i].name})').join(', ')}');
     setState(() {
       _inSuddenDeath = true;
+      _hadSuddenDeath = true;
+      _suddenDeathThrowStart ??= throwHistory.length;
       _suddenDeathPlayers = tiedPlayers;
       _playersCompletedThisRound = {};
       _roundNumber++;
@@ -1176,6 +1193,13 @@ class _GameScreenState extends State<GameScreen> {
 
   void _undo() {
     if (throwHistory.isEmpty) return;
+    // Sudden death cannot be rewound: undoing the tied checkout restores only
+    // one of the tied players and strands the rest at the parked 999 score
+    // (audit 2026-07-06, F4).
+    if (_inSuddenDeath) {
+      _log.log('UNDO blocked during sudden death');
+      return;
+    }
     _announcer.announceGameEvent('Back');
 
     setState(() {
@@ -1292,7 +1316,7 @@ class _GameScreenState extends State<GameScreen> {
     for (int rank = 0; rank < ranking.length; rank++) {
       final i = ranking[rank];
       final p = players[i];
-      final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
+      final playerThrows = _statThrows.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
 
       // Turn-based stats: grouped by turnId, busted turns excluded.
@@ -1363,7 +1387,7 @@ class _GameScreenState extends State<GameScreen> {
     for (int i = 0; i < players.length; i++) {
       if (_removedPlayerIndices.contains(i)) continue;
       final p = players[i];
-      final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
+      final playerThrows = _statThrows.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
 
       // Turn-based stats: grouped by turnId, busted turns excluded.
@@ -1410,6 +1434,7 @@ class _GameScreenState extends State<GameScreen> {
       gameMode: 'x01',
       results: results,
       canContinue: !_gameFullyOver && activePlayers.length > 1 && players.length > 2,
+      canUndo: !_hadSuddenDeath,
       statsSkipped: _midGamePlayerChanges,
     );
   }

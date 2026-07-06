@@ -104,12 +104,13 @@ class PostGameScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop('undo'),
-                        child: const Text('↶ Back'),
+                    if (result.canUndo)
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop('undo'),
+                          child: const Text('↶ Back'),
+                        ),
                       ),
-                    ),
                     if (result.canContinue) ...[
                       const SizedBox(width: 12),
                       Expanded(

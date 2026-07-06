@@ -113,6 +113,18 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   final List<_PendingFinish> _pendingFinishes = [];
   List<int> _suddenDeathPlayers = [];
   bool _inSuddenDeath = false;
+  bool _hadSuddenDeath = false;
+
+  /// throwHistory length when the (first) sudden death began. Throws from
+  /// that index on are tiebreak throws: they decide placement but must never
+  /// feed stats — targets were reset, so SD darts would skew hit rates and
+  /// finish dart-counts (audit 2026-07-06, F4).
+  int? _suddenDeathThrowStart;
+
+  /// The throws that count toward stats: everything before sudden death.
+  List<DartThrow> get _statThrows => _suddenDeathThrowStart == null
+      ? throwHistory
+      : throwHistory.sublist(0, _suddenDeathThrowStart!);
   int _consecutiveMisses = 0;
   String? _pendingVideoEvent;
 
@@ -541,6 +553,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   void _startSuddenDeath(List<int> tiedPlayers) {
     setState(() {
       _inSuddenDeath = true;
+      _hadSuddenDeath = true;
+      _suddenDeathThrowStart ??= throwHistory.length;
       _suddenDeathPlayers = tiedPlayers;
       _playersCompletedThisRound = {};
       _roundNumber++;
@@ -802,6 +816,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
   void _undo() {
     if (throwHistory.isEmpty) return;
+    // Sudden death cannot be rewound: targets were reset when it started, so
+    // undoing into it leaves half-rewound state (audit 2026-07-06, F4).
+    if (_inSuddenDeath) return;
     _announcer.announceGameEvent('Back');
 
     final lastThrow = throwHistory.last;
@@ -944,7 +961,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
-      final playerDarts = throwHistory.where((t) => t.playerIndex == pi).toList();
+      final playerDarts = _statThrows.where((t) => t.playerIndex == pi).toList();
       int hits = 0, misses = 0;
       for (final t in playerDarts) {
         if (t.segment == 0) { misses++; }
@@ -997,7 +1014,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       ratingsAfter: _ratingsAfter,
       gameConfig: 'Around the Clock',
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
-      throwHistory: List<DartThrow>.from(throwHistory),
+      throwHistory: List<DartThrow>.from(_statThrows),
       earnedFeatsByIndex:
           buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks),
     );
@@ -1016,7 +1033,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
       if (_removedPlayerIndices.contains(i)) continue;
-      final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
+      final playerThrows = _statThrows.where((t) => t.playerIndex == i).toList();
 
       final finishIdx = rankedFinished.indexOf(i);
       final placement =
@@ -1046,6 +1063,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       results: results,
       canContinue:
           !_gameFullyOver && remainingActive.length > 1 && activeCount > 2,
+      canUndo: !_hadSuddenDeath,
     );
   }
 
