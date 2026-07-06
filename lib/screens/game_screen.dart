@@ -150,8 +150,8 @@ class _GameScreenState extends State<GameScreen> {
 
   /// Fires the post-game path as if [playerIndex] just checked out.
   /// Mirrors the finish branch inside `_onDartHit` / `_resolveRound`:
-  /// sets the player as winner, marks the game fully over, and calls
-  /// `_showPostGame()`.
+  /// sets the player as winner, marks the game fully over, previews rating
+  /// deltas and calls `_showPostGame()` (recording defers to leave).
   @visibleForTesting
   void triggerCheckoutForTest(int playerIndex) {
     setState(() {
@@ -161,7 +161,7 @@ class _GameScreenState extends State<GameScreen> {
       winnerIndex = playerIndex;
       _gameFullyOver = true;
     });
-    _showPostGame();
+    _prepareRatingPreview().then((_) => _showPostGame());
   }
 
   final ScrollController _scoreboardController = ScrollController();
@@ -571,6 +571,46 @@ class _GameScreenState extends State<GameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stats behind — the double-record fix from the
+  /// 2026-07-06 audit (F2).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Placements from finishedPlayers order; unfinished players share last.
+  List<int> _buildPlacements() {
+    return List.generate(players.length, (i) {
+      final idx = finishedPlayers.indexOf(i);
+      if (idx >= 0) return idx + 1;
+      return finishedPlayers.length + 1;
+    });
+  }
+
   Future<void> _updateStats() async {
     if (_midGamePlayerChanges) {
       // Rating and stats skipped, but still record mid-game join/leave counters
@@ -611,11 +651,7 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     // Build placements from finishedPlayers order
-    final placements = List.generate(players.length, (i) {
-      final idx = finishedPlayers.indexOf(i);
-      if (idx >= 0) return idx + 1;
-      return finishedPlayers.length + 1; // Unfinished players get last
-    });
+    final placements = _buildPlacements();
     // Build per-player mode counters
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -852,7 +888,7 @@ class _GameScreenState extends State<GameScreen> {
         await VideoService.instance.showRandomFromFolder(context, 'winner');
         if (!mounted) return;
         _announcer.announceWinner(winner.name);
-        _updateStats().then((_) => _showPostGame());
+        _prepareRatingPreview().then((_) => _showPostGame());
       } else {
         _showPostGame();
       }
@@ -876,7 +912,7 @@ class _GameScreenState extends State<GameScreen> {
           if (activePlayers.length == 1) finishedPlayers.add(activePlayers.first);
           _gameFullyOver = true;
         });
-        _updateStats().then((_) => _showPostGame());
+        _prepareRatingPreview().then((_) => _showPostGame());
         return;
       }
       // Start new round
@@ -947,7 +983,7 @@ class _GameScreenState extends State<GameScreen> {
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
       _announcer.announceWinner(winner.name);
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     } else {
       _showPostGame();
     }
@@ -1045,7 +1081,7 @@ class _GameScreenState extends State<GameScreen> {
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
       _announcer.announceWinner(winner.name);
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     } else {
       _showPostGame();
     }
@@ -1408,14 +1444,14 @@ class _GameScreenState extends State<GameScreen> {
       _announcer.announceScore('${players[currentPlayerIndex].score} remaining');
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
     } else {
-      // New Game — save stats if not already saved
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
       _log.logPostGame(action: 'newGame');
       _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: _gameFullyOver);
       BatterySampler.instance.stop();
-      if (!_gameFullyOver) {
-        _gameFullyOver = true;
-        await _updateStats();
-      }
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
@@ -2151,7 +2187,7 @@ class _GameScreenState extends State<GameScreen> {
                 }
               });
               if (_gameFullyOver) {
-                _updateStats().then((_) => _showPostGame());
+                _prepareRatingPreview().then((_) => _showPostGame());
               }
             },
             child: const Text('Remove'),
