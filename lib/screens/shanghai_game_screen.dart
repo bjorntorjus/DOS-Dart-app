@@ -21,7 +21,6 @@ import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
-import '../models/earned_feat.dart';
 import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../widgets/player_avatar.dart';
@@ -65,6 +64,22 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   @visibleForTesting
   void onUndoForTest() => _onUndo();
 
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      final removedId = players[playerIndex].savedPlayerId;
+      if (removedId != null) _leftMidGameIds.add(removedId);
+      engine.removePlayer(playerIndex);
+    });
+  }
+
+  @visibleForTesting
+  Future<void> updateStatsForTest() => _updateStats(_rankPlayers());
+
+  @visibleForTesting
+  List<HitType> get turnHitsForTest => _turnHits;
+
   final GameLogger _log = GameLogger.instance;
 
   // Per-turn hit history for the dart-slot display.
@@ -82,6 +97,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   bool _ttsEnabled = false;
 
   bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
   final DateTime _gameStart = DateTime.now();
 
   Map<String, double> _ratingsBefore = {};
@@ -295,6 +312,18 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
+    if (_midGamePlayerChanges) {
+      // Roster changed — record only join/leave counters and write NO game
+      // entry. Recording a full game here stored placement 0 for removed
+      // players (which sorts above 1st in history) and lost join/leave
+      // counters entirely (audit 2026-07-06, F10). Now matches the other
+      // five modes.
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -318,13 +347,13 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       };
     }
 
-    if (!_midGamePlayerChanges) {
-      EloService.updateRatings(
-        playerIds: players.map((p) => p.savedPlayerId).toList(),
-        placements: placements,
-        savedPlayers: savedPlayers,
-      );
-    }
+    // Reached only when the roster was unchanged (mid-game changes returned
+    // early above), so Elo / achievements / persistence always apply here.
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+    );
 
     _ratingsAfter = {};
     for (final p in players) {
@@ -333,24 +362,21 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
-    var earnedFeats = <int, List<EarnedFeat>>{};
-    if (!_midGamePlayerChanges) {
-      final events = <int, List<AchievementEvent>>{};
-      if (engine.isInstantShanghai && engine.winnerIndex != null) {
-        events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
-      }
-      final unlocks = AchievementService.instance.awardGameEnd(
-        mode: GameMode.shanghai,
-        playerIds: players.map((p) => p.savedPlayerId).toList(),
-        savedPlayers: savedPlayers,
-        placements: placements,
-        ratingsBefore: _ratingsBefore,
-        ratingsAfter: _ratingsAfter,
-        eventsByIndex: events,
-      );
-      earnedFeats =
-          buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
+    final events = <int, List<AchievementEvent>>{};
+    if (engine.isInstantShanghai && engine.winnerIndex != null) {
+      events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
     }
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.shanghai,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: events,
+    );
+    final earnedFeats =
+        buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
 
     StatsRecorder.recordGame(
       gameMode: 'shanghai',
@@ -367,9 +393,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       earnedFeatsByIndex: earnedFeats,
     );
 
-    if (!_midGamePlayerChanges) {
-      await PlayerStorage.savePlayers(savedPlayers);
-    }
+    await PlayerStorage.savePlayers(savedPlayers);
   }
 
   void _showPostGame(List<int> ranking) {
@@ -410,6 +434,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
             final lastThrow = throwHistory.removeLast();
             _turnIdCounter = lastThrow.turnId;
           }
+          // Post-game undo used to leave _turnHits stale (e.g. 3 slots after
+          // an instant Shanghai) — rebuild it from the engine (F13).
+          _rebuildTurnHits();
         });
         return;
       }
@@ -434,6 +461,35 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     return indices;
   }
 
+  /// Rebuilds the in-progress turn's dart slots ([_turnHits]) from the engine
+  /// state and throwHistory. [_turnHits] is display-only state mirroring the
+  /// engine; deriving it after an undo avoids the desync from trying to pop it
+  /// (audit 2026-07-06, F13).
+  void _rebuildTurnHits() {
+    _turnHits.clear();
+    final n = engine.dartNumber; // darts already thrown in the current turn
+    if (n <= 0) return;
+    final mine = throwHistory
+        .where((t) => t.playerIndex == engine.currentPlayerIndex)
+        .toList();
+    final slice = mine.length <= n ? mine : mine.sublist(mine.length - n);
+    for (final t in slice) {
+      _turnHits.add(_hitTypeForThrow(t));
+    }
+  }
+
+  HitType _hitTypeForThrow(DartThrow t) {
+    if (t.segment == 0) return HitType.miss;
+    switch (t.multiplier) {
+      case 2:
+        return HitType.double_;
+      case 3:
+        return HitType.triple;
+      default:
+        return HitType.single;
+    }
+  }
+
   void _onUndo() {
     if (engine.gameOver) return;
     // Add/remove player clears the engine's undo stack and engine.undo()
@@ -442,13 +498,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     if (!engine.canUndo) return;
     setState(() {
       engine.undo();
-      if (_turnHits.isNotEmpty) {
-        _turnHits.removeLast();
-      }
       if (throwHistory.isNotEmpty) {
         final lastThrow = throwHistory.removeLast();
         _turnIdCounter = lastThrow.turnId;
       }
+      // Derive the in-progress turn's slots from the engine rather than
+      // popping _turnHits — a turn-boundary undo (or post-game undo) can't be
+      // reconstructed by removeLast, which desynced the dart slots (F13).
+      _rebuildTurnHits();
     });
     _log.logUndo(
       playerIndex: engine.currentPlayerIndex,
@@ -539,6 +596,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     }
     setState(() {
       _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
         score: avgScore,
@@ -566,8 +624,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 foregroundColor: Theme.of(ctx).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
+              final removedId = players[playerIndex].savedPlayerId;
               setState(() {
                 _midGamePlayerChanges = true;
+                if (removedId != null) _leftMidGameIds.add(removedId);
                 final wasCurrent = engine.currentPlayerIndex == playerIndex;
                 engine.removePlayer(playerIndex);
                 if (wasCurrent) _turnHits.clear();

@@ -70,6 +70,8 @@ class StatsRecorder {
         for (final entry in counters.entries) {
           if (entry.key.startsWith('max:')) {
             mode.setMax(entry.key.substring(4), entry.value);
+          } else if (entry.key.startsWith('min:')) {
+            mode.setMin(entry.key.substring(4), entry.value);
           } else {
             mode.inc(entry.key, entry.value);
           }

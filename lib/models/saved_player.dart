@@ -30,6 +30,14 @@ class ModeStats {
     if (value > current) counters[key] = value;
   }
 
+  /// Set a counter to the min of current and new value. A missing/zero counter
+  /// is treated as "unset" (0 can never be a legitimate min for the stats that
+  /// use this, e.g. a finish dart-count), so the first real value always wins.
+  void setMin(String key, int value) {
+    final current = counters[key] ?? 0;
+    if (current == 0 || value < current) counters[key] = value;
+  }
+
   /// Get a counter value, defaulting to 0
   int get(String key) => counters[key] ?? 0;
 

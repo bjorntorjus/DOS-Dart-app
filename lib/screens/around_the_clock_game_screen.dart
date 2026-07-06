@@ -985,8 +985,11 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         'totalDarts': playerDarts.length,
         'totalHits': hits,
         'misses': misses,
+        // Best finish = FEWEST darts, so this is a min counter. (Was max:,
+        // which recorded the worst finish — audit 2026-07-06, F11. Existing
+        // inflated values self-heal on the next better finish.)
         if (finishedPlayers.contains(pi))
-          'max:bestDartCount': playerDarts.length,
+          'min:bestDartCount': playerDarts.length,
         'finished': finishedPlayers.contains(pi) ? 1 : 0,
         'reached': currentTargets[pi],
       };

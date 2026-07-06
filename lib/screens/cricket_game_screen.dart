@@ -1361,7 +1361,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                 children: targets.map((target) {
                   final closedByAll = _isClosedByAll(target);
                   final isBull = target == 25;
-                  final maxMarks = isBull ? 2 : 3;
+                  // Every target — Bull included — closes at 3 marks (see
+                  // _isClosed / marksForClose). The progress bar used 2 for
+                  // Bull, so it read full at 2 of 3 (audit 2026-07-06, F12).
+                  const maxMarks = 3;
 
                   return Expanded(
                     child: Container(
