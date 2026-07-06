@@ -22,6 +22,7 @@ import '../services/sound_service.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/game_detail_stats.dart';
 import '../widgets/player_avatar.dart';
 import '../models/game_result.dart';
 import '../services/game_logger.dart';
@@ -597,34 +598,15 @@ class _GameScreenState extends State<GameScreen> {
       sp.gamesPlayed++;
       if (_winnerIndexExcludingRemoved() == pi) sp.gamesWon++;
 
-      // Calculate turn scores for this player
-      final playerThrows =
-          throwHistory.where((t) => t.playerIndex == pi).toList();
-
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-
-      for (final t in playerThrows) {
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            sp.totalTurns++;
-            sp.totalTurnScore += currentTurnScore;
-            if (currentTurnScore > sp.highestTurnScore) {
-              sp.highestTurnScore = currentTurnScore;
-            }
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-      }
-      // Save last turn
-      if (currentTurnStart != null) {
-        sp.totalTurns++;
-        sp.totalTurnScore += currentTurnScore;
-        if (currentTurnScore > sp.highestTurnScore) {
-          sp.highestTurnScore = currentTurnScore;
-        }
+      // Per-turn point totals, grouped by turnId and excluding busted turns.
+      // (Grouping by scoreAtStartOfTurn would merge a busted turn into the
+      // next one at the same score and inflate totals past the 180 max —
+      // see x01TurnTotals.)
+      final turnTotals = x01TurnTotals(throwHistory, playerIndex: pi);
+      sp.totalTurns += turnTotals.length;
+      sp.totalTurnScore += turnTotals.fold<int>(0, (s, t) => s + t);
+      for (final t in turnTotals) {
+        if (t > sp.highestTurnScore) sp.highestTurnScore = t;
       }
     }
 
@@ -645,27 +627,9 @@ class _GameScreenState extends State<GameScreen> {
       int doublesHit = 0;
       int triplesHit = 0;
       int bullsHit = 0, misses = 0;
-      int totalTurnScoreMode = 0, totalTurnsMode = 0, highestTurnMode = 0;
-      int turnsOver100 = 0;
       final segmentHits = <String, int>{};
 
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-
       for (final t in playerThrows) {
-        // Turn tracking
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            totalTurnsMode++;
-            totalTurnScoreMode += currentTurnScore;
-            if (currentTurnScore > highestTurnMode) highestTurnMode = currentTurnScore;
-            if (currentTurnScore >= 100) turnsOver100++;
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-
         // Per-segment hit tracking for heatmap
         final segKey = 'seg_${t.segment}';
         segmentHits[segKey] = (segmentHits[segKey] ?? 0) + 1;
@@ -684,13 +648,13 @@ class _GameScreenState extends State<GameScreen> {
           else if (t.multiplier == 3) { triplesHit++; }
         }
       }
-      // Save last turn
-      if (currentTurnStart != null) {
-        totalTurnsMode++;
-        totalTurnScoreMode += currentTurnScore;
-        if (currentTurnScore > highestTurnMode) highestTurnMode = currentTurnScore;
-        if (currentTurnScore >= 100) turnsOver100++;
-      }
+
+      // Turn-based stats: grouped by turnId, busted turns excluded.
+      final turnTotals = x01TurnTotals(throwHistory, playerIndex: pi);
+      final totalTurnsMode = turnTotals.length;
+      final totalTurnScoreMode = turnTotals.fold<int>(0, (s, t) => s + t);
+      final highestTurnMode = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
+      final turnsOver100 = turnTotals.where((t) => t >= 100).length;
 
       // Checkout dart (if player finished)
       int bestCheckout = 0;
@@ -1295,28 +1259,11 @@ class _GameScreenState extends State<GameScreen> {
       final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
 
-      int highestTurn = 0;
-      double totalTurnScore = 0;
-      int turnCount = 0;
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-      for (final t in playerThrows) {
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-            totalTurnScore += currentTurnScore;
-            turnCount++;
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-      }
-      if (currentTurnStart != null) {
-        if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-        totalTurnScore += currentTurnScore;
-        turnCount++;
-      }
+      // Turn-based stats: grouped by turnId, busted turns excluded.
+      final turnTotals = x01TurnTotals(playerThrows, playerIndex: i);
+      final highestTurn = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
+      final turnCount = turnTotals.length;
+      final totalTurnScore = turnTotals.fold<int>(0, (s, t) => s + t);
 
       int? checkout;
       if (finishedPlayers.contains(i) && playerThrows.isNotEmpty) {
@@ -1383,30 +1330,11 @@ class _GameScreenState extends State<GameScreen> {
       final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
 
-      // Compute per-player turn scores
-      int highestTurn = 0;
-      double totalTurnScore = 0;
-      int turnCount = 0;
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-
-      for (final t in playerThrows) {
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-            totalTurnScore += currentTurnScore;
-            turnCount++;
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-      }
-      if (currentTurnStart != null) {
-        if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-        totalTurnScore += currentTurnScore;
-        turnCount++;
-      }
+      // Turn-based stats: grouped by turnId, busted turns excluded.
+      final turnTotals = x01TurnTotals(playerThrows, playerIndex: i);
+      final highestTurn = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
+      final turnCount = turnTotals.length;
+      final totalTurnScore = turnTotals.fold<int>(0, (s, t) => s + t);
 
       // Checkout score (score at start of checkout turn = what they closed from)
       int? checkout;

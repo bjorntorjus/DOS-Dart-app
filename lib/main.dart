@@ -8,6 +8,7 @@ import 'services/app_settings.dart';
 import 'services/elo_service.dart';
 import 'services/game_logger.dart';
 import 'services/player_storage.dart';
+import 'services/stats_migration.dart';
 import 'theme/classic_theme.dart';
 import 'theme/dossedart_theme.dart';
 import 'widgets/dossedart/achievement_banner.dart';
@@ -21,6 +22,11 @@ void main() async {
   // Achievements: register the catalog and silently retro-grant everything the
   // existing stats already prove (no banners for past play — spec decision #3).
   AchievementService.instance.registerCatalog(achievementCatalog);
+
+  // One-time cleanup of bust-merged X01 turn stats (the bogus >180 "highest
+  // turn" records). Runs once, before players are loaded for retro-granting.
+  await StatsMigration.runIfNeeded();
+
   final savedPlayers = await PlayerStorage.loadPlayers();
   var retroChanged = false;
   for (final p in savedPlayers) {
