@@ -217,7 +217,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     });
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
-    _ttsEnabled = TtsService.instance.enabled;
+    TtsService.instance.init().then((_) {
+      if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
+    });
   }
 
   @override

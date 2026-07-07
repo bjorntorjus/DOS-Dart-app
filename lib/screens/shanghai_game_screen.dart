@@ -8,6 +8,7 @@ import '../models/shanghai_engine.dart';
 import '../services/app_settings.dart';
 import '../services/battery_sampler.dart';
 import '../services/elo_service.dart';
+import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
@@ -92,6 +93,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   int _turnIdCounter = 0;
 
   final MemeService _meme = MemeService();
+  final GameAnnouncer _announcer = GameAnnouncer();
   bool _soundEnabled = true;
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
@@ -131,7 +133,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     AppSettings.getMemeOffensive().then((v) {
       if (mounted) setState(() => _offensiveEnabled = v);
     });
-    TtsService.instance.init().then((_) {
+    _announcer.init().then((_) {
       if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
     });
   }
@@ -228,8 +230,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     }
 
     final memeTriggered = _meme.onThrow(dartThrow);
-    if (!memeTriggered && _ttsEnabled) {
-      TtsService.instance.speak(_spokenForHit(type, target));
+    if (!memeTriggered) {
+      _announcer.announceThrow(_spokenForHit(type, target));
     }
 
     // Did the engine just advance to the next turn?
@@ -238,6 +240,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       _meme.onTurnEnd();
       _turnHits.clear();
       _turnIdCounter++;
+      if (!engine.gameOver) {
+        _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+      }
     }
 
     if (engine.gameOver) {
@@ -253,7 +258,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       gameFullyOver: true,
     );
     BatterySampler.instance.stop();
-    await _fireWinnerCelebration();
+    await _fireWinnerCelebration(players[ranking.first].name);
     if (!mounted) return;
     // Preview rating deltas so they're visible on the result screen even
     // though recording is deferred until the user leaves (audit F17).
@@ -306,14 +311,15 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     return placements;
   }
 
-  Future<void> _fireWinnerCelebration() async {
-    if (engine.isInstantShanghai && _ttsEnabled) {
-      // High-priority announcement — stop any queued TTS so this lands first.
-      TtsService.instance.stop();
-      TtsService.instance.speak('INSTANT SHANGHAI!');
+  Future<void> _fireWinnerCelebration(String winnerName) async {
+    _announcer.stop();
+    if (engine.isInstantShanghai) {
+      _announcer.announceGameEvent('Instant Shanghai!');
     }
     if (!mounted) return;
     await VideoService.instance.showRandomFromFolder(context, 'winner');
+    if (!mounted) return;
+    _announcer.announceWinner(winnerName);
   }
 
   Future<void> _updateStats(List<int> ranking) async {

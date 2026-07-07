@@ -220,7 +220,9 @@ class _GameScreenState extends State<GameScreen> {
       setState(() => _memeEnabled = v);
       _meme.setEnabled(v);
     });
-    AppSettings.getTtsEnabled().then((v) => setState(() => _ttsEnabled = v));
+    TtsService.instance.init().then((_) {
+      if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
+    });
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
   }
 

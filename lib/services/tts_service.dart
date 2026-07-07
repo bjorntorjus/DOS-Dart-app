@@ -12,6 +12,12 @@ class TtsService {
 
   final FlutterTts _tts = FlutterTts();
   bool _initialized = false;
+  // Caches the in-flight initialization so concurrent callers (e.g. a game
+  // screen's own TTS-enabled read racing GameAnnouncer.init(), which awaits
+  // this same init() internally) all await the *same* completed load instead
+  // of a second caller's guard tripping early and returning before _enabled
+  // is actually populated (F16b, audit 2026-07-06 round 4).
+  Future<void>? _initializing;
   bool _enabled = false;
   bool _speaking = false;
   final Queue<String> _queue = Queue<String>();
@@ -25,16 +31,19 @@ class TtsService {
   @visibleForTesting
   void resetForTesting() {
     _initialized = false;
+    _initializing = null;
     _enabled = false;
     _speaking = false;
     _queue.clear();
     _idleCallbacks.clear();
   }
 
-  Future<void> init() async {
-    if (_initialized) return;
-    _initialized = true;
+  Future<void> init() {
+    if (_initialized) return Future.value();
+    return _initializing ??= _doInit();
+  }
 
+  Future<void> _doInit() async {
     _enabled = await AppSettings.getTtsEnabled();
     final language = await AppSettings.getTtsLanguage();
     final voiceName = await AppSettings.getTtsVoice();
@@ -76,6 +85,8 @@ class TtsService {
       _speaking = false;
       _playNext();
     });
+
+    _initialized = true;
   }
 
   Future<void> speak(String text) async {
