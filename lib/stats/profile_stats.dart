@@ -43,7 +43,7 @@ List<FormResult> recentForm(
 class RecordTile {
   final String mode;  // mode key, drives the accent colour at the call site
   final String value; // pre-formatted display value
-  final String label; // e.g. 'høyeste runde'
+  final String label; // e.g. 'highest turn'
   const RecordTile({required this.mode, required this.value, required this.label});
 }
 
@@ -61,31 +61,31 @@ List<RecordTile> careerRecords(SavedPlayer p) {
   final out = <RecordTile>[];
   final x01 = _firstMode(p, ['x01']);
   if (x01 != null && x01.get('highestTurn') > 0) {
-    out.add(RecordTile(mode: 'x01', value: '${x01.get('highestTurn')}', label: 'høyeste runde'));
+    out.add(RecordTile(mode: 'x01', value: '${x01.get('highestTurn')}', label: 'highest turn'));
   }
   if (x01 != null && x01.get('bestCheckout') > 0) {
-    out.add(RecordTile(mode: 'x01', value: '${x01.get('bestCheckout')}', label: 'beste checkout'));
+    out.add(RecordTile(mode: 'x01', value: '${x01.get('bestCheckout')}', label: 'best checkout'));
   }
   final cri = _firstMode(p, ['cricket', 'cricket_cutthroat']);
   if (cri != null && cri.get('bestPoints') > 0) {
-    out.add(RecordTile(mode: 'cricket', value: '${cri.get('bestPoints')}', label: 'beste poeng'));
+    out.add(RecordTile(mode: 'cricket', value: '${cri.get('bestPoints')}', label: 'best points'));
   }
   final sh = _firstMode(p, ['shanghai']);
   if (sh != null && sh.get('bestScore') > 0) {
-    out.add(RecordTile(mode: 'shanghai', value: '${sh.get('bestScore')}', label: 'beste score'));
+    out.add(RecordTile(mode: 'shanghai', value: '${sh.get('bestScore')}', label: 'best score'));
   }
   final spl = _firstMode(p, ['halveIt']);
   if (spl != null && spl.get('biggestHalving') > 0) {
-    out.add(RecordTile(mode: 'halveIt', value: '${spl.get('biggestHalving')}', label: 'største halvering'));
+    out.add(RecordTile(mode: 'halveIt', value: '${spl.get('biggestHalving')}', label: 'biggest halving'));
   }
   final kil = _firstMode(p, ['killer']);
   if (kil != null && kil.get('kills') > 0) {
-    out.add(RecordTile(mode: 'killer', value: '${kil.get('kills')}', label: 'kills totalt'));
+    out.add(RecordTile(mode: 'killer', value: '${kil.get('kills')}', label: 'total kills'));
   }
   final atc = _firstMode(p, ['aroundTheClock']);
   if (atc != null && atc.get('totalDarts') > 0) {
     final rate = (atc.get('totalHits') * 100 / atc.get('totalDarts')).round();
-    out.add(RecordTile(mode: 'aroundTheClock', value: '$rate%', label: 'treff-rate'));
+    out.add(RecordTile(mode: 'aroundTheClock', value: '$rate%', label: 'hit rate'));
   }
   return out;
 }

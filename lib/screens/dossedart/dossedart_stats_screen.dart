@@ -23,7 +23,7 @@ const _modeAccent = <String, Color>{
   'aroundTheClock': DossedartTokens.orange,
 };
 
-/// Arcade statistics hub — 4 tabs: PROFIL / MODUS / HEATMAP / HISTORIKK.
+/// Arcade statistics hub — 4 tabs: PROFILE / MODES / HEATMAP / HISTORY.
 /// Reads SavedPlayer / ModeStats / GameHistory (no new storage). The classic
 /// Material StatsScreen stays for the non-arcade path; this is the DOSSEDART one.
 class DossedartStatsScreen extends StatefulWidget {
@@ -55,8 +55,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   List<SavedPlayer> get _visiblePlayers =>
       _players.where((p) => !p.archived).toList();
 
-  String? _selectedPlayerId; // PROFIL
-  int _modeIndex = 0; // MODUS
+  String? _selectedPlayerId; // PROFILE
+  int _modeIndex = 0; // MODES
   int _heatmapModeIndex = 0; // HEATMAP
   String? _heatmapPlayerId;
 
@@ -113,7 +113,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
               ),
               if (!_loading && _visiblePlayers.isNotEmpty)
                 _ArcadeTabBar(
-                  labels: const ['PROFIL', 'MODUS', 'HEATMAP', 'HISTORIKK'],
+                  labels: const ['PROFILE', 'MODES', 'HEATMAP', 'HISTORY'],
                   index: _tabs.index,
                   onTap: (i) => _tabs.animateTo(i),
                 ),
@@ -140,7 +140,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     );
   }
 
-  // ───────────────────────── PROFIL ─────────────────────────
+  // ───────────────────────── PROFILE ─────────────────────────
 
   Widget _buildProfil() {
     final p = _selected ?? _visiblePlayers.first;
@@ -164,10 +164,10 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
           ),
           const SizedBox(height: 14),
         ],
-        _SectionCard(title: 'STREAKS & TOPP', child: _StreaksCard(player: p)),
+        _SectionCard(title: 'STREAKS & TOP', child: _StreaksCard(player: p)),
         const SizedBox(height: 14),
         if (records.isNotEmpty) ...[
-          _SectionCard(title: 'REKORDER', child: _RecordsGrid(records: records)),
+          _SectionCard(title: 'RECORDS', child: _RecordsGrid(records: records)),
           const SizedBox(height: 14),
         ],
         _SectionCard(
@@ -252,7 +252,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         final avg = ms.get('totalTurns') > 0
             ? (ms.get('totalTurnScore') / ms.get('totalTurns')).toStringAsFixed(1)
             : '–';
-        return ['snitt $avg', 'best ${ms.get('highestTurn')}', '100+ ${ms.get('turnsOver100')}'];
+        return ['avg $avg', 'best ${ms.get('highestTurn')}', '100+ ${ms.get('turnsOver100')}'];
       case 'cricket':
         final mpr = ms.get('totalDarts') > 0
             ? (ms.get('marksScored') / (ms.get('totalDarts') / 3)).toStringAsFixed(1)
@@ -262,14 +262,14 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         final rate = ms.get('totalDarts') > 0
             ? (ms.get('totalHits') * 100 / ms.get('totalDarts')).round()
             : 0;
-        return ['treff $rate%'];
+        return ['hits $rate%'];
       case 'shanghai':
         final avg = ms.get('totalGames') > 0
             ? (ms.get('totalScore') / ms.get('totalGames')).toStringAsFixed(0)
             : '–';
-        return ['best ${ms.get('bestScore')}', 'snitt $avg'];
+        return ['best ${ms.get('bestScore')}', 'avg $avg'];
       case 'halveIt':
-        return ['best ${ms.get('bestScore')}', 'halvering ${ms.get('biggestHalving')}'];
+        return ['best ${ms.get('bestScore')}', 'halving ${ms.get('biggestHalving')}'];
       case 'killer':
         return ['kills ${ms.get('kills')}'];
       default:
@@ -312,7 +312,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     }).toList();
   }
 
-  // ───────────────────────── MODUS ─────────────────────────
+  // ───────────────────────── MODES ─────────────────────────
 
   Widget _buildModus() {
     final mode = _modes[_modeIndex];
@@ -384,7 +384,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     );
   }
 
-  // ───────────────────────── HISTORIKK ─────────────────────────
+  // ───────────────────────── HISTORY ─────────────────────────
 
   Widget _buildHistorikk() {
     if (_history.isEmpty) {
@@ -559,13 +559,13 @@ class _StreaksCard extends StatelessWidget {
     final best = bestRank(player);
     final tiles = <(String, String, Color)>[
       (
-        'NÅ PÅ RAD',
-        onStreak ? '🔥 ${player.currentWinStreak}' : '${player.currentLossStreak} tap',
+        'CURRENT STREAK',
+        onStreak ? '🔥 ${player.currentWinStreak}' : '${player.currentLossStreak} losses',
         onStreak ? DossedartTokens.orange : DossedartTokens.red,
       ),
-      ('BESTE STREAK', '${player.bestWinStreak}', DossedartTokens.green),
-      ('RATING-TOPP', peak == null ? '–' : '${peak.round()}', DossedartTokens.yellow),
-      ('BESTE RANK', best == null ? '–' : '#$best', DossedartTokens.silver),
+      ('BEST STREAK', '${player.bestWinStreak}', DossedartTokens.green),
+      ('PEAK RATING', peak == null ? '–' : '${peak.round()}', DossedartTokens.yellow),
+      ('BEST RANK', best == null ? '–' : '#$best', DossedartTokens.silver),
     ];
     return Row(
       children: [
@@ -809,7 +809,7 @@ class _ProfileHero extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '· ${player.gamesPlayed} kamper · siden ${_monthAbbr(player.createdAt)}',
+                        '· ${player.gamesPlayed} games · since ${_monthAbbr(player.createdAt)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -953,7 +953,7 @@ class _HistoryRow extends StatelessWidget {
                 style: const TextStyle(color: DossedartTokens.phosphor, fontSize: 11),
               ),
               const SizedBox(width: 8),
-              const Text('DETALJER ›',
+              const Text('DETAILS ›',
                   style: TextStyle(
                       fontFamily: 'PressStart2P',
                       fontSize: 8,
@@ -1070,7 +1070,7 @@ class _RatingSparkline extends CustomPainter {
 }
 
 const _months = [
-  'jan', 'feb', 'mar', 'apr', 'mai', 'jun',
-  'jul', 'aug', 'sep', 'okt', 'nov', 'des'
+  'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+  'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
 ];
 String _monthAbbr(DateTime d) => "${_months[d.month - 1]} '${d.year % 100}";

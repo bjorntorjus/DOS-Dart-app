@@ -10,11 +10,11 @@ import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
 import '../../widgets/dossedart/dossedart_player_avatar.dart';
 
-/// KAMPDETALJER — drill-down for a single recorded game, reached from HISTORIKK.
+/// MATCH DETAILS — drill-down for a single recorded game, reached from HISTORY.
 /// Faithful to the design handoff (game-detail.jsx): banner, standings + ΔELO,
 /// leg-progression chart, per-player comparison, earned feats, round-by-round
-/// log. Section order tuned per request: chart high, PER SPILLER prominent,
-/// RUNDE FOR RUNDE at the bottom. Games without throwHistory show an empty
+/// log. Section order tuned per request: chart high, PER PLAYER prominent,
+/// ROUND BY ROUND at the bottom. Games without throwHistory show an empty
 /// state for the play-by-play. All logic reuses the stats/* derivations.
 class GameDetailScreen extends StatelessWidget {
   const GameDetailScreen({super.key, required this.entry});
@@ -43,37 +43,37 @@ class GameDetailScreen extends StatelessWidget {
                   children: [
                     _Banner(entry: entry, winner: ranked.first),
 
-                    const _SectionLabel('SLUTTSTILLING'),
+                    const _SectionLabel('FINAL STANDINGS'),
                     for (final p in ranked) _StandingRow(player: p),
 
                     // Graph stays near the top — it tells the match's story.
-                    const _SectionLabel('SPILLFORLØP',
-                        color: DossedartTokens.cyan, right: 'kappløpet'),
+                    const _SectionLabel('MATCH FLOW',
+                        color: DossedartTokens.cyan, right: 'the race'),
                     if (hasThrows)
                       _ProgressSection(entry: entry)
                     else
                       const _Pad(
-                        child: Text('Forløp ikke lagret for denne kampen',
+                        child: Text('Play-by-play not saved for this match',
                             style: TextStyle(
                                 color: DossedartTokens.phosphor,
                                 fontFamily: 'VT323',
                                 fontSize: 16)),
                       ),
 
-                    // PER SPILLER promoted above the round log (more to chew on).
-                    const _SectionLabel('PER SPILLER', right: 'side om side'),
+                    // PER PLAYER promoted above the round log (more to chew on).
+                    const _SectionLabel('PER PLAYER', right: 'side by side'),
                     _StatGrid(entry: entry),
 
                     if (hasFeats) ...[
-                      const _SectionLabel('PRESTASJONER DENNE KAMPEN',
+                      const _SectionLabel('ACHIEVEMENTS THIS MATCH',
                           color: DossedartTokens.yellow,
-                          right: 'hva hver spiller oppnådde'),
+                          right: 'what each player achieved'),
                       _FeatsGrid(players: entry.players),
                     ],
 
                     if (hasThrows) ...[
-                      const _SectionLabel('RUNDE FOR RUNDE',
-                          color: DossedartTokens.magenta, right: 'pil for pil'),
+                      const _SectionLabel('ROUND BY ROUND',
+                          color: DossedartTokens.magenta, right: 'dart by dart'),
                       _RoundLog(entry: entry),
                     ],
                   ],
@@ -137,7 +137,7 @@ class _Header extends StatelessWidget {
           GestureDetector(
             onTap: onBack,
             behavior: HitTestBehavior.opaque,
-            child: const Text('◀ HISTORIKK',
+            child: const Text('◀ HISTORY',
                 style: TextStyle(
                     fontFamily: 'VT323',
                     fontSize: 18,
@@ -147,7 +147,7 @@ class _Header extends StatelessWidget {
           ),
           const Expanded(
             child: Center(
-              child: Text('KAMPDETALJER',
+              child: Text('MATCH DETAILS',
                   style: TextStyle(
                       fontFamily: 'PressStart2P',
                       fontSize: 12,
@@ -209,9 +209,9 @@ class _Banner extends StatelessWidget {
   Widget build(BuildContext context) {
     final stats = <(String, String)>[
       if (entry.durationSeconds != null)
-        ('VARIGHET', formatDuration(entry.durationSeconds!)),
-      if (entry.rounds != null) ('RUNDER', '${entry.rounds}'),
-      ('VINNER', winner.name),
+        ('DURATION', formatDuration(entry.durationSeconds!)),
+      if (entry.rounds != null) ('ROUNDS', '${entry.rounds}'),
+      ('WINNER', winner.name),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -259,7 +259,7 @@ class _Banner extends StatelessWidget {
                         style: TextStyle(
                             fontFamily: 'PressStart2P',
                             fontSize: 11,
-                            color: label == 'VINNER'
+                            color: label == 'WINNER'
                                 ? DossedartTokens.cyan
                                 : Colors.white)),
                     const SizedBox(height: 4),
@@ -289,7 +289,7 @@ class _StandingRow extends StatelessWidget {
     final delta = player.ratingDelta;
     final darts = player.stats['darts'] ?? player.stats['totalDarts'];
     final subtitle =
-        isTop ? 'Vant' : (darts != null ? '$darts piler' : 'Fullførte');
+        isTop ? 'Won' : (darts != null ? '$darts darts' : 'Finished');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Container(
@@ -439,7 +439,7 @@ class _FeatChip extends StatelessWidget {
                     ),
                     if (isUnlock) ...[
                       const SizedBox(width: 7),
-                      Text('NY',
+                      Text('NEW',
                           style: TextStyle(
                               fontFamily: 'VT323', fontSize: 12, color: c, letterSpacing: 1)),
                     ],
@@ -534,7 +534,7 @@ class _ProgressSection extends StatelessWidget {
     final progression = progressionForEntry(entry);
     if (progression == null) {
       return const _Pad(
-        child: Text('Graf utilgjengelig for denne modusen',
+        child: Text('Graph unavailable for this mode',
             style: TextStyle(
                 color: DossedartTokens.phosphor,
                 fontFamily: 'VT323',
@@ -728,15 +728,15 @@ class _StatGrid extends StatelessWidget {
           x01GridStats(entry.throwHistory!, playerIndex: i),
       ];
       return [
-        _GridRowData('3-PILERS SNITT', [for (final x in s) x.avg3],
+        _GridRowData('3-DART AVERAGE', [for (final x in s) x.avg3],
             [for (final x in s) x.avg3.toStringAsFixed(1)], true),
-        _GridRowData('BESTE RUNDE', [for (final x in s) x.bestTurn],
+        _GridRowData('BEST TURN', [for (final x in s) x.bestTurn],
             [for (final x in s) '${x.bestTurn}'], true),
         _GridRowData('180 / 140+', [for (final _ in s) null],
             [for (final x in s) '${x.n180} / ${x.n140}'], false),
-        _GridRowData('DOBLER', [for (final x in s) x.doublesHit],
+        _GridRowData('DOUBLES', [for (final x in s) x.doublesHit],
             [for (final x in s) '${x.doublesHit}'], true),
-        _GridRowData('PILER KASTET', [for (final x in s) x.darts],
+        _GridRowData('DARTS THROWN', [for (final x in s) x.darts],
             [for (final x in s) '${x.darts}'], false),
       ];
     }
@@ -774,7 +774,7 @@ class _StatGrid extends StatelessWidget {
                 children: [
                   const Expanded(
                     flex: 14,
-                    child: Text('STATISTIKK',
+                    child: Text('STATISTICS',
                         style: TextStyle(
                             fontFamily: 'PressStart2P',
                             fontSize: 8,
@@ -934,7 +934,7 @@ class _RoundLogState extends State<_RoundLog> {
                   padding: const EdgeInsets.only(top: 12),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('VIS ALLE ${rounds.length} RUNDER ›',
+                    child: Text('SHOW ALL ${rounds.length} ROUNDS ›',
                         style: const TextStyle(
                             fontFamily: 'VT323',
                             fontSize: 15,
@@ -1030,7 +1030,7 @@ class _PlayerTurn extends StatelessWidget {
                       color: is180 ? DossedartTokens.yellow : Colors.white)),
               if (remaining != null && remaining >= 0) ...[
                 const SizedBox(width: 6),
-                Text('$remaining igjen',
+                Text('$remaining left',
                     style: const TextStyle(
                         fontFamily: 'VT323',
                         fontSize: 13,

@@ -36,10 +36,10 @@ void main() {
     await _seed([_player('1', 'Ada', 1300)]);
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
     await tester.pumpAndSettle();
-    expect(find.text('PROFIL'), findsOneWidget);
-    expect(find.text('MODUS'), findsOneWidget);
+    expect(find.text('PROFILE'), findsOneWidget);
+    expect(find.text('MODES'), findsOneWidget);
     expect(find.text('HEATMAP'), findsOneWidget);
-    expect(find.text('HISTORIKK'), findsOneWidget);
+    expect(find.text('HISTORY'), findsOneWidget);
   });
 
   testWidgets('PROFIL defaults to highest-rated and selector switches player',
@@ -67,7 +67,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('PRESTASJONER'), findsOneWidget);
+    expect(find.text('ACHIEVEMENTS'), findsOneWidget);
     await tester.ensureVisible(find.text('VIEW ALL'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('VIEW ALL'));
@@ -118,20 +118,20 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('HISTORIKK'));
+    await tester.tap(find.text('HISTORY'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('DETALJER ›'));
+    await tester.tap(find.text('DETAILS ›'));
     await tester.pumpAndSettle();
 
     expect(find.byType(GameDetailScreen), findsOneWidget);
-    expect(find.text('KAMPDETALJER'), findsOneWidget);
+    expect(find.text('MATCH DETAILS'), findsOneWidget);
   });
 
   testWidgets('hero shows games count and member-since', (tester) async {
     await _seed([_player('1', 'Ada', 1300)]); // _player sets gamesPlayed: 4
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
     await tester.pumpAndSettle();
-    expect(find.textContaining('4 kamper'), findsOneWidget);
+    expect(find.textContaining('4 games'), findsOneWidget);
   });
 
   testWidgets('empty state when no saved players', (tester) async {
@@ -170,7 +170,7 @@ void main() {
     ]);
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
     await tester.pumpAndSettle();
-    expect(find.text('STREAKS & TOPP'), findsOneWidget);
+    expect(find.text('STREAKS & TOP'), findsOneWidget);
     expect(find.textContaining('1361'), findsWidgets); // rating peak
   });
 
@@ -193,9 +193,9 @@ void main() {
     });
     await tester.pumpWidget(const MaterialApp(home: DossedartStatsScreen()));
     await tester.pumpAndSettle();
-    expect(find.text('REKORDER'), findsOneWidget);
+    expect(find.text('RECORDS'), findsOneWidget);
     expect(find.text('180'), findsWidgets);
-    expect(find.text('høyeste runde'), findsOneWidget);
+    expect(find.text('highest turn'), findsOneWidget);
   });
 
   testWidgets('PER MODE row shows depth stats (avg/best) for X01', (tester) async {

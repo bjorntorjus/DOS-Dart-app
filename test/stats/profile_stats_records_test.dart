@@ -29,9 +29,9 @@ void main() {
   test('careerRecords picks max: counters and ATC hit-rate, skips unplayed', () {
     final recs = careerRecords(_p());
     final byLabel = {for (final r in recs) r.label: r};
-    expect(byLabel['høyeste runde']!.value, '180');
-    expect(byLabel['beste checkout']!.value, '121');
-    expect(byLabel['treff-rate']!.value, '92%'); // 92/100
+    expect(byLabel['highest turn']!.value, '180');
+    expect(byLabel['best checkout']!.value, '121');
+    expect(byLabel['hit rate']!.value, '92%'); // 92/100
     expect(recs.any((r) => r.mode == 'shanghai'), isFalse); // not played
   });
 

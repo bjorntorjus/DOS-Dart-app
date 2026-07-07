@@ -39,7 +39,7 @@ void main() {
         .pumpWidget(MaterialApp(home: GameDetailScreen(entry: _x01Entry())));
     await tester.pumpAndSettle();
 
-    expect(find.text('KAMPDETALJER'), findsOneWidget);
+    expect(find.text('MATCH DETAILS'), findsOneWidget);
     expect(find.text('Jonas'), findsWidgets);
     expect(find.text('Mia'), findsWidgets);
     expect(find.textContaining('501'), findsWidgets); // banner config
@@ -69,7 +69,7 @@ void main() {
         .pumpWidget(MaterialApp(home: GameDetailScreen(entry: entry)));
     await tester.pumpAndSettle();
 
-    expect(find.text('PRESTASJONER DENNE KAMPEN'), findsOneWidget);
+    expect(find.text('ACHIEVEMENTS THIS MATCH'), findsOneWidget);
     expect(find.text('180!'), findsOneWidget);
   });
 
@@ -91,8 +91,8 @@ void main() {
         MaterialApp(home: GameDetailScreen(entry: _x01Entry(throws: throws))));
     await tester.pumpAndSettle();
 
-    expect(find.text('SPILLFORLØP'), findsOneWidget);
-    expect(find.text('RUNDE FOR RUNDE'), findsOneWidget);
+    expect(find.text('MATCH FLOW'), findsOneWidget);
+    expect(find.text('ROUND BY ROUND'), findsOneWidget);
     expect(find.text('T20'), findsWidgets); // round-log throw chips
   });
 
@@ -119,7 +119,7 @@ void main() {
         MaterialApp(home: GameDetailScreen(entry: _x01Entry(throws: throws))));
     await tester.pumpAndSettle();
 
-    expect(find.text('PER SPILLER'), findsOneWidget);
+    expect(find.text('PER PLAYER'), findsOneWidget);
     final better = tester.widget<Text>(find.text('180.0'));
     expect(better.style?.color, const Color(0xFF3DFF8E)); // DossedartTokens.green
     final worse = tester.widget<Text>(find.text('60.0'));
@@ -137,9 +137,9 @@ void main() {
         MaterialApp(home: GameDetailScreen(entry: _x01Entry()))); // throws: null
     await tester.pumpAndSettle();
 
-    expect(find.text('Forløp ikke lagret for denne kampen'), findsOneWidget);
-    expect(find.text('RUNDE FOR RUNDE'), findsNothing);
-    expect(find.text('SLUTTSTILLING'), findsOneWidget); // standings still shown
-    expect(find.text('PER SPILLER'), findsOneWidget); // grid (from stored stats)
+    expect(find.text('Play-by-play not saved for this match'), findsOneWidget);
+    expect(find.text('ROUND BY ROUND'), findsNothing);
+    expect(find.text('FINAL STANDINGS'), findsOneWidget); // standings still shown
+    expect(find.text('PER PLAYER'), findsOneWidget); // grid (from stored stats)
   });
 }

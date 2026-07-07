@@ -6,7 +6,7 @@ import '../../../screens/dossedart/achievements_gallery_screen.dart';
 import '../../../theme/dossedart_tokens.dart';
 import '../achievement_medal.dart';
 
-/// PROFIL-tab achievements section: unlocked count + a row of recent medals +
+/// PROFILE-tab achievements section: unlocked count + a row of recent medals +
 /// a few "still to unlock" badges + a button into the full gallery.
 class PrestasjonerSection extends StatelessWidget {
   const PrestasjonerSection({super.key, required this.player});
@@ -48,7 +48,7 @@ class PrestasjonerSection extends StatelessWidget {
             children: [
               const Expanded(
                 child: Text(
-                  'PRESTASJONER',
+                  'ACHIEVEMENTS',
                   style: TextStyle(
                     fontFamily: 'PressStart2P',
                     fontSize: 12,
