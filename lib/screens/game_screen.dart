@@ -164,6 +164,7 @@ class _GameScreenState extends State<GameScreen> {
 
   final ScrollController _scoreboardController = ScrollController();
   bool _soundEnabled = true;
+  bool _memeEnabled = false;
   bool _ttsEnabled = false;
   bool _offensiveEnabled = false;
   bool _missSoundPlayed = false;
@@ -214,6 +215,9 @@ class _GameScreenState extends State<GameScreen> {
     AppSettings.getSoundEffectsEnabled().then((v) {
       setState(() => _soundEnabled = v);
       SoundService.instance.setEnabled(v);
+    });
+    AppSettings.getMemeEnabled().then((v) {
+      setState(() => _memeEnabled = v);
       _meme.setEnabled(v);
     });
     AppSettings.getTtsEnabled().then((v) => setState(() => _ttsEnabled = v));
@@ -1139,7 +1143,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _onMiss() {
     _missSoundPlayed = false;
-    if (_soundEnabled) {
+    if (_memeEnabled) {
       _missSoundPlayed = SoundService.instance.playRandomMaybe([
         'miss',
         if (_offensiveEnabled) 'miss/offensive',
@@ -1672,7 +1676,7 @@ class _GameScreenState extends State<GameScreen> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             tooltip: 'More',
-            onSelected: (value) {
+            onSelected: (value) async {
               switch (value) {
                 case 'players':
                   if (!_gameFullyOver) _openPlayerManagement();
@@ -1680,16 +1684,24 @@ class _GameScreenState extends State<GameScreen> {
                 case 'sound':
                   setState(() => _soundEnabled = !_soundEnabled);
                   SoundService.instance.setEnabled(_soundEnabled);
-                  _meme.setEnabled(_soundEnabled);
                   AppSettings.setSoundEffectsEnabled(_soundEnabled);
-                  AppSettings.setMemeEnabled(_soundEnabled);
                   break;
                 case 'tts':
-                  setState(() => _ttsEnabled = !_ttsEnabled);
-                  TtsService.instance.setEnabled(_ttsEnabled);
+                  await TtsService.instance.setEnabled(!_ttsEnabled);
+                  setState(() => _ttsEnabled = TtsService.instance.enabled);
                   break;
-                case 'sound_settings':
-                  _showSoundSettingsDialog();
+                case 'meme':
+                  setState(() => _memeEnabled = !_memeEnabled);
+                  AppSettings.setMemeEnabled(_memeEnabled);
+                  _meme.setEnabled(_memeEnabled);
+                  break;
+                case 'meme_freq':
+                  _showMemeFrequencyDialog();
+                  break;
+                case 'offensive':
+                  setState(() => _offensiveEnabled = !_offensiveEnabled);
+                  AppSettings.setMemeOffensive(_offensiveEnabled);
+                  _meme.setOffensive(_offensiveEnabled);
                   break;
               }
             },
@@ -1710,8 +1722,7 @@ class _GameScreenState extends State<GameScreen> {
                 value: 'sound',
                 child: Row(
                   children: [
-                    Text(_soundEnabled ? '🤡' : '🤐',
-                        style: const TextStyle(fontSize: 20)),
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
                     const SizedBox(width: 12),
                     Text(_soundEnabled ? 'Sound on' : 'Sound off'),
                   ],
@@ -1727,17 +1738,43 @@ class _GameScreenState extends State<GameScreen> {
                   ],
                 ),
               ),
-              if (_soundEnabled)
+              PopupMenuItem(
+                value: 'meme',
+                child: Row(
+                  children: [
+                    Text(_memeEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_memeEnabled ? 'Memes on' : 'Memes off'),
+                  ],
+                ),
+              ),
+              if (_memeEnabled) ...[
                 const PopupMenuItem(
-                  value: 'sound_settings',
+                  value: 'meme_freq',
                   child: Row(
                     children: [
                       Icon(Icons.tune),
                       SizedBox(width: 12),
-                      Text('Sound settings'),
+                      Text('Meme frequency'),
                     ],
                   ),
                 ),
+                PopupMenuItem(
+                  value: 'offensive',
+                  child: Row(
+                    children: [
+                      Icon(_offensiveEnabled
+                          ? Icons.whatshot
+                          : Icons.whatshot_outlined),
+                      const SizedBox(width: 12),
+                      Text(_offensiveEnabled
+                          ? 'Offensive on'
+                          : 'Offensive off'),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ],
@@ -2047,33 +2084,16 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  void _showSoundSettingsDialog() {
+  void _showMemeFrequencyDialog() {
     int currentFreq = _meme.frequency;
-    bool currentOffensive = _offensiveEnabled;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Sound settings'),
+          title: const Text('Meme frequency'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Offensive sounds'),
-                  Switch(
-                    value: currentOffensive,
-                    onChanged: (v) => setDialogState(() => currentOffensive = v),
-                    activeTrackColor: Theme.of(ctx).colorScheme.primary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Meme frequency'),
-              ),
               Slider(
                 value: currentFreq.toDouble(),
                 min: 1,
@@ -2088,7 +2108,9 @@ class _GameScreenState extends State<GameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                onChanged: (v) => setDialogState(() => currentFreq = v.round()),
+                onChanged: (v) {
+                  setDialogState(() => currentFreq = v.round());
+                },
               ),
               Text(
                 currentFreq == 1
@@ -2111,9 +2133,6 @@ class _GameScreenState extends State<GameScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                setState(() => _offensiveEnabled = currentOffensive);
-                AppSettings.setMemeOffensive(currentOffensive);
-                _meme.setOffensive(currentOffensive);
                 _meme.setFrequency(currentFreq);
                 AppSettings.setMemeFrequency(currentFreq);
                 Navigator.of(ctx).pop();

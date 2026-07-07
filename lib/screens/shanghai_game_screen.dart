@@ -92,6 +92,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   int _turnIdCounter = 0;
 
   final MemeService _meme = MemeService();
+  bool _soundEnabled = true;
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
   bool _ttsEnabled = false;
@@ -120,6 +121,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     );
     BatterySampler.instance.start('Shanghai');
     _meme.init();
+    AppSettings.getSoundEffectsEnabled().then((v) {
+      if (mounted) setState(() => _soundEnabled = v);
+      SoundService.instance.setEnabled(v);
+    });
     AppSettings.getMemeEnabled().then((v) {
       if (mounted) setState(() => _memeEnabled = v);
     });
@@ -992,6 +997,11 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 case 'players':
                   if (!engine.gameOver) _openPlayerManagement();
                   break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
+                  break;
                 case 'tts':
                   await TtsService.instance.setEnabled(!_ttsEnabled);
                   setState(() => _ttsEnabled = TtsService.instance.enabled);
@@ -1025,10 +1035,20 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
               ),
               const PopupMenuDivider(),
               PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'tts',
                 child: Row(
                   children: [
-                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
                     const SizedBox(width: 12),
                     Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
                   ],

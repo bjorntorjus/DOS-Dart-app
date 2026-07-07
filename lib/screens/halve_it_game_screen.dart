@@ -103,6 +103,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
   final ScrollController _scoreboardController = ScrollController();
+  bool _soundEnabled = true;
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
   bool _ttsEnabled = false;
@@ -134,6 +135,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     }
     _announcer.init();
     _meme.init();
+    AppSettings.getSoundEffectsEnabled().then((v) {
+      if (mounted) setState(() => _soundEnabled = v);
+      SoundService.instance.setEnabled(v);
+    });
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
     _ttsEnabled = TtsService.instance.enabled;
@@ -1119,6 +1124,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 case 'players':
                   if (!gameOver) _openPlayerManagement();
                   break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
+                  break;
                 case 'tts':
                   await TtsService.instance.setEnabled(!_ttsEnabled);
                   setState(() => _ttsEnabled = TtsService.instance.enabled);
@@ -1152,10 +1162,20 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               ),
               const PopupMenuDivider(),
               PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'tts',
                 child: Row(
                   children: [
-                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
                     const SizedBox(width: 12),
                     Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
                   ],
