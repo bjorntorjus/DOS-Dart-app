@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../models/cricket_engine.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
@@ -54,18 +55,23 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
   late List<Player> players;
   late List<int> targets;
-  late List<Map<int, int>> marks;
-  late List<int> scores;
-  int currentPlayerIndex = 0;
-  int dartsInTurn = 0;
+  late CricketEngine engine;
   int _turnIdCounter = 0;
   List<DartThrow> throwHistory = [];
-  int? winnerIndex;
   String? lastThrowLabel;
-  List<int> finishedPlayers = [];
   bool _gameFullyOver = false;
 
-  final List<_CricketUndoData> _undoStack = [];
+  // Delegating views onto the engine — all rules state (marks, scores,
+  // rotation, darts-in-turn, finished/removed players, winner) lives in the
+  // engine. These keep the ~1800 lines of UI code reading by the same names.
+  List<Map<int, int>> get marks => engine.marks;
+  List<int> get scores => engine.scores;
+  int get currentPlayerIndex => engine.currentPlayerIndex;
+  int get dartsInTurn => engine.dartsInTurn;
+  List<int> get finishedPlayers => engine.finishedPlayers;
+  int? get winnerIndex => engine.winnerIndexExcludingSkipped();
+  Set<int> get _removedPlayerIndices => engine.skippedIndices;
+
   final GameAnnouncer _announcer = GameAnnouncer();
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
@@ -83,9 +89,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     super.initState();
     players = widget.players;
     targets = widget.config.generateTargets();
-    marks = List.generate(
-        players.length, (_) => {for (final t in targets) t: 0});
-    scores = List.filled(players.length, 0, growable: true);
+    engine = CricketEngine(
+      targets: targets,
+      isCutthroat: widget.config.isCutthroat,
+      playerCount: players.length,
+    );
     for (final p in players) {
       p.score = 0;
     }
@@ -125,77 +133,28 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return (turnsForCurrentPlayer ~/ 3) + 1;
   }
 
-  bool _isClosed(int target, int playerIndex) =>
-      (marks[playerIndex][target] ?? 0) >= 3;
-
-  bool _isClosedByAll(int target) {
-    for (int i = 0; i < players.length; i++) {
-      if (!_isClosed(target, i)) return false;
-    }
-    return true;
-  }
-
-  bool _allClosedByPlayer(int playerIndex) =>
-      targets.every((t) => _isClosed(t, playerIndex));
-
-  void _checkWinner() {
-    for (int i = 0; i < players.length; i++) {
-      if (finishedPlayers.contains(i)) continue;
-      if (_allClosedByPlayer(i)) {
-        bool canFinish = true;
-        for (int j = 0; j < players.length; j++) {
-          if (j == i || finishedPlayers.contains(j)) continue;
-          if (widget.config.isCutthroat) {
-            // Cutthroat: must have lowest (or tied) score to finish
-            if (scores[j] < scores[i]) { canFinish = false; break; }
-          } else {
-            // Standard: must have highest (or tied) score to finish
-            if (scores[j] > scores[i]) { canFinish = false; break; }
-          }
-        }
-        if (canFinish) {
-          finishedPlayers.add(i);
-          final activePlayers = List.generate(players.length, (idx) => idx)
-              .where((idx) => !finishedPlayers.contains(idx))
-              .toList();
-          if (activePlayers.length <= 1) {
-            if (activePlayers.length == 1) finishedPlayers.add(activePlayers.first);
-            winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
-            _gameFullyOver = true;
-          } else {
-            winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
-          }
-          return;
-        }
-      }
-    }
-  }
-
   Future<void> _registerHit(int segment, int multiplier) async {
     if (finishedPlayers.contains(currentPlayerIndex)) return;
 
     final points = segment * multiplier;
     final roundNum = _roundNumber;
-    final scoreBefore = scores[currentPlayerIndex];
-
-    _undoStack.add(_CricketUndoData(
-      playerIndex: currentPlayerIndex,
-      dartsInTurn: dartsInTurn,
-      marksBefore: {
-        for (final t in targets) t: marks[currentPlayerIndex][t] ?? 0
-      },
-      scoresBefore: List.from(scores),
-      finishedPlayersBefore: List.from(finishedPlayers),
-    ));
+    // Capture the pre-hit state the log/label/announcer lines need — the engine
+    // advances the current player internally on a turn end, so these must be
+    // read before applyHit.
+    final playerIdxBefore = engine.currentPlayerIndex;
+    final scoreBefore = engine.scores[playerIdxBefore];
+    final isTargetSegment = segment > 0 && targets.contains(segment);
+    final marksBeforeSeg =
+        isTargetSegment ? (engine.marks[playerIdxBefore][segment] ?? 0) : 0;
 
     final dartThrow = DartThrow(
-      playerIndex: currentPlayerIndex,
+      playerIndex: playerIdxBefore,
       segment: segment,
       multiplier: multiplier,
       points: points,
-      scoreBefore: scores[currentPlayerIndex],
-      turnNumber: dartsInTurn,
-      scoreAtStartOfTurn: scores[currentPlayerIndex],
+      scoreBefore: scoreBefore,
+      turnNumber: engine.dartsInTurn,
+      scoreAtStartOfTurn: scoreBefore,
       turnId: _turnIdCounter,
     );
 
@@ -214,58 +173,37 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       _consecutiveMisses = 0;
     }
 
-    bool isTurnEnd = false;
+    late final CricketHitResult result;
 
     setState(() {
       throwHistory.add(dartThrow);
 
+      // All scoring / overflow / cutthroat / mark bookkeeping happens in the
+      // engine. applyHit also pushes its own undo snapshot, runs the winner
+      // check, and (on a non-finishing turn end) advances the current player.
+      result = engine.applyHit(segment, multiplier);
+
       String? extraInfo;
 
-      if (segment > 0 && targets.contains(segment)) {
-        final currentMarks = marks[currentPlayerIndex][segment] ?? 0;
-        final marksToAdd = multiplier == 0 ? 0 : multiplier;
-        final newMarks = currentMarks + marksToAdd;
-        final marksForClose = 3 - currentMarks;
-        final closingMarks =
-            marksToAdd.clamp(0, marksForClose.clamp(0, marksToAdd));
-        final overflowMarks = marksToAdd - closingMarks;
-
-        marks[currentPlayerIndex][segment] = newMarks;
-
-        if (overflowMarks > 0) {
-          bool allOthersClosed = true;
-          for (int j = 0; j < players.length; j++) {
-            if (j != currentPlayerIndex && !_isClosed(segment, j)) {
-              allOthersClosed = false;
-              break;
-            }
-          }
-          if (!allOthersClosed) {
-            final pts = segment * overflowMarks;
-            if (widget.config.isCutthroat) {
-              // Cutthroat: give points to opponents who haven't closed
-              for (int j = 0; j < players.length; j++) {
-                if (j != currentPlayerIndex && !_isClosed(segment, j) && !finishedPlayers.contains(j)) {
-                  scores[j] += pts;
-                  players[j].score = scores[j];
-                }
-              }
-              extraInfo = 'cutthroat ${pts}pts to opponents marks=$newMarks';
-            } else {
-              scores[currentPlayerIndex] += pts;
-              players[currentPlayerIndex].score = scores[currentPlayerIndex];
-              extraInfo = 'scoring ${pts}pts marks=$newMarks';
-            }
-          } else {
-            extraInfo = newMarks >= 3 ? 'closed ${segment == 25 ? "Bull" : "T$segment"} marks=$newMarks' : 'marks=$newMarks';
-          }
+      if (isTargetSegment) {
+        final newMarks = engine.marks[playerIdxBefore][segment] ?? 0;
+        final overflow =
+            CricketEngine.computeOverflow(marksBeforeSeg, multiplier);
+        final scoredOverflow = overflow > 0 && !engine.isClosedByAll(segment);
+        if (scoredOverflow) {
+          final pts = segment * overflow;
+          extraInfo = widget.config.isCutthroat
+              ? 'cutthroat ${pts}pts to opponents marks=$newMarks'
+              : 'scoring ${pts}pts marks=$newMarks';
         } else {
-          extraInfo = newMarks >= 3 ? 'closed ${segment == 25 ? "Bull" : "T$segment"} marks=$newMarks' : 'marks=$newMarks';
+          extraInfo = newMarks >= 3
+              ? 'closed ${segment == 25 ? "Bull" : "T$segment"} marks=$newMarks'
+              : 'marks=$newMarks';
         }
 
         final markStr = newMarks >= 3 ? '(Closed!)' : '($newMarks/3)';
         lastThrowLabel = '${dartThrow.label} $markStr';
-        if (currentMarks < 3 && newMarks >= 3) {
+        if (result.closedTarget) {
           _announcer.announceGameEvent('Closed');
         } else {
           _announcer.announceThrow(dartThrow.spokenLabel);
@@ -274,58 +212,79 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         lastThrowLabel = segment == 0 ? 'Miss' : dartThrow.label;
         extraInfo = segment == 0 ? 'miss' : 'non-target';
         if (!(segment == 0 && _missSoundPlayed)) {
-          _announcer.announceThrow(segment == 0 ? 'Miss' : dartThrow.spokenLabel);
+          _announcer
+              .announceThrow(segment == 0 ? 'Miss' : dartThrow.spokenLabel);
         }
       }
 
       _log.logThrow(
         roundNumber: roundNum,
-        playerIndex: currentPlayerIndex,
+        playerIndex: playerIdxBefore,
         label: dartThrow.label,
-        points: scores[currentPlayerIndex] - scoreBefore,
+        points: engine.scores[playerIdxBefore] - scoreBefore,
         scoreBefore: scoreBefore,
-        scoreAfter: scores[currentPlayerIndex],
-        dartNumber: dartsInTurn,
+        scoreAfter: engine.scores[playerIdxBefore],
+        dartNumber: dartThrow.turnNumber,
         extra: extraInfo,
       );
 
       _meme.onThrow(dartThrow);
-      dartsInTurn++;
 
-      final wasFinished = finishedPlayers.length;
-      _checkWinner();
-      final playerJustFinished = finishedPlayers.length > wasFinished;
-
-      if (playerJustFinished) {
-        isTurnEnd = true;
-        final finishedIdx = finishedPlayers.last;
+      if (result.playerFinished) {
+        final finishedIdx = engine.finishedPlayers.last;
         _log.logFinish(
           roundNumber: roundNum,
           playerIndex: finishedIdx,
           playerName: players[finishedIdx].name,
-          details: 'score=${scores[finishedIdx]} placement=#${finishedPlayers.length}',
+          details:
+              'score=${engine.scores[finishedIdx]} placement=#${engine.finishedPlayers.length}',
         );
-        if (!_gameFullyOver) {
+        if (!engine.gameOver) {
           // Intermediate finish — announce immediately; no winner video coming
           _announcer.announceWinner(players[finishedIdx].name);
         }
         if (_pendingVideoEvent != null && videoRoll) _meme.markSoundPlayed();
         _meme.onTurnEnd();
-      } else if (dartsInTurn >= 3) {
-        isTurnEnd = true;
-        final turnTotal = scores[currentPlayerIndex] - _scoreAtStartOfTurn;
+      } else if (result.turnEnded) {
+        // Turn ended by throwing three darts — the engine already advanced to
+        // the next active player.
+        final turnTotal = engine.scores[playerIdxBefore] - _scoreAtStartOfTurn;
         if (turnTotal >= 120) _pendingVideoEvent ??= 'high_round';
         if (_pendingVideoEvent != null && videoRoll) _meme.markSoundPlayed();
         _meme.onTurnEnd();
-        _advancePlayer();
+      }
+
+      if (result.turnEnded) {
+        // Mirror the old _advancePlayer's turnId bump so the next turn's darts
+        // group under a fresh id (regression: cricket_turn_id_test).
+        _turnIdCounter++;
+      }
+
+      if (engine.gameOver) _gameFullyOver = true;
+
+      // Announce / log the newly active player only when the turn ended by
+      // advancing — not on a finish (which keeps the finisher current for the
+      // post-game screen) and not once the game is over.
+      if (result.turnEnded && !result.playerFinished && !engine.gameOver) {
+        _log.logAdvance(
+          roundNumber: _roundNumber,
+          fromIndex: playerIdxBefore,
+          toIndex: engine.currentPlayerIndex,
+          toName: players[engine.currentPlayerIndex].name,
+          toScore: engine.scores[engine.currentPlayerIndex],
+          reason: 'turn complete',
+        );
+        _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+        _scoreAtStartOfTurn = engine.scores[engine.currentPlayerIndex];
       }
     });
 
     // Show video at turn end only
-    if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
-      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+    if (result.turnEnded && _pendingVideoEvent != null && videoRoll) {
+      await VideoService.instance
+          .showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
     }
-    if (isTurnEnd) _pendingVideoEvent = null;
+    if (result.turnEnded) _pendingVideoEvent = null;
     if (!mounted) return;
 
     if (_gameFullyOver && finishedPlayers.isNotEmpty) {
@@ -356,65 +315,53 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     _registerHit(0, 0);
   }
 
-  void _advancePlayer() {
-    final fromIndex = currentPlayerIndex;
-    dartsInTurn = 0;
-    _turnIdCounter++;
-    final startIndex = currentPlayerIndex;
+  /// Advances the engine's current seat to the next active (not finished, not
+  /// removed) player. Used only by the post-game "continue" flow — after an
+  /// intermediate finish the engine leaves the finisher current so the screen
+  /// can show them, so resuming play needs an explicit advance. The engine
+  /// exposes no public advance, so this walks its public rotation state.
+  void _advanceToNextActivePlayer() {
+    final start = engine.currentPlayerIndex;
+    var idx = start;
     do {
-      currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-      // Safety: prevent infinite loop when every index is in finishedPlayers
-      // (e.g. removals emptied the rotation) — audit 2026-07-06, F7.
-      if (currentPlayerIndex == startIndex) break;
-    } while (finishedPlayers.contains(currentPlayerIndex));
+      idx = (idx + 1) % engine.playerCount;
+      if (idx == start) break;
+    } while (engine.finishedPlayers.contains(idx) || engine.isSkipped(idx));
+    engine.currentPlayerIndex = idx;
+    engine.dartsInTurn = 0;
+    _turnIdCounter++;
+    _scoreAtStartOfTurn = engine.scores[idx];
     _log.logAdvance(
       roundNumber: _roundNumber,
-      fromIndex: fromIndex,
-      toIndex: currentPlayerIndex,
-      toName: players[currentPlayerIndex].name,
-      toScore: scores[currentPlayerIndex],
-      reason: 'turn complete',
+      fromIndex: start,
+      toIndex: idx,
+      toName: players[idx].name,
+      toScore: engine.scores[idx],
+      reason: 'continue',
     );
-    _announcer.announceNextPlayer(players[currentPlayerIndex].name);
-    _scoreAtStartOfTurn = scores[currentPlayerIndex];
+    _announcer.announceNextPlayer(players[idx].name);
   }
 
   void _undo() {
-    if (throwHistory.isEmpty || _undoStack.isEmpty) return;
+    // Roster changes clear the engine's undo stack (a snapshot never outlives
+    // an add/remove), so a removed player can never be resurrected and the
+    // restored current seat is always a valid active player — the old manual
+    // re-assertions (F9) are gone with the parallel state.
+    if (throwHistory.isEmpty || !engine.canUndo) return;
     final lastThrow = throwHistory.last;
     _announcer.announceGameEvent('Back');
     setState(() {
+      engine.undo();
       throwHistory.removeLast();
       _turnIdCounter = lastThrow.turnId;
-      final data = _undoStack.removeLast();
-      finishedPlayers = List.from(data.finishedPlayersBefore);
-      // The snapshot predates any mid-game removals — re-assert them so an
-      // undo can never resurrect a removed player into the rotation
-      // (audit 2026-07-06, F9).
-      for (final r in _removedPlayerIndices) {
-        if (!finishedPlayers.contains(r)) finishedPlayers.add(r);
-      }
       _gameFullyOver = false;
-      currentPlayerIndex = data.playerIndex;
-      dartsInTurn = data.dartsInTurn;
-      for (final t in targets) {
-        marks[data.playerIndex][t] = data.marksBefore[t] ?? 0;
-      }
-      for (int i = 0; i < scores.length; i++) {
-        scores[i] = data.scoresBefore[i];
-        players[i].score = scores[i];
-      }
-      winnerIndex = _winnerIndexExcludingRemoved();
       lastThrowLabel = null;
-      if (_removedPlayerIndices.contains(currentPlayerIndex)) {
-        _advancePlayer();
-      }
     });
     _log.logUndo(
       playerIndex: lastThrow.playerIndex,
       playerName: players[lastThrow.playerIndex].name,
       throwLabel: lastThrow.label,
-      scoreRestored: scores[lastThrow.playerIndex],
+      scoreRestored: engine.scores[lastThrow.playerIndex],
       roundNumber: _roundNumber,
     );
   }
@@ -426,17 +373,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
-  final Set<int> _removedPlayerIndices = {};
-
-  /// First player in [finishedPlayers] who has not been removed mid-game.
-  /// Used for winner picking — a removed player must never be declared winner
-  /// even if their index happens to appear first in [finishedPlayers].
-  int? _winnerIndexExcludingRemoved() {
-    for (final i in finishedPlayers) {
-      if (!_removedPlayerIndices.contains(i)) return i;
-    }
-    return null;
-  }
 
   @visibleForTesting
   List<int> get finishedPlayersForTest => finishedPlayers;
@@ -448,7 +384,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   int? get winnerIndexForTest => winnerIndex;
 
   @visibleForTesting
-  int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
+  int? computeWinnerForTest() => engine.winnerIndexExcludingSkipped();
 
   @visibleForTesting
   GameResult buildGameResultForTest() => _buildGameResult();
@@ -494,8 +430,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           ? scores[a].compareTo(scores[b])
           : scores[b].compareTo(scores[a]);
       if (scoreComp != 0) return scoreComp;
-      final closedA = targets.where((t) => _isClosed(t, a)).length;
-      final closedB = targets.where((t) => _isClosed(t, b)).length;
+      final closedA = targets.where((t) => engine.isClosed(t, a)).length;
+      final closedB = targets.where((t) => engine.isClosed(t, b)).length;
       if (closedB != closedA) return closedB.compareTo(closedA);
       final marksA = targets.fold(0, (s, t) => s + (marks[a][t] ?? 0));
       final marksB = targets.fold(0, (s, t) => s + (marks[b][t] ?? 0));
@@ -509,8 +445,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         final prev = remaining[i - 1];
         final curr = remaining[i];
         final sameScore = scores[prev] == scores[curr];
-        final prevClosed = targets.where((t) => _isClosed(t, prev)).length;
-        final currClosed = targets.where((t) => _isClosed(t, curr)).length;
+        final prevClosed = targets.where((t) => engine.isClosed(t, prev)).length;
+        final currClosed = targets.where((t) => engine.isClosed(t, curr)).length;
         final prevMarks = targets.fold(0, (s, t) => s + (marks[prev][t] ?? 0));
         final currMarks = targets.fold(0, (s, t) => s + (marks[curr][t] ?? 0));
         if (!sameScore || prevClosed != currClosed || prevMarks != currMarks) {
@@ -724,8 +660,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     } else if (result == 'continue') {
       _log.logPostGame(action: 'continue', details: 'game continues with remaining players');
       setState(() {
-        winnerIndex = null;
-        _advancePlayer();
+        _advanceToNextActivePlayer();
       });
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
@@ -925,7 +860,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   Widget _dossedartMatrixRow(int target, bool isLast) {
-    final closedByAll = _isClosedByAll(target);
+    final closedByAll = engine.isClosedByAll(target);
     final isBull = target == 25;
     final label = isBull ? 'BULL' : '$target';
     final magenta = DossedartTokens.magenta;
@@ -1381,7 +1316,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: targets.map((target) {
-                  final closedByAll = _isClosedByAll(target);
+                  final closedByAll = engine.isClosedByAll(target);
                   final isBull = target == 25;
                   // Every target — Bull included — closes at 3 marks (see
                   // _isClosed / marksForClose). The progress bar used 2 for
@@ -1583,7 +1518,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Widget _markButton(int target, int multiplier, int currentMarks) {
     final isBull = target == 25;
     final isFilled = currentMarks >= multiplier;
-    final isDead = _isClosedByAll(target);
+    final isDead = engine.isClosedByAll(target);
     final cs = Theme.of(context).colorScheme;
     final label = switch (multiplier) {
       2 => isBull ? 'DBull' : 'D$target',
@@ -1690,7 +1625,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         avatarPath: p.avatarPath,
         isActive: i == currentPlayerIndex,
         isRemoved: _removedPlayerIndices.contains(i),
-        primary: '${p.score}',
+        primary: '${scores[i]}',
       ));
     }
     showDossedartPlayerSheet(
@@ -1721,43 +1656,19 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
-    final activeIndices = List.generate(players.length, (i) => i)
-        .where((i) => !finishedPlayers.contains(i))
-        .toList();
-
-    int avgPoints = 0;
-    final newMarks = {for (final t in targets) t: 0};
-
-    if (activeIndices.isNotEmpty) {
-      avgPoints = (activeIndices.map((i) => scores[i]).reduce((a, b) => a + b) /
-              activeIndices.length)
-          .round();
-
-      // Per-target average marks (rounded), capped at 3 (closed)
-      for (final t in targets) {
-        final avgMarks = activeIndices
-                .map((i) => marks[i][t]!.clamp(0, 3))
-                .reduce((a, b) => a + b) /
-            activeIndices.length;
-        newMarks[t] = avgMarks.round().clamp(0, 3);
-      }
-    }
-
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgPoints,
+        score: 0,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      marks.add(newMarks);
-      scores.add(avgPoints);
-      // Undo snapshots taken before the add have the old list lengths —
-      // restoring one would RangeError. Roster changes reset undo history
-      // (audit 2026-07-06, F8; same rule as the Shanghai engine).
-      _undoStack.clear();
+      // The engine grows its marks/scores lists and resets its undo history —
+      // an undo snapshot taken before the add has the old list lengths and
+      // would RangeError (audit 2026-07-06, F8).
+      engine.addPlayer();
     });
   }
 
@@ -1766,30 +1677,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final removed = players[playerIndex];
     setState(() {
       _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
       if (removed.savedPlayerId != null) {
         _leftMidGameIds.add(removed.savedPlayerId!);
       }
-      if (!finishedPlayers.contains(playerIndex)) {
-        finishedPlayers.add(playerIndex);
-      }
-      if (playerIndex == currentPlayerIndex) {
-        dartsInTurn = 0;
-        _advancePlayer();
-      }
-      // If only 1 (or 0) active players remain, end the game — otherwise the
-      // rotation has nobody left to advance to (audit 2026-07-06, F7).
-      final remaining = List.generate(players.length, (i) => i)
-          .where((i) => !finishedPlayers.contains(i))
-          .toList();
-      if (remaining.length <= 1) {
-        if (remaining.length == 1 &&
-            !finishedPlayers.contains(remaining.first)) {
-          finishedPlayers.add(remaining.first);
-        }
-        winnerIndex = _winnerIndexExcludingRemoved();
-        _gameFullyOver = true;
-      }
+      // The engine marks the seat skipped+finished, advances off it when it is
+      // current, ends the game when ≤1 active player remains (F7), and clears
+      // its undo history — all the rules state the screen used to touch here.
+      final wasCurrent = engine.currentPlayerIndex == playerIndex;
+      engine.removePlayer(playerIndex);
+      if (wasCurrent) _turnIdCounter++;
+      if (engine.gameOver) _gameFullyOver = true;
     });
     if (_gameFullyOver) _showPostGame();
   }
@@ -1845,20 +1742,4 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       ),
     );
   }
-}
-
-class _CricketUndoData {
-  final int playerIndex;
-  final int dartsInTurn;
-  final Map<int, int> marksBefore;
-  final List<int> scoresBefore;
-  final List<int> finishedPlayersBefore;
-
-  _CricketUndoData({
-    required this.playerIndex,
-    required this.dartsInTurn,
-    required this.marksBefore,
-    required this.scoresBefore,
-    required this.finishedPlayersBefore,
-  });
 }
