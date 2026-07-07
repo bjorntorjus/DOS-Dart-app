@@ -356,11 +356,11 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
   // ─── Modes Block ───────────────────────────────────────────────────────────
   Widget _buildModesBlock() {
     final modes = const [
-      (GameMode.cricket, 'Cricket', '🎯'),
-      (GameMode.aroundTheClock, 'Around the Clock', '🕐'),
-      (GameMode.killer, 'Killer', '🔪'),
-      (GameMode.halveIt, 'Halve It', '✂️'),
-      (GameMode.shanghai, 'Shanghai', '🐉'),
+      GameMode.cricket,
+      GameMode.aroundTheClock,
+      GameMode.killer,
+      GameMode.halveIt,
+      GameMode.shanghai,
     ];
 
     return Padding(
@@ -376,12 +376,11 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  Expanded(child: _modeCell(modes[i].$1, modes[i].$2, modes[i].$3)),
+                  Expanded(child: _modeCell(modes[i])),
                   const SizedBox(width: 8),
                   Expanded(
                     child: i + 1 < modes.length
-                        ? _modeCell(modes[i + 1].$1, modes[i + 1].$2,
-                            modes[i + 1].$3)
+                        ? _modeCell(modes[i + 1])
                         : _comingSoonCell(),
                   ),
                 ],
@@ -392,7 +391,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
     );
   }
 
-  Widget _modeCell(GameMode mode, String label, String emoji) {
+  Widget _modeCell(GameMode mode) {
     return InkWell(
       onTap: () => _startGame(mode),
       child: Container(
@@ -404,10 +403,10 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 32)),
+            Text(mode.emoji, style: const TextStyle(fontSize: 32)),
             const SizedBox(height: 8),
             Text(
-              label.toUpperCase(),
+              mode.label.toUpperCase(),
               style: _press(10, color: Colors.white, letterSpacing: 1),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,

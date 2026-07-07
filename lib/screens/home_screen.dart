@@ -303,14 +303,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _modeGrid(BuildContext context) {
     final modes = const [
-      (GameMode.cricket, '🎯'),
-      (GameMode.aroundTheClock, '🕐'),
-      (GameMode.killer, '💀'),
-      (GameMode.halveIt, '➗'),
-      (GameMode.shanghai, '🌃'),
+      GameMode.cricket,
+      GameMode.aroundTheClock,
+      GameMode.killer,
+      GameMode.halveIt,
+      GameMode.shanghai,
     ];
     final cells = <Widget>[
-      for (final (mode, emoji) in modes) _modeButton(context, mode, emoji),
+      for (final mode in modes) _modeButton(context, mode),
       _comingSoonCell(context),
     ];
     return Column(
@@ -333,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _modeButton(BuildContext context, GameMode mode, String emoji) {
+  Widget _modeButton(BuildContext context, GameMode mode) {
     return OutlinedButton(
       onPressed: () async {
         await Navigator.push(
@@ -353,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 26)),
+          Text(mode.emoji, style: const TextStyle(fontSize: 26)),
           const SizedBox(height: 6),
           Text(
             mode.label,

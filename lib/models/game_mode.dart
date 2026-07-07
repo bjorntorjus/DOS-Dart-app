@@ -25,3 +25,22 @@ extension GameModeLabel on GameMode {
     }
   }
 }
+
+extension GameModeEmoji on GameMode {
+  String get emoji {
+    switch (this) {
+      case GameMode.x01:
+        return '💯';
+      case GameMode.cricket:
+        return '🎯';
+      case GameMode.aroundTheClock:
+        return '🕐';
+      case GameMode.killer:
+        return '🔪';
+      case GameMode.halveIt:
+        return '✂️';
+      case GameMode.shanghai:
+        return '🐉';
+    }
+  }
+}
