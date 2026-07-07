@@ -9,11 +9,6 @@ void main() {
   const allowlist = <String>{
     'lib/utils/player_colors.dart', // avatar palette
     'lib/widgets/heatmap_board.dart', // data-viz gradient
-    // Dead widgets — deleted in audit Round 5 (F25), not worth fixing:
-    'lib/widgets/checkout_widget.dart',
-    'lib/widgets/clock_progress.dart',
-    'lib/widgets/cricket_scoreboard.dart',
-    'lib/widgets/halve_it_scoreboard.dart',
   };
 
   final roleLiterals =
