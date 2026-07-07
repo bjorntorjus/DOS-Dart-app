@@ -155,14 +155,15 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                 ),
                 const Divider(height: 1),
                 if (available.isEmpty)
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Padding(
-                        padding: EdgeInsets.all(32),
+                        padding: const EdgeInsets.all(32),
                         child: Text(
                           'All players have been added.\nCreate a new player if needed.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(
+                              color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                         ),
                       ),
                     ),
@@ -187,8 +188,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                             'Avg: ${sp.averageTurnScore.toStringAsFixed(1)}',
                           ),
                           trailing: IconButton(
-                            icon: const Icon(Icons.add_circle,
-                                color: Colors.green, size: 28),
+                            icon: Icon(Icons.add_circle,
+                                color: Theme.of(ctx).colorScheme.primary, size: 28),
                             onPressed: () {
                               setState(() => _selectedPlayers.add(sp));
                               setSheetState(() {}); // refresh sheet to remove added player
@@ -420,7 +421,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(label,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
@@ -557,7 +560,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: Row(
                     children: [
-                      const Icon(Icons.shuffle, size: 18, color: Colors.grey),
+                      Icon(Icons.shuffle,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text('Randomize player order',

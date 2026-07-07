@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../models/saved_player.dart';
 import '../services/player_storage.dart';
+import '../utils/player_colors.dart';
 import 'player_avatar.dart';
 
 /// Shared sheet for managing players mid-game: remove existing, add new.
@@ -145,25 +146,25 @@ class _MidGameSheetState extends State<_MidGameSheet> {
                   child: Text('No more saved players available.'),
                 )
               else
-                ..._available!.map((sp) => ListTile(
+                ..._available!.asMap().entries.map((entry) => ListTile(
                       leading: PlayerAvatar(
-                        avatarPath: sp.avatarPath,
-                        name: sp.name,
+                        avatarPath: entry.value.avatarPath,
+                        name: entry.value.name,
                         radius: 18,
-                        backgroundColor: Colors.blue,
+                        backgroundColor: avatarColor(entry.key),
                       ),
-                      title: Text(sp.name),
+                      title: Text(entry.value.name),
                       subtitle: Text(
-                        'Rating ${sp.rating.toStringAsFixed(0)}',
+                        'Rating ${entry.value.rating.toStringAsFixed(0)}',
                         style: const TextStyle(fontSize: 12),
                       ),
-                      trailing: const Icon(Icons.add_circle,
-                          color: Colors.green),
+                      trailing: Icon(Icons.add_circle,
+                          color: Theme.of(context).colorScheme.primary),
                       onTap: widget.gameOver
                           ? null
                           : () {
                               Navigator.pop(context);
-                              widget.onAdd(sp);
+                              widget.onAdd(entry.value);
                             },
                     )),
               const SizedBox(height: 12),
@@ -198,7 +199,9 @@ class _MidGameSheetState extends State<_MidGameSheet> {
             : IconButton(
                 icon: Icon(
                   Icons.person_remove,
-                  color: canRemove ? Colors.red : Colors.grey,
+                  color: canRemove
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38),
                 ),
                 tooltip: canRemove
                     ? 'Remove from game'

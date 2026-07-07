@@ -6,6 +6,7 @@ import '../services/player_storage.dart';
 import '../services/game_history_service.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/heatmap_board.dart';
+import '../utils/player_colors.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -153,11 +154,11 @@ class _StatsScreenState extends State<StatsScreen>
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: visible.length,
-      itemBuilder: (context, index) => _buildPlayerCard(visible[index]),
+      itemBuilder: (context, index) => _buildPlayerCard(visible[index], index),
     );
   }
 
-  Widget _buildPlayerCard(SavedPlayer p) {
+  Widget _buildPlayerCard(SavedPlayer p, int index) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -172,7 +173,7 @@ class _StatsScreenState extends State<StatsScreen>
                   avatarPath: p.avatarPath,
                   name: p.name,
                   radius: 22,
-                  backgroundColor: Colors.blue,
+                  backgroundColor: avatarColor(index),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -197,8 +198,8 @@ class _StatsScreenState extends State<StatsScreen>
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.red, size: 20),
+                  icon: Icon(Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error, size: 20),
                   onPressed: () => _deletePlayer(p),
                 ),
               ],
@@ -262,8 +263,9 @@ class _StatsScreenState extends State<StatsScreen>
                     size: const Size(double.infinity, 120),
                     painter: _RatingGraphPainter(
                       snapshots: p.ratingHistory,
-                      lineColor: Colors.blue,
+                      lineColor: Theme.of(context).colorScheme.primary,
                       textColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+                      gridColor: Theme.of(context).colorScheme.outline.withAlpha(50),
                     ),
                   ),
                 ),
@@ -355,7 +357,7 @@ class _StatsScreenState extends State<StatsScreen>
                   avatarPath: p.avatarPath,
                   name: p.name,
                   radius: 20,
-                  backgroundColor: Colors.blue,
+                  backgroundColor: avatarColor(rank),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -388,7 +390,7 @@ class _StatsScreenState extends State<StatsScreen>
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: int.parse(winRate) >= 50
-                            ? Colors.green
+                            ? Theme.of(context).colorScheme.primary
                             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
@@ -500,9 +502,9 @@ class _StatsScreenState extends State<StatsScreen>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.red.withAlpha(25),
+              color: Theme.of(context).colorScheme.error.withAlpha(25),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.red.withAlpha(60)),
+              border: Border.all(color: Theme.of(context).colorScheme.error.withAlpha(60)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -512,7 +514,7 @@ class _StatsScreenState extends State<StatsScreen>
                 Text(
                   'Aggressive Player!',
                   style: TextStyle(
-                    color: Colors.red[300],
+                    color: Theme.of(context).colorScheme.error,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1154,7 +1156,9 @@ class _StatsScreenState extends State<StatsScreen>
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.bold,
-        color: isUp ? Colors.green[400] : Colors.red[400],
+        color: isUp
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.error,
       ),
     );
   }
@@ -1185,8 +1189,14 @@ class _RatingGraphPainter extends CustomPainter {
   final List<RatingSnapshot> snapshots;
   final Color lineColor;
   final Color textColor;
+  final Color gridColor;
 
-  _RatingGraphPainter({required this.snapshots, required this.lineColor, required this.textColor});
+  _RatingGraphPainter({
+    required this.snapshots,
+    required this.lineColor,
+    required this.textColor,
+    required this.gridColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1211,7 +1221,7 @@ class _RatingGraphPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final gridPaint = Paint()
-      ..color = Colors.grey.withAlpha(50)
+      ..color = gridColor
       ..strokeWidth = 0.5;
 
     // Draw horizontal grid lines

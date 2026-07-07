@@ -156,9 +156,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPodium() {
-    const goldColor = Color(0xFFFFD700);
-    const silverColor = Color(0xFFC0C0C0);
-    const bronzeColor = Color(0xFFCD7F32);
+    final goldColor = Theme.of(context).colorScheme.tertiary;
+    const silverColor = Color(0xFFC0C0C0); // podium silver — documented exception
+    final bronzeColor = Colors.brown[300]!;
 
     // Podium order: 2nd | 1st | 3rd
     final positions = <int>[]; // player indices in podium display order

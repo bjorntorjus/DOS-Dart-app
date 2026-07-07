@@ -41,11 +41,13 @@ class _MemeSettingsScreenState extends State<MemeSettingsScreen> {
       ),
       body: ListView(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               'You found the secret menu!',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 14),
             ),
           ),
           SwitchListTile(

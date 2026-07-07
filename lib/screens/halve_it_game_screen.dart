@@ -1351,7 +1351,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: lastThrowLabel != null && lastThrowLabel!.contains('✓')
-                      ? Colors.green
+                      ? Theme.of(context).colorScheme.primary
                       : Colors.white,
                 ),
               ),
@@ -1505,14 +1505,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               'D$i', () => _onDartHit(i, 2), Colors.orange[800]!));
         }
         buttons.add(_compactButton(
-            'D-Bull', () => _onDartHit(25, 2), Colors.red[800]!));
+            'D-Bull', () => _onDartHit(25, 2), Colors.orange[800]!));
         return _compactButtonGrid(buttons, includeMiss: true);
 
       case HalveItRoundType.anyTriple:
         final buttons = <Widget>[];
         for (int i = 1; i <= 20; i++) {
           buttons.add(_compactButton(
-              'T$i', () => _onDartHit(i, 3), Colors.red[800]!));
+              'T$i', () => _onDartHit(i, 3),
+              Theme.of(context).colorScheme.onSurfaceVariant));
         }
         return _compactButtonGrid(buttons, includeMiss: true);
 

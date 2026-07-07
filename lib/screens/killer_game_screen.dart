@@ -1333,7 +1333,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                             color: lastThrowLabel!.contains('KILLER')
                                 ? Theme.of(context).colorScheme.tertiary
                                 : lastThrowLabel!.contains('shield')
-                                    ? Colors.blue
+                                    ? Theme.of(context).colorScheme.tertiary
                                     : lastThrowLabel!.contains('Eliminated') ||
                                             lastThrowLabel!.contains('Lost') ||
                                             lastThrowLabel!.contains('Suicide')
@@ -1661,10 +1661,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                               return Padding(
                                 padding: EdgeInsets.only(
                                     right: i < shields[index] - 1 ? 3 : 0),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.shield,
                                   size: 22,
-                                  color: Colors.blue,
+                                  color: Theme.of(context).colorScheme.tertiary,
                                 ),
                               );
                             }),
@@ -1683,7 +1683,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                     : Icons.favorite_border,
                                 size: 22,
                                 color: hasLife
-                                    ? Colors.red
+                                    ? Theme.of(context).colorScheme.error
                                     : Theme.of(context).colorScheme.surfaceContainer,
                               ),
                             );

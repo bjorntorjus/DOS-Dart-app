@@ -1265,7 +1265,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: lastThrowLabel!.contains('Closed')
-                              ? Colors.green
+                              ? Theme.of(context).colorScheme.primary
                               : Colors.white,
                         ),
                       ),
@@ -1421,8 +1421,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           ...List.generate(players.length, (pi) {
                             final isCurrent = pi == currentPlayerIndex;
                             final m = marks[pi][target] ?? 0;
-                            final closed = _isClosed(target, pi);
-                            final color = closed ? Colors.green : Theme.of(context).colorScheme.primary;
+                            final color = Theme.of(context).colorScheme.primary;
                             final fillFraction = (m.clamp(0, maxMarks) / maxMarks.toDouble());
 
                             // Active player: mark buttons
