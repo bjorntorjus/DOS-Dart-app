@@ -6,7 +6,7 @@ abstract class ModeProgression {
   List<num> seriesFor(List<DartThrow> throws, {required int playerIndex});
   num get maxValue;          // axis top
   bool get descending;       // true = race to 0 (X01/Killer), false = climb
-  String get finishLabel;    // e.g. "✓ UT"
+  String get finishLabel;    // e.g. "✓ OUT"
 }
 
 class X01Progression implements ModeProgression {
@@ -40,7 +40,7 @@ class X01Progression implements ModeProgression {
   @override
   bool get descending => true;
   @override
-  String get finishLabel => '✓ UT';
+  String get finishLabel => '✓ OUT';
 }
 
 /// Cumulative sum of [value] per round, starting from 0 and climbing.

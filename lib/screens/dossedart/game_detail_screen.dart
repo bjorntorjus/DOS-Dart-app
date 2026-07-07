@@ -156,8 +156,9 @@ class _Header extends StatelessWidget {
                       height: 1.3)),
             ),
           ),
-          // DEL ↗ deferred (no share payload yet) — reserve the space so the
-          // title stays centred, matching the artboard's three-slot header.
+          // SHARE ↗ ("DEL" in the artboard) deferred (no share payload yet) —
+          // reserve the space so the title stays centred, matching the
+          // artboard's three-slot header.
           const SizedBox(width: 86),
         ],
       ),
