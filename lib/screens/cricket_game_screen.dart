@@ -1656,19 +1656,45 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Active = not in finishedPlayers. Removed players are always also in
+    // finishedPlayers, so this single check excludes them too — matching the
+    // pre-engine averaging exactly.
+    final activeIndices = List.generate(players.length, (i) => i)
+        .where((i) => !finishedPlayers.contains(i))
+        .toList();
+
+    int avgPoints = 0;
+    final newMarks = {for (final t in targets) t: 0};
+
+    if (activeIndices.isNotEmpty) {
+      avgPoints = (activeIndices.map((i) => scores[i]).reduce((a, b) => a + b) /
+              activeIndices.length)
+          .round();
+
+      // Per-target average marks (rounded), capped at 3 (closed)
+      for (final t in targets) {
+        final avgMarks = activeIndices
+                .map((i) => marks[i][t]!.clamp(0, 3))
+                .reduce((a, b) => a + b) /
+            activeIndices.length;
+        newMarks[t] = avgMarks.round().clamp(0, 3);
+      }
+    }
+
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: 0,
+        score: avgPoints,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      // The engine grows its marks/scores lists and resets its undo history —
-      // an undo snapshot taken before the add has the old list lengths and
-      // would RangeError (audit 2026-07-06, F8).
-      engine.addPlayer();
+      // The engine grows its marks/scores lists (seeded with the table
+      // averages) and resets its undo history — an undo snapshot taken before
+      // the add has the old list lengths and would RangeError (audit
+      // 2026-07-06, F8).
+      engine.addPlayer(initialScore: avgPoints, initialMarks: newMarks);
     });
   }
 

@@ -263,11 +263,17 @@ class CricketEngine {
   // Roster mutation
   // ---------------------------------------------------------------------------
 
-  /// Add a fresh player to the roster and clear the undo stack (undo can never
+  /// Add a player to the roster and clear the undo stack (undo can never
   /// cross a roster change — snapshots have the old list lengths).
-  void addPlayer() {
-    marks.add({for (final t in targets) t: 0});
-    scores.add(0);
+  ///
+  /// [initialScore] and [initialMarks] let a mid-game joiner start at the
+  /// table's average instead of 0/0 (same pattern as the Shanghai engine's
+  /// `addPlayer(initialScore:)`). Marks are clamped to 0-3 per target.
+  void addPlayer({int initialScore = 0, Map<int, int>? initialMarks}) {
+    marks.add({
+      for (final t in targets) t: (initialMarks?[t] ?? 0).clamp(0, 3)
+    });
+    scores.add(initialScore);
     _undoStack.clear();
   }
 

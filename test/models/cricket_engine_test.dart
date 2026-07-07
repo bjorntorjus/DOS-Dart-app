@@ -351,6 +351,16 @@ void main() {
       expect(e.canUndo, isFalse);
     });
 
+    test('addPlayer applies initialScore and clamped initialMarks', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 2);
+      e.applyHit(20, 1);
+      expect(e.canUndo, isTrue);
+      e.addPlayer(initialScore: 40, initialMarks: {20: 5});
+      expect(e.scores[2], 40);
+      expect(e.marks[2][20], 3, reason: 'initial marks are clamped to 0-3');
+      expect(e.canUndo, isFalse);
+    });
+
     test('removePlayer marks skipped+finished, advances, clears undo', () {
       final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 3);
       e.applyHit(20, 1);
