@@ -1,6 +1,6 @@
 import '../models/dart_throw.dart';
 
-/// Maps a player's throws to one value per round for the SPILLFORLØP chart.
+/// Maps a player's throws to one value per round for the MATCH FLOW chart.
 abstract class ModeProgression {
   /// Plotted values, index 0 = start, then one per completed round.
   List<num> seriesFor(List<DartThrow> throws, {required int playerIndex});
