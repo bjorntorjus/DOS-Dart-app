@@ -481,7 +481,7 @@ class _GameScreenState extends State<GameScreen> {
           _log.logBust(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: player.name, throwLabel: dartThrow.label, scoreReset: scoreAtStartOfTurn);
           _announcer.announceGameEvent('Bust');
           // Play random bust sound only if video won't play
-          if (_soundEnabled && !bustShowVideo) {
+          if (_memeEnabled && !bustShowVideo) {
             _meme.markSoundPlayed();
             SoundService.instance.playRandomMaybe([
               'x01/negative/out',
