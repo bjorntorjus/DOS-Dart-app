@@ -128,10 +128,10 @@ class _ScanBeamPainter extends CustomPainter {
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: const [
-        Color(0x0000E5FF),
-        Color(0x2200E5FF),
-        Color(0x0000E5FF),
+      colors: [
+        DossedartTokens.cyan.withValues(alpha: 0),
+        DossedartTokens.cyan.withValues(alpha: 0.13),
+        DossedartTokens.cyan.withValues(alpha: 0),
       ],
       stops: const [0.0, 0.5, 1.0],
     );

@@ -372,15 +372,15 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 gradient: canStart
-                    ? const LinearGradient(
+                    ? LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [DossedartTokens.yellow, Color(0xFFFFA500)],
+                        colors: [DossedartTokens.yellow, DossedartTokens.orange],
                       )
                     : null,
-                color: canStart ? null : Colors.white12,
+                color: canStart ? null : DossedartTokens.disabledFill,
                 border: Border.all(
-                  color: canStart ? Colors.white : Colors.white24,
+                  color: canStart ? Colors.white : DossedartTokens.disabledBorder,
                   width: 3,
                 ),
               ),

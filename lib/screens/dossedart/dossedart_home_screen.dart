@@ -246,7 +246,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
         vertical: hero ? 14 : 10,
       ),
       decoration: BoxDecoration(
-        color: hero ? const Color(0x14FFD200) : Colors.transparent,
+        color: hero ? DossedartTokens.yellow.withValues(alpha: 0.08) : Colors.transparent,
         border: Border.all(
           color: hero ? DossedartTokens.yellow : Colors.transparent,
           width: 2,

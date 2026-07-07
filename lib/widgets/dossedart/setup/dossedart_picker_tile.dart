@@ -39,7 +39,7 @@ class DossedartPickerTile extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               decoration: BoxDecoration(
                 color: selected
-                    ? const Color(0x10FFD200)
+                    ? DossedartTokens.yellow.withValues(alpha: 0.06)
                     : DossedartTokens.surface,
                 border: Border.all(color: accent, width: 3),
               ),

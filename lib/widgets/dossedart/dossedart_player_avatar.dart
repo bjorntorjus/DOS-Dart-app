@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../theme/dossedart_tokens.dart';
 
 /// Square avatar with a 2-3px player-color border. Shows the photo
 /// when available, falls back to an Icons.person silhouette.
@@ -33,7 +34,7 @@ class DossedartPlayerAvatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: const Color(0xFF2A0050),
+        color: DossedartTokens.surfaceRaised,
         border: Border.all(color: borderColor, width: borderWidth),
         boxShadow: [
           BoxShadow(

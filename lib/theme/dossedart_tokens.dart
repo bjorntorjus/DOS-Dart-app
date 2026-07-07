@@ -9,6 +9,9 @@ class DossedartTokens {
   static const Color bg = Color(0xFF0A0014);
   static const Color surface = Color(0xFF1A0030);
 
+  /// Raised purple chip surface (avatar backgrounds) — one step above [surface].
+  static const Color surfaceRaised = Color(0xFF2A0050);
+
   // Accents
   static const Color magenta = Color(0xFFFF00AA);
   static const Color cyan = Color(0xFF00E5FF);

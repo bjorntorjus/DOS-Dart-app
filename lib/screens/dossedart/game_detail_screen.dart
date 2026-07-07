@@ -93,7 +93,7 @@ Color placementColor(int placement) => switch (placement) {
       1 => DossedartTokens.yellow,
       2 => DossedartTokens.silver,
       3 => DossedartTokens.bronze,
-      _ => const Color(0x8CD9D2C2), // phosphor @ 55%
+      _ => DossedartTokens.phosphor.withValues(alpha: 0.55), // phosphor @ 55%
     };
 
 String formatDuration(int seconds) {
