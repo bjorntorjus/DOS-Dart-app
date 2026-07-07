@@ -10,7 +10,7 @@
 
 Gotcha is a race: every player starts at **0** and climbs to an exact **target score**. Landing your running total exactly on an opponent's total **kills** them — their score resets to 0. First player to hit the target exactly wins.
 
-This is the first of three new modes (Gotcha → Legs → Golf), built one at a time. Each follows the Shanghai template (own screen + config subclass, full announcer/stats/undo integration).
+This is the first of three new modes (Gotcha → 1UP → Golf), built one at a time. Each follows the Shanghai template (own screen + config subclass, full announcer/stats/undo integration).
 
 ## 2. Rules (approved)
 
@@ -53,7 +53,7 @@ These are the surfaces Claude design needs to produce DOSSEDART artboards for. V
 - Mode grid goes from 2 to **3 columns**. Layout: X01 row (301/501/701) unchanged, then 3×3 grid:
   - Row 1: Cricket · Around the Clock · Killer
   - Row 2: Splitscore · Shanghai · **Gotcha** (active)
-  - Row 3: **Legs** (coming soon) · **Golf** (coming soon) · generic "Coming soon" cell
+  - Row 3: **1UP** (coming soon; see 2026-07-07-one-up-design.md) · **Golf** (coming soon) · generic "Coming soon" cell
 - Coming-soon mode tiles: same tile chrome but dimmed/disabled (not tappable), visually matching the existing coming-soon cell. They light up as each mode ships.
 - `GameMode` enum gains `gotcha` now; Legs/Golf tiles are hardcoded placeholders until their modes exist (no dead enum values).
 
