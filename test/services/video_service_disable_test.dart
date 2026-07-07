@@ -10,7 +10,7 @@ void main() {
       (tester) async {
     VideoService.instance.setEnabled(true);
     VideoService.disableForTest = true;
-    addTearDown(() => VideoService.disableForTest = false);
+    addTearDown(() => VideoService.disableForTest = true);
 
     late BuildContext ctx;
     await tester.pumpWidget(MaterialApp(

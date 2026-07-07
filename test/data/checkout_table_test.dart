@@ -3,12 +3,12 @@ import 'package:dart_scoring/data/checkout_table.dart';
 
 /// F20 (audit 2026-07-06): 257 lines of checkout data had no test that
 /// suggestions are legal, sum correctly, and end on a double.
-int _dartPoints(String label, {required bool isLast}) {
+int _dartPoints(String label) {
   if (label == 'Bull') {
-    // 'Bull' is overloaded: as the FINAL dart of a double-out combo it is
-    // the double bull (50); table entries never use it as a 25 setup dart
-    // except where the sum proves otherwise — resolve by trying 50 first
-    // in the caller. Here we just signal with a negative marker.
+    // 'Bull' is overloaded (25 as a setup dart, 50 as the double-out finish),
+    // so callers must resolve it themselves before reaching here (see
+    // _possibleTotals, which expands 'Bull' to both options). Getting here
+    // with 'Bull' means that invariant was violated.
     throw StateError('Bull handled by caller');
   }
   final kind = label[0];
@@ -30,7 +30,7 @@ int _dartPoints(String label, {required bool isLast}) {
 List<int> _possibleTotals(List<String> darts) {
   var totals = <int>[0];
   for (final d in darts) {
-    final opts = d == 'Bull' ? [25, 50] : [_dartPoints(d, isLast: false)];
+    final opts = d == 'Bull' ? [25, 50] : [_dartPoints(d)];
     totals = [for (final t in totals) for (final o in opts) t + o];
   }
   return totals;

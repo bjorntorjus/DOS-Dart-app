@@ -403,6 +403,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   int get currentPlayerIndexForTest => currentPlayerIndex;
 
   @visibleForTesting
+  int get scoreAtStartOfTurnForTest => _scoreAtStartOfTurn;
+
+  @visibleForTesting
   void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   /// Computes final placements for all players.
@@ -1711,7 +1714,25 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       // its undo history — all the rules state the screen used to touch here.
       final wasCurrent = engine.currentPlayerIndex == playerIndex;
       engine.removePlayer(playerIndex);
-      if (wasCurrent) _turnIdCounter++;
+      if (wasCurrent) {
+        _turnIdCounter++;
+        if (!engine.gameOver) {
+          // Restore the old _advancePlayer tail (log + announce + turn-start
+          // refresh) that ran whenever the removed player was current — the
+          // engine rewire dropped these, leaving a stale _scoreAtStartOfTurn
+          // that skewed the next player's turnTotal (audit R5 final review).
+          _log.logAdvance(
+            roundNumber: _roundNumber,
+            fromIndex: playerIndex,
+            toIndex: engine.currentPlayerIndex,
+            toName: players[engine.currentPlayerIndex].name,
+            toScore: engine.scores[engine.currentPlayerIndex],
+            reason: 'turn complete',
+          );
+          _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+          _scoreAtStartOfTurn = engine.scores[engine.currentPlayerIndex];
+        }
+      }
       if (engine.gameOver) _gameFullyOver = true;
     });
     if (_gameFullyOver) _showPostGame();
