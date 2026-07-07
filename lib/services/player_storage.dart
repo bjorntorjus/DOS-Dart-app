@@ -4,15 +4,32 @@ import '../models/saved_player.dart';
 
 class PlayerStorage {
   static const _key = 'saved_players';
+  static const String _corruptKey = 'saved_players_corrupt';
+
+  /// True when the last [loadPlayers] hit undecodable data (audit F14).
+  static bool lastLoadFailed = false;
 
   static Future<List<SavedPlayer>> loadPlayers() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = prefs.getString(_key);
-    if (jsonStr == null) return [];
-    final List<dynamic> jsonList = jsonDecode(jsonStr) as List<dynamic>;
-    return jsonList
-        .map((j) => SavedPlayer.fromJson(j as Map<String, dynamic>))
-        .toList();
+    if (jsonStr == null) {
+      lastLoadFailed = false;
+      return [];
+    }
+    try {
+      final List<dynamic> jsonList = jsonDecode(jsonStr) as List<dynamic>;
+      final players = jsonList
+          .map((j) => SavedPlayer.fromJson(j as Map<String, dynamic>))
+          .toList();
+      lastLoadFailed = false;
+      return players;
+    } catch (_) {
+      // Preserve the unparseable blob instead of losing every player and
+      // rating on the next save (audit 2026-07-06, F14 pattern).
+      lastLoadFailed = true;
+      await prefs.setString(_corruptKey, jsonStr);
+      return [];
+    }
   }
 
   static Future<void> savePlayers(List<SavedPlayer> players) async {
