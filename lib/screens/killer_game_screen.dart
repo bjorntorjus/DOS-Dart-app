@@ -1080,9 +1080,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     return Column(
       children: [
         DossedartTopBar(
-          title: 'KILLER · TILDELING',
+          title: 'KILLER · ASSIGNMENT',
           onExit: _confirmExit,
-          trailing: 'SPILLER ${assignmentPlayerIndex + 1}/${players.length}',
+          trailing: 'PLAYER ${assignmentPlayerIndex + 1}/${players.length}',
         ),
         _killerAssignmentPrompt(),
         Expanded(child: _killerBoard(tints)),
@@ -1110,7 +1110,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Text(
-              '▶ ${claimer.name.toUpperCase()} — KAST FOR Å VELGE DITT TALL',
+              '▶ ${claimer.name.toUpperCase()} — THROW TO PICK YOUR NUMBER',
               style: const TextStyle(
                 fontFamily: 'PressStart2P',
                 fontSize: 11,
@@ -1148,8 +1148,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     final status = claimed
         ? '${assignedNumbers[i]} ✓'
         : isCurrent
-            ? 'VELGER…'
-            : 'VENTER';
+            ? 'PICKING…'
+            : 'WAITING';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(

@@ -827,8 +827,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final target = engine.currentTarget;
     const c = DossedartTokens.yellow;
     final msg = oneAway
-        ? 'TREFF T$target FOR DIREKTE SEIER!'
-        : 'S + D + T I ÉN TUR = DIREKTE SEIER';
+        ? 'HIT T$target FOR INSTANT WIN!'
+        : 'S + D + T IN ONE TURN = INSTANT WIN';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -914,7 +914,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                     style: TextStyle(
                         fontFamily: 'PressStart2P', fontSize: 26, color: c)),
                 const SizedBox(height: 8),
-                Text(hit ? '✓ TRUFFET' : '—',
+                Text(hit ? '✓ HIT' : '—',
                     style: TextStyle(
                         fontFamily: 'VT323',
                         fontSize: 14,

@@ -702,7 +702,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('MÅL',
+                    const Text('TARGET',
                         style: TextStyle(
                             fontFamily: 'VT323',
                             fontSize: 12,
@@ -759,8 +759,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     final safe = turnHasHit;
     final c = safe ? DossedartTokens.green : DossedartTokens.red;
     final text = safe
-        ? '✓ SIKRET · +$turnPoints DENNE RUNDEN'
-        : '⚠ TREFF ${round.label.toUpperCase()} ELLER HALVÉR · $total → ${total ~/ 2}';
+        ? '✓ SECURED · +$turnPoints THIS ROUND'
+        : '⚠ HIT ${round.label.toUpperCase()} OR HALVE · $total → ${total ~/ 2}';
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -830,7 +830,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Center(
-                child: Text('RUNDE',
+                child: Text('ROUND',
                     style: TextStyle(
                         fontFamily: 'PressStart2P',
                         fontSize: 10,
