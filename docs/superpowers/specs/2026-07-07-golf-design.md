@@ -34,6 +34,8 @@ Golf is its own mode (an ATC variant was considered and rejected: turn structure
 
 Surfaces for Claude design / DOSSEDART artboards. Visual style per the arcade system; this section defines required elements/states only.
 
+> **Designer: read `2026-07-07-new-modes-design-brief.md` first** — it defines the design/implementation split and which existing components must be reused rather than redesigned.
+
 ### 4.1 Home screen
 
 - The **Golf** coming-soon tile (per the Gotcha spec's 3×3 grid) lights up when Golf ships. Suggested emoji ⛳ (final pick with design).

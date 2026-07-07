@@ -88,6 +88,8 @@ A modifier applies to **one thrower, one turn**, and is announced (TTS + overlay
 
 Surfaces for Claude design / DOSSEDART artboards. Arcade style per the existing system; required elements/states only.
 
+> **Designer: read `2026-07-07-new-modes-design-brief.md` first** — it defines the design/implementation split and which existing components must be reused rather than redesigned.
+
 ### 7.1 Home screen
 
 - WILDCARD takes the **ninth cell** (the generic "coming soon" cell), completing the 3×3 grid. Shown as a dimmed coming-soon tile until it ships. Suggested emoji 🃏 (final with design). A future tenth mode grows the grid to a fourth row with a new coming-soon cell.

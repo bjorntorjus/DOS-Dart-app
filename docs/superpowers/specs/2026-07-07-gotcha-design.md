@@ -48,6 +48,8 @@ Two tip types can be **visible at the same time**, in one strip area. Win tip re
 
 These are the surfaces Claude design needs to produce DOSSEDART artboards for. Visual style follows the existing DOSSEDART arcade system (spec cards in HTML are fasit); this section defines required elements/states only.
 
+> **Designer: read `2026-07-07-new-modes-design-brief.md` first** — it defines the design/implementation split and which existing components must be reused rather than redesigned.
+
 ### 4.1 Home screen (modified)
 
 - Mode grid goes from 2 to **3 columns**. Layout: X01 row (301/501/701) unchanged, then 3×3 grid:

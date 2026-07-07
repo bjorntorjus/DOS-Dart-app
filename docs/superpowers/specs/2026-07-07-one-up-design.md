@@ -37,6 +37,8 @@ The name is an arcade reference (1UP = extra life) and fits the DOSSEDART theme.
 
 Surfaces for Claude design / DOSSEDART artboards. Visual style per the existing arcade system; this section defines required elements/states only.
 
+> **Designer: read `2026-07-07-new-modes-design-brief.md` first** — it defines the design/implementation split and which existing components must be reused rather than redesigned.
+
 ### 4.1 Home screen
 
 - The "Legs" coming-soon tile from the Gotcha spec is named **1UP** (dimmed/disabled until shipped, then lights up). Grid layout otherwise as specced in the Gotcha design (3×3).
