@@ -38,7 +38,12 @@ void main() {
           isRandom: false,
           targetCount: 7,
           includeBull: false,
-          isCutthroat: false,
+          // Cutthroat: P0's overflow lands points on the OPPONENTS, so the
+          // new current player's score differs from the stale
+          // _scoreAtStartOfTurn (0). With standard rules the removal would
+          // happen while everyone else is still at 0 and the assertion
+          // would pass with or without the fix (vacuous).
+          isCutthroat: true,
         ),
       ),
     ));
@@ -48,14 +53,16 @@ void main() {
 
     expect(s.currentPlayerIndexForTest, 0);
 
-    // P0 opens 20 (triple) then banks points with a second dart on it,
-    // mid-turn (only 2 of 3 darts thrown) so P0 is still current.
+    // P0 closes 20 (triple) then overflows it with a second triple, mid-turn
+    // (only 2 of 3 darts thrown) so P0 is still current. In cutthroat the
+    // 3-mark overflow puts 60 points on each opponent.
     await s.registerHitForTest(20, 3);
-    await s.registerHitForTest(20, 1);
+    await s.registerHitForTest(20, 3);
     await tester.pump();
     expect(s.currentPlayerIndexForTest, 0);
-    expect(s.scores[0], greaterThan(0),
-        reason: 'P0 must have banked points before being removed');
+    expect(s.scores[1], greaterThan(0),
+        reason: 'the next player must have overflow points so a stale '
+            '_scoreAtStartOfTurn (0) is distinguishable from the refresh');
 
     // Remove P0 while still current, mid-turn.
     s.removePlayerForTest(0);
