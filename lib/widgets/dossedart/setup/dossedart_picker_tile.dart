@@ -135,7 +135,7 @@ class DossedartPickerTile extends StatelessWidget {
       width: 14,
       height: 14,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.white24, width: 1.5),
+        border: Border.all(color: DossedartTokens.disabledBorder, width: DossedartTokens.borderThin),
       ),
       alignment: Alignment.center,
       child: const Text(

@@ -1087,7 +1087,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: c.withValues(alpha: 0.07),
-          border: Border.all(color: c, width: 1.5),
+          border: Border.all(color: c, width: 1),
         ),
         alignment: Alignment.center,
         child: FittedBox(
@@ -1319,7 +1319,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                             ? Theme.of(context).colorScheme.primary.withAlpha(30)
                             : Theme.of(context).colorScheme.surfaceContainerLow,
                     border: isCurrent
-                        ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 1.5)
+                        ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 2)
                         : null,
                   ),
                   child: Text(

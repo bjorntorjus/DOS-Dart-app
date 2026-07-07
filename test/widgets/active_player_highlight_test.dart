@@ -2,8 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dart_scoring/widgets/active_player_highlight.dart';
 
+/// F23 (audit 2026-07-06): the color spec mandates a 2px primary border for
+/// the active player; the shared ring silently defaulted to 3px.
 void main() {
   group('ActivePlayerHighlight', () {
+    testWidgets('active ring defaults to a 2px border', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: ActivePlayerHighlight(isActive: true, child: SizedBox()),
+      ));
+      final container = tester.widget<Container>(find.byType(Container).first);
+      final border = (container.decoration as BoxDecoration).border as Border;
+      expect(border.top.width, 2);
+    });
+
     testWidgets('renders the child unchanged when isActive=false', (tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(

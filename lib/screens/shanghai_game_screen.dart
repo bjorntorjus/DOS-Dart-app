@@ -1208,7 +1208,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                       : Theme.of(context).colorScheme.surfaceContainerLow,
               border: isCurrent
                   ? Border.all(
-                      color: Theme.of(context).colorScheme.tertiary, width: 1.5)
+                      color: Theme.of(context).colorScheme.tertiary, width: 2)
                   : null,
             ),
             child: Text(

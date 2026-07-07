@@ -2014,7 +2014,7 @@ class _GameScreenState extends State<GameScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     borderRadius: BorderRadius.circular(8),
                     child: SizedBox(
-                      height: _playerCardHeight - 18, // subtract 2*(vertical padding 6 + border 3)
+                      height: _playerCardHeight - 18, // subtract 2*(vertical padding 6 + border 2)
                       child: Container(
                         color: isWinner ? Theme.of(context).colorScheme.primary.withAlpha(25) : null,
                         child: Row(

@@ -140,9 +140,9 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Color(0x66FF00AA), width: 1),
+          bottom: BorderSide(color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 1),
         ),
       ),
       child: Column(
@@ -165,9 +165,9 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
           // Column header
           Container(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Color(0x4DFF00AA), width: 1),
+                bottom: BorderSide(color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 1),
               ),
             ),
             child: Row(

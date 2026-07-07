@@ -1504,7 +1504,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           letterSpacing: 1.5)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
-                    side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1.5),
+                    side: BorderSide(color: Theme.of(context).colorScheme.outline, width: 1),
                   ),
                 ),
               ),
@@ -1546,7 +1546,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.outline,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Theme.of(context).colorScheme.outline, width: 0.5),
+            border: Border.all(color: Theme.of(context).colorScheme.outline, width: 1),
           ),
         ),
         if (fillFraction > 0)
