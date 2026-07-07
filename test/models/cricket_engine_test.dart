@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:dart_scoring/engines/cricket_engine.dart';
+import 'package:dart_scoring/models/cricket_engine.dart';
 
 void main() {
   // Standard targets
@@ -296,6 +296,99 @@ void main() {
       // represents state BEFORE the winning dart
       // This validates that the engine's finishedPlayers reflects the finish
       expect(engine.finishedPlayers.first, 0); // P0 won
+    });
+  });
+
+  group('undo', () {
+    test('undo restores marks, scores, rotation and dartsInTurn', () {
+      final e = CricketEngine(targets: [20, 19, 25], isCutthroat: false, playerCount: 2);
+      expect(e.canUndo, isFalse);
+      e.applyHit(20, 3); // close 20
+      e.applyHit(20, 1); // overflow +20
+      expect(e.scores[0], 20);
+      e.undo();
+      expect(e.scores[0], 0);
+      expect(e.marks[0][20], 3);
+      expect(e.dartsInTurn, 1);
+      e.undo();
+      expect(e.marks[0][20], 0);
+      expect(e.canUndo, isFalse);
+    });
+
+    test('undo across a turn boundary restores the previous player', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 2);
+      e.applyHit(5, 1);
+      e.applyHit(5, 1);
+      e.applyHit(5, 1); // turn ends -> player 1
+      expect(e.currentPlayerIndex, 1);
+      e.undo();
+      expect(e.currentPlayerIndex, 0);
+      expect(e.dartsInTurn, 2);
+    });
+
+    test('undo restores a finish (finishedPlayers/gameOver/winnerIndex)', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 2);
+      e.marks[0][20] = 2;
+      e.scores[0] = 100;
+      e.applyHit(20, 1); // closes last target with higher score -> finishes
+      expect(e.finishedPlayers, contains(0));
+      e.undo();
+      expect(e.finishedPlayers, isEmpty);
+      expect(e.gameOver, isFalse);
+      expect(e.winnerIndex, isNull);
+    });
+  });
+
+  group('roster', () {
+    test('addPlayer grows state and clears undo', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 2);
+      e.applyHit(20, 1);
+      expect(e.canUndo, isTrue);
+      e.addPlayer();
+      expect(e.scores.length, 3);
+      expect(e.marks.length, 3);
+      expect(e.marks[2][20], 0);
+      expect(e.canUndo, isFalse);
+    });
+
+    test('removePlayer marks skipped+finished, advances, clears undo', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 3);
+      e.applyHit(20, 1);
+      e.removePlayer(0); // current player removed
+      expect(e.isSkipped(0), isTrue);
+      expect(e.finishedPlayers, contains(0));
+      expect(e.currentPlayerIndex, isNot(0));
+      expect(e.canUndo, isFalse);
+      expect(e.activePlayerCount, 2);
+      expect(e.gameOver, isFalse);
+    });
+
+    test('removal down to one active player ends the game (F7)', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 3);
+      e.removePlayer(1);
+      e.removePlayer(2);
+      expect(e.gameOver, isTrue);
+    });
+
+    test('rotation skips removed players without looping (F7)', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 3);
+      e.removePlayer(1); // two active remain: 0 and 2
+      expect(e.currentPlayerIndex, 0);
+      e.applyHit(5, 1);
+      e.applyHit(5, 1);
+      e.applyHit(5, 1); // turn ends -> must skip removed 1, land on 2
+      expect(e.currentPlayerIndex, 2);
+      e.applyHit(5, 1);
+      e.applyHit(5, 1);
+      e.applyHit(5, 1); // wraps back to 0 — and must not hang doing it
+      expect(e.currentPlayerIndex, 0);
+    });
+
+    test('winnerIndexExcludingSkipped skips removed players', () {
+      final e = CricketEngine(targets: [20], isCutthroat: false, playerCount: 3);
+      e.removePlayer(0); // goes into finishedPlayers first
+      e.finishedPlayers.add(1); // real finisher
+      expect(e.winnerIndexExcludingSkipped(), 1);
     });
   });
 }
