@@ -100,4 +100,39 @@ void main() {
         reason: 'a second concurrent init() caller must await the same '
             'in-flight initialization, not resolve early with a stale value');
   });
+
+  // Round-4 audit finding: init() cached `_initializing` even when _doInit()
+  // threw, so a single transient failure (e.g. platform channel hiccup)
+  // permanently broke TTS for the rest of the session — every later init()
+  // caller (including GameAnnouncer.init(), which every screen awaits first)
+  // replayed the same rejected future, and SoundService/VideoService init
+  // never ran.
+  test('a failed init() clears the cache so a later init() can retry',
+      () async {
+    final svc = TtsService.instance;
+    var setLanguageCalls = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(ttsChannel, (call) async {
+      if (call.method == 'setLanguage') {
+        setLanguageCalls++;
+        if (setLanguageCalls == 1) {
+          throw PlatformException(
+              code: 'error', message: 'simulated one-shot init failure');
+        }
+      }
+      if (call.method == 'getVoices' || call.method == 'getLanguages') {
+        return <dynamic>[];
+      }
+      return null;
+    });
+
+    await expectLater(svc.init(), throwsA(anything));
+    expect(svc.isInitialized, isFalse,
+        reason: 'the failed attempt must not be marked initialized');
+
+    // The next caller must retry _doInit() rather than replaying the
+    // cached rejection.
+    await svc.init();
+    expect(svc.isInitialized, isTrue);
+  });
 }

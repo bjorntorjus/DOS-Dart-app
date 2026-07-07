@@ -213,17 +213,19 @@ class _GameScreenState extends State<GameScreen> {
     );
     BatterySampler.instance.start('X01');
     AppSettings.getSoundEffectsEnabled().then((v) {
-      setState(() => _soundEnabled = v);
+      if (mounted) setState(() => _soundEnabled = v);
       SoundService.instance.setEnabled(v);
     });
     AppSettings.getMemeEnabled().then((v) {
-      setState(() => _memeEnabled = v);
+      if (mounted) setState(() => _memeEnabled = v);
       _meme.setEnabled(v);
     });
     TtsService.instance.init().then((_) {
       if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
     });
-    AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
+    AppSettings.getMemeOffensive().then((v) {
+      if (mounted) setState(() => _offensiveEnabled = v);
+    });
   }
 
   @override

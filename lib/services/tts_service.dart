@@ -40,7 +40,14 @@ class TtsService {
 
   Future<void> init() {
     if (_initialized) return Future.value();
-    return _initializing ??= _doInit();
+    return _initializing ??= _doInit().catchError((Object e, StackTrace st) {
+      // One-shot failure — don't cache a rejected future forever, or every
+      // later caller (including GameAnnouncer.init(), which awaits this
+      // first and blocks SoundService/VideoService init behind it) gets the
+      // same rejection for the rest of the session. Let the next call retry.
+      _initializing = null;
+      Error.throwWithStackTrace(e, st);
+    });
   }
 
   Future<void> _doInit() async {
