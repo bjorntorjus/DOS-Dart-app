@@ -5,12 +5,12 @@
 /// Bull hits (single or double) hand the thrower a meter-direction choice
 /// instead of an automatic delta — see [applyDart]/[resolveBullChoice].
 ///
-/// THIS file wires only the chaos-0 baseline: turn-modifiers, jokers, and
-/// instant events (spec §4/§5) are data-only stubs consumed by later tasks.
-/// Their fields ([activeModifier], [window], [jokers], [cursedNumber],
-/// [frozenPlayer], `debugForce*`) exist here so the screen/tests can compile
-/// against the final shape, but stay null/empty regardless of [chaos] until
-/// Task 3/4 wires the rolls in.
+/// Turn-modifiers (spec §4), restriction dimming, the scoring transforms they
+/// apply, THE WINDOW, and freeze are wired here (Task 3). Jokers, cursed
+/// numbers, and instant events (spec §5) remain data-only stubs — their
+/// fields ([jokers], [cursedNumber], `debugForceEvent`) exist so the
+/// screen/tests can compile against the final shape, but stay null/empty
+/// until Task 4 wires the rolls in.
 library;
 
 import 'dart:math' as math;
@@ -19,17 +19,17 @@ import 'wildcard_events.dart';
 
 class WildcardDartResult {
   /// Effective points credited THIS dart (after modifier/curse/freeze; may
-  /// be negative pre-floor). This task: always `segment * multiplier`.
+  /// be negative pre-floor, e.g. a BULL'S CURSE bull).
   final int points;
 
   /// Applied (post-clamp) meter movement from this dart. Zero for bull darts
   /// — their meter change is deferred to [WildcardEngine.resolveBullChoice].
   final int meterDelta;
 
-  /// Revealed joker number, or null. Always null until Task 3/4.
+  /// Revealed joker number, or null. Always null until Task 4.
   final int? jokerHit;
 
-  /// Instant event fired by the joker. Always null until Task 3/4.
+  /// Instant event fired by the joker. Always null until Task 4.
   final WcInstantEventDef? instantEvent;
 
   /// True when the dart hit bull (single or double) — the screen must call
@@ -82,6 +82,7 @@ class _WcUndoEntry {
   final List<int> pointsStolen;
   final WcModifierDef? activeModifier;
   final ({int lo, int hi})? window;
+  final bool windowVoided;
   final Set<int> jokers;
   final int? cursedNumber;
   final int? frozenPlayer;
@@ -105,6 +106,7 @@ class _WcUndoEntry {
     required this.pointsStolen,
     required this.activeModifier,
     required this.window,
+    required this.windowVoided,
     required this.jokers,
     required this.cursedNumber,
     required this.frozenPlayer,
@@ -140,12 +142,17 @@ class WildcardEngine {
   /// Totals as of the start of the current round (stats/UI helper).
   late List<int> roundStartTotals;
 
-  /// Null = open throw. Stays null this task (Task 3/4 wires the roll).
+  /// Null = open throw. Rolled at the start of each turn (constructor for
+  /// the very first turn, [_rollTurnModifier] on every subsequent bank).
   WcModifierDef? activeModifier;
 
-  /// Non-null only while `activeModifier?.id == 'window'`. Stays null this
-  /// task.
+  /// Non-null only while `activeModifier?.id == 'theWindow'`.
   ({int lo, int hi})? window;
+
+  /// True once a true miss has landed during a THE WINDOW turn — forces the
+  /// turn to bank 0 at banking time regardless of the eventual total (locked
+  /// interpretation #8). Reset for each new turn in [_rollTurnModifier].
+  bool _windowVoided = false;
 
   /// Hidden joker numbers (test-visible). Stays empty this task.
   Set<int> jokers = {};
@@ -153,8 +160,10 @@ class WildcardEngine {
   /// Stays null this task.
   int? cursedNumber;
 
-  /// Scores 0 on their next turn. Stays null this task; dissolves if the
-  /// frozen player is removed mid-game.
+  /// Scores 0 on their next turn: every dart banks 0 points, but meter/bull
+  /// effects still fire and the thrower rolls no [activeModifier] (locked
+  /// interpretation #16). Dissolves once that turn banks, or if the frozen
+  /// player is removed mid-game.
   int? frozenPlayer;
 
   /// Max chaos level reached (stats).
@@ -175,10 +184,8 @@ class WildcardEngine {
   /// covers both the dart and the eventual choice.
   int? pendingBullChoice;
 
-  // ignore: unused_field
   final math.Random _rng;
 
-  // ignore: unused_field
   String? _forcedModifierId;
   // ignore: unused_field
   String? _forcedEventId;
@@ -201,6 +208,7 @@ class WildcardEngine {
     windowPrizes = List.filled(playerCount, 0, growable: true);
     pointsStolen = List.filled(playerCount, 0, growable: true);
     turnDartLabels = List.filled(3, '—');
+    _rollTurnModifier(); // the game's very first turn also rolls (locked #16)
   }
 
   bool get canUndo => _undoStack.isNotEmpty;
@@ -208,8 +216,8 @@ class WildcardEngine {
   int get activePlayerCount => totals.length - _skipped.length;
 
   /// Returns true for segments that do NOT score under the active modifier;
-  /// null while no modifier restricts scoring (open throw or THE WINDOW).
-  /// Always null this task — [activeModifier] never gets set.
+  /// null while no modifier restricts scoring (open throw or THE WINDOW —
+  /// dimming never applies during a window, spec §4).
   bool Function(int segment)? get dimPredicate {
     if (window != null) return null;
     return activeModifier?.dims;
@@ -259,7 +267,44 @@ class WildcardEngine {
 
     _pushUndo();
 
-    final points = segment * multiplier;
+    final mod = activeModifier;
+    final frozenTurn = frozenPlayer == currentPlayerIndex;
+    final rawPoints = segment * multiplier;
+
+    // Per-dart scoring transform, per the locked interpretations (§4):
+    // freeze zeroes everything; bull always scores (FORTUNE/CURSE replace
+    // its points with a flat ±100; DOUBLE TROUBLE's ×3 still applies to a
+    // double bull); restriction dims zero a non-bull dart on a dimmed
+    // segment; DOUBLE TROUBLE otherwise turns doubles into ×3 and triples
+    // into 0; everything else scores normally. GOLDEN DART then triples
+    // whatever the 3rd dart came out to.
+    int points;
+    if (frozenTurn) {
+      points = 0;
+    } else if (segment == 25) {
+      if (mod?.id == 'bullsFortune') {
+        points = 100;
+      } else if (mod?.id == 'bullsCurse') {
+        points = -100;
+      } else if (mod?.id == 'doubleTrouble' && multiplier == 2) {
+        points = segment * 3; // D-Bull under DOUBLE TROUBLE: 75
+      } else {
+        points = rawPoints; // 25 (single) or 50 (double), unaffected
+      }
+    } else if (segment != 0 && mod?.dims != null && mod!.dims!(segment)) {
+      points = 0; // dimmed restriction hit — alive, but scores nothing
+    } else if (mod?.id == 'doubleTrouble' && multiplier == 2) {
+      points = segment * 3;
+    } else if (mod?.id == 'doubleTrouble' && multiplier == 3) {
+      points = 0;
+    } else {
+      points = rawPoints;
+    }
+
+    if (!frozenTurn && mod?.id == 'goldenDart' && dartsInTurn == 2) {
+      points *= 3;
+    }
+
     turnPoints += points;
     turnDartLabels[dartsInTurn] = _labelFor(segment, multiplier);
 
@@ -267,6 +312,8 @@ class WildcardEngine {
     var needsBullChoice = false;
     var bullChoiceMagnitude = 0;
 
+    // Meter reactions follow the DART thrown, not the points it scored — a
+    // dimmed triple (or a DOUBLE TROUBLE triple) still moves the meter +1.
     if (segment == 25) {
       needsBullChoice = true;
       bullChoiceMagnitude = multiplier == 2 ? 3 : 1;
@@ -275,6 +322,7 @@ class WildcardEngine {
       meterDelta = _applyMeterChange(1);
     } else if (segment == 0) {
       meterDelta = _applyMeterChange(-1);
+      if (mod?.id == 'theWindow') _windowVoided = true;
     }
 
     dartsInTurn++;
@@ -320,16 +368,87 @@ class WildcardEngine {
     }
   }
 
-  void _bankTurnAndAdvance() {
-    totals[currentPlayerIndex] =
-        math.max(0, totals[currentPlayerIndex] + turnPoints);
-    if (turnPoints > highestTurn[currentPlayerIndex]) {
-      highestTurn[currentPlayerIndex] = turnPoints;
+  /// Turns the raw dart-by-dart [turnPoints] into what actually gets banked,
+  /// applying the whole-turn transforms (locked interpretations #4, #7, #8):
+  /// THE WINDOW replaces the sum with a flat 100/0 (or 0 if voided by a true
+  /// miss); EVERYTHING ×2 doubles it; HOLY TRINITY adds +100 on an exact 26.
+  /// Any other/no modifier banks [turnPoints] unchanged.
+  int _computeBankedAmount() {
+    final mod = activeModifier;
+    if (mod == null) return turnPoints;
+    switch (mod.id) {
+      case 'theWindow':
+        if (_windowVoided) return 0;
+        final w = window!;
+        if (turnPoints >= w.lo && turnPoints <= w.hi) {
+          windowPrizes[currentPlayerIndex]++;
+          return 100;
+        }
+        return 0;
+      case 'everythingX2':
+        return turnPoints * 2;
+      case 'holyTrinity':
+        return turnPoints == 26 ? turnPoints + 100 : turnPoints;
+      default:
+        return turnPoints;
     }
+  }
+
+  void _bankTurnAndAdvance() {
+    final bankedAmount = _computeBankedAmount();
+    totals[currentPlayerIndex] =
+        math.max(0, totals[currentPlayerIndex] + bankedAmount);
+    if (bankedAmount > highestTurn[currentPlayerIndex]) {
+      highestTurn[currentPlayerIndex] = bankedAmount;
+    }
+    if (frozenPlayer == currentPlayerIndex) frozenPlayer = null;
     turnPoints = 0;
     dartsInTurn = 0;
     turnDartLabels = List.filled(3, '—');
     _advancePlayer();
+    if (!gameOver) _rollTurnModifier();
+  }
+
+  /// Rolls (or clears) [activeModifier] for the player about to throw
+  /// (`currentPlayerIndex`): called once from the constructor for the game's
+  /// very first turn, and again from [_bankTurnAndAdvance] for every
+  /// subsequent turn. Chance is [wcModifierChancePct] at the current [chaos];
+  /// the definition is drawn uniformly from [wcModifiers] filtered to
+  /// [wcSeverityPool]. `theWindow` also rolls fresh [window] bounds.
+  /// [debugForceModifier] overrides the chance roll outright (consumed once).
+  /// A frozen thrower gets no roll at all — [activeModifier] stays null and
+  /// a pending forced id is left queued for the next roll that actually
+  /// happens (locked interpretation #16).
+  void _rollTurnModifier() {
+    activeModifier = null;
+    window = null;
+    _windowVoided = false;
+
+    if (frozenPlayer == currentPlayerIndex) return;
+
+    WcModifierDef? chosen;
+    final forcedId = _forcedModifierId;
+    if (forcedId != null) {
+      chosen = wcModifiers.firstWhere((m) => m.id == forcedId);
+      _forcedModifierId = null;
+    } else {
+      final chancePct = wcModifierChancePct(chaos);
+      if (chancePct > 0 && _rng.nextInt(100) < chancePct) {
+        final pool = wcSeverityPool(chaos);
+        final eligible = [
+          for (final m in wcModifiers)
+            if (pool.contains(m.severity)) m
+        ];
+        if (eligible.isNotEmpty) {
+          chosen = eligible[_rng.nextInt(eligible.length)];
+        }
+      }
+    }
+
+    activeModifier = chosen;
+    if (chosen?.id == 'theWindow') {
+      window = wcRollWindow(_rng, chaos);
+    }
   }
 
   /// Advance to the next non-skipped player. Wrapping past the last seat
@@ -372,6 +491,7 @@ class WildcardEngine {
       pointsStolen: List.of(pointsStolen),
       activeModifier: activeModifier,
       window: window,
+      windowVoided: _windowVoided,
       jokers: Set.of(jokers),
       cursedNumber: cursedNumber,
       frozenPlayer: frozenPlayer,
@@ -399,6 +519,7 @@ class WildcardEngine {
     pointsStolen = e.pointsStolen;
     activeModifier = e.activeModifier;
     window = e.window;
+    _windowVoided = e.windowVoided;
     jokers = e.jokers;
     cursedNumber = e.cursedNumber;
     frozenPlayer = e.frozenPlayer;
@@ -454,8 +575,10 @@ class WildcardEngine {
     }
   }
 
-  /// Dev/QA override: force the next turn-modifier roll (spec §8). No-op
-  /// this task — modifiers are not rolled until Task 3.
+  /// Dev/QA override: force the next turn-modifier roll to [id] (spec §8),
+  /// bypassing the chance/severity-pool roll entirely. Consumed once by the
+  /// next [_rollTurnModifier] call that actually executes (a frozen thrower
+  /// does not consume it — see [frozenPlayer]).
   void debugForceModifier(String id) => _forcedModifierId = id;
 
   /// Dev/QA override: force the next joker event (spec §8). No-op this task
