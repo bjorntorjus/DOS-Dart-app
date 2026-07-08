@@ -170,6 +170,51 @@ void main() {
       e.removePlayer(1);
       expect(e.frozenPlayer, isNull);
     });
+
+    test(
+        'removing the current thrower re-rolls the turn modifier instead of '
+        'leaking it to the seat inheritor (chaos 0 → re-roll can never '
+        'produce a modifier)', () {
+      final e = plain(); // startingChaos: 0
+      e.debugForceModifier('onlyEvens');
+      // Bank P0's turn so P1's turn starts with the forced modifier.
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      expect(e.currentPlayerIndex, 1);
+      expect(e.activeModifier?.id, 'onlyEvens'); // rolled for P1
+
+      e.removePlayer(1); // P1 leaves mid-announcement, P2 inherits the seat
+
+      expect(e.currentPlayerIndex, 2);
+      // At chaos 0 the modifier chance is 0%, so a genuine re-roll for P2
+      // must clear activeModifier. If it were still 'onlyEvens', that would
+      // be P1's leaked modifier, not a fresh roll.
+      expect(e.activeModifier, isNull);
+    });
+
+    test(
+        'removing the current thrower when it ends the game (≤1 active '
+        'left) skips the re-roll without crashing', () {
+      final e = plain(players: 2);
+      e.debugForceModifier('onlyEvens');
+      // Bank P0's turn so P1 (about to become the sole survivor) starts
+      // its turn with the forced modifier active.
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      expect(e.currentPlayerIndex, 1);
+      expect(e.activeModifier?.id, 'onlyEvens');
+
+      expect(() => e.removePlayer(1), returnsNormally);
+
+      expect(e.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+      // Same leak check as above, exercised on the path that also ends the
+      // game — the re-roll must still happen (and find nothing at chaos 0)
+      // rather than leaving P1's forced modifier stuck on the engine.
+      expect(e.activeModifier, isNull);
+    });
   });
 
   group('WildcardEngine turn-modifiers', () {

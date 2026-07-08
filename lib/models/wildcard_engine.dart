@@ -561,6 +561,11 @@ class WildcardEngine {
       turnDartLabels = List.filled(3, '—');
       pendingBullChoice = null;
       _advancePlayer();
+      // A modifier is personal (spec §4: one thrower, one turn) — the seat
+      // inheritor must get a fresh roll, not the removed player's leftover
+      // activeModifier/window/_windowVoided. Guarded because _advancePlayer
+      // may itself have just ended the game (final-round wraparound).
+      if (!gameOver) _rollTurnModifier();
     }
 
     if (!gameOver) {
