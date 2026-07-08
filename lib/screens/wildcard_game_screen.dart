@@ -77,11 +77,19 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
 
   @visibleForTesting
   void removePlayerForTest(int playerIndex) {
+    final wasCurrent = engine.currentPlayerIndex == playerIndex;
     setState(() {
       _midGamePlayerChanges = true;
       final removedId = players[playerIndex].savedPlayerId;
       if (removedId != null) _leftMidGameIds.add(removedId);
       engine.removePlayer(playerIndex);
+      if (wasCurrent && !engine.gameOver) {
+        // The engine re-rolls a fresh modifier for the seat inheritor —
+        // announce it, mirrors Cricket's announce-on-current-removal (R5
+        // b44c6b3).
+        _announcedTurnId = -1;
+        _maybeShowAnnounce();
+      }
     });
   }
 
@@ -105,6 +113,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
 
   @visibleForTesting
   Future<void> onGameEndForTest() => _onGameEnd();
+
+  @visibleForTesting
+  List<DartThrow> get throwHistoryForTest => throwHistory;
 
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
@@ -182,6 +193,11 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     if (dartNo == 0) _turnStartScore = before;
     final windowActive = engine.window != null;
 
+    // Captured BEFORE applyDart: a round-closing dart (the last player's 3rd
+    // dart) advances engine.round as a side effect, so reading it afterward
+    // would misattribute that dart to the NEXT round.
+    final roundNo = engine.round;
+
     late WildcardDartResult result;
     setState(() => result = engine.applyDart(segment, multiplier));
 
@@ -202,12 +218,12 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       turnNumber: dartNo,
       scoreAtStartOfTurn: _turnStartScore,
       turnId: _turnIdCounter,
-      roundNumber: engine.round,
+      roundNumber: roundNo,
       isBust: false,
     ));
 
     _log.logThrow(
-      roundNumber: engine.round,
+      roundNumber: roundNo,
       playerIndex: playerIdx,
       label: label,
       points: result.points,
@@ -221,17 +237,27 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       _announcer.announceThrow(segment == 0 ? 'miss' : '${segment * multiplier}');
     }
 
-    // THE WINDOW: a simple heuristic (spec-approved) rather than a dedicated
-    // engine signal — a window turn that just banked exactly its +100 prize.
-    if (result.turnEnded &&
-        windowActive &&
-        (engine.totals[playerIdx] - _turnStartScore) == 100) {
-      _announcer.announceGameEvent('Window prize! 100 points');
-    }
+    _maybeAnnounceWindowPrize(playerIdx, result.turnEnded, windowActive);
 
     if (result.turnEnded) _meme.onTurnEnd();
 
     _routeDartResult(result);
+  }
+
+  /// THE WINDOW: a simple heuristic (spec-approved) rather than a dedicated
+  /// engine signal — a window turn that just banked exactly its +100 prize.
+  /// Shared by both paths that can end a turn: the normal 3rd-dart bank in
+  /// [_onDartHit], and a bull dart's deferred bank in [_onBullChoice].
+  /// [windowWasActive] must be captured by the caller BEFORE the engine call
+  /// that may have banked the turn — banking rolls a fresh modifier for the
+  /// next thrower, which clears `engine.window`.
+  void _maybeAnnounceWindowPrize(
+      int playerIdx, bool turnEnded, bool windowWasActive) {
+    if (turnEnded &&
+        windowWasActive &&
+        (engine.totals[playerIdx] - _turnStartScore) == 100) {
+      _announcer.announceGameEvent('Window prize! 100 points');
+    }
   }
 
   void _onMiss() {
@@ -261,11 +287,18 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   }
 
   void _onBullChoice(int signedDelta) {
+    // Guards against a double-tap before the overlay-dismissing rebuild
+    // lands: in release builds (asserts stripped) engine.resolveBullChoice's
+    // own assert wouldn't fire, and the meter would apply twice.
+    if (engine.pendingBullChoice == null) return;
+    final playerIdx = engine.currentPlayerIndex;
+    final windowActive = engine.window != null;
     setState(() {
       engine.resolveBullChoice(signedDelta);
       _overlay = null;
     });
     final turnEnded = engine.dartsInTurn == 0;
+    _maybeAnnounceWindowPrize(playerIdx, turnEnded, windowActive);
     if (turnEnded) _meme.onTurnEnd();
     _finishTurn(turnEnded);
   }
@@ -638,12 +671,19 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               final removedId = players[playerIndex].savedPlayerId;
+              final wasCurrent = engine.currentPlayerIndex == playerIndex;
               setState(() {
                 _midGamePlayerChanges = true;
                 if (removedId != null) _leftMidGameIds.add(removedId);
                 engine.removePlayer(playerIndex);
                 if (engine.gameOver) {
                   _onGameEnd();
+                } else if (wasCurrent) {
+                  // The engine re-rolls a fresh modifier for the seat
+                  // inheritor — announce it, mirrors Cricket's
+                  // announce-on-current-removal (R5 b44c6b3).
+                  _announcedTurnId = -1;
+                  _maybeShowAnnounce();
                 }
               });
             },

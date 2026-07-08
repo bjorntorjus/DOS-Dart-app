@@ -335,4 +335,77 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'every dart in one full round is attributed to that round, not the '
+      'round the round-ending dart advances into', (tester) async {
+    // Regression: engine.round used to be read AFTER applyDart, so the
+    // round-closing dart (the last player's 3rd dart) landed in the NEXT
+    // round's bucket in throwHistory — leaking one dart per round into the
+    // wrong round and creating a phantom final round in KAMPDETALJER.
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    // A full round: both A and B throw a complete 3-dart turn.
+    for (var i = 0; i < 6; i++) {
+      state.onDartHitForTest(1, 1);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(state.engineForTest.round, 2,
+        reason: 'sanity check — the round must have advanced by the time '
+            'both turns have banked');
+    expect(state.throwHistoryForTest, hasLength(6));
+    for (final t in state.throwHistoryForTest) {
+      expect(t.roundNumber, 1,
+          reason: 'every dart of round 1 (including the round-closing one) '
+              'must log roundNumber 1, not the round applyDart advanced '
+              'into');
+    }
+  });
+
+  testWidgets(
+      'removing the current player announces the seat inheritor\'s freshly '
+      'rolled modifier instead of applying it silently', (tester) async {
+    // Regression: the engine re-rolls a fresh modifier for the seat
+    // inheritor when the removed player was the current, mid-turn thrower,
+    // but the screen never announced it — mirrors Cricket's
+    // announce-on-current-removal fix (R5 b44c6b3).
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    expect(state.engineForTest.currentPlayerIndex, 0);
+
+    // debugForceModifier is consumed by the NEXT roll that actually
+    // executes — removing the current player triggers exactly one roll (for
+    // the seat inheritor), so force it right before the removal call.
+    state.engineForTest.debugForceModifier('onlyEvens');
+    state.removePlayerForTest(0);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.engineForTest.currentPlayerIndex, 1);
+    expect(state.overlayKindForTest, WcOverlayKind.announce,
+        reason: 'the seat inheritor\'s freshly rolled modifier must be '
+            'announced, not applied silently');
+  });
 }
