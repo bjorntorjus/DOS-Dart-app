@@ -14,6 +14,7 @@ import 'dossedart_gotcha_setup_screen.dart';
 import 'dossedart_killer_setup_screen.dart';
 import 'dossedart_shanghai_setup_screen.dart';
 import 'dossedart_splitscore_setup_screen.dart';
+import 'dossedart_wildcard_setup_screen.dart';
 import 'dossedart_x01_setup_screen.dart';
 
 /// A single tile in the "OR PICK A LEVEL" 3×3 grid.
@@ -40,7 +41,7 @@ const _gridTiles = [
   // legs/sets otherwise).
   _GridTile(_TileKind.soon, '❤️', '1UP', soonText: 'COMING SOON'),
   _GridTile(_TileKind.soon, '⛳', 'Golf', soonText: 'COMING SOON'),
-  _GridTile(_TileKind.soon, '✨', 'Coming soon', soonText: 'MORE SOON'),
+  _GridTile(_TileKind.fresh, '🃏', 'Wildcard', mode: GameMode.wildcard),
 ];
 
 /// DOSSEDART arcade home screen — leaderboard variant B (tight list).
@@ -396,7 +397,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
                   style:
                       _press(11, color: DossedartTokens.cyan, letterSpacing: 1)),
               const SizedBox(width: 10),
-              Text('NEW: GOTCHA 💀',
+              Text('NEW: GOTCHA 💀 · WILDCARD 🃏',
                   style: _vt(14, color: DossedartTokens.yellow)),
             ],
           ),
@@ -671,7 +672,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
       case GameMode.gotcha:
         screen = const DossedartGotchaSetupScreen();
       case GameMode.wildcard:
-        throw UnimplementedError('replaced in WC Task 10/12');
+        screen = const DossedartWildcardSetupScreen();
     }
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _loadTopPlayers();

@@ -6,8 +6,8 @@ import 'package:dart_scoring/screens/dossedart/dossedart_home_screen.dart';
 import 'package:dart_scoring/widgets/dossedart/arcade_frame.dart';
 
 /// Widget tests for the DOSSEDART home's "OR PICK A LEVEL" 3×3 grid: 5 live
-/// modes, the new Gotcha tile (NEW ribbon), and 3 hardcoded coming-soon
-/// placeholders (1UP / Golf / generic).
+/// modes, two fresh tiles (Gotcha + WILDCARD, both with a NEW ribbon), and 2
+/// hardcoded coming-soon placeholders (1UP / Golf).
 void main() {
   setUpAll(() => ArcadeFrame.disableBeamForTest = true);
 
@@ -21,19 +21,22 @@ void main() {
     await tester.pumpAndSettle();
 
     // One tile per emoji -> exactly 9 tiles in the grid.
-    const emojis = ['🎯', '🕐', '🔪', '✂️', '🐉', '💀', '❤️', '⛳', '✨'];
+    const emojis = ['🎯', '🕐', '🔪', '✂️', '🐉', '💀', '❤️', '⛳', '🃏'];
     for (final e in emojis) {
       expect(find.text(e), findsOneWidget, reason: 'tile emoji "$e" missing');
     }
 
     expect(find.text('GOTCHA'), findsOneWidget);
-    expect(find.text('NEW'), findsOneWidget, reason: 'NEW ribbon on Gotcha');
+    expect(find.text('WILDCARD'), findsOneWidget);
+    expect(find.text('NEW'), findsNWidgets(2),
+        reason: 'NEW ribbon on both Gotcha and WILDCARD');
     expect(find.text('1UP'), findsOneWidget);
     expect(find.text('GOLF'), findsOneWidget);
-    expect(find.text('MORE SOON'), findsOneWidget);
+    expect(find.text('MORE SOON'), findsNothing);
+    expect(find.text('✨'), findsNothing);
   });
 
-  testWidgets('the Gotcha tile fills its grid cell like its live siblings',
+  testWidgets('the fresh tiles fill their grid cell like their live siblings',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
     await tester.pumpAndSettle();
@@ -53,15 +56,18 @@ void main() {
 
     final shanghai = tileSize('🐉'); // live sibling in the same row
     final gotcha = tileSize('💀');
+    final wildcard = tileSize('🃏');
     expect(gotcha.width, moreOrLessEquals(shanghai.width, epsilon: 1.0),
         reason: 'Gotcha tile must be as wide as its live siblings');
+    expect(wildcard.width, moreOrLessEquals(shanghai.width, epsilon: 1.0),
+        reason: 'WILDCARD tile must be as wide as its live siblings');
   });
 
   testWidgets('coming-soon tiles are not tappable', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
     await tester.pumpAndSettle();
 
-    for (final e in ['❤️', '⛳', '✨']) {
+    for (final e in ['❤️', '⛳']) {
       final tile = find.text(e);
       expect(tile, findsOneWidget);
       expect(
@@ -81,7 +87,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
     await tester.pumpAndSettle();
 
-    for (final e in ['🎯', '🕐', '🔪', '✂️', '🐉', '💀']) {
+    for (final e in ['🎯', '🕐', '🔪', '✂️', '🐉', '💀', '🃏']) {
       final tile = find.text(e);
       expect(tile, findsOneWidget);
       expect(
