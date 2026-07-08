@@ -19,6 +19,7 @@ import 'cricket_game_screen.dart';
 import 'killer_game_screen.dart';
 import 'shanghai_game_screen.dart';
 import 'gotcha_game_screen.dart';
+import 'wildcard_game_screen.dart';
 
 class PlayerSetupScreen extends StatefulWidget {
   final GameMode gameMode;
@@ -543,7 +544,13 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           config: GotchaConfig(targetScore: _gotchaTarget),
         );
       case GameMode.wildcard:
-        throw UnimplementedError('replaced in WC Task 10/12');
+        screen = WildcardGameScreen(
+          players: players,
+          config: WildcardConfig(
+            rounds: _wildcardRounds,
+            startingChaos: _wildcardChaos,
+          ),
+        );
     }
 
     Navigator.pushReplacement(

@@ -61,6 +61,14 @@ class GameAnnouncer {
     if (event == 'Out') _tts.callWhenIdle(() => _sound.play('checkout'));
   }
 
+  /// WILDCARD moment text (modifier announcement, joker reveal, instant
+  /// event, CUT!/REWIND) — a plain speak, mirroring [announceGameEvent]'s
+  /// TTS path without its 'Bust'/'Out' sound side effects, which chaos copy
+  /// should never trigger.
+  void announceChaos(String text) {
+    if (_gameEvents) _tts.speak(text);
+  }
+
   void stop() {
     _tts.stop();
   }

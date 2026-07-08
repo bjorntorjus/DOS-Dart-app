@@ -80,6 +80,7 @@ class WildcardDialog extends StatelessWidget {
     required this.title,
     this.titleSize = 46,
     this.spin = false,
+    this.onTap,
     required this.children,
   });
 
@@ -91,12 +92,20 @@ class WildcardDialog extends StatelessWidget {
   /// True for REWIND's `⟲` — continuous 1.1s linear rotation instead of
   /// the one-shot pop-in.
   final bool spin;
+
+  /// When set, the whole scrim becomes tappable ("tap anywhere to
+  /// continue") — threaded straight through to [WildcardOverlay.onTap].
+  /// Left `null` for moments that must not be dismissed by an incidental
+  /// tap (none currently — the WINNER overlay passes null deliberately so
+  /// tapping it does nothing until Task 11 wires the post-game flow).
+  final VoidCallback? onTap;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     return WildcardOverlay(
       tint: accent,
+      onTap: onTap,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final frameWidth =
