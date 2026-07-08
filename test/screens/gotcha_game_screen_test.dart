@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
+import 'package:dart_scoring/models/saved_player.dart';
 import 'package:dart_scoring/screens/gotcha_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
 
@@ -117,5 +118,86 @@ void main() {
     expect(find.text('S15'), findsOneWidget);
     expect(find.text('→ A'), findsOneWidget);
     expect(find.text('NO ROUTE \u{00B7} > 3 DARTS'), findsOneWidget);
+  });
+
+  testWidgets(
+      'removing the mid-turn current player advances the turn, and a '
+      'roster-changed stats update completes without recording a game',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GotchaGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GotchaConfig(targetScore: 301),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<GotchaGameScreen>>(find.byType(GotchaGameScreen));
+
+    // A throws one dart, leaving their turn open (dartsInTurn == 1).
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.currentPlayerIndex, 0);
+
+    // Remove A while they are still the current, mid-turn thrower.
+    state.removePlayerForTest(0);
+    await tester.pump();
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'removing the mid-turn current player advances to the next '
+            'seat');
+    expect(state.midGamePlayerChangesForTest, isTrue);
+
+    // Roster changed -> early return: join/leave counters only, no game
+    // recorded. The bar here is simply that this completes without error.
+    await state.updateStatsForTest();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'mid-game add joins at the average of active totals and clears the '
+      'undo stack', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GotchaGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GotchaConfig(targetScore: 301),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<GotchaGameScreen>>(find.byType(GotchaGameScreen));
+
+    // A: T20 (60), then two misses to close out the turn.
+    state.onDartHitForTest(20, 3);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(0, 0);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(0, 0);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.totals[0], 60);
+    expect(state.engineForTest.currentPlayerIndex, 1);
+
+    // B: D20 (40), then two misses to close out the turn, back to A.
+    state.onDartHitForTest(20, 2);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(0, 0);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(0, 0);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.totals[1], 40);
+    expect(state.engineForTest.canUndo, isTrue);
+
+    state.addPlayerForTest(
+        SavedPlayer(id: 'x', name: 'C', createdAt: DateTime(2026, 1, 1)));
+    await tester.pump();
+
+    expect(state.engineForTest.totals.length, 3);
+    expect(state.engineForTest.totals[2], 50,
+        reason: 'joins at the average of active totals: (60 + 40) / 2');
+    expect(state.engineForTest.canUndo, isFalse,
+        reason: 'roster changes clear the undo stack');
   });
 }

@@ -76,6 +76,9 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   }
 
   @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
+  @visibleForTesting
   Future<void> updateStatsForTest() => _updateStats(_rankPlayers());
 
   /// Whether the roster changed mid-game — read by the stats/rating gating

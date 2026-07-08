@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../models/game_mode.dart';
 import '../../models/saved_player.dart';
@@ -8,10 +10,38 @@ import '../settings_screen.dart';
 import 'dossedart_stats_screen.dart';
 import 'dossedart_atc_setup_screen.dart';
 import 'dossedart_cricket_setup_screen.dart';
+import 'dossedart_gotcha_setup_screen.dart';
 import 'dossedart_killer_setup_screen.dart';
 import 'dossedart_shanghai_setup_screen.dart';
 import 'dossedart_splitscore_setup_screen.dart';
 import 'dossedart_x01_setup_screen.dart';
+
+/// A single tile in the "OR PICK A LEVEL" 3×3 grid.
+enum _TileKind { live, fresh, soon }
+
+class _GridTile {
+  const _GridTile(this.kind, this.emoji, this.label, {this.mode, this.soonText});
+  final _TileKind kind;
+  final String emoji;
+  final String label;
+  final GameMode? mode;
+  final String? soonText;
+}
+
+const _gridTiles = [
+  _GridTile(_TileKind.live, '🎯', 'Cricket', mode: GameMode.cricket),
+  _GridTile(_TileKind.live, '🕐', 'Around the Clock', mode: GameMode.aroundTheClock),
+  _GridTile(_TileKind.live, '🔪', 'Killer', mode: GameMode.killer),
+  _GridTile(_TileKind.live, '✂️', 'Splitscore', mode: GameMode.halveIt),
+  _GridTile(_TileKind.live, '🐉', 'Shanghai', mode: GameMode.shanghai),
+  _GridTile(_TileKind.fresh, '💀', 'Gotcha', mode: GameMode.gotcha),
+  // Hardcoded placeholders until the modes exist — no dead enum values.
+  // '1UP', not 'Legs': locked terminology decision (collides with X01
+  // legs/sets otherwise).
+  _GridTile(_TileKind.soon, '❤️', '1UP', soonText: 'COMING SOON'),
+  _GridTile(_TileKind.soon, '⛳', 'Golf', soonText: 'COMING SOON'),
+  _GridTile(_TileKind.soon, '✨', 'Coming soon', soonText: 'MORE SOON'),
+];
 
 /// DOSSEDART arcade home screen — leaderboard variant B (tight list).
 class DossedartHomeScreen extends StatefulWidget {
@@ -355,34 +385,31 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
   // ─── Modes Block ───────────────────────────────────────────────────────────
   Widget _buildModesBlock() {
-    final modes = const [
-      GameMode.cricket,
-      GameMode.aroundTheClock,
-      GameMode.killer,
-      GameMode.halveIt,
-      GameMode.shanghai,
-    ];
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('► OR PICK A LEVEL',
-              style: _press(11, color: DossedartTokens.cyan, letterSpacing: 1)),
+          Row(
+            children: [
+              Text('► OR PICK A LEVEL',
+                  style:
+                      _press(11, color: DossedartTokens.cyan, letterSpacing: 1)),
+              const SizedBox(width: 10),
+              Text('NEW: GOTCHA 💀',
+                  style: _vt(14, color: DossedartTokens.yellow)),
+            ],
+          ),
           const SizedBox(height: 12),
-          for (var i = 0; i < modes.length; i += 2)
+          for (var i = 0; i < _gridTiles.length; i += 3)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  Expanded(child: _modeCell(modes[i])),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: i + 1 < modes.length
-                        ? _modeCell(modes[i + 1])
-                        : _comingSoonCell(),
-                  ),
+                  for (var k = 0; k < 3; k++) ...[
+                    if (k > 0) const SizedBox(width: 8),
+                    Expanded(child: _gridCell(_gridTiles[i + k])),
+                  ],
                 ],
               ),
             ),
@@ -391,50 +418,126 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
     );
   }
 
-  Widget _modeCell(GameMode mode) {
-    return InkWell(
-      onTap: () => _startGame(mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-        decoration: BoxDecoration(
-          color: DossedartTokens.surface,
-          border: Border.all(color: DossedartTokens.cyan, width: 2),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(mode.emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(height: 8),
-            Text(
-              mode.label.toUpperCase(),
-              style: _press(10, color: Colors.white, letterSpacing: 1),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
+  Widget _gridCell(_GridTile t) {
+    switch (t.kind) {
+      case _TileKind.live:
+        return InkWell(
+          onTap: () => _startGame(t.mode!),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              color: DossedartTokens.surface,
+              border: Border.all(color: DossedartTokens.phosphor, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: DossedartTokens.phosphor.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _comingSoonCell() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 2),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('✨', style: TextStyle(fontSize: 32)),
-          const SizedBox(height: 8),
-          Text('?? COMING ??',
-              style: _vt(15, color: Colors.white54, letterSpacing: 2)),
-        ],
-      ),
-    );
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(t.emoji, style: const TextStyle(fontSize: 28)),
+                const SizedBox(height: 6),
+                Text(
+                  t.label.toUpperCase(),
+                  style: _press(9, color: Colors.white),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        );
+      case _TileKind.fresh:
+        return InkWell(
+          onTap: () => _startGame(t.mode!),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: DossedartTokens.cyan.withValues(alpha: 0.06),
+                  border: Border.all(color: DossedartTokens.cyan, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: DossedartTokens.cyan.withValues(alpha: 0.4),
+                      blurRadius: 16,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(t.emoji, style: const TextStyle(fontSize: 28)),
+                    const SizedBox(height: 6),
+                    Text(
+                      t.label.toUpperCase(),
+                      style: _press(9, color: DossedartTokens.cyan),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: -9,
+                right: -6,
+                child: Transform.rotate(
+                  angle: 5 * math.pi / 180,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 3, horizontal: 7),
+                    decoration: BoxDecoration(
+                      color: DossedartTokens.yellow,
+                      boxShadow: [
+                        BoxShadow(
+                          color: DossedartTokens.yellow.withValues(alpha: 0.8),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'NEW',
+                      style: _press(8, color: DossedartTokens.bg),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      case _TileKind.soon:
+        return Opacity(
+          opacity: 0.55,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: DossedartTokens.magenta.withValues(alpha: 0.33),
+                  width: 2),
+            ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(t.emoji,
+                    style: TextStyle(fontSize: t.emoji == '✨' ? 24 : 28)),
+                const SizedBox(height: 6),
+                Text(
+                  t.label.toUpperCase(),
+                  style: _vt(12, color: Colors.white54),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(t.soonText ?? '', style: _vt(12, color: Colors.white54)),
+              ],
+            ),
+          ),
+        );
+    }
   }
 
   // ─── Cabinet Footer ────────────────────────────────────────────────────────
@@ -562,7 +665,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
       case GameMode.shanghai:
         screen = const DossedartShanghaiSetupScreen();
       case GameMode.gotcha:
-        throw UnimplementedError('replaced in Task 8');
+        screen = const DossedartGotchaSetupScreen();
     }
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _loadTopPlayers();
