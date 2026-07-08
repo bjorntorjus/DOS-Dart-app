@@ -33,6 +33,30 @@ void main() {
     expect(find.text('MORE SOON'), findsOneWidget);
   });
 
+  testWidgets('the Gotcha tile fills its grid cell like its live siblings',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
+    await tester.pumpAndSettle();
+
+    // Regression (QA 2026-07-08): the NEW-ribbon Stack used StackFit.loose,
+    // which loosened the Expanded cell's tight width so the tile Container
+    // shrink-wrapped to its text (~1/3 of the intended width).
+    Size tileSize(String emoji) {
+      final container = find
+          .ancestor(
+            of: find.text(emoji),
+            matching: find.byType(Container),
+          )
+          .first;
+      return tester.getSize(container);
+    }
+
+    final shanghai = tileSize('🐉'); // live sibling in the same row
+    final gotcha = tileSize('💀');
+    expect(gotcha.width, moreOrLessEquals(shanghai.width, epsilon: 1.0),
+        reason: 'Gotcha tile must be as wide as its live siblings');
+  });
+
   testWidgets('coming-soon tiles are not tappable', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
     await tester.pumpAndSettle();

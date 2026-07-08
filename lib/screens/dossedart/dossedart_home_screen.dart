@@ -455,6 +455,10 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
           onTap: () => _startGame(t.mode!),
           child: Stack(
             clipBehavior: Clip.none,
+            // Passthrough keeps the Expanded cell's tight width on the tile
+            // Container — default StackFit.loose let it shrink-wrap to its
+            // label text (~1/3 width, QA regression 2026-07-08).
+            fit: StackFit.passthrough,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
