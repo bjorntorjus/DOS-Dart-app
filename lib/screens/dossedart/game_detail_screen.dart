@@ -522,6 +522,16 @@ ModeProgression? progressionForEntry(GameHistoryEntry entry) {
     case 'shanghai':
     case 'halveIt':
       return CumulativeScoreProgression(maxValue: 0);
+    case 'gotcha':
+      // Gotcha counts up like Shanghai/Splitscore, and DartThrow.points is the
+      // thrower's true delta for every dart (bust darts carry the negative
+      // revert back to the turn-start score), so cumulative-by-round tracks
+      // the thrower's real running total exactly. What it can't show: a kill
+      // resets the *victim's* total on the victim's own line, which this
+      // series (built from the victim's own throws) has no way to see —
+      // the same accepted limitation as Splitscore's halving above; the round
+      // log carries the true per-round totals.
+      return CumulativeScoreProgression(maxValue: 0);
     default:
       return null; // Killer & unknown → round log only
   }

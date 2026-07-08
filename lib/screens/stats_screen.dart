@@ -431,6 +431,8 @@ class _StatsScreenState extends State<StatsScreen>
         return _buildCricketStats(ms);
       case 'aroundTheClock':
         return _buildClockStats(ms);
+      case 'gotcha':
+        return _buildGotchaStats(ms);
       default:
         return [];
     }
@@ -474,6 +476,17 @@ class _StatsScreenState extends State<StatsScreen>
         _StatItem('3×', 'Triples', '$triplesHit ($tripleRate%)'),
         _StatItem('🐂', 'Bulls', '$bullsHit'),
         _StatItem('✕', 'Misses', '$misses ($missRate%)'),
+      ]),
+    ];
+  }
+
+  List<Widget> _buildGotchaStats(ModeStats ms) {
+    return [
+      _buildStatsGrid([
+        _StatItem('💀', 'Kills', '${ms.get('kills')}'),
+        _StatItem('🪦', 'Times killed', '${ms.get('timesKilled')}'),
+        _StatItem('💥', 'Busts', '${ms.get('busts')}'),
+        _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
       ]),
     ];
   }

@@ -21,6 +21,7 @@ const _modeAccent = <String, Color>{
   'halveIt': DossedartTokens.purple,
   'killer': DossedartTokens.magenta,
   'aroundTheClock': DossedartTokens.orange,
+  'gotcha': DossedartTokens.red,
 };
 
 /// Arcade statistics hub — 4 tabs: PROFILE / MODES / HEATMAP / HISTORY.
@@ -42,6 +43,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     ('killer', 'KILLER'),
     ('halveIt', 'SPLITSCORE'),
     ('shanghai', 'SHANGHAI'),
+    ('gotcha', 'GOTCHA'),
   ];
 
   late final TabController _tabs = TabController(length: 4, vsync: this);
@@ -272,6 +274,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         return ['best ${ms.get('bestScore')}', 'halving ${ms.get('biggestHalving')}'];
       case 'killer':
         return ['kills ${ms.get('kills')}'];
+      case 'gotcha':
+        return ['kills ${ms.get('kills')}', 'best turn ${ms.get('highestTurn')}'];
       default:
         return const [];
     }
