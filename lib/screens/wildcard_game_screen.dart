@@ -93,6 +93,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   @visibleForTesting
   void resolveBullForTest(int signedDelta) => _onBullChoice(signedDelta);
 
+  @visibleForTesting
+  Future<void> onGameEndForTest() => _onGameEnd();
+
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
   final GameAnnouncer _announcer = GameAnnouncer();
@@ -344,9 +347,16 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   void _maybeShowAnnounce() {
     if (engine.gameOver) return;
     if (_announcedTurnId == _turnIdCounter) return;
+    // Mark this turnId as handled unconditionally (even when there's no
+    // modifier to show) — undo can rewind _turnIdCounter back past a turn
+    // whose modifier was already announced without rewinding
+    // _announcedTurnId, and if this assignment stayed behind the `mod ==
+    // null` guard, re-throwing into that same no-modifier turn would leave
+    // _announcedTurnId stale, silently suppressing the NEXT thrower's
+    // modifier announcement (restriction active with no warning shown).
+    _announcedTurnId = _turnIdCounter;
     final mod = engine.activeModifier;
     if (mod == null) return;
-    _announcedTurnId = _turnIdCounter;
     _overlay = WcOverlayKind.announce;
     _announcer.announceChaos(
         '${mod.name}. ${mod.desc}. ${players[engine.currentPlayerIndex].name} only.');

@@ -182,4 +182,117 @@ void main() {
     expect(state.engineForTest.dartsInTurn, 0);
     expect(state.overlayKindForTest, WcOverlayKind.announce);
   });
+
+  testWidgets(
+      'undoing back into a no-modifier turn and re-throwing does not '
+      'suppress the next thrower\'s modifier announcement', (tester) async {
+    // Regression for the announce-desync bug: _announcedTurnId used to be
+    // assigned only after the "no modifier" early-return in
+    // _maybeShowAnnounce, so undo (which rewinds _turnIdCounter but left a
+    // stale _announcedTurnId behind) could leave the two counters
+    // accidentally re-aligned on a later, DIFFERENT turn — silently
+    // swallowing that turn's modifier announcement.
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    // Force B's modifier for when A's turn (no modifier) banks.
+    state.engineForTest.debugForceModifier('onlyEvens');
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.engineForTest.currentPlayerIndex, 1);
+    expect(state.overlayKindForTest, WcOverlayKind.announce);
+
+    // Dismiss the announcement, then undo A's last dart — rewinding back
+    // into A's (no-modifier) turn, past the turn boundary that triggered
+    // the announcement above.
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onUndoForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.engineForTest.currentPlayerIndex, 0);
+    expect(state.overlayKindForTest, isNull);
+
+    // Re-force B's modifier (standing in for whatever roll would naturally
+    // apply) and re-throw A's undone dart to re-bank the same turn.
+    state.engineForTest.debugForceModifier('onlyEvens');
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.engineForTest.currentPlayerIndex, 1);
+    expect(state.engineForTest.activeModifier, isNotNull);
+    expect(state.overlayKindForTest, WcOverlayKind.announce);
+  });
+
+  testWidgets(
+      'a joker hit chains into a forced CUT! event; dismissing both '
+      'overlays clears the round', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    // startingChaos:5 carries a 45% chance (wcModifierChancePct) of rolling
+    // a turn modifier for round 1's very first turn — dismiss it if it
+    // showed so it doesn't block the joker dart below (input is a no-op
+    // while any overlay is up).
+    if (state.overlayKindForTest == WcOverlayKind.announce) {
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(
+      jokers,
+      isNotEmpty,
+      reason: 'wcJokerCount(5) should assign 1 joker at round 1 — got none; '
+          'joker assignment or startingChaos wiring changed',
+    );
+    final jokerNumber = jokers.first;
+    final roundBefore = state.engineForTest.round as int;
+
+    state.engineForTest.debugForceEvent('cutEvent');
+    state.onDartHitForTest(jokerNumber, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.joker);
+
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.cut);
+
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // CUT! advances to a fresh round, whose first thrower rolls its own
+    // modifier chance independently — dismiss it too if it fired, then
+    // confirm the overlay chain has fully drained.
+    if (state.overlayKindForTest == WcOverlayKind.announce) {
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(state.overlayKindForTest, isNull);
+    expect(state.engineForTest.round, greaterThan(roundBefore));
+  });
 }
