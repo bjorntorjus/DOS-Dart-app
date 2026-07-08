@@ -498,6 +498,7 @@ class _StatsScreenState extends State<StatsScreen>
       _buildStatsGrid([
         _StatItem('🃏', 'Jokers hit', '${ms.get('jokersHit')}'),
         _StatItem('🎯', 'Window prizes', '${ms.get('windowPrizes')}'),
+        _StatItem('🏹', 'Points stolen', '${ms.get('pointsStolen')}'),
         _StatItem('🌡️', 'Chaos peak', '${ms.get('chaosPeak')}'),
         _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
       ]),

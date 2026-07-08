@@ -22,11 +22,9 @@ const _modeAccent = <String, Color>{
   'killer': DossedartTokens.magenta,
   'aroundTheClock': DossedartTokens.orange,
   'gotcha': DossedartTokens.red,
-  // All 7 accent tokens are already claimed by the other 7 modes (orange:
-  // aroundTheClock, purple: halveIt). Reusing purple here because it's
-  // already WILDCARD's own in-game chaos/modifier-active color (see
-  // dossedart_wildcard_scorecard.dart), same precedent as cricket/
-  // cricket_cutthroat sharing green above.
+  // purple shared with halveIt — all 7 accent tokens are claimed; WILDCARD's
+  // own chaos color is the least-bad reuse. Palette expansion needed when
+  // Golf/1UP ship.
   'wildcard': DossedartTokens.purple,
 };
 

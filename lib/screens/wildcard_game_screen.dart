@@ -538,6 +538,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           'score': engine.totals[i],
           'jokersHit': engine.jokersHitCount[i],
           'windowPrizes': engine.windowPrizes[i],
+          'pointsStolen': engine.pointsStolen[i],
           'highestTurn': engine.highestTurn[i],
           'darts': throwHistory.where((t) => t.playerIndex == i).length,
         },

@@ -259,6 +259,8 @@ class _PlayerResultTile extends StatelessWidget {
       case 'wildcard':
         if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');
         if (stats['windowPrizes'] != null) entries.add('Prizes: ${stats['windowPrizes']}');
+        // Only when ROBIN HOOD fired
+        if (stats['pointsStolen'] != null && stats['pointsStolen'] != 0) entries.add('Stolen: ${stats['pointsStolen']}');
         if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
         if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
     }
