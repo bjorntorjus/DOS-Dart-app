@@ -79,6 +79,10 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   // Gotcha options
   int _gotchaTarget = 301;
 
+  // Wildcard options
+  int _wildcardRounds = 10;
+  int _wildcardChaos = 5;
+
   int get _minPlayers {
     switch (widget.gameMode) {
       case GameMode.killer:
@@ -538,6 +542,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           players: players,
           config: GotchaConfig(targetScore: _gotchaTarget),
         );
+      case GameMode.wildcard:
+        throw UnimplementedError('replaced in WC Task 10/12');
     }
 
     Navigator.pushReplacement(
@@ -971,6 +977,44 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
               selected: {_gotchaTarget},
               onSelectionChanged: (v) =>
                   setState(() => _gotchaTarget = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ]);
+
+      case GameMode.wildcard:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Rounds'),
+            subtitle: Text('$_wildcardRounds rounds'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 5, label: Text('5')),
+                ButtonSegment(value: 10, label: Text('10')),
+                ButtonSegment(value: 15, label: Text('15')),
+              ],
+              selected: {_wildcardRounds},
+              onSelectionChanged: (v) =>
+                  setState(() => _wildcardRounds = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          ListTile(
+            title: const Text('Starting chaos'),
+            subtitle: Text('Chaos level: $_wildcardChaos'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 2, label: Text('Mild')),
+                ButtonSegment(value: 5, label: Text('Spicy')),
+                ButtonSegment(value: 8, label: Text('Chaos')),
+              ],
+              selected: {_wildcardChaos},
+              onSelectionChanged: (v) =>
+                  setState(() => _wildcardChaos = v.first),
               style: const ButtonStyle(
                 visualDensity: VisualDensity.compact,
               ),

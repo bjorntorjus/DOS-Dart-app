@@ -670,6 +670,8 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
         screen = const DossedartShanghaiSetupScreen();
       case GameMode.gotcha:
         screen = const DossedartGotchaSetupScreen();
+      case GameMode.wildcard:
+        throw UnimplementedError('replaced in WC Task 10/12');
     }
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _loadTopPlayers();
