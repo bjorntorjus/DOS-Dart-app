@@ -169,8 +169,10 @@ const Map<int, String> checkoutTable = {
 /// Straight-out (no special finish required) checkout suggestions.
 /// Prefers singles over doubles when the value is the same (S20 > D10).
 /// Only includes scores up to 180 (max 3-dart finish).
-String? straightOutCheckout(int score) {
-  if (score <= 0 || score > 180) return null;
+///
+/// Returns a route finishable in at most [dartsLeft] darts, or null if not possible.
+String? straightOutCheckout(int score, {int dartsLeft = 3}) {
+  if (score <= 0 || score > 180 || dartsLeft < 1) return null;
 
   // 1-dart finishes: prefer single > bull > double > triple
   // Singles 1-20
@@ -188,6 +190,7 @@ String? straightOutCheckout(int score) {
     return 'T${score ~/ 3}';
   }
 
+  if (dartsLeft < 2) return null;
   // 2-dart finishes
   // Try T20 + remainder
   for (final first in _straightOutDarts()) {
@@ -199,6 +202,7 @@ String? straightOutCheckout(int score) {
     }
   }
 
+  if (dartsLeft < 3) return null;
   // 3-dart finishes
   for (final first in _straightOutDarts()) {
     final afterFirst = score - first.points;

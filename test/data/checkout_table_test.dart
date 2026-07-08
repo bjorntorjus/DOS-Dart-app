@@ -100,4 +100,29 @@ void main() {
       }
     });
   });
+
+  group('straightOutCheckout dartsLeft', () {
+    test('1 dart left: only single-dart finishes', () {
+      expect(straightOutCheckout(20, dartsLeft: 1), 'S20');
+      expect(straightOutCheckout(40, dartsLeft: 1), 'D20');
+      expect(straightOutCheckout(50, dartsLeft: 1), 'Bull');
+      expect(straightOutCheckout(41, dartsLeft: 1), isNull);
+      expect(straightOutCheckout(61, dartsLeft: 1), isNull);
+    });
+    test('2 darts left: two-dart routes allowed, three-dart not', () {
+      expect(straightOutCheckout(41, dartsLeft: 2), isNotNull);
+      expect(straightOutCheckout(180, dartsLeft: 2), isNull); // needs 3 trebles
+    });
+    test('unreachable values return null even with 3 darts', () {
+      for (final v in [163, 166, 169, 172, 173, 175, 176, 178, 179]) {
+        expect(straightOutCheckout(v), isNull, reason: '$v');
+      }
+      expect(straightOutCheckout(180), 'T20 T20 T20');
+    });
+    test('default keeps existing behavior', () {
+      expect(straightOutCheckout(100), isNotNull);
+      expect(straightOutCheckout(0), isNull);
+      expect(straightOutCheckout(181), isNull);
+    });
+  });
 }
