@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 import '../data/checkout_table.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../models/game_mode.dart';
+import '../models/game_result.dart';
 import '../models/gotcha_engine.dart';
 import '../models/player.dart';
 import '../models/saved_player.dart';
+import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/battery_sampler.dart';
+import '../services/elo_service.dart';
 import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
+import '../services/player_storage.dart';
 import '../services/sound_service.dart';
+import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
 import '../theme/dossedart_tokens.dart';
+import '../utils/earned_feats_builder.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
@@ -20,6 +27,7 @@ import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/gotcha/dossedart_gotcha_active_card.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'post_game_screen.dart';
 
 /// The DOSSEDART Gotcha cockpit: race from 0 to an exact target, landing on
 /// a living opponent's total resets them to 0. Assembles the [GotchaEngine]
@@ -68,7 +76,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   }
 
   @visibleForTesting
-  Future<void> updateStatsForTest() async {}
+  Future<void> updateStatsForTest() => _updateStats(_rankPlayers());
 
   /// Whether the roster changed mid-game — read by the stats/rating gating
   /// a later task adds (same contract as Shanghai's `_midGamePlayerChanges`).
@@ -92,6 +100,10 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
+  final DateTime _gameStart = DateTime.now();
+
+  Map<String, double> _ratingsBefore = {};
+  Map<String, double> _ratingsAfter = {};
 
   @override
   void initState() {
@@ -211,22 +223,243 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     );
   }
 
-  /// Minimal game-end handling: freezes the board (engine.gameOver already
-  /// blocks _onDartHit/_onMiss/_onUndo) and celebrates the winner. Full
-  /// post-game flow (result screen, stats, ratings) lands in a later task.
   Future<void> _onGameEnd() async {
+    final ranking = _rankPlayers();
     _log.logGameEnd(
       playerNames: players.map((p) => p.name).toList(),
-      finishedOrder: [engine.winnerIndex ?? engine.currentPlayerIndex],
+      finishedOrder: ranking,
       gameFullyOver: true,
     );
     BatterySampler.instance.stop();
+    await _fireWinnerCelebration(players[ranking.first].name);
+    if (!mounted) return;
+    // Preview rating deltas so they're visible on the result screen even
+    // though recording is deferred until the user leaves (audit F17).
+    await _prepareRatingPreview(ranking);
+    if (!mounted) return;
+    _showPostGame(ranking);
+  }
+
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording stays
+  /// deferred until the user leaves the result screen.
+  Future<void> _prepareRatingPreview(List<int> ranking) async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(ranking),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Placements from [ranking]; equal totals share a placement.
+  List<int> _buildPlacements(List<int> ranking) {
+    final placements = List.filled(players.length, 0);
+    for (int rank = 0; rank < ranking.length; rank++) {
+      final idx = ranking[rank];
+      if (rank > 0 && engine.totals[idx] == engine.totals[ranking[rank - 1]]) {
+        placements[idx] = placements[ranking[rank - 1]];
+      } else {
+        placements[idx] = rank + 1;
+      }
+    }
+    return placements;
+  }
+
+  Future<void> _fireWinnerCelebration(String winnerName) async {
     _announcer.stop();
     if (!mounted) return;
     await VideoService.instance.showRandomFromFolder(context, 'winner');
     if (!mounted) return;
-    _announcer.announceWinner(
-        players[engine.winnerIndex ?? engine.currentPlayerIndex].name);
+    _announcer.announceWinner(winnerName);
+  }
+
+  /// Best non-bust 3-dart turn per player, from throwHistory turnId groups.
+  Map<int, int> _highestTurns() {
+    final byTurn = <(int, int), List<DartThrow>>{};
+    for (final t in throwHistory) {
+      (byTurn[(t.playerIndex, t.turnId)] ??= []).add(t);
+    }
+    final best = <int, int>{};
+    for (final e in byTurn.entries) {
+      if (e.value.any((t) => t.isBust)) continue;
+      final sum = e.value.fold<int>(0, (s, t) => s + t.points);
+      if (sum > (best[e.key.$1] ?? 0)) best[e.key.$1] = sum;
+    }
+    return best;
+  }
+
+  Future<void> _updateStats(List<int> ranking) async {
+    if (_midGamePlayerChanges) {
+      // Roster changed — record only join/leave counters and write NO game
+      // entry. Recording a full game here stored placement 0 for removed
+      // players (which sorts above 1st in history) and lost join/leave
+      // counters entirely (audit 2026-07-06, F10). Now matches the other
+      // five modes.
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    final placements = _buildPlacements(ranking);
+    final highestTurns = _highestTurns();
+
+    final modeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      modeCounters[playerId] = {
+        'kills': engine.killsMade[pi],
+        'timesKilled': engine.timesKilled[pi],
+        'busts': engine.busts[pi],
+        'max:highestTurn': highestTurns[pi] ?? 0,
+        'totalDarts': throwHistory.where((t) => t.playerIndex == pi).length,
+        'totalGames': 1,
+      };
+    }
+
+    // Reached only when the roster was unchanged (mid-game changes returned
+    // early above), so Elo / achievements / persistence always apply here.
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.gotcha,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: const {},
+    );
+    final earnedFeats =
+        buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
+
+    StatsRecorder.recordGame(
+      gameMode: 'gotcha',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+      modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      gameConfig: 'Race to ${widget.config.targetScore}',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex: earnedFeats,
+    );
+
+    await PlayerStorage.savePlayers(savedPlayers);
+  }
+
+  void _showPostGame(List<int> ranking) {
+    final results = <PlayerResult>[];
+    final highestTurns = _highestTurns();
+    for (int rank = 0; rank < ranking.length; rank++) {
+      final i = ranking[rank];
+      results.add(PlayerResult(
+        name: players[i].name,
+        avatarPath: players[i].avatarPath,
+        placement: rank + 1,
+        stats: {
+          'score': engine.totals[i],
+          'kills': engine.killsMade[i],
+          'timesKilled': engine.timesKilled[i],
+          'busts': engine.busts[i],
+          'highestTurn': highestTurns[i] ?? 0,
+          'darts': throwHistory.where((t) => t.playerIndex == i).length,
+        },
+        ratingBefore: players[i].savedPlayerId != null
+            ? _ratingsBefore[players[i].savedPlayerId!]
+            : null,
+        ratingAfter: players[i].savedPlayerId != null
+            ? _ratingsAfter[players[i].savedPlayerId!]
+            : null,
+      ));
+    }
+
+    Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostGameScreen(
+          result: GameResult(gameMode: 'gotcha', results: results),
+        ),
+      ),
+    ).then((action) async {
+      if (!mounted) return;
+      if (action == 'undo') {
+        // User wants to keep playing — undo the game-end and return to game.
+        // Same guard as _onUndo: a stack emptied by add/remove player must
+        // not rewind the screen-side history the engine cannot match.
+        if (!engine.canUndo) return;
+        setState(() {
+          engine.undo();
+          if (throwHistory.isNotEmpty) {
+            final lastThrow = throwHistory.removeLast();
+            _turnIdCounter = lastThrow.turnId;
+            _roundNumber = lastThrow.roundNumber;
+          }
+        });
+        return;
+      }
+      // 'home' or back-button: persist stats now (deferred from _onGameEnd
+      // so Undo doesn't strand the user with stats they didn't confirm),
+      // then leave the game-screen entirely.
+      await _updateStats(ranking);
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    });
+  }
+
+  List<int> _rankPlayers() {
+    final indices = List<int>.generate(players.length, (i) => i)
+        .where((i) => !engine.isSkipped(i))
+        .toList();
+    indices.sort((a, b) => engine.totals[b].compareTo(engine.totals[a]));
+    if (engine.winnerIndex != null && !engine.isSkipped(engine.winnerIndex!)) {
+      indices.remove(engine.winnerIndex!);
+      indices.insert(0, engine.winnerIndex!);
+    }
+    return indices;
   }
 
   void _confirmExit() {
