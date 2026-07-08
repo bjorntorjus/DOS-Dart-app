@@ -75,6 +75,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   // Shanghai options
   int _shanghaiTargetEnd = 7;
 
+  // Gotcha options
+  int _gotchaTarget = 301;
+
   int get _minPlayers {
     switch (widget.gameMode) {
       case GameMode.killer:
@@ -529,6 +532,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           players: players,
           config: ShanghaiConfig(targetEnd: _shanghaiTargetEnd),
         );
+      case GameMode.gotcha:
+        throw UnimplementedError('replaced in Task 6');
     }
 
     Navigator.pushReplacement(
@@ -940,6 +945,28 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
               selected: {_shanghaiTargetEnd},
               onSelectionChanged: (v) =>
                   setState(() => _shanghaiTargetEnd = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ]);
+
+      case GameMode.gotcha:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Target score'),
+            subtitle: Text('Must be hit exactly: $_gotchaTarget'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 101, label: Text('101')),
+                ButtonSegment(value: 201, label: Text('201')),
+                ButtonSegment(value: 301, label: Text('301')),
+                ButtonSegment(value: 501, label: Text('501')),
+              ],
+              selected: {_gotchaTarget},
+              onSelectionChanged: (v) =>
+                  setState(() => _gotchaTarget = v.first),
               style: const ButtonStyle(
                 visualDensity: VisualDensity.compact,
               ),

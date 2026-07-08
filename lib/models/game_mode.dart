@@ -5,6 +5,7 @@ enum GameMode {
   killer,
   halveIt,
   shanghai,
+  gotcha,
 }
 
 extension GameModeLabel on GameMode {
@@ -22,6 +23,8 @@ extension GameModeLabel on GameMode {
         return 'Splitscore';
       case GameMode.shanghai:
         return 'Shanghai';
+      case GameMode.gotcha:
+        return 'Gotcha';
     }
   }
 }
@@ -41,6 +44,8 @@ extension GameModeEmoji on GameMode {
         return '✂️';
       case GameMode.shanghai:
         return '🐉';
+      case GameMode.gotcha:
+        return '💀';
     }
   }
 }

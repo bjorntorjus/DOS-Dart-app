@@ -143,3 +143,8 @@ class ShanghaiConfig extends GameConfig {
   const ShanghaiConfig({this.targetEnd = 7})
       : super(GameMode.shanghai);
 }
+
+class GotchaConfig extends GameConfig {
+  final int targetScore; // 101 / 201 / 301 / 501 — must be hit exactly
+  const GotchaConfig({this.targetScore = 301}) : super(GameMode.gotcha);
+}
