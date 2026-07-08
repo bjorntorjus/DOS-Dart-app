@@ -30,7 +30,8 @@ class _DossedartChaosMeterState extends State<DossedartChaosMeter>
     super.initState();
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      // 550ms per direction → 1.1s full cycle per the wcMaxPulse keyframe
+      duration: const Duration(milliseconds: 550),
     );
   }
 
@@ -141,12 +142,12 @@ class _DossedartChaosMeterState extends State<DossedartChaosMeter>
                         ),
                       ),
                       const SizedBox(width: 3),
-                      const Text(
+                      Text(
                         '/10',
                         style: TextStyle(
                           fontFamily: 'PressStart2P',
                           fontSize: 14,
-                          color: Colors.white38,
+                          color: Colors.white.withValues(alpha: 0.4),
                         ),
                       ),
                     ],
