@@ -91,6 +91,10 @@ List<RecordTile> careerRecords(SavedPlayer p) {
   if (got != null && got.get('highestTurn') > 0) {
     out.add(RecordTile(mode: 'gotcha', value: '${got.get('highestTurn')}', label: 'best turn'));
   }
+  final wc = _firstMode(p, ['wildcard']);
+  if (wc != null && wc.get('highestTurn') > 0) {
+    out.add(RecordTile(mode: 'wildcard', value: '${wc.get('highestTurn')}', label: 'best turn'));
+  }
   return out;
 }
 

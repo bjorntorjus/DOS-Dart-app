@@ -22,6 +22,12 @@ const _modeAccent = <String, Color>{
   'killer': DossedartTokens.magenta,
   'aroundTheClock': DossedartTokens.orange,
   'gotcha': DossedartTokens.red,
+  // All 7 accent tokens are already claimed by the other 7 modes (orange:
+  // aroundTheClock, purple: halveIt). Reusing purple here because it's
+  // already WILDCARD's own in-game chaos/modifier-active color (see
+  // dossedart_wildcard_scorecard.dart), same precedent as cricket/
+  // cricket_cutthroat sharing green above.
+  'wildcard': DossedartTokens.purple,
 };
 
 /// Arcade statistics hub — 4 tabs: PROFILE / MODES / HEATMAP / HISTORY.
@@ -44,6 +50,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     ('halveIt', 'SPLITSCORE'),
     ('shanghai', 'SHANGHAI'),
     ('gotcha', 'GOTCHA'),
+    ('wildcard', 'WILDCARD'),
   ];
 
   late final TabController _tabs = TabController(length: 4, vsync: this);
@@ -276,6 +283,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         return ['kills ${ms.get('kills')}'];
       case 'gotcha':
         return ['kills ${ms.get('kills')}', 'best turn ${ms.get('highestTurn')}'];
+      case 'wildcard':
+        return ['jokers ${ms.get('jokersHit')}', 'best turn ${ms.get('highestTurn')}'];
       default:
         return const [];
     }

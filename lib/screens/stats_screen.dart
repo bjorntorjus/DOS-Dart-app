@@ -433,6 +433,8 @@ class _StatsScreenState extends State<StatsScreen>
         return _buildClockStats(ms);
       case 'gotcha':
         return _buildGotchaStats(ms);
+      case 'wildcard':
+        return _buildWildcardStats(ms);
       default:
         return [];
     }
@@ -486,6 +488,17 @@ class _StatsScreenState extends State<StatsScreen>
         _StatItem('💀', 'Kills', '${ms.get('kills')}'),
         _StatItem('🪦', 'Times killed', '${ms.get('timesKilled')}'),
         _StatItem('💥', 'Busts', '${ms.get('busts')}'),
+        _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
+      ]),
+    ];
+  }
+
+  List<Widget> _buildWildcardStats(ModeStats ms) {
+    return [
+      _buildStatsGrid([
+        _StatItem('🃏', 'Jokers hit', '${ms.get('jokersHit')}'),
+        _StatItem('🎯', 'Window prizes', '${ms.get('windowPrizes')}'),
+        _StatItem('🌡️', 'Chaos peak', '${ms.get('chaosPeak')}'),
         _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
       ]),
     ];

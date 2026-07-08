@@ -532,6 +532,14 @@ ModeProgression? progressionForEntry(GameHistoryEntry entry) {
       // the same accepted limitation as Splitscore's halving above; the round
       // log carries the true per-round totals.
       return CumulativeScoreProgression(maxValue: 0);
+    case 'wildcard':
+      // Wildcard is a points race and DartThrow.points is the effective
+      // per-dart credit (after turn modifiers/multipliers), so the thrower's
+      // own cumulative line is faithful. What it can't show: swap/steal/
+      // rewind events change OTHER players' totals, and those effects are
+      // invisible to per-throw data on the affected player's line — the same
+      // accepted limitation as Splitscore's halving and Gotcha's kills above.
+      return CumulativeScoreProgression(maxValue: 0);
     default:
       return null; // Killer & unknown → round log only
   }

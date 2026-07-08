@@ -256,6 +256,11 @@ class _PlayerResultTile extends StatelessWidget {
         if (stats['busts'] != null) entries.add('Busts: ${stats['busts']}');
         if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
         if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
+      case 'wildcard':
+        if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');
+        if (stats['windowPrizes'] != null) entries.add('Prizes: ${stats['windowPrizes']}');
+        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
+        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
     }
 
     if (entries.isEmpty) return const SizedBox.shrink();
