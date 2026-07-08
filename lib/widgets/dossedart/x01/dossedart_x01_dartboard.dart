@@ -20,6 +20,13 @@ const Color _twiSingleLight = Color(0xFF3C2472);
 const Color _twiRingCyan = Color(0xFF2FC4DD);
 const Color _twiRingMagenta = Color(0xFFE637A8);
 
+// WILDCARD dim states — non-scoring segments during a restriction render in
+// these near-black/low-alpha tones instead of the twilight felt/ring/number
+// colors above. Bull/D-Bull never dim (see paint()).
+const Color _dimSingle = Color(0xFF0B0618);
+const Color _dimRing = Color(0xFF140A24);
+const Color _dimNumber = Color(0x38D9D2C2); // phosphor @ ~0.22 alpha
+
 // Radius thresholds as fractions of board radius.
 // Visual = hit-test (no surprise misses).
 const double kDBullR = 0.05;
@@ -54,9 +61,15 @@ DartZone zoneForPolar(double r, double angleDeg) {
 /// The widget fills its available space; wrap in an AspectRatio(1) to
 /// keep it square.
 class DossedartX01Dartboard extends StatelessWidget {
-  const DossedartX01Dartboard({super.key, required this.onTap});
+  const DossedartX01Dartboard({super.key, required this.onTap, this.isDim});
 
   final ValueChanged<DartZone> onTap;
+
+  /// WILDCARD: optional predicate marking a segment number (1-20) as
+  /// non-scoring during a restriction, so it renders dimmed. Null (default)
+  /// preserves today's rendering exactly — hit-testing is never affected,
+  /// dimmed segments stay fully tappable.
+  final bool Function(int segment)? isDim;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +92,7 @@ class DossedartX01Dartboard extends StatelessWidget {
           child: SizedBox(
             width: size,
             height: size,
-            child: CustomPaint(painter: _DartboardPainter()),
+            child: CustomPaint(painter: _DartboardPainter(isDim)),
           ),
         );
       },
@@ -88,6 +101,10 @@ class DossedartX01Dartboard extends StatelessWidget {
 }
 
 class _DartboardPainter extends CustomPainter {
+  _DartboardPainter(this.isDim);
+
+  final bool Function(int segment)? isDim;
+
   @override
   void paint(Canvas canvas, Size size) {
     final r = size.width / 2;
@@ -106,8 +123,12 @@ class _DartboardPainter extends CustomPainter {
       final end = start + slice;
       // Singles = twilight purple felt; triple + double = magenta/cyan ring.
       // Dark felt (i even, e.g. segment 20) → magenta ring; light felt → cyan.
-      final singleCol = (i % 2 == 0) ? _twiSingleDark : _twiSingleLight;
-      final ringCol = (i % 2 == 0) ? _twiRingMagenta : _twiRingCyan;
+      final n = kSegmentOrder[i];
+      final dimmed = isDim?.call(n) == true;
+      final singleCol =
+          dimmed ? _dimSingle : ((i % 2 == 0) ? _twiSingleDark : _twiSingleLight);
+      final ringCol =
+          dimmed ? _dimRing : ((i % 2 == 0) ? _twiRingMagenta : _twiRingCyan);
 
       _wedge(canvas, c, r * kBullR, r * kInnerSingleR, start, end, singleCol);
       _wedge(canvas, c, r * kInnerSingleR, r * kTripleR, start, end, ringCol);
@@ -119,14 +140,13 @@ class _DartboardPainter extends CustomPainter {
       final midAng = (start + end) / 2;
       final lx = c.dx + math.cos(midAng) * r * 0.975;
       final ly = c.dy + math.sin(midAng) * r * 0.975;
-      final n = kSegmentOrder[i];
       final tp = TextPainter(
         text: TextSpan(
           text: '$n',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'PressStart2P',
             fontSize: 11,
-            color: Colors.white,
+            color: dimmed ? _dimNumber : Colors.white,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -178,6 +198,12 @@ class _DartboardPainter extends CustomPainter {
     canvas.drawPath(path, Paint()..color = fill);
   }
 
+  // Identity comparison on `isDim` won't detect a same-instance closure whose
+  // captured state changed (e.g. a restriction predicate that now excludes a
+  // different segment), so any non-null predicate opts into repainting on
+  // every rebuild — cheap for a board this size, and a static board with a
+  // null predicate keeps the old zero-repaint behaviour.
   @override
-  bool shouldRepaint(_DartboardPainter oldDelegate) => false;
+  bool shouldRepaint(_DartboardPainter oldDelegate) =>
+      oldDelegate.isDim != isDim || isDim != null;
 }
