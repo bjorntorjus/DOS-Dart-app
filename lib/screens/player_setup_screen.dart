@@ -18,6 +18,7 @@ import 'halve_it_game_screen.dart';
 import 'cricket_game_screen.dart';
 import 'killer_game_screen.dart';
 import 'shanghai_game_screen.dart';
+import 'gotcha_game_screen.dart';
 
 class PlayerSetupScreen extends StatefulWidget {
   final GameMode gameMode;
@@ -533,7 +534,10 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           config: ShanghaiConfig(targetEnd: _shanghaiTargetEnd),
         );
       case GameMode.gotcha:
-        throw UnimplementedError('replaced in Task 6');
+        screen = GotchaGameScreen(
+          players: players,
+          config: GotchaConfig(targetScore: _gotchaTarget),
+        );
     }
 
     Navigator.pushReplacement(
