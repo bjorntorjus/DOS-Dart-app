@@ -4,18 +4,25 @@ import 'package:flutter/material.dart';
 
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../models/game_mode.dart';
+import '../models/game_result.dart';
 import '../models/player.dart';
 import '../models/saved_player.dart';
 import '../models/wildcard_engine.dart';
 import '../models/wildcard_events.dart';
+import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/battery_sampler.dart';
 import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
+import '../services/player_storage.dart';
 import '../services/sound_service.dart';
+import '../services/stats_recorder.dart';
+import '../services/video_service.dart';
 import '../theme/dossedart_tokens.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../utils/earned_feats_builder.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
@@ -25,6 +32,7 @@ import '../widgets/dossedart/wildcard/dossedart_chaos_meter.dart';
 import '../widgets/dossedart/wildcard/dossedart_wildcard_dialogs.dart';
 import '../widgets/dossedart/wildcard/dossedart_wildcard_scorecard.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'post_game_screen.dart';
 
 /// Overlay moments the WILDCARD cockpit can show, one at a time, layered on
 /// top of the Stack. Only [bull] blocks undo (the pending choice must
@@ -33,10 +41,12 @@ enum WcOverlayKind { announce, bull, joker, event, cut, rewind, winner }
 
 /// The DOSSEDART WILDCARD cockpit: assembles [WildcardEngine], the chaos
 /// meter, the scorecard, the dimmed dartboard and the moment dialogs into a
-/// playable screen with an overlay state machine. Game-END flow (stats,
-/// post-game navigation) is Task 11 — [_onGameEnd] here only logs, freezes
-/// input (via `engine.gameOver`) and shows the winner overlay; tapping it
-/// does nothing yet.
+/// playable screen with an overlay state machine. [_onGameEnd] logs, freezes
+/// input (via `engine.gameOver`), fires the generic winner celebration
+/// (video + TTS) and shows the winner overlay; tapping it — or undoing from
+/// the post-game screen — routes into the same deferred-stats protocol the
+/// other DOSSEDART cockpits use (Shanghai/Gotcha parity). No Elo: WILDCARD
+/// placements never touch EloService (spec §9).
 class WildcardGameScreen extends StatefulWidget {
   final List<Player> players;
   final WildcardConfig config;
@@ -79,7 +89,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   @visibleForTesting
-  Future<void> updateStatsForTest() => _updateStats();
+  Future<void> updateStatsForTest() => _updateStats(engine.ranking());
 
   @visibleForTesting
   bool get midGamePlayerChangesForTest => _midGamePlayerChanges;
@@ -100,8 +110,8 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   final MemeService _meme = MemeService();
   final GameAnnouncer _announcer = GameAnnouncer();
 
-  // Per-dart history feeding stats (Task 11) — same turnId-grouped pattern
-  // as the other DOSSEDART cockpits.
+  // Per-dart history feeding stats — same turnId-grouped pattern as the
+  // other DOSSEDART cockpits.
   List<DartThrow> throwHistory = [];
   int _turnIdCounter = 0;
 
@@ -126,6 +136,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
+  final DateTime _gameStart = DateTime.now();
 
   @override
   void initState() {
@@ -286,10 +297,10 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   void _dismissAnnounce() => setState(() => _overlay = null);
 
   /// Dispatches the correct dismiss handler for whichever overlay is
-  /// currently showing (test hook + MENU-driven dismiss are the same path).
+  /// currently showing (test hook + tap-to-dismiss are the same path).
   /// [WcOverlayKind.bull] has no entry — it resolves only via
-  /// [_onBullChoice]. [WcOverlayKind.winner] has no entry either — tapping
-  /// it does nothing until Task 11.
+  /// [_onBullChoice]. [WcOverlayKind.winner] proceeds straight to the
+  /// post-game screen — the overlay itself IS the celebration moment.
   void _dismissOverlay() {
     switch (_overlay) {
       case WcOverlayKind.announce:
@@ -300,8 +311,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       case WcOverlayKind.cut:
       case WcOverlayKind.rewind:
         _onEventDismiss();
-      case WcOverlayKind.bull:
       case WcOverlayKind.winner:
+        _showPostGame(engine.ranking());
+      case WcOverlayKind.bull:
       case null:
         break;
     }
@@ -370,6 +382,27 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     });
   }
 
+  /// Core undo mechanics shared by the live [_onUndo] button and the
+  /// post-game "↶ Back" action ([_showPostGame]'s `'undo'` branch): pops the
+  /// engine's last undo entry, resyncs the screen-side per-turn tracking
+  /// fields, clears any overlay/pending-dialog state (the winner overlay
+  /// included — undoing FROM the post-game screen must return to live
+  /// play), and re-checks whether the (possibly different) current turn's
+  /// modifier still needs announcing. Callers wrap this in `setState` and
+  /// own their own guards (gameOver, overlay-kind) since the two call sites
+  /// need different ones.
+  void _applyUndo() {
+    _overlay = null;
+    _pendingResult = null;
+    engine.undo();
+    if (throwHistory.isNotEmpty) {
+      final last = throwHistory.removeLast();
+      _turnIdCounter = last.turnId;
+      _turnStartScore = last.scoreAtStartOfTurn;
+    }
+    _maybeShowAnnounce();
+  }
+
   void _onUndo() {
     if (engine.gameOver) return;
     // Bull overlay blocks undo — the pending choice must resolve first
@@ -377,20 +410,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     // a choice is pending would remove the dart from under the dialog).
     if (_overlay == WcOverlayKind.bull) return;
     if (!engine.canUndo) return;
-    setState(() {
-      _overlay = null;
-      _pendingResult = null;
-      engine.undo();
-      if (throwHistory.isNotEmpty) {
-        final last = throwHistory.removeLast();
-        _turnIdCounter = last.turnId;
-        _turnStartScore = last.scoreAtStartOfTurn;
-      }
-      // Re-sync: undo may have rewound past a turn boundary, so recompute
-      // whether the (possibly different) current turn's modifier needs
-      // announcing again.
-      _maybeShowAnnounce();
-    });
+    setState(_applyUndo);
     _log.logUndo(
       playerIndex: engine.currentPlayerIndex,
       playerName: players[engine.currentPlayerIndex].name,
@@ -400,7 +420,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     );
   }
 
-  // ─── Game end (stub — Task 11 wires stats + post-game navigation) ──
+  // ─── Game end ───────────────────────────────────────────────
 
   Future<void> _onGameEnd() async {
     final ranking = engine.ranking();
@@ -410,12 +430,149 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       gameFullyOver: true,
     );
     BatterySampler.instance.stop();
+    await _fireWinnerCelebration(players[ranking.first].name);
+    if (!mounted) return;
     setState(() => _overlay = WcOverlayKind.winner);
   }
 
-  Future<void> _updateStats() async {
-    // Stub: full stats/rating recording lands with the post-game flow
-    // (Task 11), mirroring the other cockpits' _updateStats.
+  Future<void> _fireWinnerCelebration(String winnerName) async {
+    _announcer.stop();
+    if (!mounted) return;
+    await VideoService.instance.showRandomFromFolder(context, 'winner');
+    if (!mounted) return;
+    _announcer.announceWinner(winnerName);
+  }
+
+  /// Placements from [ranking]; a placement is shared only when BOTH the
+  /// total AND the [WildcardEngine.highestTurn] tiebreak match — mirrors
+  /// [WildcardEngine.ranking]'s own tiebreak exactly, so two players who
+  /// only look tied on total (but were actually ordered by their best turn)
+  /// are NOT reported as sharing a placement.
+  List<int> _buildPlacements(List<int> ranking) {
+    final placements = List.filled(players.length, 0);
+    for (int rank = 0; rank < ranking.length; rank++) {
+      final idx = ranking[rank];
+      if (rank > 0 &&
+          engine.totals[idx] == engine.totals[ranking[rank - 1]] &&
+          engine.highestTurn[idx] == engine.highestTurn[ranking[rank - 1]]) {
+        placements[idx] = placements[ranking[rank - 1]];
+      } else {
+        placements[idx] = rank + 1;
+      }
+    }
+    return placements;
+  }
+
+  Future<void> _updateStats(List<int> ranking) async {
+    if (_midGamePlayerChanges) {
+      // Roster changed — record only join/leave counters and write NO game
+      // entry, matching the other five DOSSEDART cockpits (audit 2026-07-06,
+      // F10): a full game record here would misreport removed players'
+      // placement and drop join/leave counters entirely.
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
+    final savedPlayers = await PlayerStorage.loadPlayers();
+    final placements = _buildPlacements(ranking);
+
+    final modeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      modeCounters[playerId] = {
+        'jokersHit': engine.jokersHitCount[pi],
+        'windowPrizes': engine.windowPrizes[pi],
+        'max:chaosPeak': engine.chaosPeak,
+        'pointsStolen': engine.pointsStolen[pi],
+        'max:highestTurn': engine.highestTurn[pi],
+        'totalDarts': throwHistory.where((t) => t.playerIndex == pi).length,
+        'totalGames': 1,
+      };
+    }
+
+    // NO Elo for WILDCARD (spec §9) — ratingsBefore/After are left unset so
+    // every PlayerResult reports ratingBefore/After: null and the post-game
+    // screen hides rating-delta rows entirely.
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.wildcard,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: const {},
+      ratingsAfter: const {},
+      eventsByIndex: const {},
+    );
+    final earnedFeats =
+        buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
+
+    StatsRecorder.recordGame(
+      gameMode: 'wildcard',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+      modeCounters: modeCounters,
+      gameConfig:
+          '${widget.config.rounds} rounds · chaos ${widget.config.startingChaos}',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex: earnedFeats,
+    );
+
+    await PlayerStorage.savePlayers(savedPlayers);
+  }
+
+  void _showPostGame(List<int> ranking) {
+    final results = <PlayerResult>[];
+    for (int rank = 0; rank < ranking.length; rank++) {
+      final i = ranking[rank];
+      results.add(PlayerResult(
+        name: players[i].name,
+        avatarPath: players[i].avatarPath,
+        placement: rank + 1,
+        stats: {
+          'score': engine.totals[i],
+          'jokersHit': engine.jokersHitCount[i],
+          'windowPrizes': engine.windowPrizes[i],
+          'highestTurn': engine.highestTurn[i],
+          'darts': throwHistory.where((t) => t.playerIndex == i).length,
+        },
+        // No Elo — deltas are auto-hidden by PostGameScreen when both are
+        // null (spec §9).
+        ratingBefore: null,
+        ratingAfter: null,
+      ));
+    }
+
+    Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostGameScreen(
+          result: GameResult(gameMode: 'wildcard', results: results),
+        ),
+      ),
+    ).then((action) async {
+      if (!mounted) return;
+      if (action == 'undo') {
+        // User wants to keep playing — undo the game-end and return to
+        // live play. Same guard as _onUndo: a stack emptied by add/remove
+        // player must not rewind the screen-side history the engine cannot
+        // match.
+        if (!engine.canUndo) return;
+        setState(_applyUndo);
+        return;
+      }
+      // 'home' or back-button: persist stats now (deferred from _onGameEnd
+      // so Undo doesn't strand the user with stats they didn't confirm),
+      // then leave the game-screen entirely.
+      await _updateStats(ranking);
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    });
   }
 
   // ─── Mid-game roster changes ────────────────────────────────
@@ -748,6 +905,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       icon: '★ ★ ★',
       title: 'WILDCARD WINNER',
       titleSize: 44,
+      onTap: () => _showPostGame(ranked),
       children: [
         const SizedBox(height: 14),
         Text(

@@ -96,8 +96,8 @@ class WildcardDialog extends StatelessWidget {
   /// When set, the whole scrim becomes tappable ("tap anywhere to
   /// continue") — threaded straight through to [WildcardOverlay.onTap].
   /// Left `null` for moments that must not be dismissed by an incidental
-  /// tap (none currently — the WINNER overlay passes null deliberately so
-  /// tapping it does nothing until Task 11 wires the post-game flow).
+  /// tap (none currently — the WINNER overlay wires this to the post-game
+  /// navigation, since the overlay itself IS the celebration moment).
   final VoidCallback? onTap;
   final List<Widget> children;
 
