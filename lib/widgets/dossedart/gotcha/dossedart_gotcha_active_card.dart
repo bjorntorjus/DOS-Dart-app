@@ -388,7 +388,12 @@ class DossedartGotchaActiveCard extends StatelessWidget {
             left: 16,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-              color: accentColor,
+              decoration: BoxDecoration(
+                color: accentColor,
+                boxShadow: [
+                  BoxShadow(color: accentColor.withValues(alpha: 0.67), blurRadius: 8),
+                ],
+              ),
               child: Text(
                 '▶ NOW THROWING',
                 style: TextStyle(
@@ -443,7 +448,7 @@ class _ClimbBarState extends State<_ClimbBar>
     super.initState();
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 1),
+      duration: const Duration(milliseconds: 500),
     );
   }
 

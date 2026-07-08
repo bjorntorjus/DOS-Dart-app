@@ -193,11 +193,13 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       _announcer.announceThrow(segment == 0 ? 'miss' : '${segment * multiplier}');
     }
 
-    if (result.turnEnded && !engine.gameOver) {
+    if (result.turnEnded) {
       _meme.onTurnEnd();
-      _turnIdCounter++;
-      if (engine.currentPlayerIndex <= playerIdx) _roundNumber++;
-      _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+      if (!engine.gameOver) {
+        _turnIdCounter++;
+        if (engine.currentPlayerIndex <= playerIdx) _roundNumber++;
+        _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+      }
     }
   }
 

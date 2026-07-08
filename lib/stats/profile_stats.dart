@@ -87,6 +87,10 @@ List<RecordTile> careerRecords(SavedPlayer p) {
     final rate = (atc.get('totalHits') * 100 / atc.get('totalDarts')).round();
     out.add(RecordTile(mode: 'aroundTheClock', value: '$rate%', label: 'hit rate'));
   }
+  final got = _firstMode(p, ['gotcha']);
+  if (got != null && got.get('highestTurn') > 0) {
+    out.add(RecordTile(mode: 'gotcha', value: '${got.get('highestTurn')}', label: 'best turn'));
+  }
   return out;
 }
 
