@@ -485,4 +485,453 @@ void main() {
       expect(e.totals[1], 0); // floored, never negative
     });
   });
+
+  group('WildcardEngine jokers', () {
+    test('round 1 assigns exactly wcJokerCount(chaos) unique numbers 1-20',
+        () {
+      final e = plain(); // startingChaos: 0 -> wcJokerCount(0) == 0
+      expect(e.jokers, isEmpty);
+
+      final e3 = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e3.jokers, {1}); // seed 7, chaos 3 -> wcJokerCount == 1
+    });
+
+    test('two jokers never share a number: chaos 9 assigns 2 distinct', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 9, rng: math.Random(7));
+      expect(e.jokers, {1, 18});
+      expect(e.jokers.length, 2);
+    });
+
+    test(
+        'joker hit: reveals, meter +2, jokersHitCount increments, re-rolls '
+        'excluding the just-hit number and other actives', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 9, rng: math.Random(7));
+      expect(e.jokers, {1, 18});
+      e.debugForceEvent('chaosSurge');
+      final r = e.applyDart(1, 1); // hits the joker at 1
+      expect(r.jokerHit, 1);
+      expect(r.instantEvent?.id, 'chaosSurge');
+      expect(e.jokersHitCount[0], 1);
+      // 18 survives untouched; 1 re-rolled to a fresh number (14) that is
+      // neither 1 (just hit) nor 18 (the other active joker).
+      expect(e.jokers, {18, 14});
+    });
+
+    test('dimmed joker still triggers: scores 0 under a restriction but the '
+        'event still fires (spec §10)', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7))
+        ..debugForceModifier('onlyEvens');
+      // P0 banks a plain turn so P1's turn rolls the forced onlyEvens.
+      e.applyDart(2, 1);
+      e.applyDart(2, 1);
+      e.applyDart(2, 1);
+      expect(e.activeModifier?.id, 'onlyEvens');
+      expect(e.jokers, {1}); // odd -> dimmed under onlyEvens
+
+      e.debugForceEvent('chaosSurge');
+      final r = e.applyDart(1, 1); // joker 1 is odd: dimmed, scores 0
+      expect(r.points, 0);
+      expect(r.jokerHit, 1);
+      expect(r.instantEvent?.id, 'chaosSurge');
+      expect(e.chaos, 8); // 3 (base) + 2 (joker) + 3 (chaosSurge)
+    });
+  });
+
+  group('WildcardEngine instant events', () {
+    test('CHAOS SURGE: meter +3', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.debugForceEvent('chaosSurge');
+      e.applyDart(1, 1);
+      expect(e.chaos, 8); // 3 + 2 (joker) + 3 (surge)
+      expect(e.lastEventResolution?.detail, 'CHAOS +3');
+    });
+
+    test('CHAOS SURGE: clamped at 10 near the cap', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 9, rng: math.Random(7));
+      expect(e.jokers, {1, 18});
+      e.debugForceEvent('chaosSurge');
+      e.applyDart(1, 1); // joker: 9 -> 10 (clamped, +1 applied); surge: 10 -> 10 (+0)
+      expect(e.chaos, 10);
+      expect(e.lastEventResolution?.detail, 'CHAOS +0');
+    });
+
+    test(
+        'SCORE SWAP: totals swap with a uniformly-random OTHER living '
+        'player', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 100;
+      e.totals[1] = 40;
+      e.totals[2] = 10;
+      expect(e.jokers, {1});
+      e.debugForceEvent('scoreSwap');
+      final r = e.applyDart(1, 1); // P0 (hitter) hits the joker
+      expect(r.jokerHit, 1);
+      expect(e.totals, [40, 100, 10]); // P0 <-> P1 (the rng-picked other)
+      expect(e.lastEventResolution?.detail, 'SWAP · P0 100 ↔ P1 40');
+      expect(e.lastEventResolution?.flags, [
+        (playerIndex: 0, flagText: '-60 SWAP', good: false),
+        (playerIndex: 1, flagText: '+60 SWAP', good: true),
+      ]);
+    });
+
+    test(
+        'ROBIN HOOD: steals 50 from the highest-total OTHER player, credited '
+        'to the hitter; pointsStolen tracks it', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 10; // hitter
+      e.totals[1] = 300; // leader/victim
+      e.totals[2] = 20;
+      expect(e.jokers, {1});
+      e.debugForceEvent('robinHood');
+      e.applyDart(1, 1);
+      expect(e.totals, [60, 250, 20]); // 10+50, 300-50, unchanged
+      expect(e.pointsStolen[0], 50);
+      expect(e.lastEventResolution?.detail, 'STEAL 50 · P1 300 → 250');
+      expect(e.lastEventResolution?.flags, [
+        (playerIndex: 0, flagText: '+50 STEAL', good: true),
+        (playerIndex: 1, flagText: '-50 ROBBED', good: false),
+      ]);
+    });
+
+    test('ROBIN HOOD: steal caps at the victim total when under 50 (floor)',
+        () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 10;
+      e.totals[1] = 30; // leader, but under 50
+      e.totals[2] = 20;
+      e.debugForceEvent('robinHood');
+      e.applyDart(1, 1);
+      expect(e.totals, [40, 0, 20]); // steals only 30, victim floors at 0
+      expect(e.pointsStolen[0], 30);
+    });
+
+    test(
+        'GIFT: the triggering dart\'s points plus the remaining darts of the '
+        'turn credit last place instead of the thrower', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[2] = 5; // last place among P1/P2 (P1 stays at 0... use P1=300)
+      e.totals[1] = 300;
+      expect(e.jokers, {1});
+      e.applyDart(2, 1); // dart 1 (not the joker): 2 points, pre-gift
+      e.debugForceEvent('gift');
+      final d2 = e.applyDart(1, 1); // dart 2 hits the joker: +1, triggers GIFT
+      expect(d2.jokerHit, 1);
+      expect(e.lastEventResolution?.detail, 'GIFT · rest of turn to P2');
+      final d3 = e.applyDart(7, 1); // dart 3: +7, all of it redirected
+      expect(d3.turnEnded, isTrue);
+      // Thrower banks only the pre-gift 2; P2 gets the gift joker dart (1)
+      // plus the remaining dart (7) = 8.
+      expect(e.totals, [2, 300, 13]);
+    });
+
+    test('FREEZE: flags the current leader (hitter included, tie -> '
+        'earliest seat) for their next turn', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 10;
+      e.totals[1] = 300; // leader
+      e.totals[2] = 20;
+      e.debugForceEvent('freeze');
+      e.applyDart(1, 1);
+      expect(e.frozenPlayer, 1);
+      expect(e.lastEventResolution?.detail, 'FREEZE · P1');
+    });
+
+    test('FREEZE: ties resolve to the earliest seat, hitter included', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      // All totals start at 0 (a 3-way tie including the hitter, P0).
+      e.debugForceEvent('freeze');
+      e.applyDart(1, 1);
+      expect(e.frozenPlayer, 0);
+    });
+
+    test('CURSED NUMBER: assigns a new hidden number; hitting it scores '
+        'negative (−segment×multiplier) and clears the curse', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.debugForceEvent('cursedNumber');
+      e.applyDart(1, 1); // reveals the joker, assigns cursedNumber
+      expect(e.cursedNumber, 18);
+      expect(e.lastEventResolution?.detail, 'CURSED NUMBER · 18');
+
+      final r = e.applyDart(18, 3); // hit the curse: T18 would be 54
+      expect(r.points, -54);
+      expect(e.cursedNumber, isNull); // clears once hit
+    });
+
+    test('DOUBLE JEOPARDY: sets a one-round flag; the NEXT round assigns 2 '
+        'jokers regardless of wcJokerCount', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.debugForceEvent('doubleJeopardy');
+      e.applyDart(1, 1); // hits the joker, fires DOUBLE JEOPARDY, re-rolls
+      expect(e.jokers, {18}); // the usual per-hit reroll still happens
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; round is still 1
+      expect(e.round, 1);
+      expect(e.jokers, {18}); // unchanged until the round actually rolls over
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks -> round 2 rolls over
+      expect(e.round, 2);
+      expect(e.jokers, {7, 19}); // forced to 2, not wcJokerCount(chaos)==1
+    });
+  });
+
+  group('WildcardEngine CUT! and REWIND', () {
+    test(
+        'CUT!: current turn banks as-is; players yet to throw this round '
+        'lose their turn; next round starts fresh', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.applyDart(5, 1);
+      e.applyDart(5, 1); // 2 darts banked into turnPoints (10), P1/P2 untouched
+      e.debugForceEvent('cutEvent');
+      final r = e.applyDart(1, 1); // 3rd dart hits the joker -> CUT!
+      expect(r.jokerHit, 1);
+      expect(r.instantEvent?.id, 'cutEvent');
+      expect(r.turnEnded, isTrue);
+      expect(r.roundEnded, isTrue);
+      expect(e.totals, [11, 0, 0]); // P0's turn banks as-is: 5+5+1
+      expect(e.round, 2);
+      expect(e.currentPlayerIndex, 0); // next round starts at the first seat
+      expect(e.jokers, {19}); // fresh round-2 jokers, no reroll double-add
+    });
+
+    test('CUT! mid-turn (dart 1 of 3) still bank-and-cuts immediately', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.debugForceEvent('cutEvent');
+      final r = e.applyDart(1, 1); // the very first dart of the turn
+      expect(r.turnEnded, isTrue);
+      expect(r.roundEnded, isTrue);
+      expect(e.totals, [1, 0, 0]);
+      expect(e.round, 2);
+      expect(e.currentPlayerIndex, 0);
+    });
+
+    test('CUT! in the final round ends the game; totals stand', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 1, startingChaos: 3, rng: math.Random(7));
+      e.debugForceEvent('cutEvent');
+      final r = e.applyDart(1, 1);
+      expect(r.gameOver, isTrue);
+      expect(e.gameOver, isTrue);
+      expect(e.totals, [1, 0, 0]);
+      expect(e.winnerIndex, 0);
+    });
+
+    test(
+        'REWIND: wipes every player\'s this-round banked points back to '
+        'roundStartTotals, discards the in-progress turn, restarts from the '
+        'first seat; jokers are unchanged', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 banks 60; P1's turn begins
+      expect(e.totals, [60, 0, 0]);
+      expect(e.currentPlayerIndex, 1);
+      expect(e.jokers, {1}); // same round -> same joker set (not re-rolled)
+
+      e.debugForceEvent('rewindEvent');
+      final r = e.applyDart(1, 1); // P1 hits the joker -> REWIND
+      expect(r.turnEnded, isTrue);
+      expect(r.roundEnded, isTrue);
+      expect(e.totals, [0, 0, 0]); // P0's banked 60 is wiped
+      expect(e.round, 1); // same round, restarted (not incremented)
+      expect(e.currentPlayerIndex, 0); // back to the round's first seat
+      expect(e.turnPoints, 0);
+      expect(e.dartsInTurn, 0);
+      expect(e.jokers, {1}); // untouched — only scores rewind
+    });
+
+    test('REWIND on round 1 restarts from zero scores for everyone', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 banks 60
+      expect(e.totals, [60, 0]);
+      e.debugForceEvent('rewindEvent');
+      e.applyDart(1, 1); // P1 hits the joker -> REWIND
+      expect(e.totals, [0, 0]);
+      expect(e.currentPlayerIndex, 0);
+      expect(e.round, 1);
+    });
+  });
+
+  group('WildcardEngine undo across every event type', () {
+    test('undo across joker+event restores meter, totals, joker set, and '
+        're-hides the joker', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      expect(e.chaos, 3);
+      e.debugForceEvent('chaosSurge');
+      e.applyDart(1, 1);
+      expect(e.jokers, {18});
+      expect(e.chaos, 8);
+
+      e.undo();
+      expect(e.jokers, {1}); // re-hidden
+      expect(e.chaos, 3);
+      expect(e.jokersHitCount[0], 0);
+      expect(e.lastEventResolution, isNull);
+    });
+
+    test('undo SCORE SWAP restores totals byte-for-byte', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 100;
+      e.totals[1] = 40;
+      e.totals[2] = 10;
+      e.debugForceEvent('scoreSwap');
+      e.applyDart(1, 1);
+      expect(e.totals, [40, 100, 10]);
+
+      e.undo();
+      expect(e.totals, [100, 40, 10]);
+      expect(e.jokers, {1});
+    });
+
+    test('undo ROBIN HOOD restores totals and pointsStolen', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 10;
+      e.totals[1] = 300;
+      e.totals[2] = 20;
+      e.debugForceEvent('robinHood');
+      e.applyDart(1, 1);
+      expect(e.totals, [60, 250, 20]);
+      expect(e.pointsStolen[0], 50);
+
+      e.undo();
+      expect(e.totals, [10, 300, 20]);
+      expect(e.pointsStolen[0], 0);
+    });
+
+    test(
+        'undo GIFT clears the redirect so a replayed dart banks to the '
+        'thrower normally', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[2] = 5;
+      e.applyDart(2, 1); // dart 1: 2 points
+      e.debugForceEvent('gift');
+      e.applyDart(1, 1); // dart 2: triggers GIFT
+
+      e.undo(); // undo dart 2 -> the redirect must be gone
+      e.debugForceEvent('chaosSurge'); // replay dart 2 without GIFT this time
+      e.applyDart(1, 1);
+      e.applyDart(7, 1); // dart 3 banks
+      expect(e.totals, [10, 0, 5]); // all of it stays with P0, P2 untouched
+    });
+
+    test(
+        'undo DOUBLE JEOPARDY leaves the next round at a normal joker '
+        'count (the one-round flag does not leak)', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.debugForceEvent('doubleJeopardy');
+      e.applyDart(1, 1);
+      e.undo();
+      expect(e.jokers, {1});
+
+      // Bank two plain turns to reach round 2 without ever re-forcing DJ.
+      e.applyDart(2, 1);
+      e.applyDart(2, 1);
+      e.applyDart(2, 1);
+      e.applyDart(2, 1);
+      e.applyDart(2, 1);
+      e.applyDart(2, 1);
+      expect(e.round, 2);
+      expect(e.jokers, {7}); // normal chaos-3 count (1), not the forced 2
+    });
+
+    test('undo CUT! restores the pre-cut totals, round, seat and in-flight '
+        'turn', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.applyDart(5, 1);
+      e.applyDart(5, 1);
+      e.debugForceEvent('cutEvent');
+      e.applyDart(1, 1);
+      expect(e.totals, [11, 0, 0]);
+      expect(e.round, 2);
+
+      e.undo();
+      expect(e.totals, [0, 0, 0]);
+      expect(e.round, 1);
+      expect(e.currentPlayerIndex, 0);
+      expect(e.dartsInTurn, 2);
+      expect(e.turnPoints, 10);
+      expect(e.jokers, {1});
+    });
+
+    test(
+        'undo REWIND restores the pre-rewind totals, round-2-in-progress '
+        'seat, and banked turn', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 banks 60
+      e.debugForceEvent('rewindEvent');
+      e.applyDart(1, 1); // P1 -> REWIND
+      expect(e.totals, [0, 0, 0]);
+
+      e.undo();
+      expect(e.totals, [60, 0, 0]);
+      expect(e.currentPlayerIndex, 1);
+      expect(e.round, 1);
+      expect(e.jokers, {1});
+    });
+  });
+
+  group('WildcardEngine event drawing pool', () {
+    test(
+        'statistical sanity: at chaos 9-10 the wild tier is drawn roughly '
+        'half the time (double-weighted per spec §3)', () {
+      final rng = math.Random(42);
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 200, startingChaos: 9, rng: rng);
+      var wildCount = 0;
+      var total = 0;
+      for (var i = 0; i < 3000 && !e.gameOver && total < 200; i++) {
+        if (e.jokers.isEmpty) {
+          e.applyDart(5, 1);
+          continue;
+        }
+        final j = e.jokers.first;
+        final r = e.applyDart(j, 1);
+        if (r.instantEvent != null) {
+          total++;
+          if (r.instantEvent!.severity == WcSeverity.wild) wildCount++;
+        }
+      }
+      expect(total, greaterThan(50));
+      final ratio = wildCount / total;
+      expect(ratio, greaterThan(0.3));
+      expect(ratio, lessThan(0.7));
+    });
+  });
 }

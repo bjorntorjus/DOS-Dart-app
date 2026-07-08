@@ -6,11 +6,9 @@
 /// instead of an automatic delta — see [applyDart]/[resolveBullChoice].
 ///
 /// Turn-modifiers (spec §4), restriction dimming, the scoring transforms they
-/// apply, THE WINDOW, and freeze are wired here (Task 3). Jokers, cursed
-/// numbers, and instant events (spec §5) remain data-only stubs — their
-/// fields ([jokers], [cursedNumber], `debugForceEvent`) exist so the
-/// screen/tests can compile against the final shape, but stay null/empty
-/// until Task 4 wires the rolls in.
+/// apply, THE WINDOW, and freeze are wired here. Hidden jokers, cursed
+/// numbers, and the 9 instant events (spec §5), plus CUT!/REWIND round
+/// surgery, are wired here too — the engine is spec-complete (§2-§5, §10).
 library;
 
 import 'dart:math' as math;
@@ -26,10 +24,10 @@ class WildcardDartResult {
   /// — their meter change is deferred to [WildcardEngine.resolveBullChoice].
   final int meterDelta;
 
-  /// Revealed joker number, or null. Always null until Task 4.
+  /// Revealed joker number, or null when this dart didn't hit a joker.
   final int? jokerHit;
 
-  /// Instant event fired by the joker. Always null until Task 4.
+  /// Instant event fired by the joker, or null.
   final WcInstantEventDef? instantEvent;
 
   /// True when the dart hit bull (single or double) — the screen must call
@@ -89,6 +87,10 @@ class _WcUndoEntry {
   final int? pendingBullChoice;
   final bool gameOver;
   final int? winnerIndex;
+  final bool doubleJeopardyPending;
+  final int? giftTargetIndex;
+  final int giftBaselinePoints;
+  final WcEventResolution? lastEventResolution;
 
   _WcUndoEntry({
     required this.totals,
@@ -113,8 +115,26 @@ class _WcUndoEntry {
     required this.pendingBullChoice,
     required this.gameOver,
     required this.winnerIndex,
+    required this.doubleJeopardyPending,
+    required this.giftTargetIndex,
+    required this.giftBaselinePoints,
+    required this.lastEventResolution,
   });
 }
+
+/// One flag rendered on a player's standings row after an instant event
+/// resolves (spec §5 dialog).
+typedef WcEventFlag = ({int playerIndex, String flagText, bool good});
+
+/// Result of the most recently resolved instant event (cleared at the start
+/// of every [WildcardEngine.applyDart] call). `detail` is engine-built from
+/// indices/numbers only ('STEAL 50 · P1 288 → 238') — the screen maps player
+/// indices to names for the human-readable dialog copy.
+typedef WcEventResolution = ({
+  WcInstantEventDef event,
+  String detail,
+  List<WcEventFlag> flags,
+});
 
 class WildcardEngine {
   final int rounds;
@@ -154,11 +174,27 @@ class WildcardEngine {
   /// interpretation #8). Reset for each new turn in [_rollTurnModifier].
   bool _windowVoided = false;
 
-  /// Hidden joker numbers (test-visible). Stays empty this task.
+  /// Hidden joker numbers (test-visible), assigned at round start (and the
+  /// constructor) per [wcJokerCount]. Re-rolls one-at-a-time as each is hit.
   Set<int> jokers = {};
 
-  /// Stays null this task.
+  /// Hidden cursed number (1-20), or null. Scores −segment×multiplier when
+  /// hit, then clears. Assigned by the CURSED NUMBER instant event.
   int? cursedNumber;
+
+  /// One-round flag set by DOUBLE JEOPARDY: the next joker assignment draws
+  /// 2 regardless of [wcJokerCount], then this is consumed.
+  bool _doubleJeopardyPending = false;
+
+  /// GIFT redirect (locked interpretation #10): while non-null, everything
+  /// banked above [_giftBaselinePoints] this turn credits this player
+  /// instead of the thrower. Consumed at banking.
+  int? _giftTargetIndex;
+  int _giftBaselinePoints = 0;
+
+  /// The most recently resolved instant event, or null. Cleared at the start
+  /// of every [applyDart] call.
+  WcEventResolution? lastEventResolution;
 
   /// Scores 0 on their next turn: every dart banks 0 points, but meter/bull
   /// effects still fire and the thrower rolls no [activeModifier] (locked
@@ -187,7 +223,6 @@ class WildcardEngine {
   final math.Random _rng;
 
   String? _forcedModifierId;
-  // ignore: unused_field
   String? _forcedEventId;
 
   final Set<int> _skipped = {};
@@ -208,6 +243,7 @@ class WildcardEngine {
     windowPrizes = List.filled(playerCount, 0, growable: true);
     pointsStolen = List.filled(playerCount, 0, growable: true);
     turnDartLabels = List.filled(3, '—');
+    _assignJokersForRound(); // round 1's jokers, per spec §5
     _rollTurnModifier(); // the game's very first turn also rolls (locked #16)
   }
 
@@ -266,10 +302,12 @@ class WildcardEngine {
         'resolveBullChoice must be called before the next dart');
 
     _pushUndo();
+    lastEventResolution = null; // cleared at the start of every dart
 
     final mod = activeModifier;
     final frozenTurn = frozenPlayer == currentPlayerIndex;
     final rawPoints = segment * multiplier;
+    final turnPointsBeforeDart = turnPoints;
 
     // Per-dart scoring transform, per the locked interpretations (§4):
     // freeze zeroes everything; bull always scores (FORTUNE/CURSE replace
@@ -301,6 +339,17 @@ class WildcardEngine {
       points = rawPoints;
     }
 
+    // CURSED NUMBER (locked interpretation #12): hitting the hidden number
+    // overrides whatever it would otherwise have scored (including a dimmed
+    // 0) to a flat negative, then the curse clears. Suppressed only by
+    // freeze, which zeroes every dart unconditionally.
+    final hitCurse =
+        !frozenTurn && segment != 0 && segment != 25 && segment == cursedNumber;
+    if (hitCurse) {
+      points = -rawPoints;
+      cursedNumber = null;
+    }
+
     if (!frozenTurn && mod?.id == 'goldenDart' && dartsInTurn == 2) {
       points *= 3;
     }
@@ -327,9 +376,34 @@ class WildcardEngine {
 
     dartsInTurn++;
 
+    // Joker trigger (spec §5): any 1-20 segment, any multiplier, dimmed
+    // included — never bull (bull is handled entirely above via
+    // needsBullChoice/segment==25, so this range check alone excludes it).
+    int? jokerHit;
+    WcInstantEventDef? instantEvent;
+    var roundRestructured = false;
+    if (!needsBullChoice && segment >= 1 && segment <= 20 && jokers.contains(segment)) {
+      jokerHit = segment;
+      jokersHitCount[currentPlayerIndex]++;
+      meterDelta += _applyMeterChange(2);
+      instantEvent = _drawInstantEvent();
+      roundRestructured =
+          _resolveInstantEvent(instantEvent, turnPointsBeforeDart);
+      // CUT!/REWIND already settled the joker set for the (new or restarted)
+      // round inside _resolveInstantEvent — a normal reroll here would stack
+      // an extra number on top of that fresh assignment.
+      if (!roundRestructured) _rerollJoker(segment);
+    }
+
     var turnEnded = false;
     var roundEnded = false;
-    if (!needsBullChoice && dartsInTurn >= 3) {
+    if (roundRestructured) {
+      // CUT!/REWIND already banked/discarded the turn and moved the round
+      // along inside _resolveInstantEvent — the normal 3rd-dart bank below
+      // must not also run.
+      turnEnded = true;
+      roundEnded = true;
+    } else if (!needsBullChoice && dartsInTurn >= 3) {
       turnEnded = true;
       final roundBefore = round;
       _bankTurnAndAdvance();
@@ -339,8 +413,8 @@ class WildcardEngine {
     return WildcardDartResult(
       points: points,
       meterDelta: meterDelta,
-      jokerHit: null,
-      instantEvent: null,
+      jokerHit: jokerHit,
+      instantEvent: instantEvent,
       needsBullChoice: needsBullChoice,
       bullChoiceMagnitude: bullChoiceMagnitude,
       turnEnded: turnEnded,
@@ -394,8 +468,34 @@ class WildcardEngine {
     }
   }
 
-  void _bankTurnAndAdvance() {
-    final bankedAmount = _computeBankedAmount();
+  /// Banks the current player's in-progress turn into [totals] and resets
+  /// the per-turn scratch state. Does NOT advance the seat/round — see
+  /// [_bankTurnAndAdvance] (normal 3rd-dart end) and [_executeCut] (round
+  /// guillotined mid-turn), which both call this then handle rotation
+  /// themselves.
+  ///
+  /// GIFT redirect (locked interpretation #10): when [_giftTargetIndex] is
+  /// set, everything from the triggering dart onward ([_giftBaselinePoints]
+  /// through the raw [turnPoints]) is a "gift share" credited to that player
+  /// instead — floor 0 on both the thrower's remaining share and the gift
+  /// share. This bypasses the whole-turn modifier transforms below
+  /// ([_computeBankedAmount]) deliberately: GIFT is a raw-points redirect,
+  /// not a re-run of the turn-total math (no test exercises GIFT stacked
+  /// with a restriction/multiplier modifier in the same turn).
+  void _bankCurrentTurn() {
+    final giftTarget = _giftTargetIndex;
+    int bankedAmount;
+    if (giftTarget != null) {
+      final throwerShare = math.max(0, _giftBaselinePoints);
+      final giftShare = math.max(0, turnPoints - _giftBaselinePoints);
+      bankedAmount = throwerShare;
+      totals[giftTarget] = math.max(0, totals[giftTarget] + giftShare);
+      if (giftShare > highestTurn[giftTarget]) {
+        highestTurn[giftTarget] = giftShare;
+      }
+    } else {
+      bankedAmount = _computeBankedAmount();
+    }
     totals[currentPlayerIndex] =
         math.max(0, totals[currentPlayerIndex] + bankedAmount);
     if (bankedAmount > highestTurn[currentPlayerIndex]) {
@@ -405,6 +505,12 @@ class WildcardEngine {
     turnPoints = 0;
     dartsInTurn = 0;
     turnDartLabels = List.filled(3, '—');
+    _giftTargetIndex = null;
+    _giftBaselinePoints = 0;
+  }
+
+  void _bankTurnAndAdvance() {
+    _bankCurrentTurn();
     _advancePlayer();
     if (!gameOver) _rollTurnModifier();
   }
@@ -469,9 +575,297 @@ class WildcardEngine {
           return;
         }
         roundStartTotals = List.of(totals);
+        _assignJokersForRound();
       }
       if (currentPlayerIndex == startIndex) break;
     } while (isSkipped(currentPlayerIndex));
+  }
+
+  /// First non-skipped seat, scanning from index 0 — the round's starting
+  /// seat for a fresh round (CUT!'s next round, REWIND's restart).
+  int _firstActiveSeat() {
+    for (var i = 0; i < totals.length; i++) {
+      if (!isSkipped(i)) return i;
+    }
+    return 0;
+  }
+
+  /// Assigns fresh hidden jokers for the round about to start (spec §5):
+  /// [wcJokerCount] numbers from 1-20, unique, never [cursedNumber] — or 2
+  /// unconditionally if DOUBLE JEOPARDY armed the one-round flag. Called
+  /// from the constructor (round 1) and every round rollover ([_advancePlayer]
+  /// normal wrap, [_advanceRoundForCut] after CUT!).
+  void _assignJokersForRound() {
+    final count = _doubleJeopardyPending ? 2 : wcJokerCount(chaos);
+    _doubleJeopardyPending = false;
+    final result = <int>{};
+    while (result.length < count) {
+      final n = 1 + _rng.nextInt(20);
+      if (n == cursedNumber) continue;
+      if (!result.add(n)) continue;
+    }
+    jokers = result;
+  }
+
+  /// Re-rolls a just-hit joker to a new number, excluding the one just hit,
+  /// every other currently-active joker, and [cursedNumber]. If no number is
+  /// available the joker is simply removed (locked interpretation, spec §10;
+  /// unreachable in practice — at most 2 jokers + 1 curse ever occupy the
+  /// 20-number space).
+  void _rerollJoker(int justHit) {
+    final others = {...jokers}..remove(justHit);
+    final excluded = {...others, justHit, ?cursedNumber};
+    final candidates = [
+      for (var n = 1; n <= 20; n++)
+        if (!excluded.contains(n)) n
+    ];
+    if (candidates.isEmpty) {
+      jokers = others;
+      return;
+    }
+    final newNumber = candidates[_rng.nextInt(candidates.length)];
+    jokers = {...others, newNumber};
+  }
+
+  /// Rolls a fresh [cursedNumber] for the CURSED NUMBER event: 1-20,
+  /// excluding current jokers and the number already cursed (locked
+  /// interpretation #12).
+  int _rollNewCursedNumber() {
+    final excluded = {...jokers, ?cursedNumber};
+    final candidates = [
+      for (var n = 1; n <= 20; n++)
+        if (!excluded.contains(n)) n
+    ];
+    return candidates[_rng.nextInt(candidates.length)];
+  }
+
+  /// Draws the instant event fired by a joker hit: [debugForceEvent]
+  /// overrides the draw outright (consumed once); otherwise uniform over a
+  /// list built by expanding [wcSeverityPool] (a severity may repeat — wild
+  /// appears twice at chaos 9-10 to double-weight it) into its matching
+  /// [wcInstantEvents]. Falls back to the mild tier if the pool is empty
+  /// (chaos 0, reachable only via a stale DOUBLE JEOPARDY joker surviving a
+  /// meter drop to 0).
+  WcInstantEventDef _drawInstantEvent() {
+    final forcedId = _forcedEventId;
+    if (forcedId != null) {
+      _forcedEventId = null;
+      return wcInstantEvents.firstWhere((e) => e.id == forcedId);
+    }
+    final pool = wcSeverityPool(chaos);
+    final effectivePool = pool.isEmpty ? const [WcSeverity.mild] : pool;
+    final weighted = <WcInstantEventDef>[
+      for (final s in effectivePool) ...wcInstantEvents.where((e) => e.severity == s),
+    ];
+    return weighted[_rng.nextInt(weighted.length)];
+  }
+
+  List<int> _livingOthers(int hitter) => [
+        for (var i = 0; i < totals.length; i++)
+          if (i != hitter && !isSkipped(i)) i
+      ];
+
+  List<int> _livingIncluding(int hitter) => [
+        for (var i = 0; i < totals.length; i++)
+          if (!isSkipped(i)) i
+      ];
+
+  /// Highest-total index among [indices]; ties resolve to the earliest seat
+  /// because the scan only replaces on a strictly-greater total.
+  int _highestAmong(List<int> indices) {
+    var best = indices.first;
+    for (final i in indices.skip(1)) {
+      if (totals[i] > totals[best]) best = i;
+    }
+    return best;
+  }
+
+  /// Lowest-total index among [indices]; ties resolve to the earliest seat
+  /// (see [_highestAmong]).
+  int _lowestAmong(List<int> indices) {
+    var best = indices.first;
+    for (final i in indices.skip(1)) {
+      if (totals[i] < totals[best]) best = i;
+    }
+    return best;
+  }
+
+  /// Resolves [event] for the current joker-hitter (locked interpretations
+  /// #9-#15). Returns true when the round was restructured (CUT!/REWIND) —
+  /// the caller must then skip the normal end-of-turn banking, since this
+  /// method already handled it.
+  bool _resolveInstantEvent(WcInstantEventDef event, int turnPointsBeforeDart) {
+    final hitter = currentPlayerIndex;
+    switch (event.id) {
+      case 'chaosSurge':
+        final applied = _applyMeterChange(3);
+        lastEventResolution =
+            (event: event, detail: 'CHAOS +$applied', flags: <WcEventFlag>[]);
+        return false;
+
+      case 'scoreSwap':
+        final others = _livingOthers(hitter);
+        if (others.isEmpty) {
+          lastEventResolution =
+              (event: event, detail: 'SWAP · no target', flags: <WcEventFlag>[]);
+          return false;
+        }
+        final other = others[_rng.nextInt(others.length)];
+        final a = totals[hitter];
+        final b = totals[other];
+        totals[hitter] = b;
+        totals[other] = a;
+        final hitterDelta = b - a;
+        final otherDelta = a - b;
+        lastEventResolution = (
+          event: event,
+          detail: 'SWAP · P$hitter $a ↔ P$other $b',
+          flags: <WcEventFlag>[
+            (
+              playerIndex: hitter,
+              flagText:
+                  '${hitterDelta >= 0 ? '+' : '-'}${hitterDelta.abs()} SWAP',
+              good: hitterDelta >= 0,
+            ),
+            (
+              playerIndex: other,
+              flagText:
+                  '${otherDelta >= 0 ? '+' : '-'}${otherDelta.abs()} SWAP',
+              good: otherDelta >= 0,
+            ),
+          ],
+        );
+        return false;
+
+      case 'robinHood':
+        final others = _livingOthers(hitter);
+        if (others.isEmpty) {
+          lastEventResolution = (
+            event: event,
+            detail: 'STEAL · no target',
+            flags: <WcEventFlag>[],
+          );
+          return false;
+        }
+        final victim = _highestAmong(others);
+        final before = totals[victim];
+        final stolen = math.min(50, before);
+        totals[victim] = before - stolen;
+        totals[hitter] += stolen;
+        pointsStolen[hitter] += stolen;
+        lastEventResolution = (
+          event: event,
+          detail: 'STEAL $stolen · P$victim $before → ${before - stolen}',
+          flags: <WcEventFlag>[
+            (playerIndex: hitter, flagText: '+$stolen STEAL', good: true),
+            (playerIndex: victim, flagText: '-$stolen ROBBED', good: false),
+          ],
+        );
+        return false;
+
+      case 'gift':
+        final others = _livingOthers(hitter);
+        if (others.isEmpty) {
+          lastEventResolution =
+              (event: event, detail: 'GIFT · no target', flags: <WcEventFlag>[]);
+          return false;
+        }
+        final target = _lowestAmong(others);
+        _giftTargetIndex = target;
+        _giftBaselinePoints = turnPointsBeforeDart;
+        lastEventResolution = (
+          event: event,
+          detail: 'GIFT · rest of turn to P$target',
+          flags: <WcEventFlag>[],
+        );
+        return false;
+
+      case 'freeze':
+        final alive = _livingIncluding(hitter);
+        final leader = _highestAmong(alive);
+        frozenPlayer = leader;
+        lastEventResolution = (
+          event: event,
+          detail: 'FREEZE · P$leader',
+          flags: <WcEventFlag>[],
+        );
+        return false;
+
+      case 'cursedNumber':
+        final newCurse = _rollNewCursedNumber();
+        cursedNumber = newCurse;
+        lastEventResolution = (
+          event: event,
+          detail: 'CURSED NUMBER · $newCurse',
+          flags: <WcEventFlag>[],
+        );
+        return false;
+
+      case 'doubleJeopardy':
+        _doubleJeopardyPending = true;
+        lastEventResolution = (
+          event: event,
+          detail: 'DOUBLE JEOPARDY · 2 jokers next round',
+          flags: <WcEventFlag>[],
+        );
+        return false;
+
+      case 'cutEvent':
+        final roundEnding = round;
+        _executeCut();
+        lastEventResolution = (
+          event: event,
+          detail: 'CUT! · round $roundEnding ends',
+          flags: <WcEventFlag>[],
+        );
+        return true;
+
+      case 'rewindEvent':
+        _executeRewind();
+        lastEventResolution = (
+          event: event,
+          detail: 'REWIND · round $round restarts',
+          flags: <WcEventFlag>[],
+        );
+        return true;
+
+      default:
+        return false;
+    }
+  }
+
+  /// CUT! (locked interpretation #14): the current thrower's in-progress
+  /// turn banks as-is, everyone else's turn this round is skipped, and the
+  /// next round starts immediately from its first active seat. Firing on
+  /// the final round ends the game instead.
+  void _executeCut() {
+    _bankCurrentTurn();
+    round++;
+    if (round > rounds) {
+      gameOver = true;
+      final ranked = ranking();
+      winnerIndex = ranked.isEmpty ? null : ranked.first;
+      return;
+    }
+    roundStartTotals = List.of(totals);
+    currentPlayerIndex = _firstActiveSeat();
+    _assignJokersForRound();
+    _rollTurnModifier();
+  }
+
+  /// REWIND (locked interpretation #15): every player's this-round banked
+  /// points are wiped back to [roundStartTotals], the in-progress turn is
+  /// discarded, and the round restarts from its first active seat. Jokers
+  /// and [cursedNumber] are untouched — only scores rewind.
+  void _executeRewind() {
+    totals = List.of(roundStartTotals);
+    turnPoints = 0;
+    dartsInTurn = 0;
+    turnDartLabels = List.filled(3, '—');
+    _giftTargetIndex = null;
+    _giftBaselinePoints = 0;
+    currentPlayerIndex = _firstActiveSeat();
+    _rollTurnModifier();
   }
 
   void _pushUndo() {
@@ -498,6 +892,10 @@ class WildcardEngine {
       pendingBullChoice: pendingBullChoice,
       gameOver: gameOver,
       winnerIndex: winnerIndex,
+      doubleJeopardyPending: _doubleJeopardyPending,
+      giftTargetIndex: _giftTargetIndex,
+      giftBaselinePoints: _giftBaselinePoints,
+      lastEventResolution: lastEventResolution,
     ));
   }
 
@@ -526,6 +924,10 @@ class WildcardEngine {
     pendingBullChoice = e.pendingBullChoice;
     gameOver = e.gameOver;
     winnerIndex = e.winnerIndex;
+    _doubleJeopardyPending = e.doubleJeopardyPending;
+    _giftTargetIndex = e.giftTargetIndex;
+    _giftBaselinePoints = e.giftBaselinePoints;
+    lastEventResolution = e.lastEventResolution;
   }
 
   void clearUndoStack() => _undoStack.clear();
@@ -560,6 +962,8 @@ class WildcardEngine {
       turnPoints = 0;
       turnDartLabels = List.filled(3, '—');
       pendingBullChoice = null;
+      _giftTargetIndex = null;
+      _giftBaselinePoints = 0;
       _advancePlayer();
       // A modifier is personal (spec §4: one thrower, one turn) — the seat
       // inheritor must get a fresh roll, not the removed player's leftover
@@ -586,7 +990,8 @@ class WildcardEngine {
   /// does not consume it — see [frozenPlayer]).
   void debugForceModifier(String id) => _forcedModifierId = id;
 
-  /// Dev/QA override: force the next joker event (spec §8). No-op this task
-  /// — jokers are not assigned until Task 4.
+  /// Dev/QA override: force the next joker-triggered instant event to [id]
+  /// (spec §8), bypassing the severity-pool draw entirely. Consumed once by
+  /// the next [_drawInstantEvent] call.
   void debugForceEvent(String id) => _forcedEventId = id;
 }
