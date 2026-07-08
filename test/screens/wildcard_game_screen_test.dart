@@ -295,4 +295,44 @@ void main() {
     expect(state.overlayKindForTest, isNull);
     expect(state.engineForTest.round, greaterThan(roundBefore));
   });
+
+  testWidgets(
+      'removing the mid-turn current player advances the turn, and a '
+      'roster-changed stats update completes without recording a game',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const WildcardConfig(rounds: 1, startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    // A throws one dart, leaving their turn open (dartsInTurn == 1).
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.currentPlayerIndex, 0);
+
+    // Remove A while they are still the current, mid-turn thrower.
+    state.removePlayerForTest(0);
+    await tester.pump();
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'removing the mid-turn current player advances to the next '
+            'seat');
+    expect(state.midGamePlayerChangesForTest, isTrue);
+
+    // Roster changed -> early return: join/leave counters only, no game
+    // recorded. The bar here is simply that this completes without error.
+    await state.updateStatsForTest();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 }
