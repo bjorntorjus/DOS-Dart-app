@@ -50,9 +50,11 @@ class WcModifierDef {
 
   /// Whether bull hits score under this modifier. Always `true` per the
   /// locked rules (interpretation #1/#2) — HOLY TRINITY's bull exclusion is
-  /// encoded via [dims], not this field; the engine still owes it a bull
-  /// exception (see the comment on [holyTrinity]). Kept as a field so a
-  /// future modifier can flip it without an interface change.
+  /// encoded via [dims], not this field; the engine implements the bull
+  /// exception with an explicit `mod.id == 'holyTrinity'` check (see the
+  /// comment on [holyTrinity] and `applyDart` in wildcard_engine.dart).
+  /// Kept as a field so a future modifier can flip it without an interface
+  /// change.
   final bool bullScores;
 
   const WcModifierDef({
@@ -234,9 +236,9 @@ const goldenDart = WcModifierDef(
 // dims every segment outside {20, 5, 1}, and 25 (bull) is not a member of
 // that set, so dims(25, ·) is true — bull is dimmed like any other non-member
 // segment. This makes trinity a restriction (any ring on 20/5/1 scores, e.g.
-// D5 counts) on top of the existing +100 coverage bonus for landing a literal
-// single-20/single-5/single-1 turn; the engine still computes that bonus
-// under the old all-singles rule until the next task wires the v3 swap.
+// D5 counts) on top of a +100 coverage bonus for covering all three numbers
+// in one turn (any ring on each — v3, wildcard_engine.dart's
+// _computeBankedAmount).
 const holyTrinity = WcModifierDef(
   id: 'holyTrinity',
   name: 'HOLY TRINITY',

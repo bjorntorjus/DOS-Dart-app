@@ -341,14 +341,22 @@ class WildcardEngine {
     // Per-dart scoring transform, per the locked interpretations (§4):
     // freeze zeroes everything; bull always scores (FORTUNE/CURSE replace
     // its points with a flat ±100; DOUBLE TROUBLE's ×3 still applies to a
-    // double bull); restriction dims zero a non-bull dart on a dimmed
-    // segment; DOUBLE TROUBLE otherwise turns doubles into ×3 and triples
-    // into 0; everything else scores normally. GOLDEN DART then triples
-    // whatever the 3rd dart came out to.
+    // double bull) — EXCEPT under HOLY TRINITY, the one modifier where bull
+    // does NOT score (spec §4/§10, locked with Bjørn): trinity is about
+    // exactly three numbers, so bull is deliberately excluded from the
+    // blanket bull-exemption below and falls through to the dims check
+    // instead, which zeroes it like any other non-{20,5,1} segment. This is
+    // a hardcoded id check, not a generic "consult dims for bull" rule,
+    // because a VALUE-based restriction (e.g. ONLY EVENS) would otherwise
+    // wrongly dim bull too — 25 is odd. Do not genericize this.
+    // Restriction dims otherwise zero a non-bull dart on a dimmed segment;
+    // DOUBLE TROUBLE otherwise turns doubles into ×3 and triples into 0;
+    // everything else scores normally. GOLDEN DART then triples whatever
+    // the 3rd dart came out to.
     int points;
     if (frozenTurn) {
       points = 0;
-    } else if (segment == 25) {
+    } else if (segment == 25 && mod?.id != 'holyTrinity') {
       if (mod?.id == 'bullsFortune') {
         points = 100;
       } else if (mod?.id == 'bullsCurse') {
@@ -486,12 +494,13 @@ class WildcardEngine {
   /// Turns the raw dart-by-dart [turnPoints] into what actually gets banked,
   /// applying the whole-turn transforms (locked interpretations #4, #7, #8):
   /// THE WINDOW replaces the sum with a flat 100/0 (or 0 if voided by a true
-  /// miss); EVERYTHING ×2 doubles it; HOLY TRINITY adds +100 when the turn's
-  /// 3 darts are LITERALLY a single 20, a single 5, and a single 1 (any
-  /// order; any triple/double in the mix, or a segment outside that set,
-  /// disqualifies — no longer a turnPoints==26 sum check, since e.g. D10 +
-  /// S5 + S1 also sums to 26 but is not the trinity). Any other/no modifier
-  /// banks [turnPoints] unchanged.
+  /// miss); EVERYTHING ×2 doubles it; HOLY TRINITY v3 adds +100 when the
+  /// turn's darts COVER all three of 20, 5, and 1 — any ring on each (a
+  /// double or triple counts, since the restriction dims everything else to
+  /// 0 already, so partial trinity hits keep their points automatically);
+  /// a true miss records segment 0 and bull records 25, so neither
+  /// contributes to coverage. Any other/no modifier banks [turnPoints]
+  /// unchanged.
   int _computeBankedAmount() {
     final mod = activeModifier;
     if (mod == null) return turnPoints;
@@ -507,11 +516,9 @@ class WildcardEngine {
       case 'everythingX2':
         return turnPoints * 2;
       case 'holyTrinity':
-        if (turnDarts.length == 3 && turnDarts.every((d) => d.multiplier == 1)) {
-          final segs = turnDarts.map((d) => d.segment).toSet();
-          if (segs.length == 3 && segs.containsAll(const {20, 5, 1})) {
-            return turnPoints + 100;
-          }
+        final segs = turnDarts.map((d) => d.segment).toSet();
+        if (segs.containsAll(const {20, 5, 1})) {
+          return turnPoints + 100;
         }
         return turnPoints;
       default:
@@ -862,9 +869,11 @@ class WildcardEngine {
       case 'cursedNumber':
         final newCurse = _rollNewCursedNumber();
         cursedNumber = newCurse;
+        // The dialog copy must NOT reveal the cursed number — that's the
+        // whole point of a hidden curse. Keep this detail digit-free.
         lastEventResolution = (
           event: event,
-          detail: 'CURSED NUMBER · $newCurse',
+          detail: 'A hidden number is now CURSED — hit it and it bites',
           flags: <WcEventFlag>[],
         );
         return false;

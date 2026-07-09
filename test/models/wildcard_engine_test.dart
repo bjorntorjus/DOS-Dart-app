@@ -317,31 +317,35 @@ void main() {
     });
 
     test(
-        'HOLY TRINITY: literal S20+S5+S1 (any order, single-only) banks '
-        '126; a different segment set banks the plain total (no longer a '
-        'turnPoints==26 sum check)', () {
+        'HOLY TRINITY v3: D5+S20+S1 (any ring on each) banks 131 — the '
+        'coverage bonus no longer requires all-singles', () {
       final e = plain()..debugForceModifier('holyTrinity');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
       e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
-      e.applyDart(20, 1);
-      e.applyDart(5, 1);
-      e.debugForceModifier('holyTrinity'); // queue for P2's roll too
-      e.applyDart(1, 1); // S20+S5+S1 -> literal trinity: banks 126
-      expect(e.totals[1], 126);
-
-      expect(e.activeModifier?.id, 'holyTrinity');
-      e.applyDart(20, 1);
-      e.applyDart(5, 1);
-      // {20,5,2} -> not the trinity set, and the restriction (WQ3 task 1)
-      // now also dims the S2 dart to 0, since 2 isn't in {20,5,1}.
-      final r = e.applyDart(2, 1);
+      e.applyDart(5, 2); // D5 = 10
+      e.applyDart(20, 1); // S20 = 20
+      final r = e.applyDart(1, 1); // S1 = 1; segments {5,20,1} -> +100
       expect(r.turnEnded, isTrue);
-      expect(r.points, 0); // S2 dimmed by the trinity restriction
-      expect(e.totals[2], 25); // 20 + 5 + 0, banked as-is, no bonus
+      expect(e.totals[1], 131); // 10 + 20 + 1 + 100
     });
 
-    test('HOLY TRINITY: the trinity darts qualify in ANY throw order', () {
+    test(
+        'HOLY TRINITY v3: T20+D5+S1 banks 171 — a triple no longer '
+        'disqualifies the coverage bonus (v3: any ring counts on each of '
+        'the three numbers)', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(20, 3); // T20 = 60
+      e.applyDart(5, 2); // D5 = 10
+      final r = e.applyDart(1, 1); // S1 = 1; segments {20,5,1} -> +100
+      expect(r.turnEnded, isTrue);
+      expect(e.totals[1], 171); // 60 + 10 + 1 + 100
+    });
+
+    test('HOLY TRINITY v3: the trinity darts qualify in ANY throw order', () {
       final e = plain()..debugForceModifier('holyTrinity');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
@@ -353,27 +357,38 @@ void main() {
       expect(e.totals[1], 126);
     });
 
-    test(
-        'HOLY TRINITY: a triple in the mix disqualifies even though the '
-        'segments include 20/5/1 (multiplier must be 1 on all 3 darts)',
-        () {
+    test('HOLY TRINITY v3: S5+S5+S20 banks 30, no bonus — coverage is '
+        'missing 1 (a repeated number does not substitute)', () {
       final e = plain()..debugForceModifier('holyTrinity');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
       e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
-      e.applyDart(20, 3); // T20 = 60, not a single
       e.applyDart(5, 1);
-      final r = e.applyDart(1, 1); // turnPoints 66; no bonus
+      e.applyDart(5, 1);
+      final r = e.applyDart(20, 1); // segments {5,20} -> missing 1, no bonus
       expect(r.turnEnded, isTrue);
-      expect(e.totals[1], 66); // 60 + 5 + 1, banked plain
+      expect(e.totals[1], 30); // 5 + 5 + 20, no +100
+    });
+
+    test('HOLY TRINITY v3: S5+S20+miss banks 25, no bonus — a true miss '
+        'records segment 0 and contributes nothing to coverage', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(5, 1);
+      e.applyDart(20, 1);
+      final r = e.applyDart(0, 0); // true miss
+      expect(r.turnEnded, isTrue);
+      expect(e.totals[1], 25); // 5 + 20 + 0, no bonus (missing 1)
     });
 
     test(
-        'HOLY TRINITY: D10+S5+S1 also sums to 26 but is NOT the trinity — '
-        'the literal segment-set rule replaces the old sum==26 check, and '
-        '(WQ3 task 1) segment 10 is now dimmed by the restriction on top of '
-        'that (regression guard: the pre-restriction rule would have banked '
-        '26 here)', () {
+        'HOLY TRINITY v3: D10+S5+S1 also sums to 26 but is NOT the trinity — '
+        'the literal segment-coverage rule replaces the old sum==26 check, '
+        'and segment 10 is dimmed by the restriction on top of that '
+        '(regression guard: the pre-restriction rule would have banked 26 '
+        'here)', () {
       final e = plain()..debugForceModifier('holyTrinity');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
@@ -384,6 +399,24 @@ void main() {
       final r = e.applyDart(1, 1); // turnPoints 0 + 5 + 1 = 6
       expect(r.turnEnded, isTrue);
       expect(e.totals[1], 6); // banked plain — no +100 bonus, D10 dimmed
+    });
+
+    test(
+        'HOLY TRINITY v3: bull is the ONE exception to "bull always scores '
+        'under a restriction" — it scores 0, the bull choice still fires '
+        'unconditionally, and 25 does not count toward coverage', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(20, 1); // S20 = 20
+      e.applyDart(1, 1); // S1 = 1
+      final r = e.applyDart(25, 1); // bull, dimmed to 0 under trinity
+      expect(r.points, 0);
+      expect(r.needsBullChoice, isTrue); // bull control stays unconditional
+      expect(r.bullChoiceMagnitude, 1);
+      e.resolveBullChoice(1); // resolves normally; banks the turn (3rd dart)
+      expect(e.totals[1], 21); // 20 + 1 + 0 — no bonus, 25 isn't coverage
     });
 
     test(
@@ -889,14 +922,17 @@ void main() {
     });
 
     test('CURSED NUMBER: assigns a new hidden number; hitting it scores '
-        'negative (−segment×multiplier) and clears the curse', () {
+        'negative (−segment×multiplier) and clears the curse; the dialog '
+        'detail never reveals the number', () {
       final e = WildcardEngine(
           playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
       expect(e.jokers, {1});
       e.debugForceEvent('cursedNumber');
       e.applyDart(1, 1); // reveals the joker, assigns cursedNumber
       expect(e.cursedNumber, 18);
-      expect(e.lastEventResolution?.detail, 'CURSED NUMBER · 18');
+      expect(e.lastEventResolution?.detail,
+          'A hidden number is now CURSED — hit it and it bites');
+      expect(e.lastEventResolution?.detail, isNot(matches(RegExp(r'\d'))));
 
       final r = e.applyDart(18, 3); // hit the curse: T18 would be 54
       expect(r.points, -54);
