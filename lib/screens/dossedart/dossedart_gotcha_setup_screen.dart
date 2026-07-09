@@ -16,6 +16,7 @@ class DossedartGotchaSetupScreen extends StatefulWidget {
 class _DossedartGotchaSetupScreenState
     extends State<DossedartGotchaSetupScreen> {
   int _targetScore = 301;
+  bool _hardcore = false;
 
   @override
   Widget build(BuildContext context) {
@@ -41,13 +42,17 @@ class _DossedartGotchaSetupScreenState
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
           ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
+          ('HARDCORE · KILL TO 0', _hardcore, (v) => setState(() => _hardcore = v)),
         ]),
       ],
     );
   }
 
-  String _summary(int playerCount) =>
-      ['$playerCount PLAYERS', 'RACE TO $_targetScore'].join(' · ');
+  String _summary(int playerCount) => [
+        '$playerCount PLAYERS',
+        'RACE TO $_targetScore',
+        if (_hardcore) 'HARDCORE',
+      ].join(' · ');
 
   void _startGame(List<Player> players, bool _) {
     Navigator.pushReplacement(
@@ -55,7 +60,7 @@ class _DossedartGotchaSetupScreenState
       MaterialPageRoute(
         builder: (_) => GotchaGameScreen(
           players: players,
-          config: GotchaConfig(targetScore: _targetScore),
+          config: GotchaConfig(targetScore: _targetScore, hardcore: _hardcore),
         ),
       ),
     );

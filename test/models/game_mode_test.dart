@@ -8,6 +8,8 @@ void main() {
     expect(GameMode.gotcha.emoji, '💀');
     expect(const GotchaConfig().targetScore, 301);
     expect(const GotchaConfig(targetScore: 101).mode, GameMode.gotcha);
+    expect(const GotchaConfig().hardcore, false);
+    expect(const GotchaConfig(hardcore: true).hardcore, true);
   });
 
   test('wildcard mode metadata', () {

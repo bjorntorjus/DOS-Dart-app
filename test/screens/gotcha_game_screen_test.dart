@@ -200,4 +200,68 @@ void main() {
     expect(state.engineForTest.canUndo, isFalse,
         reason: 'roster changes clear the undo stack');
   });
+
+  testWidgets('default config: a kill halves the victim, not resets to 0',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GotchaGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GotchaConfig(targetScore: 301),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<GotchaGameScreen>>(find.byType(GotchaGameScreen));
+
+    // A (P0): S20, S20, miss -> total 40, turn passes to B.
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(0, 0);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.totals[0], 40);
+    expect(state.engineForTest.currentPlayerIndex, 1);
+
+    // B (P1): D20 -> 40 points, lands exactly on A's 40 -> kill A, halved.
+    state.onDartHitForTest(20, 2);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.engineForTest.totals[0], 20,
+        reason: 'default (non-hardcore) kill halves 40 -> 20, floor division');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('hardcore config: a kill resets the victim to 0',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GotchaGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GotchaConfig(targetScore: 301, hardcore: true),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<GotchaGameScreen>>(find.byType(GotchaGameScreen));
+
+    // A (P0): S20, S20, miss -> total 40, turn passes to B.
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(0, 0);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.totals[0], 40);
+    expect(state.engineForTest.currentPlayerIndex, 1);
+
+    // B (P1): D20 -> 40 points, lands exactly on A's 40 -> kill A, reset to 0.
+    state.onDartHitForTest(20, 2);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.engineForTest.totals[0], 0,
+        reason: 'hardcore kill resets the victim to 0');
+    expect(tester.takeException(), isNull);
+  });
 }

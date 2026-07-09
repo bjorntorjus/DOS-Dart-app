@@ -42,16 +42,12 @@ class GameAnnouncer {
     _tts.callWhenIdle(() => _sound.playRandom(['win'], fallback: 'win'));
   }
 
-  /// Gotcha kill: speak the event, then layer the kill sound when TTS is idle.
-  /// assets/sounds/gotcha/kill/ ships no recordings in v1 (spec §9) —
+  /// Gotcha kill: speak the pre-built [phrase] (caller composes the
+  /// halving/hardcore-aware wording), then layer the kill sound when TTS is
+  /// idle. assets/sounds/gotcha/kill/ ships no recordings in v1 (spec §9) —
   /// playRandom is a silent no-op until files are added + declared in pubspec.
-  void announceKill(List<String> victimNames) {
-    if (_gameEvents) {
-      final names = victimNames.join(' and ');
-      _tts.speak(victimNames.length > 1
-          ? 'Double gotcha! $names back to zero'
-          : 'Gotcha! $names back to zero');
-    }
+  void announceKill(String phrase) {
+    if (_gameEvents) _tts.speak(phrase);
     _tts.callWhenIdle(() => _sound.playRandom(['gotcha/kill']));
   }
 

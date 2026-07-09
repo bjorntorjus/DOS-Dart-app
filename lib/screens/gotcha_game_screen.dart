@@ -115,6 +115,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     engine = GotchaEngine(
       target: widget.config.targetScore,
       playerCount: players.length,
+      hardcore: widget.config.hardcore,
     );
     _log.logGameStart(
       gameMode: 'Gotcha',
@@ -184,8 +185,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     } else if (result.isBust) {
       _announcer.announceGameEvent('Bust');
     } else if (result.killed.isNotEmpty) {
-      _announcer.announceKill(
-          [for (final k in result.killed) players[k].name]);
+      _announcer.announceKill(_killPhrase(result.killed));
       // Signature-moment video hook — folder has no assets in v1, silent
       // no-op (showRandomFromFolder degrades gracefully when empty).
       VideoService.instance.showRandomFromFolder(context, 'gotcha_kill');
@@ -201,6 +201,23 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
         _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
       }
     }
+  }
+
+  /// Builds the kill announcement phrase for [killed] victim indices, read
+  /// AFTER `engine.applyDart` has already mutated `engine.totals` — halving
+  /// mode reports the post-kill (halved) total, hardcore mode always reports
+  /// zero. 'Double gotcha!' replaces 'Gotcha!' for 2+ victims (spec flavor).
+  String _killPhrase(List<int> killed) {
+    final prefix = killed.length > 1 ? 'Double gotcha!' : 'Gotcha!';
+    if (widget.config.hardcore) {
+      final names = [for (final k in killed) players[k].name].join(' and ');
+      return '$prefix $names back to zero';
+    }
+    final parts = [
+      for (final k in killed)
+        '${players[k].name} halved to ${engine.totals[k]}'
+    ].join(' and ');
+    return '$prefix $parts';
   }
 
   void _onMiss() {

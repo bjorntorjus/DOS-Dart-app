@@ -79,6 +79,7 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
 
   // Gotcha options
   int _gotchaTarget = 301;
+  bool _gotchaHardcore = false;
 
   // Wildcard options
   int _wildcardRounds = 10;
@@ -541,7 +542,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       case GameMode.gotcha:
         screen = GotchaGameScreen(
           players: players,
-          config: GotchaConfig(targetScore: _gotchaTarget),
+          config: GotchaConfig(
+              targetScore: _gotchaTarget, hardcore: _gotchaHardcore),
         );
       case GameMode.wildcard:
         screen = WildcardGameScreen(
@@ -988,6 +990,13 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                 visualDensity: VisualDensity.compact,
               ),
             ),
+          ),
+          SwitchListTile(
+            title: const Text('Hardcore'),
+            subtitle: const Text('Gotcha resets to 0 instead of halving'),
+            value: _gotchaHardcore,
+            onChanged: (v) => setState(() => _gotchaHardcore = v),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
           ),
         ]);
 

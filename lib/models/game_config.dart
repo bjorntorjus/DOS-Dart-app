@@ -146,7 +146,11 @@ class ShanghaiConfig extends GameConfig {
 
 class GotchaConfig extends GameConfig {
   final int targetScore; // 101 / 201 / 301 / 501 — must be hit exactly
-  const GotchaConfig({this.targetScore = 301}) : super(GameMode.gotcha);
+
+  /// true = kill resets to 0 (v1); false = kill halves
+  final bool hardcore;
+  const GotchaConfig({this.targetScore = 301, this.hardcore = false})
+      : super(GameMode.gotcha);
 }
 
 class WildcardConfig extends GameConfig {
