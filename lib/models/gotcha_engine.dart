@@ -35,6 +35,8 @@ class _GotchaUndoEntry {
   final int turnStartScore;
   final bool gameOver;
   final int? winnerIndex;
+  final int round;
+  final List<({int round, int attacker, int victim})> killLog;
   _GotchaUndoEntry({
     required this.totals,
     required this.killsMade,
@@ -45,11 +47,17 @@ class _GotchaUndoEntry {
     required this.turnStartScore,
     required this.gameOver,
     required this.winnerIndex,
+    required this.round,
+    required this.killLog,
   });
 }
 
 class GotchaEngine {
   final int target;
+
+  /// Setup option: kills reset the victim to 0 (v1 behavior) instead of the
+  /// default halving.
+  final bool hardcore;
 
   late List<int> totals;
   late List<int> killsMade;
@@ -63,12 +71,23 @@ class GotchaEngine {
   bool gameOver = false;
   int? winnerIndex;
 
+  /// 0-based rotation counter, incremented whenever the seat rotation wraps
+  /// back around (mirrors the screen's `_roundNumber`). Snapshot-restored.
+  int round = 0;
+
+  /// Event-sourced kill history — one entry per victim per kill, in
+  /// chronological order. Snapshot-copied (undo removes trailing entries);
+  /// NOT cleared on roster changes (history stands even after a player
+  /// leaves).
+  final List<({int round, int attacker, int victim})> killLog = [];
+
   final Set<int> _skipped = {};
   final List<_GotchaUndoEntry> _undoStack = [];
 
   int get playerCount => totals.length;
 
-  GotchaEngine({required this.target, required int playerCount}) {
+  GotchaEngine(
+      {required this.target, required int playerCount, this.hardcore = false}) {
     totals = List.filled(playerCount, 0, growable: true);
     killsMade = List.filled(playerCount, 0, growable: true);
     timesKilled = List.filled(playerCount, 0, growable: true);
@@ -129,6 +148,8 @@ class GotchaEngine {
       turnStartScore: turnStartScore,
       gameOver: gameOver,
       winnerIndex: winnerIndex,
+      round: round,
+      killLog: List.of(killLog),
     ));
 
     final points = segment * multiplier;
@@ -151,9 +172,13 @@ class GotchaEngine {
         for (int j = 0; j < playerCount; j++) {
           if (j == currentPlayerIndex || _skipped.contains(j)) continue;
           if (totals[j] == newTotal && totals[j] > 0) {
-            totals[j] = 0;
+            // Default: HALVING (integer floor — 1 halves to 0, so halving
+            // can finish a player). Hardcore setup option keeps the v1
+            // reset-to-0.
+            totals[j] = hardcore ? 0 : totals[j] ~/ 2;
             timesKilled[j]++;
             killed.add(j);
+            killLog.add((round: round, attacker: currentPlayerIndex, victim: j));
           }
         }
         killsMade[currentPlayerIndex] += killed.length;
@@ -168,8 +193,10 @@ class GotchaEngine {
     dartsInTurn++;
     final turnEnded = isBust || playerWon || dartsInTurn >= 3;
     if (turnEnded && !gameOver) {
+      final previousIndex = currentPlayerIndex;
       dartsInTurn = 0;
       _advancePlayer();
+      if (currentPlayerIndex <= previousIndex) round++;
       turnStartScore = totals[currentPlayerIndex];
     }
 
@@ -204,6 +231,10 @@ class GotchaEngine {
     turnStartScore = entry.turnStartScore;
     gameOver = entry.gameOver;
     winnerIndex = entry.winnerIndex;
+    round = entry.round;
+    killLog
+      ..clear()
+      ..addAll(entry.killLog);
   }
 
   void clearUndoStack() => _undoStack.clear();

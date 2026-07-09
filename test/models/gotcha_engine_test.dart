@@ -106,7 +106,9 @@ void main() {
 
   group('GotchaEngine kills', () {
     test('landing exactly on an opponent resets them, thrower keeps score', () {
-      final e = GotchaEngine(target: 301, playerCount: 2);
+      // hardcore: general kill-mechanic test (thrower keeps score, counters
+      // increment) — not testing halving vs. reset, so pin v1 semantics.
+      final e = GotchaEngine(target: 301, playerCount: 2, hardcore: true);
       e.applyDart(15, 3); e.applyDart(0, 0); e.applyDart(0, 0); // P0 = 45
       e.applyDart(20, 1); e.applyDart(20, 1); final r0 = e.applyDart(5, 1); // P1 = 45!
       expect(r0.killed, [0]);
@@ -120,7 +122,9 @@ void main() {
       // to 20 via applyDart is not possible without P1's own build-up dart
       // killing P0 mid-turn first (landing exactly on 20 kills on ANY
       // scoring dart, per the "kills stand when thrower busts" spec point).
-      final e = GotchaEngine(target: 301, playerCount: 3);
+      // hardcore: intent is the double-kill-on-one-dart mechanic, not
+      // halving vs. reset — pin v1 semantics for a simple totals literal.
+      final e = GotchaEngine(target: 301, playerCount: 3, hardcore: true);
       e.totals[0] = 20; e.totals[1] = 20; e.totals[2] = 0;
       e.currentPlayerIndex = 2;
       final r = e.applyDart(20, 1); // P2 = 20 → double kill
@@ -129,7 +133,9 @@ void main() {
       expect(e.killsMade[2], 2);
     });
     test('kills stand when the thrower busts later in the same turn', () {
-      final e = GotchaEngine(target: 101, playerCount: 2);
+      // hardcore: intent is that a kill survives a later bust-revert, not
+      // halving vs. reset — pin v1 semantics.
+      final e = GotchaEngine(target: 101, playerCount: 2, hardcore: true);
       e.applyDart(20, 2); e.applyDart(0, 0); e.applyDart(0, 0); // P0 = 40
       final rKill = e.applyDart(20, 2);   // P1 dart 1: 40 → lands on P0 → kill
       expect(rKill.killed, [0]);
@@ -143,7 +149,9 @@ void main() {
       expect(e.timesKilled[0], 1);
     });
     test('a kill dart ignores opponents at 0', () {
-      final e = GotchaEngine(target: 301, playerCount: 3);
+      // hardcore: intent is that dead (0) players are excluded from the kill
+      // scan, not halving vs. reset — pin v1 semantics.
+      final e = GotchaEngine(target: 301, playerCount: 3, hardcore: true);
       e.totals[0] = 60; e.totals[1] = 45; e.totals[2] = 0;
       e.currentPlayerIndex = 1;
       final r = e.applyDart(15, 1);        // P1: 45+15 = 60 → kills P0 only
@@ -162,7 +170,9 @@ void main() {
       expect(e.timesKilled[0], 0);
     });
     test('undo across a kill restores the victim', () {
-      final e = GotchaEngine(target: 301, playerCount: 2);
+      // hardcore: intent is that undo restores the victim's pre-kill total,
+      // not halving vs. reset — pin v1 semantics.
+      final e = GotchaEngine(target: 301, playerCount: 2, hardcore: true);
       e.applyDart(15, 3); e.applyDart(0, 0); e.applyDart(0, 0); // P0 = 45
       e.applyDart(15, 3);                                        // P1 = 45 → kill P0
       expect(e.totals[0], 0);
@@ -170,6 +180,70 @@ void main() {
       expect(e.totals[0], 45);
       expect(e.killsMade[1], 0);
       expect(e.timesKilled[0], 0);
+    });
+  });
+
+  group('GotchaEngine halving mode (default)', () {
+    test('kill halves the victim instead of resetting', () {
+      final e = GotchaEngine(target: 301, playerCount: 2);
+      e.totals[0] = 300; e.currentPlayerIndex = 1; e.totals[1] = 280;
+      final r = e.applyDart(20, 1); // 280+20=300 -> lands on P0
+      expect(r.killed, [0]);
+      expect(e.totals[0], 150);
+      expect(e.timesKilled[0], 1);
+    });
+    test('halving 1 finishes the player (1 ~/ 2 == 0)', () {
+      final e = GotchaEngine(target: 301, playerCount: 2);
+      e.totals[0] = 1; e.currentPlayerIndex = 1; e.totals[1] = 0;
+      e.applyDart(1, 1); // lands on 1
+      expect(e.totals[0], 0);
+    });
+    test('hardcore resets to 0 (v1 behavior)', () {
+      final e = GotchaEngine(target: 301, playerCount: 2, hardcore: true);
+      e.totals[0] = 300; e.currentPlayerIndex = 1; e.totals[1] = 240;
+      final r = e.applyDart(20, 3); // 240+60=300 -> lands on P0
+      expect(r.killed, [0]);
+      expect(e.totals[0], 0);
+      expect(e.timesKilled[0], 1);
+    });
+    test('chain-halving: same victim halved twice in one round by two attackers', () {
+      final e = GotchaEngine(target: 501, playerCount: 3);
+      e.totals[0] = 300; e.totals[1] = 240; e.totals[2] = 90;
+      e.currentPlayerIndex = 1;
+      e.applyDart(20, 3); // P1: 240+60=300 -> lands on P0 -> halves to 150
+      expect(e.totals[0], 150);
+      e.applyDart(0, 0); e.applyDart(0, 0); // P1 darts 2-3, turn ends -> P2
+      expect(e.currentPlayerIndex, 2);
+      expect(e.round, 0); // no wrap yet
+      e.applyDart(20, 3); // P2: 90+60=150 -> lands on P0 (now 150) -> halves to 75
+      expect(e.totals[0], 75);
+      expect(e.round, 0); // both kills happened before the wrap back to P0
+      expect(e.killLog, [
+        (round: 0, attacker: 1, victim: 0),
+        (round: 0, attacker: 2, victim: 0),
+      ]);
+    });
+    test('undo restores the halved total, round and killLog', () {
+      final e = GotchaEngine(target: 301, playerCount: 2);
+      e.totals[0] = 300; e.currentPlayerIndex = 1; e.totals[1] = 280;
+      e.applyDart(20, 1);
+      expect(e.killLog, hasLength(1));
+      e.undo();
+      expect(e.totals[0], 300);
+      expect(e.killLog, isEmpty);
+    });
+  });
+
+  group('GotchaEngine round counter', () {
+    test('round increments on rotation wrap and restores on undo', () {
+      final e = GotchaEngine(target: 301, playerCount: 2);
+      expect(e.round, 0);
+      for (var i = 0; i < 6; i++) {
+        e.applyDart(1, 1);
+      } // P0 turn + P1 turn
+      expect(e.round, 1);
+      e.undo();
+      expect(e.round, 0);
     });
   });
 
