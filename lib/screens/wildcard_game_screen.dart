@@ -232,10 +232,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       dartNumber: dartNo,
     );
 
-    final memeTriggered = _meme.onThrow(throwHistory.last);
-    if (!memeTriggered) {
-      _announcer.announceThrow(segment == 0 ? 'miss' : '${segment * multiplier}');
-    }
+    // TTS diet (QA 2026-07-09): per-dart announceThrow removed — the
+    // scorecard already shows every dart's label live.
+    _meme.onThrow(throwHistory.last);
 
     _maybeAnnounceWindowPrize(playerIdx, result.turnEnded, windowActive);
 
@@ -280,7 +279,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     if (result.jokerHit != null) {
       _pendingResult = result;
       setState(() => _overlay = WcOverlayKind.joker);
-      _announcer.announceChaos('Joker! Hidden number ${result.jokerHit} detonates');
+      // TTS diet (QA 2026-07-09): short sting only — the joker dialog shows
+      // the hidden-number detail.
+      _announcer.announceChaos('Joker!');
       return;
     }
     _finishTurn(result.turnEnded);
@@ -363,9 +364,18 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     }
   }
 
+  /// TTS diet (QA 2026-07-09): CUT!/REWIND get a one-word sting; every other
+  /// instant event is shown on-screen only (the event dialog carries the
+  /// full detail) and is not spoken at all.
   void _announceEvent(WcInstantEventDef event) {
-    final detail = _mapEventDetail(engine.lastEventResolution?.detail ?? '');
-    _announcer.announceChaos('${event.name}. $detail');
+    switch (event.id) {
+      case 'cutEvent':
+        _announcer.announceChaos('Cut!');
+      case 'rewindEvent':
+        _announcer.announceChaos('Rewind!');
+      default:
+        break;
+    }
   }
 
   /// Turn-end bookkeeping shared by every routing path (normal 3rd dart,
@@ -374,8 +384,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// still needs announcing.
   void _finishTurn(bool turnEnded) {
     if (turnEnded && !engine.gameOver) {
+      // TTS diet (QA 2026-07-09): announceNextPlayer removed — the
+      // scorecard already shows whose turn it is.
       _turnIdCounter++;
-      _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
     }
     if (engine.gameOver) {
       _onGameEnd();
@@ -403,8 +414,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     final mod = engine.activeModifier;
     if (mod == null) return;
     _overlay = WcOverlayKind.announce;
-    _announcer.announceChaos(
-        '${mod.name}. ${mod.desc}. ${players[engine.currentPlayerIndex].name} only.');
+    // TTS diet (QA 2026-07-09): name-only sting — the overlay already
+    // spells out the description and the "X only" restriction.
+    _announcer.announceChaos('${mod.name}!');
   }
 
   String _mapEventDetail(String detail) {
@@ -1001,43 +1013,56 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
                     modifierActive: engine.activeModifier != null,
                   ),
                   Expanded(
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: _onMiss,
-                          ),
-                        ),
-                        Positioned(
-                          left: 14,
-                          right: 14,
-                          bottom: 24,
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(color: glowColor, blurRadius: 70),
-                                ],
-                              ),
-                              child: DossedartX01Dartboard(
-                                onTap: (zone) {
-                                  if (engine.gameOver || _overlay != null) return;
-                                  final (seg, mult) = zone.toSegmentMultiplier();
-                                  if (seg == 0) {
-                                    _onMiss();
-                                  } else {
-                                    _onDartHit(seg, mult);
-                                  }
-                                },
-                                isDim: engine.dimPredicate,
+                    // QA 2026-07-09 — 16:10 tablets are shorter than the
+                    // 820x1300 design frame the width-driven Positioned+
+                    // AspectRatio sizing was tuned to; on those screens the
+                    // board's width-derived height overlapped the
+                    // scorecard. LayoutBuilder picks whichever dimension is
+                    // tighter so the board shrinks instead of overlapping.
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final side = math.min(
+                            constraints.maxWidth - 28, constraints.maxHeight - 32);
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: _onMiss,
                               ),
                             ),
-                          ),
-                        ),
-                      ],
+                            Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 24),
+                                child: SizedBox.square(
+                                  dimension: side,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(color: glowColor, blurRadius: 70),
+                                      ],
+                                    ),
+                                    child: DossedartX01Dartboard(
+                                      onTap: (zone) {
+                                        if (engine.gameOver || _overlay != null) return;
+                                        final (seg, mult) = zone.toSegmentMultiplier();
+                                        if (seg == 0) {
+                                          _onMiss();
+                                        } else {
+                                          _onDartHit(seg, mult);
+                                        }
+                                      },
+                                      isDim: engine.dimPredicate,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                   DossedartActionBar(

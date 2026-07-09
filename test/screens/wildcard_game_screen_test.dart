@@ -7,6 +7,8 @@ import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/screens/wildcard_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
+import 'package:dart_scoring/widgets/dossedart/wildcard/dossedart_wildcard_scorecard.dart';
+import 'package:dart_scoring/widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 
 /// Widget tests for the WILDCARD cockpit: renders, registers darts via the
 /// @visibleForTesting hooks, and drives the overlay state machine (bull
@@ -407,5 +409,80 @@ void main() {
     expect(state.overlayKindForTest, WcOverlayKind.announce,
         reason: 'the seat inheritor\'s freshly rolled modifier must be '
             'announced, not applied silently');
+  });
+
+  // QA 2026-07-09 — the board zone used to size itself off the available
+  // WIDTH (Positioned+AspectRatio), tuned to the 820x1300 design frame. On
+  // shorter 16:10 tablets that overlapped the scorecard below it. The board
+  // now sizes off whichever of width/height is tighter and shrinks instead.
+  testWidgets(
+      'on a short 16:10-class surface the board shrinks to fit and never '
+      'overlaps the scorecard', (tester) async {
+    final originalSize = tester.view.physicalSize;
+    final originalRatio = tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalRatio;
+    });
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1.0;
+
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(tester.takeException(), isNull);
+
+    final boardFinder = find.byType(DossedartX01Dartboard);
+    final scorecardFinder = find.byType(DossedartWildcardScorecard);
+    expect(boardFinder, findsOneWidget);
+    expect(scorecardFinder, findsOneWidget);
+
+    expect(tester.getSize(boardFinder).height, lessThanOrEqualTo(1000));
+    // The scorecard's bottom edge must sit at or above the board's top edge
+    // — no vertical overlap between the two zones.
+    expect(
+      tester.getBottomLeft(scorecardFinder).dy,
+      lessThanOrEqualTo(tester.getTopLeft(boardFinder).dy + 1),
+    );
+  });
+
+  testWidgets(
+      'on a tall design-frame-class surface the board still renders at '
+      'full width-driven size', (tester) async {
+    final originalSize = tester.view.physicalSize;
+    final originalRatio = tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalRatio;
+    });
+    // Tall enough that the Expanded board zone's available height clears
+    // width - 28 even after the top bar/chaos meter/scorecard/action bar
+    // chrome above and below it — i.e. genuinely width-driven, not just a
+    // "tall surface" whose remaining vertical room still happens to be the
+    // tighter constraint.
+    tester.view.physicalSize = const Size(820, 2000);
+    tester.view.devicePixelRatio = 1.0;
+
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(tester.takeException(), isNull);
+
+    final boardFinder = find.byType(DossedartX01Dartboard);
+    final side = tester.getSize(boardFinder).width;
+    // Width-driven: side ~= surface width - 28, well within the tall
+    // surface's available height, so the board renders at (near) its full
+    // width-class size rather than being height-clamped.
+    expect(side, closeTo(820 - 28, 2));
   });
 }
