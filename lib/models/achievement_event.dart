@@ -17,6 +17,11 @@ enum AchievementEvent {
   multiKill,
   // Splitscore
   clutchSave,
+  // Gotcha
+  gotchaDoubleTap,
+  gotchaPinata,
+  gotchaVendetta,
+  gotchaCrashDummy,
   // Cross-cutting / meme
   nice69,
   sixSeven,

@@ -22,6 +22,17 @@ void main() {
     expect(f.kind, FeatKind.feat);
   });
 
+  test('Gotcha events map to their labels + tiers', () {
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaDoubleTap).label, 'Double tap');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaDoubleTap).tier, AchievementTier.gold);
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaPinata).label, 'Piñata');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaPinata).tier, AchievementTier.silver);
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaVendetta).label, 'Personal vendetta');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaVendetta).tier, AchievementTier.silver);
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaCrashDummy).label, 'Crash test dummy');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaCrashDummy).tier, AchievementTier.silver);
+  });
+
   test('feat from unlocked achievement is a star unlock', () {
     const a = Achievement(
       id: 'x01_maximum', name: 'MAXIMUM', description: 'Hit a 180',

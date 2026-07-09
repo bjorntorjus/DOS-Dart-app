@@ -737,6 +737,48 @@ List<Achievement> _build() => [
         mode: 'halveIt',
         event: AchievementEvent.clutchSave,
       ),
+
+      // ===================== GOTCHA =====================
+      Achievement(
+        id: 'got_double_tap',
+        name: 'DOUBLE TAP',
+        description: 'Gotcha the same player twice in one round',
+        tier: AchievementTier.gold,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.filter_2),
+        mode: 'gotcha',
+        event: AchievementEvent.gotchaDoubleTap,
+      ),
+      Achievement(
+        id: 'got_pinata',
+        name: 'PIÑATA',
+        description: "Get gotcha'd twice in the same round",
+        tier: AchievementTier.silver,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.celebration),
+        mode: 'gotcha',
+        event: AchievementEvent.gotchaPinata,
+      ),
+      Achievement(
+        id: 'got_vendetta',
+        name: 'PERSONAL VENDETTA',
+        description: 'Gotcha the same victim two rounds in a row',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.gps_fixed),
+        mode: 'gotcha',
+        event: AchievementEvent.gotchaVendetta,
+      ),
+      Achievement(
+        id: 'got_crash_dummy',
+        name: 'CRASH TEST DUMMY',
+        description: "Get gotcha'd two rounds in a row",
+        tier: AchievementTier.silver,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.airline_seat_flat),
+        mode: 'gotcha',
+        event: AchievementEvent.gotchaCrashDummy,
+      ),
     ];
 
 List<Achievement>? _cache;
