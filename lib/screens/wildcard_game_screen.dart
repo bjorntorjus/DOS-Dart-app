@@ -1021,8 +1021,10 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
                     // tighter so the board shrinks instead of overlapping.
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        final side = math.min(
-                            constraints.maxWidth - 28, constraints.maxHeight - 32);
+                        // Defend against negative dimensions in extreme layouts
+                        // (split-screen, huge text scaling).
+                        final side = math.max(0.0, math.min(
+                            constraints.maxWidth - 28, constraints.maxHeight - 32));
                         return Stack(
                           children: [
                             Positioned.fill(
