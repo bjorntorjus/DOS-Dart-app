@@ -105,7 +105,7 @@ Surfaces for Claude design / DOSSEDART artboards. Arcade style per the existing 
 
 DOSSEDART cockpit pattern, with WILDCARD specifics:
 
-- **Chaos meter** — persistent, prominent, animated as it moves (the centerpiece).
+- **Chaos + round strip (v1.2)** — the big meter is retired; a slim one-line strip shows `CHAOS n/10` (heat-colored, danger pulse at 9+) and `ROUND x/N` — the round's ONLY persistent display (topbar/scorecard-ribbon duplicates removed).
 - **Active card:** turn total + running game total; active modifier badge when one applies.
 - **States to design:**
   1. Default (no modifier, meter idle)
@@ -118,13 +118,14 @@ DOSSEDART cockpit pattern, with WILDCARD specifics:
   8. CUT! (round guillotined)
   9. REWIND (round rewinding — deserves a real animation)
   10. Meter at max (9–10: permanent danger styling)
-  11. Winner
+  11. ~~Winner~~ (v1.2: the winner overlay is REMOVED — game end goes straight to the post-game scoreboard after the celebration/video)
 - Input: dartboard with dim states (§6).
 
 ### 7.4 Post-game
 
 - Reuses `post_game_screen`. Placements by final total (tiebreak §2).
-- Mode-specific stat rows: jokers hit, window prizes, chaos peak, points stolen/gifted, highest turn.
+- Mode-specific stat rows (v1.2): **Score (total sum) FIRST**, then jokers hit, window prizes, points stolen, highest turn, darts.
+- **Per-round progression chart (v1.2):** a `SCORE PER ROUND` graph (shared `ProgressionChart`, same rendering as KAMPDETALJER) below the placements — suppressed when the roster changed mid-game (chart lines index by original seat).
 - Post-game **Undo must work** (Shanghai post-game undo protocol is the reference).
 
 ## 8. Data model & architecture
@@ -155,6 +156,7 @@ DOSSEDART cockpit pattern, with WILDCARD specifics:
 - REWIND on round 1: round restarts from zero scores for everyone.
 - Two jokers cannot share a number; joker re-roll excludes the number just hit.
 - Bull dialog during BULL'S CURSE: the −100 applies AND the chaos choice still happens (bull control is unconditional).
+- Bull under HOLY TRINITY (v1.2): scores **0** and never counts toward coverage — the one exception to "bull always scores under restrictions" — but the chaos ±choice STILL fires (bull control is unconditional). The board dims the bull rings during trinity so the exception is visible.
 - Meter clamps at 0 and 10; changes beyond the clamp are discarded.
 - Undo re-hides revealed jokers and restores the meter, swapped scores, and rewound rounds.
 
