@@ -122,7 +122,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       gameMode: 'Gotcha',
       playerNames: players.map((p) => p.name).toList(),
       playerScores: List.filled(players.length, 0),
-      config: {'targetScore': widget.config.targetScore},
+      config: {'targetScore': widget.config.targetScore, 'hardcore': widget.config.hardcore},
     );
     BatterySampler.instance.start('Gotcha');
     _meme.init();
@@ -406,7 +406,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
-      gameConfig: 'Race to ${widget.config.targetScore}',
+      gameConfig: 'Race to ${widget.config.targetScore}${widget.config.hardcore ? ' · Hardcore' : ''}',
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,

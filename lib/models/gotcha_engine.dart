@@ -259,6 +259,9 @@ class GotchaEngine {
     if (index == currentPlayerIndex && !gameOver) {
       dartsInTurn = 0;
       _advancePlayer();
+      // Note: round counter is NOT wrap-incremented here. Roster-changed games
+      // skip achievement derivation entirely (early-return in stats), so
+      // killLog round drift is unreachable. Revisit if that gate ever loosens.
       turnStartScore = totals[currentPlayerIndex];
     }
 
