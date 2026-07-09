@@ -232,6 +232,66 @@ void main() {
       expect(e.totals[0], 300);
       expect(e.killLog, isEmpty);
     });
+    test('halving kills stand when the thrower busts later in the same turn', () {
+      final e = GotchaEngine(target: 101, playerCount: 2);
+      e.totals[0] = 80; e.currentPlayerIndex = 1; e.totals[1] = 40;
+      e.turnStartScore = 40;
+      final rKill = e.applyDart(20, 2); // P1 dart 1: D20 = 40 points, newTotal 40+40=80
+      expect(rKill.killed, [0]);
+      expect(e.totals[0], 40); // P0 halved from 80 to 40
+      expect(e.totals[1], 80); // P1 at landing value
+      final rBust = e.applyDart(20, 3); // P1 dart 2: T20 = 60 points, newTotal 80+60=140 > 101
+      expect(rBust.isBust, isTrue);
+      expect(e.totals[1], 40); // reverted to turnStartScore
+      expect(e.totals[0], 40); // the kill stands, not rolled back
+      expect(e.killsMade[1], 1);
+      expect(e.timesKilled[0], 1);
+    });
+    test('one dart halves multiple opponents on the shared total', () {
+      final e = GotchaEngine(target: 501, playerCount: 3);
+      e.totals[0] = 200; e.totals[1] = 200; e.totals[2] = 140;
+      e.currentPlayerIndex = 2;
+      final r = e.applyDart(20, 3); // P2: T20 = 60 points, newTotal 140+60=200
+      expect(r.killed, [0, 1]); // both P0 and P1 at 200
+      expect(e.totals, [100, 100, 200]); // both halved to 100
+      expect(e.killLog, [
+        (round: 0, attacker: 2, victim: 0),
+        (round: 0, attacker: 2, victim: 1),
+      ]);
+    });
+    test('a halving dart ignores opponents at 0', () {
+      final e = GotchaEngine(target: 301, playerCount: 3);
+      e.totals[0] = 60; e.totals[1] = 0; e.totals[2] = 45;
+      e.currentPlayerIndex = 2;
+      final r = e.applyDart(15, 1); // P2: S15 = 15 points, newTotal 45+15=60
+      expect(r.killed, [0]); // only P0 at 60
+      expect(e.totals[0], 30); // P0 halved
+      expect(e.totals[1], 0); // P1 untouched (was already at 0)
+      expect(e.totals[2], 60); // P2 at landing value
+      expect(e.timesKilled[1], 0); // P1 never killed
+    });
+    test('halving leaves the thrower untouched', () {
+      final e = GotchaEngine(target: 301, playerCount: 2);
+      e.totals[0] = 100; e.currentPlayerIndex = 1; e.totals[1] = 90;
+      final r = e.applyDart(10, 1); // P1: S10 = 10 points, newTotal 90+10=100
+      expect(r.killed, [0]); // P0 at 100
+      expect(e.totals[0], 50); // P0 halved
+      expect(e.totals[1], 100); // P1 at landing value, not halved
+    });
+    test('undo across a halving restores counters and log', () {
+      final e = GotchaEngine(target: 301, playerCount: 2);
+      e.totals[0] = 300; e.currentPlayerIndex = 1; e.totals[1] = 280;
+      e.applyDart(20, 1); // lands on 300, halves P0
+      expect(e.totals[0], 150);
+      expect(e.killsMade[1], 1);
+      expect(e.timesKilled[0], 1);
+      expect(e.killLog, hasLength(1));
+      e.undo();
+      expect(e.totals[0], 300); // restored
+      expect(e.killsMade[1], 0);
+      expect(e.timesKilled[0], 0);
+      expect(e.killLog, isEmpty);
+    });
   });
 
   group('GotchaEngine round counter', () {
