@@ -1,7 +1,7 @@
 # WILDCARD Game Mode — Design Spec
 
 **Date:** 2026-07-07
-**Status:** Approved rules; awaiting visual design (DOSSEDART artboards) before implementation
+**Status:** Implemented (v1 2026-07-08; v1.1 QA tuning 2026-07-09 — value-based restrictions, literal trinity, meter/chance tuning, cooldown, TTS diet, board-shrink layout)
 **Scope:** New game mode "WILDCARD" — chaos mode. Fourth new mode, built last (Gotcha → 1UP → Golf → **WILDCARD**).
 
 ---
@@ -24,21 +24,23 @@ At chaos level 0 nothing happens — it's a plain points race. That is both the 
 
 - Range **0–10**, always **visible to all players** in the cockpit (big and dramatic — it is the mode's centerpiece).
 - Setup: starting level — **Mild (2) / Spicy (5) / Total chaos (8)**, default Spicy.
-- **Movement:**
-  - Triple hit: **+1**
-  - True miss (MISS button / off the board): **−1**. A dart on a *dimmed* segment scores 0 but is **not** a meter-miss (no double punishment).
+- **Movement (v1.1 QA tuning 2026-07-09):**
+  - Double hit: **+1** (new — makes the meter livelier without more events)
+  - Triple hit: **+2** (was +1)
+  - True miss (MISS button / off the board): **−1, at most once per turn** (was per dart — felt too punishing). A dart on a *dimmed* segment scores 0 but is **not** a meter-miss (no double punishment). Meter still follows the dart on dimmed hits (a dimmed triple is +2).
   - Joker hit: **+2**
-  - **Bull control:** single bull = 25 points **+ thrower chooses ±1**; double bull = 50 points **+ thrower chooses ±3**. Up/down dialog appears on entry. This is the strategic lever — leaders aim bull to calm the game, trailers to ignite it.
-- The level drives **event frequency** and **severity pool** (§6). Starting tuning values (adjust after playtesting):
+  - **Bull control:** single bull = 25 points **+ thrower chooses ±1**; double bull = 50 points **+ thrower chooses ±3**. Up/down dialog appears on entry. This is the strategic lever — leaders aim bull to calm the game, trailers to ignite it. (D-Bull does not additionally trigger the double +1 — bull is its own lever.)
+- **Modifier cooldown (v1.1):** a player who had a turn-modifier on their previous turn gets no roll this turn — guaranteed breather per player.
+- The level drives **event frequency** and **severity pool** (§6). Tuning values (v1.1 after first playtest — halved on the low/mid levels for flow):
 
 | Chaos level | Turn-modifier chance | Jokers on board | Severity pool |
 |---|---|---|---|
 | 0 | 0% | 0 | — |
-| 1–2 | 10% | 1 | mild |
-| 3–4 | 25% | 1 | mild |
-| 5–6 | 45% | 1 | mild + medium |
-| 7–8 | 70% | 1–2 | mild + medium + wild |
-| 9–10 | 100% | 2 | all, wild weighted up |
+| 1–2 | 5% | 1 | mild |
+| 3–4 | 15% | 1 | mild |
+| 5–6 | 30% | 1 | mild + medium |
+| 7–8 | 50% | 1–2 | mild + medium + wild |
+| 9–10 | 80% | 2 | all, wild weighted up |
 
 ## 4. Turn-modifiers (personal, announced before the throw)
 
@@ -46,13 +48,13 @@ A modifier applies to **one thrower, one turn**, and is announced (TTS + overlay
 
 | Modifier | Effect | Severity |
 |---|---|---|
-| ONLY EVENS / ONLY ODDS | Only matching numbers score | mild |
-| ONLY BLACK / ONLY WHITE | Only matching segments score | mild |
-| DIVIDE BY THREE | Only numbers divisible by 3 score | mild |
-| UPPER / LOWER / LEFT / RIGHT HALF | Only that half of the board scores | mild |
+| ONLY EVENS / ONLY ODDS | Only matching **dart values** score (v1.1: D5=10 counts as even — the board dims per ring) | mild |
+| ONLY BLACK / ONLY WHITE | Only matching segments score (positional) | mild |
+| DIVIDE BY THREE | Only **dart values** divisible by 3 score (v1.1: the T-ring always scores) | mild |
+| UPPER / LOWER / LEFT / RIGHT HALF | Only that half of the board scores (positional) | mild |
 | EVERYTHING ×2 | Turn total doubled | mild |
 | GOLDEN DART | Last dart counts ×3 | mild |
-| HOLY TRINITY | Exactly 26 this turn → +100 bonus (20-5-1, the classic) | mild |
+| HOLY TRINITY | Hit **single 20, 5 and 1** (any order) → +100 bonus (v1.1: literal classic, not "any 26") | mild |
 | BULL'S FORTUNE | Bull worth 100 this turn | medium |
 | BULL'S CURSE | Bull drains 100 this turn | medium |
 | DOUBLE TROUBLE | Doubles score triple, triples score **zero** | medium |
