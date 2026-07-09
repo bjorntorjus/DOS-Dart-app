@@ -19,14 +19,15 @@ void main() {
       expect(find.text('events @ 15%'), findsOneWidget);
     });
 
-    testWidgets('level 10: TOTAL CHAOS label + max-meter footer',
+    testWidgets('level 10: TOTAL CHAOS label + tuned event chance footer',
         (tester) async {
       await tester.pumpWidget(wrap(const DossedartChaosMeter(level: 10)));
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('10'), findsOneWidget);
       expect(find.text('TOTAL CHAOS'), findsOneWidget);
-      expect(find.text('EVENTS EVERY TURN · 2 JOKERS'), findsOneWidget);
+      expect(find.text('events @ 80% · 2 JOKERS'), findsOneWidget);
+      expect(find.text('EVENTS EVERY TURN'), findsNothing);
     });
 
     testWidgets('level 0: DORMANT label, 0% chance', (tester) async {

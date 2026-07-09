@@ -69,9 +69,7 @@ class _DossedartChaosMeterState extends State<DossedartChaosMeter>
     final color = wcChaosColor(level);
     final label = wcChaosLabel(level);
     final max = _isMax;
-    final footer = max
-        ? 'EVENTS EVERY TURN · 2 JOKERS'
-        : 'events @ ${wcModifierChancePct(level)}%';
+    final footer = 'events @ ${wcModifierChancePct(level)}%${max ? ' · 2 JOKERS' : ''}';
 
     return AnimatedBuilder(
       animation: _pulse,
