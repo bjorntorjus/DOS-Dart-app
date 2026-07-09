@@ -58,8 +58,6 @@ class DossedartWildcardScorecard extends StatelessWidget {
     required this.playerName,
     required this.handle,
     required this.accent,
-    required this.round,
-    required this.rounds,
     required this.dartLabels,
     required this.turnPoints,
     required this.gameTotal,
@@ -75,8 +73,6 @@ class DossedartWildcardScorecard extends StatelessWidget {
   /// 3-letter avatar handle (e.g. `JON`), already uppercased by the caller.
   final String handle;
   final Color accent;
-  final int round;
-  final int rounds;
 
   /// Length-3 list: `'T19'`/`'20'`/`'DBL'`/`'—'` for a thrown dart (a miss
   /// is represented by `'—'`), or `null` for a dart not yet reached.
@@ -297,7 +293,7 @@ class DossedartWildcardScorecard extends StatelessWidget {
               ],
             ),
             child: Text(
-              '▶ SCORECARD · R$round/$rounds',
+              '▶ NOW THROWING',
               style: TextStyle(
                 fontFamily: 'PressStart2P',
                 fontSize: 9,

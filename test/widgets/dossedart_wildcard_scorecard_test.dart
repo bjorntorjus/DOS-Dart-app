@@ -28,8 +28,6 @@ void main() {
       playerName: 'Jonas',
       handle: 'JON',
       accent: DossedartTokens.cyan,
-      round: 2,
-      rounds: 8,
       dartLabels: const ['20', null, null],
       turnPoints: 60,
       gameTotal: 140,
@@ -60,6 +58,9 @@ void main() {
     expect(find.textContaining('LEADER'), findsOneWidget);
     expect(find.text('👑'), findsOneWidget);
     expect(find.text('▽'), findsOneWidget);
+    // QA round 3: ribbon dropped its round/rounds text (round now shows
+    // only in the compact chaos strip) and became a static label.
+    expect(find.text('▶ NOW THROWING'), findsOneWidget);
   });
 
   testWidgets('modifier state: purple-themed card + head text + miss slot',
@@ -69,8 +70,6 @@ void main() {
       playerName: 'Jonas',
       handle: 'JON',
       accent: DossedartTokens.cyan,
-      round: 3,
-      rounds: 8,
       dartLabels: const ['—', null, null],
       turnPoints: 0,
       gameTotal: 140,
@@ -122,8 +121,6 @@ void main() {
       playerName: 'Jonas',
       handle: 'JON',
       accent: DossedartTokens.cyan,
-      round: 4,
-      rounds: 8,
       dartLabels: const [null, null, null],
       turnPoints: 0,
       gameTotal: 140,

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
+import 'package:dart_scoring/models/wildcard_events.dart';
 import 'package:dart_scoring/screens/wildcard_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
 import 'package:dart_scoring/widgets/dossedart/wildcard/dossedart_wildcard_scorecard.dart';
@@ -81,6 +82,64 @@ void main() {
 
     expect(state.engineForTest.totals[0], 60);
     expect(state.engineForTest.currentPlayerIndex, 1);
+  });
+
+  testWidgets(
+      'first build at chaos 0 (constructor rolls no modifier) shows no '
+      'announce overlay', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    expect(state.overlayKindForTest, isNull,
+        reason: 'no modifier was rolled, so the null-guard in '
+            '_maybeShowAnnounce must not announce anything');
+  });
+
+  testWidgets(
+      'a modifier active at first build announces via the post-frame path '
+      '(regression for the silently-played constructor-rolled modifier)',
+      (tester) async {
+    // Bug repro (2026-07-09 game log): a constructor-rolled GOLDEN DART
+    // played with no announce because _maybeShowAnnounce used to run
+    // synchronously in initState, before _announcer.init() had loaded the
+    // TTS-enabled flag. The fix defers that first call to a post-frame
+    // callback. The engine's own first roll already happened by the time
+    // this test can reach it, so the ForTest seam simulates "a modifier is
+    // active at first build" directly: set activeModifier, reset the
+    // announce bookkeeping, then re-invoke the same post-frame path.
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    expect(state.overlayKindForTest, isNull);
+
+    state.engineForTest.activeModifier = onlyEvens;
+    state.resetAnnounceForTest();
+    state.maybeAnnounceForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.announce);
+    // The announce dialog's own "CHAOS STRIKES" caption is unique to the
+    // overlay — the modifier name itself also renders in the (unrelated)
+    // scorecard directive band, so asserting on that caption avoids a
+    // false pass if the overlay never actually opened.
+    expect(find.text('▓ CHAOS STRIKES ▓'), findsOneWidget);
+    expect(find.text('ONLY EVENS'), findsAtLeastNWidgets(1));
   });
 
   testWidgets('bull hit opens the choice overlay; resolving moves the meter '

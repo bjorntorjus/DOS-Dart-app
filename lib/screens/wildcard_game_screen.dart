@@ -117,6 +117,19 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   @visibleForTesting
   List<DartThrow> get throwHistoryForTest => throwHistory;
 
+  /// Forces [_maybeShowAnnounce] to re-run — pairs with
+  /// [resetAnnounceForTest] to deterministically drive the first-turn
+  /// announce fix from a widget test (the engine's own first roll happens
+  /// in its constructor, before any test hook can intervene).
+  @visibleForTesting
+  void maybeAnnounceForTest() => setState(_maybeShowAnnounce);
+
+  /// Clears the announce bookkeeping so a subsequent [maybeAnnounceForTest]
+  /// (or the post-frame path it mirrors) re-evaluates the current turn's
+  /// modifier instead of hitting the "already handled" guard.
+  @visibleForTesting
+  void resetAnnounceForTest() => _announcedTurnId = -1;
+
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
   final GameAnnouncer _announcer = GameAnnouncer();
@@ -160,7 +173,16 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       rng: math.Random(),
     );
     _turnStartScore = engine.totals[engine.currentPlayerIndex];
-    _maybeShowAnnounce();
+    // Bug fix (2026-07-09 game log): a constructor-rolled first-turn
+    // modifier (GOLDEN DART) played silently — _maybeShowAnnounce ran here
+    // synchronously, before _announcer.init() below had a chance to load
+    // TtsService's enabled flag, so its announceChaos() call was dropped.
+    // Deferring to a post-frame callback gives that async init a head
+    // start; the overlay itself is unaffected either way since _overlay is
+    // read on first build regardless of when it's set pre-paint.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(_maybeShowAnnounce);
+    });
     _log.logGameStart(
       gameMode: 'Wildcard',
       playerNames: players.map((p) => p.name).toList(),
@@ -994,15 +1016,16 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
                   DossedartTopBar(
                     title: '\u{1F0CF} WILDCARD',
                     onExit: _confirmExit,
-                    trailing: 'ROUND ${engine.round}/${engine.rounds}',
                   ),
-                  DossedartChaosMeter(level: engine.chaos),
+                  DossedartChaosMeter(
+                    level: engine.chaos,
+                    round: engine.round,
+                    rounds: engine.rounds,
+                  ),
                   DossedartWildcardScorecard(
                     playerName: players[cur].name,
                     handle: _handleFor(players[cur].name),
                     accent: dossedartAccent(cur),
-                    round: engine.round,
-                    rounds: engine.rounds,
                     dartLabels: _dartLabels(),
                     turnPoints: engine.turnPoints,
                     gameTotal: engine.totals[cur],
