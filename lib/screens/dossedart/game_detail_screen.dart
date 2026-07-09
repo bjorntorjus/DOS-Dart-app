@@ -9,6 +9,7 @@ import '../../stats/mode_progression.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
 import '../../widgets/dossedart/dossedart_player_avatar.dart';
+import '../../widgets/dossedart/progression_chart.dart';
 
 /// MATCH DETAILS — drill-down for a single recorded game, reached from HISTORY.
 /// Faithful to the design handoff (game-detail.jsx): banner, standings + ΔELO,
@@ -101,15 +102,6 @@ String formatDuration(int seconds) {
   final s = seconds % 60;
   return s == 0 ? '${m}m' : '${m}m ${s}s';
 }
-
-const _playerPalette = [
-  DossedartTokens.cyan,
-  DossedartTokens.silver,
-  DossedartTokens.green,
-  DossedartTokens.orange,
-  DossedartTokens.yellow,
-  DossedartTokens.magenta,
-];
 
 /// Horizontal page padding shared by sections.
 class _Pad extends StatelessWidget {
@@ -506,44 +498,12 @@ class _HexPainter extends CustomPainter {
 
 // ───────────────────────── leg progression ─────────────────────────
 
-ModeProgression? progressionForEntry(GameHistoryEntry entry) {
-  final throws = entry.throwHistory ?? const [];
-  switch (entry.gameMode) {
-    case 'x01':
-      final start = throws.fold<int>(
-          0, (m, t) => t.scoreAtStartOfTurn > m ? t.scoreAtStartOfTurn : m);
-      return X01Progression(startScore: start > 0 ? start : 501);
-    case 'cricket':
-    case 'cricket_cutthroat':
-      return CricketProgression(
-          targets: const {15, 16, 17, 18, 19, 20, 25}, maxValue: 0);
-    case 'aroundTheClock':
-      return AtcProgression();
-    case 'shanghai':
-    case 'halveIt':
-      return CumulativeScoreProgression(maxValue: 0);
-    case 'gotcha':
-      // Gotcha counts up like Shanghai/Splitscore, and DartThrow.points is the
-      // thrower's true delta for every dart (bust darts carry the negative
-      // revert back to the turn-start score), so cumulative-by-round tracks
-      // the thrower's real running total exactly. What it can't show: a kill
-      // resets the *victim's* total on the victim's own line, which this
-      // series (built from the victim's own throws) has no way to see —
-      // the same accepted limitation as Splitscore's halving above; the round
-      // log carries the true per-round totals.
-      return CumulativeScoreProgression(maxValue: 0);
-    case 'wildcard':
-      // Wildcard is a points race and DartThrow.points is the effective
-      // per-dart credit (after turn modifiers/multipliers), so the thrower's
-      // own cumulative line is faithful. What it can't show: swap/steal/
-      // rewind events change OTHER players' totals, and those effects are
-      // invisible to per-throw data on the affected player's line — the same
-      // accepted limitation as Splitscore's halving and Gotcha's kills above.
-      return CumulativeScoreProgression(maxValue: 0);
-    default:
-      return null; // Killer & unknown → round log only
-  }
-}
+/// Thin delegate — the modeKey→[ModeProgression] mapping itself now lives in
+/// `stats/mode_progression.dart` as `progressionForMode` so PostGameScreen
+/// can reuse it too (2026-07-09 extraction). Public API preserved for this
+/// file's own callers/tests.
+ModeProgression? progressionForEntry(GameHistoryEntry entry) =>
+    progressionForMode(entry.gameMode, entry.throwHistory ?? const []);
 
 class _ProgressSection extends StatelessWidget {
   const _ProgressSection({required this.entry});
@@ -560,11 +520,6 @@ class _ProgressSection extends StatelessWidget {
                 fontSize: 16)),
       );
     }
-    final throws = entry.throwHistory!;
-    final series = [
-      for (var i = 0; i < entry.players.length; i++)
-        progression.seriesFor(throws, playerIndex: i),
-    ];
     return _Pad(
       child: Container(
         decoration: BoxDecoration(
@@ -573,157 +528,15 @@ class _ProgressSection extends StatelessWidget {
               width: DossedartTokens.borderThin),
         ),
         padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 200,
-              child: CustomPaint(
-                painter: _LegPainter(progression: progression, series: series),
-                size: Size.infinite,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 18,
-              runSpacing: 4,
-              children: [
-                for (var i = 0; i < entry.players.length; i++)
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                        width: 16,
-                        height: 3,
-                        color: _playerPalette[i % _playerPalette.length]),
-                    const SizedBox(width: 7),
-                    Text(entry.players[i].name,
-                        style: TextStyle(
-                            fontFamily: 'VT323',
-                            fontSize: 15,
-                            color: _playerPalette[i % _playerPalette.length])),
-                  ]),
-              ],
-            ),
-          ],
+        child: ProgressionChart(
+          progression: progression,
+          throws: entry.throwHistory!,
+          playerNames: [for (final p in entry.players) p.name],
         ),
       ),
     );
   }
 }
-
-class _LegPainter extends CustomPainter {
-  _LegPainter({required this.progression, required this.series});
-  final ModeProgression progression;
-  final List<List<num>> series;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const padL = 40.0, padR = 16.0, padT = 14.0, padB = 24.0;
-    final plotW = size.width - padL - padR;
-    final plotH = size.height - padT - padB;
-
-    final dataMax =
-        series.expand((s) => s).fold<num>(0, (m, v) => v > m ? v : m);
-    final top = progression.descending
-        ? (progression.maxValue > 0 ? progression.maxValue : (dataMax > 0 ? dataMax : 1))
-        : (dataMax > 0 ? dataMax : 1);
-    final maxLen = series.fold<int>(1, (m, s) => s.length > m ? s.length : m);
-
-    double xAt(int i) => padL + (maxLen > 1 ? i * plotW / (maxLen - 1) : 0);
-    double yAt(num v) => padT + (1 - v / top) * plotH;
-
-    // Gridlines + y labels (5 steps).
-    for (var g = 0; g <= 4; g++) {
-      final value = top * (4 - g) / 4;
-      final y = padT + plotH * g / 4;
-      final atZero = (4 - g) == 0;
-      canvas.drawLine(
-        Offset(padL, y),
-        Offset(size.width - padR, y),
-        Paint()
-          ..color = atZero
-              ? DossedartTokens.green.withValues(alpha: 0.27)
-              : DossedartTokens.magenta.withValues(alpha: 0.12)
-          ..strokeWidth = atZero ? 1.5 : 1,
-      );
-      _label(canvas, '${value.round()}', Offset(padL - 6, y),
-          align: _Align.right,
-          color: atZero ? DossedartTokens.green : const Color(0x66FFFFFF));
-    }
-
-    // x labels.
-    for (var i = 0; i < maxLen; i++) {
-      _label(canvas, i == 0 ? 'START' : 'R$i',
-          Offset(xAt(i), size.height - 6),
-          align: _Align.center, color: const Color(0x66FFFFFF), size: 11);
-    }
-
-    // Lines (paint opponents first so player[0] sits on top).
-    for (var p = series.length - 1; p >= 0; p--) {
-      final s = series[p];
-      if (s.isEmpty) continue;
-      final color = _playerPalette[p % _playerPalette.length];
-      final path = Path();
-      for (var i = 0; i < s.length; i++) {
-        final o = Offset(xAt(i), yAt(s[i]));
-        i == 0 ? path.moveTo(o.dx, o.dy) : path.lineTo(o.dx, o.dy);
-      }
-      // Soft glow underlay.
-      canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3
-            ..color = color.withValues(alpha: 0.55)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
-      canvas.drawPath(
-          path,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3
-            ..color = color);
-      for (var i = 0; i < s.length; i++) {
-        final finished = progression.descending && s[i] <= 0;
-        canvas.drawCircle(Offset(xAt(i), yAt(s[i])), finished ? 6 : 3.4,
-            Paint()..color = color);
-      }
-    }
-
-    // Finish flag for race-to-0 modes.
-    if (progression.descending && series.any((s) => s.isNotEmpty && s.last <= 0)) {
-      _label(canvas, progression.finishLabel,
-          Offset(xAt(maxLen - 1), yAt(0) - 10),
-          align: _Align.right, color: DossedartTokens.yellow, size: 9, ps2p: true);
-    }
-  }
-
-  void _label(Canvas canvas, String text, Offset at,
-      {required _Align align,
-      required Color color,
-      double size = 13,
-      bool ps2p = false}) {
-    final tp = TextPainter(
-      text: TextSpan(
-          text: text,
-          style: TextStyle(
-              fontFamily: ps2p ? 'PressStart2P' : 'VT323',
-              fontSize: size,
-              color: color)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final dx = switch (align) {
-      _Align.right => at.dx - tp.width,
-      _Align.center => at.dx - tp.width / 2,
-      _Align.left => at.dx,
-    };
-    tp.paint(canvas, Offset(dx, at.dy - tp.height / 2));
-  }
-
-  @override
-  bool shouldRepaint(_LegPainter old) =>
-      old.series != series || old.progression != progression;
-}
-
-enum _Align { left, center, right }
 
 // ───────────────────────── per-player grid ─────────────────────────
 
@@ -932,7 +745,8 @@ class _RoundLogState extends State<_RoundLog> {
                           style: TextStyle(
                               fontFamily: 'PressStart2P',
                               fontSize: 9,
-                              color: _playerPalette[i % _playerPalette.length],
+                              color: dossedartPlayerPalette[
+                                  i % dossedartPlayerPalette.length],
                               letterSpacing: 0.5)),
                     ),
                 ],

@@ -37,16 +37,17 @@ import 'post_game_screen.dart';
 /// Overlay moments the WILDCARD cockpit can show, one at a time, layered on
 /// top of the Stack. Only [bull] blocks undo (the pending choice must
 /// resolve first) — every other kind is dismissed by a tap or by undo.
-enum WcOverlayKind { announce, bull, joker, event, cut, rewind, winner }
+enum WcOverlayKind { announce, bull, joker, event, cut, rewind }
 
 /// The DOSSEDART WILDCARD cockpit: assembles [WildcardEngine], the chaos
 /// meter, the scorecard, the dimmed dartboard and the moment dialogs into a
 /// playable screen with an overlay state machine. [_onGameEnd] logs, freezes
 /// input (via `engine.gameOver`), fires the generic winner celebration
-/// (video + TTS) and shows the winner overlay; tapping it — or undoing from
-/// the post-game screen — routes into the same deferred-stats protocol the
-/// other DOSSEDART cockpits use (Shanghai/Gotcha parity). No Elo: WILDCARD
-/// placements never touch EloService (spec §9).
+/// (video + TTS) then goes straight to the post-game screen (no winner
+/// overlay/tap gate — QA round 3); undoing from the post-game screen routes
+/// into the same deferred-stats protocol the other DOSSEDART cockpits use
+/// (Shanghai/Gotcha parity). No Elo: WILDCARD placements never touch
+/// EloService (spec §9).
 class WildcardGameScreen extends StatefulWidget {
   final List<Player> players;
   final WildcardConfig config;
@@ -355,8 +356,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// Dispatches the correct dismiss handler for whichever overlay is
   /// currently showing (test hook + tap-to-dismiss are the same path).
   /// [WcOverlayKind.bull] has no entry — it resolves only via
-  /// [_onBullChoice]. [WcOverlayKind.winner] proceeds straight to the
-  /// post-game screen — the overlay itself IS the celebration moment.
+  /// [_onBullChoice].
   void _dismissOverlay() {
     switch (_overlay) {
       case WcOverlayKind.announce:
@@ -367,8 +367,6 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       case WcOverlayKind.cut:
       case WcOverlayKind.rewind:
         _onEventDismiss();
-      case WcOverlayKind.winner:
-        _showPostGame(engine.ranking());
       case WcOverlayKind.bull:
       case null:
         break;
@@ -452,12 +450,12 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// Core undo mechanics shared by the live [_onUndo] button and the
   /// post-game "↶ Back" action ([_showPostGame]'s `'undo'` branch): pops the
   /// engine's last undo entry, resyncs the screen-side per-turn tracking
-  /// fields, clears any overlay/pending-dialog state (the winner overlay
-  /// included — undoing FROM the post-game screen must return to live
-  /// play), and re-checks whether the (possibly different) current turn's
-  /// modifier still needs announcing. Callers wrap this in `setState` and
-  /// own their own guards (gameOver, overlay-kind) since the two call sites
-  /// need different ones.
+  /// fields, clears any pending overlay/dialog state (undoing FROM the
+  /// post-game screen — which shows with no overlay of its own now — must
+  /// return to live play), and re-checks whether the (possibly different)
+  /// current turn's modifier still needs announcing. Callers wrap this in
+  /// `setState` and own their own guards (gameOver, overlay-kind) since the
+  /// two call sites need different ones.
   void _applyUndo() {
     _overlay = null;
     _pendingResult = null;
@@ -499,7 +497,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     BatterySampler.instance.stop();
     await _fireWinnerCelebration(players[ranking.first].name);
     if (!mounted) return;
-    setState(() => _overlay = WcOverlayKind.winner);
+    // No winner overlay/tap gate (QA round 3) — celebration plays, then
+    // straight to the post-game scoreboard.
+    _showPostGame(ranking);
   }
 
   Future<void> _fireWinnerCelebration(String winnerName) async {
@@ -594,33 +594,46 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   }
 
   void _showPostGame(List<int> ranking) {
-    final results = <PlayerResult>[];
-    for (int rank = 0; rank < ranking.length; rank++) {
-      final i = ranking[rank];
-      results.add(PlayerResult(
-        name: players[i].name,
-        avatarPath: players[i].avatarPath,
-        placement: rank + 1,
-        stats: {
-          'score': engine.totals[i],
-          'jokersHit': engine.jokersHitCount[i],
-          'windowPrizes': engine.windowPrizes[i],
-          'pointsStolen': engine.pointsStolen[i],
-          'highestTurn': engine.highestTurn[i],
-          'darts': throwHistory.where((t) => t.playerIndex == i).length,
-        },
-        // No Elo — deltas are auto-hidden by PostGameScreen when both are
-        // null (spec §9).
-        ratingBefore: null,
-        ratingAfter: null,
-      ));
-    }
+    // Built in ORIGINAL player-index order (skipped/removed players
+    // excluded), not ranking order — PostGameScreen re-sorts by `placement`
+    // for display, so this is invisible there, but it keeps `results`
+    // index-aligned with each DartThrow's `playerIndex` for the progression
+    // chart below. A mid-game removal shifts that alignment for players
+    // after the removed seat — the same accepted limitation as the other
+    // DOSSEDART progression charts' documented gaps.
+    final placements = _buildPlacements(ranking);
+    final results = <PlayerResult>[
+      for (int i = 0; i < players.length; i++)
+        if (!engine.isSkipped(i))
+          PlayerResult(
+            name: players[i].name,
+            avatarPath: players[i].avatarPath,
+            placement: placements[i],
+            stats: {
+              'score': engine.totals[i],
+              'jokersHit': engine.jokersHitCount[i],
+              'windowPrizes': engine.windowPrizes[i],
+              'pointsStolen': engine.pointsStolen[i],
+              'highestTurn': engine.highestTurn[i],
+              'darts': throwHistory.where((t) => t.playerIndex == i).length,
+            },
+            // No Elo — deltas are auto-hidden by PostGameScreen when both are
+            // null (spec §9).
+            ratingBefore: null,
+            ratingAfter: null,
+          ),
+    ];
 
     Navigator.push<String>(
       context,
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
-          result: GameResult(gameMode: 'wildcard', results: results),
+          result: GameResult(
+            gameMode: 'wildcard',
+            results: results,
+            throwHistory: List<DartThrow>.from(throwHistory),
+            progressionMode: 'wildcard',
+          ),
         ),
       ),
     ).then((action) async {
@@ -830,8 +843,6 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         return _cutDialog();
       case WcOverlayKind.rewind:
         return _rewindDialog();
-      case WcOverlayKind.winner:
-        return _winnerDialog();
     }
   }
 
@@ -965,33 +976,6 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           'ROUND ${engine.round} SCORES WIPED · RESTART FROM FIRST PLAYER',
           textAlign: TextAlign.center,
           style: const TextStyle(fontFamily: 'VT323', fontSize: 20, color: Colors.white),
-        ),
-      ],
-    );
-  }
-
-  Widget _winnerDialog() {
-    final ranked = engine.ranking();
-    final winnerIdx = engine.winnerIndex ?? (ranked.isNotEmpty ? ranked.first : 0);
-    final name = players[winnerIdx].name.toUpperCase();
-    final total = engine.totals[winnerIdx];
-    return WildcardDialog(
-      accent: DossedartTokens.yellow,
-      icon: '★ ★ ★',
-      title: 'WILDCARD WINNER',
-      titleSize: 44,
-      onTap: () => _showPostGame(ranked),
-      children: [
-        const SizedBox(height: 14),
-        Text(
-          '$name · $total PTS',
-          style: const TextStyle(
-              fontFamily: 'PressStart2P', fontSize: 19, color: Colors.white),
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          'SURVIVED THE CHAOS',
-          style: TextStyle(fontFamily: 'VT323', fontSize: 22, color: DossedartTokens.cyan),
         ),
       ],
     );

@@ -139,3 +139,47 @@ class AtcProgression implements ModeProgression {
   @override
   String get finishLabel => '✓';
 }
+
+/// Maps a `gameMode` key + throw history to the [ModeProgression] that
+/// builds the MATCH FLOW / SCORE PER ROUND chart's series, or null when the
+/// mode has none (Killer & unknown). Moved out of game_detail_screen.dart
+/// (2026-07-09) so PostGameScreen can reuse the same mapping without
+/// depending on a screen file — game_detail's `progressionForEntry` is now a
+/// thin delegate to this.
+ModeProgression? progressionForMode(String modeKey, List<DartThrow> throws) {
+  switch (modeKey) {
+    case 'x01':
+      final start = throws.fold<int>(
+          0, (m, t) => t.scoreAtStartOfTurn > m ? t.scoreAtStartOfTurn : m);
+      return X01Progression(startScore: start > 0 ? start : 501);
+    case 'cricket':
+    case 'cricket_cutthroat':
+      return CricketProgression(
+          targets: const {15, 16, 17, 18, 19, 20, 25}, maxValue: 0);
+    case 'aroundTheClock':
+      return AtcProgression();
+    case 'shanghai':
+    case 'halveIt':
+      return CumulativeScoreProgression(maxValue: 0);
+    case 'gotcha':
+      // Gotcha counts up like Shanghai/Splitscore, and DartThrow.points is the
+      // thrower's true delta for every dart (bust darts carry the negative
+      // revert back to the turn-start score), so cumulative-by-round tracks
+      // the thrower's real running total exactly. What it can't show: a kill
+      // resets the *victim's* total on the victim's own line, which this
+      // series (built from the victim's own throws) has no way to see —
+      // the same accepted limitation as Splitscore's halving above; the round
+      // log carries the true per-round totals.
+      return CumulativeScoreProgression(maxValue: 0);
+    case 'wildcard':
+      // Wildcard is a points race and DartThrow.points is the effective
+      // per-dart credit (after turn modifiers/multipliers), so the thrower's
+      // own cumulative line is faithful. What it can't show: swap/steal/
+      // rewind events change OTHER players' totals, and those effects are
+      // invisible to per-throw data on the affected player's line — the same
+      // accepted limitation as Splitscore's halving and Gotcha's kills above.
+      return CumulativeScoreProgression(maxValue: 0);
+    default:
+      return null; // Killer & unknown → round log only
+  }
+}

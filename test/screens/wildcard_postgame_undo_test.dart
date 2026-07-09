@@ -59,8 +59,11 @@ void main() {
 
   /// Drives A to 60 (S20 x3) and B to 41 (S20, S20, S1) in a 1-round,
   /// chaos-0 game — B's 3rd dart ends the only round, which ends the game
-  /// with A as the winner. Returns the screen's State so callers can drive
-  /// the post-game overlay/navigation from there.
+  /// with A as the winner. The winner overlay is gone (QA round 3): gameOver
+  /// runs the celebration then navigates straight to PostGameScreen, so by
+  /// the time this returns, PostGameScreen is already on top with no
+  /// overlay tap required. Returns the screen's State so callers can drive
+  /// PostGameScreen's navigation from there.
   Future<dynamic> playToGameOver(WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
       home: WildcardGameScreen(
@@ -93,15 +96,18 @@ void main() {
     expect(state.engineForTest.turnPoints, 40);
     state.onDartHitForTest(1, 1);
 
-    // Let the winner flow (video + TTS celebration) settle before the
-    // overlay setState lands.
+    // Let the winner flow (video + TTS celebration) settle, then the
+    // Navigator.push to PostGameScreen land.
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(state.engineForTest.gameOver, isTrue);
     expect(state.engineForTest.winnerIndex, 0);
-    expect(state.overlayKindForTest, WcOverlayKind.winner,
-        reason: 'winner overlay should be showing before Undo/Finish');
+    expect(state.overlayKindForTest, isNull,
+        reason: 'no winner overlay any more — straight to PostGameScreen');
+    expect(find.text('↶ Back'), findsOneWidget,
+        reason: 'PostGameScreen with Undo button should already be on top');
 
     return state;
   }
@@ -109,13 +115,6 @@ void main() {
   testWidgets('post-game Undo reopens a finished wildcard game',
       (tester) async {
     final state = await playToGameOver(tester);
-
-    state.dismissOverlayForTest();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-
-    expect(find.text('↶ Back'), findsOneWidget,
-        reason: 'PostGameScreen with Undo button should be on top');
 
     await tester.tap(find.text('↶ Back'));
     await tester.pump();
@@ -131,11 +130,7 @@ void main() {
   });
 
   testWidgets('no Elo recorded for a finished wildcard game', (tester) async {
-    final state = await playToGameOver(tester);
-
-    state.dismissOverlayForTest();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await playToGameOver(tester);
 
     expect(find.text('↶ Back'), findsOneWidget);
 
