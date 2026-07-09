@@ -264,4 +264,41 @@ void main() {
         reason: 'hardcore kill resets the victim to 0');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'game end with a kill on the log runs the achievement-event wiring '
+      'without error', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GotchaGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GotchaConfig(targetScore: 301),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<GotchaGameScreen>>(find.byType(GotchaGameScreen));
+
+    // A (P0): S20, S20, miss -> total 40, turn passes to B.
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(0, 0);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // B (P1): D20 -> kills A (halved 40 -> 20). killLog now has one entry.
+    state.onDartHitForTest(20, 2);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.killLog, isNotEmpty);
+
+    // Drive the same roster-unchanged path _updateStats takes at game end:
+    // gotchaEventsFromKillLog -> awardGameEnd -> buildEarnedFeats ->
+    // StatsRecorder.recordGame. The pure derivation logic itself is covered
+    // by test/utils/gotcha_achievement_feats_test.dart; this just confirms
+    // the wiring doesn't throw.
+    await state.updateStatsForTest();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 }

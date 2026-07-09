@@ -20,6 +20,7 @@ import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
 import '../theme/dossedart_tokens.dart';
 import '../utils/earned_feats_builder.dart';
+import '../utils/gotcha_achievement_feats.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
@@ -383,6 +384,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final events = gotchaEventsFromKillLog(engine.killLog);
     final unlocks = AchievementService.instance.awardGameEnd(
       mode: GameMode.gotcha,
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -390,10 +392,10 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
-      eventsByIndex: const {},
+      eventsByIndex: events,
     );
     final earnedFeats =
-        buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
+        buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
 
     StatsRecorder.recordGame(
       gameMode: 'gotcha',
