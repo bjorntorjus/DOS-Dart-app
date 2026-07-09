@@ -32,13 +32,42 @@ void main() {
       expect(e.turnPoints, 0);
     });
 
-    test('meter: triple +1, true miss −1, clamps at 0 and 10', () {
+    test('meter: triple +2, true miss −1, clamps at 0 and 10', () {
       final e = plain();
       final r1 = e.applyDart(0, 0); // miss at 0 → clamped
       expect(r1.meterDelta, 0);
       expect(e.chaos, 0);
       final r2 = e.applyDart(20, 3);
-      expect(r2.meterDelta, 1);
+      // Tuning: triple is now +2 (was +1).
+      expect(r2.meterDelta, 2);
+      expect(e.chaos, 2);
+    });
+
+    test('meter: double-ring dart is +1 (new lever; D-Bull excluded)', () {
+      final e = plain();
+      final r = e.applyDart(20, 2); // D20: a plain double-ring dart
+      expect(r.meterDelta, 1);
+      expect(e.chaos, 1);
+    });
+
+    test(
+        'meter: only the FIRST true miss in a turn costs the meter; a '
+        'second miss the same turn is a no-op (not just clamp-related)', () {
+      // startingChaos 0 keeps jokers empty (wcJokerCount(0) == 0), so the
+      // plain darts below can't accidentally trigger a joker/instant event
+      // that would perturb chaos independently of the miss mechanic. Set
+      // chaos directly (bypasses joker assignment) to give the meter room
+      // to drop twice.
+      final e = plain(players: 2)..chaos = 3;
+      final r1 = e.applyDart(0, 0); // 1st miss this turn: -1
+      expect(r1.meterDelta, -1);
+      expect(e.chaos, 2);
+      final r2 = e.applyDart(0, 0); // 2nd miss this turn: no-op (not clamp)
+      expect(r2.meterDelta, 0);
+      expect(e.chaos, 2);
+      e.applyDart(1, 1); // 3rd dart banks the turn; miss-flag resets
+      final r4 = e.applyDart(0, 0); // P1's turn, 1st miss: -1 again
+      expect(r4.meterDelta, -1);
       expect(e.chaos, 1);
     });
 
@@ -220,8 +249,8 @@ void main() {
   group('WildcardEngine turn-modifiers', () {
     test(
         'ONLY EVENS: odd segment scores 0 and is dimmed; even scores; '
-        'meter still +1 on a dimmed triple (meter follows the dart, not '
-        'the points)', () {
+        'meter still +2 on a dimmed triple (meter follows the dart, not '
+        'the points; triple tuning applies here too)', () {
       final e = plain()..debugForceModifier('onlyEvens');
       e.applyDart(20, 1);
       e.applyDart(20, 1);
@@ -231,11 +260,13 @@ void main() {
       expect(e.dimPredicate!(8, 1), isFalse);
       final r = e.applyDart(7, 3); // dimmed triple
       expect(r.points, 0);
-      expect(r.meterDelta, 1);
-      expect(e.chaos, 1);
+      expect(r.meterDelta, 2); // triple: +2 (was +1)
+      expect(e.chaos, 2);
     });
 
-    test("DOUBLE TROUBLE: D20 scores 60, T20 scores 0 (meter still +1)", () {
+    test(
+        "DOUBLE TROUBLE: D20 scores 60 (meter +1, new double-ring lever), "
+        "T20 scores 0 (meter +2, triple tuning)", () {
       final e = plain()..debugForceModifier('doubleTrouble');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
@@ -243,9 +274,10 @@ void main() {
       expect(e.activeModifier?.id, 'doubleTrouble');
       final r1 = e.applyDart(20, 2); // D20 -> 20*3
       expect(r1.points, 60);
+      expect(r1.meterDelta, 1); // double-ring: +1 (new)
       final r2 = e.applyDart(20, 3); // T20 -> 0, meter still reacts
       expect(r2.points, 0);
-      expect(r2.meterDelta, 1);
+      expect(r2.meterDelta, 2); // triple: +2 (was +1)
     });
 
     test('DOUBLE TROUBLE: D-Bull scores 75 (25 x 3)', () {
@@ -284,8 +316,10 @@ void main() {
       expect(e.totals[1], 120);
     });
 
-    test('HOLY TRINITY: exactly 26 banks 126; any other total is unchanged',
-        () {
+    test(
+        'HOLY TRINITY: literal S20+S5+S1 (any order, single-only) banks '
+        '126; a different segment set banks the plain total (no longer a '
+        'turnPoints==26 sum check)', () {
       final e = plain()..debugForceModifier('holyTrinity');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
@@ -293,15 +327,57 @@ void main() {
       e.applyDart(20, 1);
       e.applyDart(5, 1);
       e.debugForceModifier('holyTrinity'); // queue for P2's roll too
-      e.applyDart(1, 1); // turnPoints 26 -> banks 126; P1 banks, P2 rolls
+      e.applyDart(1, 1); // S20+S5+S1 -> literal trinity: banks 126
       expect(e.totals[1], 126);
 
       expect(e.activeModifier?.id, 'holyTrinity');
       e.applyDart(20, 1);
       e.applyDart(5, 1);
-      final r = e.applyDart(2, 1); // turnPoints 27 -> banks 27, no bonus
+      final r = e.applyDart(2, 1); // {20,5,2} -> not the trinity set
       expect(r.turnEnded, isTrue);
-      expect(e.totals[2], 27);
+      expect(e.totals[2], 27); // turnPoints 27, banked as-is, no bonus
+    });
+
+    test('HOLY TRINITY: the trinity darts qualify in ANY throw order', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(1, 1); // S1 first this time
+      e.applyDart(5, 1);
+      final r = e.applyDart(20, 1); // S1, S5, S20 -> still the trinity
+      expect(r.turnEnded, isTrue);
+      expect(e.totals[1], 126);
+    });
+
+    test(
+        'HOLY TRINITY: a triple in the mix disqualifies even though the '
+        'segments include 20/5/1 (multiplier must be 1 on all 3 darts)',
+        () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(20, 3); // T20 = 60, not a single
+      e.applyDart(5, 1);
+      final r = e.applyDart(1, 1); // turnPoints 66; no bonus
+      expect(r.turnEnded, isTrue);
+      expect(e.totals[1], 66); // 60 + 5 + 1, banked plain
+    });
+
+    test(
+        'HOLY TRINITY: D10+S5+S1 also sums to 26 but is NOT the trinity — '
+        'the literal segment-set rule replaces the old sum==26 check '
+        '(regression guard: old rule would have banked 126 here)', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(10, 2); // D10 = 20, a double, not segment 20
+      e.applyDart(5, 1);
+      final r = e.applyDart(1, 1); // turnPoints 26, but D10 is not S20
+      expect(r.turnEnded, isTrue);
+      expect(e.totals[1], 26); // banked plain — no +100 bonus
     });
 
     test(
@@ -373,9 +449,9 @@ void main() {
       e.applyDart(1, 1);
       e.applyDart(1, 1); // P0 banks; P1's turn rolls theWindow
       e.window = (lo: 0, hi: 10); // total-so-far will be well inside this
-      e.applyDart(1, 3); // triple: 3 points, meter 0 -> 1 (room to drop)
+      e.applyDart(1, 3); // triple: 3 points, meter 0 -> 2 (room to drop)
       final miss = e.applyDart(0, 0); // true miss
-      expect(miss.meterDelta, -1); // chaos 1 -> 0
+      expect(miss.meterDelta, -1); // chaos 2 -> 1
       final r = e.applyDart(2, 1); // total 5 -> inside [0,10], but voided
       expect(r.turnEnded, isTrue);
       expect(e.totals[1], 0);
@@ -395,7 +471,7 @@ void main() {
 
       final r = e.applyDart(20, 3); // would be a triple; frozen zeroes points
       expect(r.points, 0);
-      expect(r.meterDelta, 1); // meter still reacts to the dart
+      expect(r.meterDelta, 2); // meter still reacts to the dart (triple: +2)
       e.applyDart(20, 1);
       e.applyDart(20, 1);
       expect(e.totals[1], 0); // banked 0 despite the meter movement
@@ -425,8 +501,9 @@ void main() {
       expect(e.dartsInTurn, 2);
     });
 
-    test('statistical sanity: at chaos 10 a modifier rolls most turns '
-        '(80% table)', () {
+    test(
+        'statistical sanity: at chaos 10 the modifier COOLDOWN roughly '
+        'halves the raw 80% chance table\'s effective rate', () {
       final e = WildcardEngine(
           playerCount: 2, rounds: 100, startingChaos: 10, rng: math.Random(1));
       var turnsChecked = 0;
@@ -442,10 +519,148 @@ void main() {
         }
       }
       expect(turnsChecked, greaterThan(0));
-      // chaos 10 is a 80% modifier chance every turn (tuned table); allow
-      // generous tolerance for a statistical test.
-      expect(rolled / turnsChecked, greaterThan(0.6));
-      expect(rolled / turnsChecked, lessThan(0.95));
+      // chaos 10 is an 80% modifier chance per eligible roll (tuned table),
+      // but cooldown means a player who got a modifier skips their very
+      // next roll — a 2-state Markov chain (rollable <-> cooldown) whose
+      // stationary "modifier assigned" fraction is p/(1+p) = 0.8/1.8 ≈
+      // 0.444, not the raw 0.8. Generous tolerance for a statistical test.
+      expect(rolled / turnsChecked, greaterThan(0.25));
+      expect(rolled / turnsChecked, lessThan(0.6));
+    });
+  });
+
+  group('WildcardEngine modifier cooldown', () {
+    test(
+        'a modifier-having turn puts that player on cooldown for their '
+        'very next turn (deterministic via debugForceModifier; chaos 0 so '
+        'no unforced roll can contaminate the sequence)', () {
+      final e = plain(players: 2); // startingChaos 0
+      expect(e.activeModifier, isNull); // turn 1 (P0): chaos 0 -> no roll
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 1 (no modifier); rolls turn 2 (P1)
+      expect(e.currentPlayerIndex, 1);
+      expect(e.activeModifier, isNull); // turn 2 (P1): chaos 0 -> no roll
+
+      // Queue a force now: the next roll is turn 3 (P0), when turn 2 banks.
+      e.debugForceModifier('onlyEvens');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks turn 2 (no modifier -> no P1 cooldown)
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier?.id, 'onlyEvens'); // turn 3 (P0): forced
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 3 (HAD a modifier -> P0 cooldown set)
+      expect(e.currentPlayerIndex, 1);
+      expect(e.activeModifier, isNull); // turn 4 (P1): chaos 0 anyway
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks turn 4; rolls turn 5 for P0
+      expect(e.currentPlayerIndex, 0);
+      // Turn 5 is P0's very next turn since the forced modifier on turn 3 —
+      // cooldown must suppress the roll even though chaos is 0 anyway.
+      expect(e.activeModifier, isNull);
+    });
+
+    test(
+        "a fresh debugForceModifier queued while the thrower is on "
+        'cooldown is NOT consumed by the skipped roll — it survives to the '
+        'next roll that actually happens (frozen-skip semantics mirrored)',
+        () {
+      final e = plain(players: 2); // startingChaos 0
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 1 (no modifier); rolls turn 2 (P1)
+
+      e.debugForceModifier('onlyEvens'); // lands on turn 3 (P0)
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks turn 2; rolls turn 3 for P0
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier?.id, 'onlyEvens'); // turn 3 (P0): forced
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 3 -> P0's cooldown flag set
+      expect(e.currentPlayerIndex, 1);
+
+      // Queue a fresh force before turn 4 (P1) banks; the next roll it
+      // triggers is turn 5 (P0), which is on cooldown and must skip.
+      e.debugForceModifier('doubleTrouble');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks turn 4 (no modifier); rolls turn 5 (P0)
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier, isNull); // cooldown skip, force NOT consumed
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 5 (no modifier -> no new cooldown);
+      // rolls turn 6 for P1, which is the first real roll since the force
+      // was queued — the survived force applies here.
+      expect(e.currentPlayerIndex, 1);
+      expect(e.activeModifier?.id, 'doubleTrouble');
+    });
+
+    test(
+        "the cooldown flag is snapshot-restored on undo: undoing the dart "
+        "that both banked P1's turn AND cleared P0's cooldown (via the "
+        "skip) puts P0 back on cooldown, so redoing that exact dart skips "
+        'P0 again instead of rolling the still-queued force', () {
+      final e = plain(players: 2);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 1 (no modifier); rolls turn 2 (P1)
+
+      e.debugForceModifier('onlyEvens'); // lands on turn 3 (P0)
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks turn 2; rolls turn 3 for P0
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier?.id, 'onlyEvens'); // turn 3 (P0): forced
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 3 -> P0's cooldown flag set true
+      expect(e.currentPlayerIndex, 1);
+
+      e.debugForceModifier('doubleTrouble'); // queued; next real roll wins it
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      // This dart banks P1's turn 4 AND rolls turn 5 for P0 — which is on
+      // cooldown, so the roll is skipped and the cooldown flag is CLEARED
+      // to false as a side effect of that skip.
+      final criticalDart = e.applyDart(1, 1);
+      expect(criticalDart.turnEnded, isTrue);
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier, isNull); // turn 5 (P0): cooldown skip
+
+      // Undo exactly that dart. If the cooldown flag's pre-dart value
+      // (true) is correctly restored, P0 is back on cooldown.
+      e.undo();
+      expect(e.currentPlayerIndex, 1);
+
+      // Redo the identical dart: if the flag was restored to true, turn 5
+      // skips again (null) — the queued force is still not consumed. If
+      // undo had left the flag leaked at false, this redo would instead
+      // roll the force ('doubleTrouble') immediately, since nothing else
+      // would stop it.
+      final redone = e.applyDart(1, 1);
+      expect(redone.turnEnded, isTrue);
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier, isNull); // still skipped -> flag was restored
+
+      // The force is still alive; confirm it finally lands on the next
+      // real roll (P0's turn 5 banks with no modifier, then P1's turn 6).
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 5; rolls turn 6 for P1
+      expect(e.currentPlayerIndex, 1);
+      expect(e.activeModifier?.id, 'doubleTrouble');
     });
   });
 
@@ -454,7 +669,9 @@ void main() {
         'meterDelta 0', () {
       final e = plain();
       for (var i = 0; i < 10; i++) {
-        e.applyDart(20, 3); // 10 triples: chaos climbs 0 -> 10
+        // Triples are now +2 (tuning): the cap is reached after the 5th
+        // (0,2,4,6,8,10); the remaining 5 iterations are no-ops at the cap.
+        e.applyDart(20, 3);
       }
       expect(e.chaos, 10);
       final r = e.applyDart(20, 3); // 11th triple: already at the cap

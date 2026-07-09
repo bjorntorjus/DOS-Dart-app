@@ -81,6 +81,9 @@ class _WcUndoEntry {
   final WcModifierDef? activeModifier;
   final ({int lo, int hi})? window;
   final bool windowVoided;
+  final bool missedThisTurn;
+  final List<({int segment, int multiplier})> turnDarts;
+  final List<bool> hadModifierLastTurn;
   final Set<int> jokers;
   final int? cursedNumber;
   final int? frozenPlayer;
@@ -109,6 +112,9 @@ class _WcUndoEntry {
     required this.activeModifier,
     required this.window,
     required this.windowVoided,
+    required this.missedThisTurn,
+    required this.turnDarts,
+    required this.hadModifierLastTurn,
     required this.jokers,
     required this.cursedNumber,
     required this.frozenPlayer,
@@ -155,6 +161,12 @@ class WildcardEngine {
   /// '—' for a true miss); reset to all-miss at the start of each turn.
   late List<String> turnDartLabels;
 
+  /// Raw (segment, multiplier) pairs for every dart thrown this turn, in
+  /// order — the literal HOLY TRINITY banking check ([_computeBankedAmount])
+  /// needs the actual darts, not just [turnPoints]. Cleared per turn
+  /// alongside [turnDartLabels].
+  late List<({int segment, int multiplier})> turnDarts;
+
   /// Running effective turn total (pre-banking); banked into [totals] with
   /// a floor of 0 when the turn ends.
   int turnPoints = 0;
@@ -173,6 +185,21 @@ class WildcardEngine {
   /// turn to bank 0 at banking time regardless of the eventual total (locked
   /// interpretation #8). Reset for each new turn in [_rollTurnModifier].
   bool _windowVoided = false;
+
+  /// True once a TRUE miss (segment 0) has landed during the current turn —
+  /// only the FIRST miss of a turn moves the meter; later misses in the
+  /// same turn are a no-op (still void THE WINDOW, see [applyDart]). Reset
+  /// for each new turn in [_rollTurnModifier].
+  bool _missedThisTurn = false;
+
+  /// Per-player cooldown: true when that player's PREVIOUS turn had an
+  /// [activeModifier] (rolled or forced), set at banking time
+  /// ([_bankCurrentTurn]). A true flag makes that player's next
+  /// [_rollTurnModifier] skip the roll entirely (and clear the flag)
+  /// WITHOUT consuming a pending [debugForceModifier] — the force survives
+  /// to the next roll that actually happens, mirroring the frozen-thrower
+  /// skip semantics already documented there. Grows in [addPlayer].
+  late List<bool> _hadModifierLastTurn;
 
   /// Hidden joker numbers (test-visible), assigned at round start (and the
   /// constructor) per [wcJokerCount]. Re-rolls one-at-a-time as each is hit.
@@ -243,6 +270,8 @@ class WildcardEngine {
     windowPrizes = List.filled(playerCount, 0, growable: true);
     pointsStolen = List.filled(playerCount, 0, growable: true);
     turnDartLabels = List.filled(3, '—');
+    turnDarts = [];
+    _hadModifierLastTurn = List.filled(playerCount, false, growable: true);
     _assignJokersForRound(); // round 1's jokers, per spec §5
     _rollTurnModifier(); // the game's very first turn also rolls (locked #16)
   }
@@ -358,21 +387,31 @@ class WildcardEngine {
 
     turnPoints += points;
     turnDartLabels[dartsInTurn] = _labelFor(segment, multiplier);
+    turnDarts.add((segment: segment, multiplier: multiplier));
 
     var meterDelta = 0;
     var needsBullChoice = false;
     var bullChoiceMagnitude = 0;
 
     // Meter reactions follow the DART thrown, not the points it scored — a
-    // dimmed triple (or a DOUBLE TROUBLE triple) still moves the meter +1.
+    // dimmed triple (or a DOUBLE TROUBLE triple) still moves the meter.
     if (segment == 25) {
+      // Bull (single or double) never falls into the plain multiplier
+      // branches below — it keeps its own ±1/±3 lever via resolveBullChoice.
       needsBullChoice = true;
       bullChoiceMagnitude = multiplier == 2 ? 3 : 1;
       pendingBullChoice = bullChoiceMagnitude;
     } else if (multiplier == 3) {
-      meterDelta = _applyMeterChange(1);
+      meterDelta = _applyMeterChange(2); // triple: +2 (tablet-QA tuning)
+    } else if (multiplier == 2) {
+      meterDelta = _applyMeterChange(1); // double-ring: +1 (new)
     } else if (segment == 0) {
-      meterDelta = _applyMeterChange(-1);
+      // TRUE miss: only the FIRST one this turn costs the meter -1; later
+      // misses in the same turn are a no-op (still void THE WINDOW below).
+      if (!_missedThisTurn) {
+        _missedThisTurn = true;
+        meterDelta = _applyMeterChange(-1);
+      }
       if (mod?.id == 'theWindow') _windowVoided = true;
     }
 
@@ -447,8 +486,12 @@ class WildcardEngine {
   /// Turns the raw dart-by-dart [turnPoints] into what actually gets banked,
   /// applying the whole-turn transforms (locked interpretations #4, #7, #8):
   /// THE WINDOW replaces the sum with a flat 100/0 (or 0 if voided by a true
-  /// miss); EVERYTHING ×2 doubles it; HOLY TRINITY adds +100 on an exact 26.
-  /// Any other/no modifier banks [turnPoints] unchanged.
+  /// miss); EVERYTHING ×2 doubles it; HOLY TRINITY adds +100 when the turn's
+  /// 3 darts are LITERALLY a single 20, a single 5, and a single 1 (any
+  /// order; any triple/double in the mix, or a segment outside that set,
+  /// disqualifies — no longer a turnPoints==26 sum check, since e.g. D10 +
+  /// S5 + S1 also sums to 26 but is not the trinity). Any other/no modifier
+  /// banks [turnPoints] unchanged.
   int _computeBankedAmount() {
     final mod = activeModifier;
     if (mod == null) return turnPoints;
@@ -464,7 +507,13 @@ class WildcardEngine {
       case 'everythingX2':
         return turnPoints * 2;
       case 'holyTrinity':
-        return turnPoints == 26 ? turnPoints + 100 : turnPoints;
+        if (turnDarts.length == 3 && turnDarts.every((d) => d.multiplier == 1)) {
+          final segs = turnDarts.map((d) => d.segment).toSet();
+          if (segs.length == 3 && segs.containsAll(const {20, 5, 1})) {
+            return turnPoints + 100;
+          }
+        }
+        return turnPoints;
       default:
         return turnPoints;
     }
@@ -485,6 +534,13 @@ class WildcardEngine {
   /// not a re-run of the turn-total math (no test exercises GIFT stacked
   /// with a restriction/multiplier modifier in the same turn).
   void _bankCurrentTurn() {
+    // Cooldown (spec §4 tuning): a modifier assigned this turn (rolled or
+    // forced) puts this player's NEXT turn on cooldown — see
+    // [_rollTurnModifier]. A frozen/no-modifier turn leaves the flag alone
+    // (it was already reset false at this turn's roll).
+    if (activeModifier != null) {
+      _hadModifierLastTurn[currentPlayerIndex] = true;
+    }
     final giftTarget = _giftTargetIndex;
     int bankedAmount;
     if (giftTarget != null) {
@@ -507,6 +563,7 @@ class WildcardEngine {
     turnPoints = 0;
     dartsInTurn = 0;
     turnDartLabels = List.filled(3, '—');
+    turnDarts = [];
     _giftTargetIndex = null;
     _giftBaselinePoints = 0;
   }
@@ -526,13 +583,22 @@ class WildcardEngine {
   /// [debugForceModifier] overrides the chance roll outright (consumed once).
   /// A frozen thrower gets no roll at all — [activeModifier] stays null and
   /// a pending forced id is left queued for the next roll that actually
-  /// happens (locked interpretation #16).
+  /// happens (locked interpretation #16). A thrower on modifier COOLDOWN
+  /// (see [_hadModifierLastTurn]) gets the same treatment: no roll, the
+  /// cooldown flag clears, and any pending forced id survives untouched for
+  /// the next roll that actually happens.
   void _rollTurnModifier() {
     activeModifier = null;
     window = null;
     _windowVoided = false;
+    _missedThisTurn = false;
 
     if (frozenPlayer == currentPlayerIndex) return;
+
+    if (_hadModifierLastTurn[currentPlayerIndex]) {
+      _hadModifierLastTurn[currentPlayerIndex] = false;
+      return;
+    }
 
     WcModifierDef? chosen;
     final forcedId = _forcedModifierId;
@@ -864,6 +930,7 @@ class WildcardEngine {
     turnPoints = 0;
     dartsInTurn = 0;
     turnDartLabels = List.filled(3, '—');
+    turnDarts = [];
     _giftTargetIndex = null;
     _giftBaselinePoints = 0;
     currentPlayerIndex = _firstActiveSeat();
@@ -888,6 +955,9 @@ class WildcardEngine {
       activeModifier: activeModifier,
       window: window,
       windowVoided: _windowVoided,
+      missedThisTurn: _missedThisTurn,
+      turnDarts: List.of(turnDarts),
+      hadModifierLastTurn: List.of(_hadModifierLastTurn),
       jokers: Set.of(jokers),
       cursedNumber: cursedNumber,
       frozenPlayer: frozenPlayer,
@@ -920,6 +990,9 @@ class WildcardEngine {
     activeModifier = e.activeModifier;
     window = e.window;
     _windowVoided = e.windowVoided;
+    _missedThisTurn = e.missedThisTurn;
+    turnDarts = e.turnDarts;
+    _hadModifierLastTurn = e.hadModifierLastTurn;
     jokers = e.jokers;
     cursedNumber = e.cursedNumber;
     frozenPlayer = e.frozenPlayer;
@@ -945,6 +1018,7 @@ class WildcardEngine {
     jokersHitCount.add(0);
     windowPrizes.add(0);
     pointsStolen.add(0);
+    _hadModifierLastTurn.add(false);
     _undoStack.clear();
   }
 
@@ -963,6 +1037,7 @@ class WildcardEngine {
       dartsInTurn = 0;
       turnPoints = 0;
       turnDartLabels = List.filled(3, '—');
+      turnDarts = [];
       pendingBullChoice = null;
       _giftTargetIndex = null;
       _giftBaselinePoints = 0;
