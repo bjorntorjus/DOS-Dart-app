@@ -283,9 +283,25 @@ class WildcardEngine {
   /// Returns true for a (segment, multiplier) dart that does NOT score under
   /// the active modifier; null while no modifier restricts scoring (open
   /// throw or THE WINDOW — dimming never applies during a window, spec §4).
+  ///
+  /// Wraps the modifier's raw [WcModifierDef.dims] so segment 25 (bull)
+  /// mirrors the exact scoring carve-out [applyDart] applies: bull is
+  /// blanket-exempt from every restriction EXCEPT HOLY TRINITY (an explicit
+  /// `mod.id == 'holyTrinity'` check, same as applyDart — NOT a generic
+  /// "bull is odd/even" read, because a value-based predicate like ONLY
+  /// EVENS would otherwise wrongly dim bull too: 25 is odd). This getter is
+  /// the single source of truth for board dimming — the painter
+  /// (dossedart_x01_dartboard.dart) just renders whatever it returns for
+  /// (25, ·) and never re-derives the trinity exception itself.
   bool Function(int segment, int multiplier)? get dimPredicate {
     if (window != null) return null;
-    return activeModifier?.dims;
+    final mod = activeModifier;
+    final dims = mod?.dims;
+    if (dims == null) return null;
+    return (segment, multiplier) {
+      if (segment == 25 && mod!.id != 'holyTrinity') return false;
+      return dims(segment, multiplier);
+    };
   }
 
   /// Ranked player indices: totals desc, tiebreak [highestTurn] desc, then

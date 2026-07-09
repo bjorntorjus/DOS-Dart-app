@@ -265,6 +265,20 @@ void main() {
     });
 
     test(
+        'dimPredicate bull carve-out: under ONLY EVENS, (25, 1) is reported '
+        'as scoring (false) even though 25 is odd — the value-based '
+        'predicate alone would wrongly dim bull; dimPredicate wraps it with '
+        'the same holyTrinity-only exception applyDart uses', () {
+      final e = plain()..debugForceModifier('onlyEvens');
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 banks; P1's turn rolls the forced modifier
+      expect(e.activeModifier?.id, 'onlyEvens');
+      expect(e.dimPredicate!(25, 1), isFalse); // bull exempt, not trinity
+      expect(e.dimPredicate!(25, 2), isFalse); // D-Bull exempt too
+    });
+
+    test(
         "DOUBLE TROUBLE: D20 scores 60 (meter +1, new double-ring lever), "
         "T20 scores 0 (meter +2, triple tuning)", () {
       final e = plain()..debugForceModifier('doubleTrouble');
@@ -399,6 +413,19 @@ void main() {
       final r = e.applyDart(1, 1); // turnPoints 0 + 5 + 1 = 6
       expect(r.turnEnded, isTrue);
       expect(e.totals[1], 6); // banked plain — no +100 bonus, D10 dimmed
+    });
+
+    test(
+        'dimPredicate bull carve-out: under HOLY TRINITY, (25, 1) is '
+        'reported as non-scoring (true) — the one modifier where the board '
+        'must actually dim bull, mirroring applyDart\'s scoring carve-out', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      expect(e.activeModifier?.id, 'holyTrinity');
+      expect(e.dimPredicate!(25, 1), isTrue);
+      expect(e.dimPredicate!(25, 2), isTrue);
     });
 
     test(

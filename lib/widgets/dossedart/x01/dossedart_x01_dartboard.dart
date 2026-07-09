@@ -22,7 +22,10 @@ const Color _twiRingMagenta = Color(0xFFE637A8);
 
 // WILDCARD dim states — non-scoring segments during a restriction render in
 // these near-black/low-alpha tones instead of the twilight felt/ring/number
-// colors above. Bull/D-Bull never dim (see paint()).
+// colors above. Bull/D-Bull dim too, but only under HOLY TRINITY — every
+// other predicate reports segment 25 as scoring (see paint() and
+// WildcardEngine.dimPredicate, the single source of truth for that
+// carve-out).
 const Color _dimSingle = Color(0xFF0B0618);
 const Color _dimRing = Color(0xFF140A24);
 const Color _dimNumber = Color(0x38D9D2C2); // phosphor @ ~0.22 alpha
@@ -175,16 +178,38 @@ class _DartboardPainter extends CustomPainter {
       tp.paint(canvas, Offset(lx - tp.width / 2, ly - tp.height / 2));
     }
 
-    // Bull / D-Bull — the one bright pop on the board.
-    canvas.drawCircle(c, r * kBullR, Paint()..color = DossedartTokens.yellow);
-    canvas.drawCircle(c, r * kDBullR, Paint()..color = DossedartTokens.red);
+    // Bull / D-Bull — normally the one bright pop on the board, but under
+    // HOLY TRINITY the engine carve-out zeroes it (spec §4/§10: trinity is
+    // about exactly {20, 5, 1}, so bull is deliberately excluded from the
+    // blanket bull-exemption every other modifier gets) — a lit bull that
+    // banks nothing is a silent trap, so it must dim like any other
+    // non-scoring segment. isDim is called with multiplier 1 for bull/D-Bull
+    // alike (WildcardEngine.dimPredicate ignores multiplier for segment 25,
+    // mirroring applyDart's own id check) — this is safe for every other
+    // predicate too, because dimPredicate already reports segment 25 as
+    // scoring (false) for anything that isn't HOLY TRINITY, so ONLY EVENS/
+    // ODDS and the rest of the WILDCARD modifiers (plus X01/Gotcha/Killer's
+    // null predicate) never dim bull here.
+    final dimmedBull = isDim?.call(25, 1) == true;
+    canvas.drawCircle(
+      c,
+      r * kBullR,
+      Paint()..color = dimmedBull ? _dimRing : DossedartTokens.yellow,
+    );
+    canvas.drawCircle(
+      c,
+      r * kDBullR,
+      Paint()..color = dimmedBull ? _dimSingle : DossedartTokens.red,
+    );
 
-    // Bull edge = orange, D-Bull edge = yellow.
+    // Bull edge = orange, D-Bull edge = yellow (dimmed: same dim family as
+    // their respective fills, so a dimmed bull reads as a flat off disc
+    // instead of keeping a bright ring outline).
     canvas.drawCircle(
       c,
       r * kBullR,
       Paint()
-        ..color = DossedartTokens.orange
+        ..color = dimmedBull ? _dimRing : DossedartTokens.orange
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
@@ -192,7 +217,7 @@ class _DartboardPainter extends CustomPainter {
       c,
       r * kDBullR,
       Paint()
-        ..color = DossedartTokens.yellow
+        ..color = dimmedBull ? _dimSingle : DossedartTokens.yellow
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );

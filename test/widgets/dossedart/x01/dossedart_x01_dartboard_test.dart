@@ -251,6 +251,48 @@ void main() {
     });
 
     testWidgets(
+        'HOLY TRINITY-shaped predicate dims bull but hit-testing stays '
+        'untouched — a tap on the bull still resolves DartZone.bull()',
+        (tester) async {
+      DartZone? lastZone;
+      const boardSize = 320.0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: boardSize,
+              height: boardSize,
+              child: DossedartX01Dartboard(
+                onTap: (z) => lastZone = z,
+                // Mirrors WildcardEngine.dimPredicate under HOLY TRINITY:
+                // only {20, 5, 1} score, so (25, ·) dims like any other
+                // non-member segment — the one case where the painter is
+                // expected to dim the bull (see the trinity carve-out on
+                // WildcardEngine.dimPredicate).
+                isDim: (s, m) => !const {20, 5, 1}.contains(s),
+              ),
+            ),
+          ),
+        ),
+      ));
+      expect(find.byType(CustomPaint), findsWidgets);
+      expect(tester.takeException(), isNull);
+
+      // Centre tap → dBull; hit-testing must be unaffected by the bull
+      // rendering dimmed.
+      await tester.tapAt(tester.getCenter(find.byType(DossedartX01Dartboard)));
+      expect(lastZone, const DartZone.dBull());
+
+      // Tap in the bull ring (between kDBullR and kBullR, r ~0.10) → bull,
+      // still tappable while its fill/stroke render dimmed.
+      final centre = tester.getCenter(find.byType(DossedartX01Dartboard));
+      final boardRadius = boardSize / 2;
+      lastZone = null;
+      await tester.tapAt(centre + Offset(0, boardRadius * 0.10));
+      expect(lastZone, const DartZone.bull());
+    });
+
+    testWidgets(
         'predicate-contract: EVENS band mapping — '
         'segment 5 (odd) dims singles/triples, segment 8 (even) dims nothing',
         (tester) async {
