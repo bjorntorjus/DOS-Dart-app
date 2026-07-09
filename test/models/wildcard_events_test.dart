@@ -109,9 +109,9 @@ void main() {
       }
     });
 
-    test('holyTrinity desc is the literal classic combo text', () {
+    test('holyTrinity desc is the literal restriction text', () {
       final byId = {for (final m in wcModifiers) m.id: m.desc};
-      expect(byId['holyTrinity'], 'Hit single 20, 5 and 1 — the classic');
+      expect(byId['holyTrinity'], 'Only 5, 20 and 1 score — hit all three for +100');
     });
 
     test('bullScores is true for all modifiers per locked rules', () {
@@ -207,7 +207,6 @@ void main() {
       for (final id in [
         'everythingX2',
         'goldenDart',
-        'holyTrinity',
         'bullsFortune',
         'bullsCurse',
         'doubleTrouble',
@@ -215,6 +214,18 @@ void main() {
       ]) {
         expect(modifier(id).dims, isNull, reason: id);
       }
+    });
+
+    test(
+        'holyTrinity dims everything outside {20, 5, 1}, any ring — '
+        'including bull, the one modifier where bull does not score', () {
+      final dims = modifier('holyTrinity').dims!;
+      expect(dims(5, 2), isFalse); // D5 scores — restriction ignores ring
+      expect(dims(20, 3), isFalse); // T20 scores
+      expect(dims(1, 1), isFalse); // S1 scores
+      expect(dims(7, 1), isTrue); // not in {20,5,1} — dimmed
+      expect(dims(19, 3), isTrue); // not in {20,5,1} — dimmed
+      expect(dims(25, 1), isTrue); // bull dimmed — trinity's bull exception
     });
   });
 
@@ -272,7 +283,7 @@ void main() {
     test('modifier chance table matches spec §3', () {
       expect(
         [for (var l = 0; l <= 10; l++) wcModifierChancePct(l)],
-        [0, 5, 5, 15, 15, 30, 30, 50, 50, 80, 80],
+        [0, 5, 5, 15, 15, 30, 30, 65, 65, 90, 90],
       );
     });
 
@@ -281,8 +292,8 @@ void main() {
       for (var l = 1; l <= 6; l++) {
         expect(wcJokerCount(l), 1, reason: 'level $l');
       }
-      expect(wcJokerCount(7), 1);
-      expect(wcJokerCount(8), 1);
+      expect(wcJokerCount(7), 2);
+      expect(wcJokerCount(8), 2);
       expect(wcJokerCount(9), 2);
       expect(wcJokerCount(10), 2);
     });

@@ -44,13 +44,15 @@ class WcModifierDef {
   /// modifiers (ONLY BLACK/WHITE, the board halves) ignore the multiplier.
   /// Also drives live board dimming (spec §6). `null` means the modifier
   /// does not restrict which segments score (e.g. EVERYTHING ×2). Bull is
-  /// never covered by [dims] — see [bullScores].
+  /// excluded from [dims] for every modifier except HOLY TRINITY — see
+  /// [bullScores] and the comment on [holyTrinity].
   final bool Function(int segment, int multiplier)? dims;
 
   /// Whether bull hits score under this modifier. Always `true` per the
-  /// locked rules (interpretation #1/#2): no modifier currently excludes
-  /// bull. Kept as a field so a future modifier can flip it without an
-  /// interface change.
+  /// locked rules (interpretation #1/#2) — HOLY TRINITY's bull exclusion is
+  /// encoded via [dims], not this field; the engine still owes it a bull
+  /// exception (see the comment on [holyTrinity]). Kept as a field so a
+  /// future modifier can flip it without an interface change.
   final bool bullScores;
 
   const WcModifierDef({
@@ -228,13 +230,22 @@ const goldenDart = WcModifierDef(
   severity: WcSeverity.mild,
 );
 
+// HOLY TRINITY is the ONE modifier where bull does NOT score: [_dimsNotTrinity]
+// dims every segment outside {20, 5, 1}, and 25 (bull) is not a member of
+// that set, so dims(25, ·) is true — bull is dimmed like any other non-member
+// segment. This makes trinity a restriction (any ring on 20/5/1 scores, e.g.
+// D5 counts) on top of the existing +100 coverage bonus for landing a literal
+// single-20/single-5/single-1 turn; the engine still computes that bonus
+// under the old all-singles rule until the next task wires the v3 swap.
 const holyTrinity = WcModifierDef(
   id: 'holyTrinity',
   name: 'HOLY TRINITY',
   icon: '🙏',
-  desc: 'Hit single 20, 5 and 1 — the classic',
+  desc: 'Only 5, 20 and 1 score — hit all three for +100',
   severity: WcSeverity.mild,
+  dims: _dimsNotTrinity,
 );
+bool _dimsNotTrinity(int s, int _) => !const {20, 5, 1}.contains(s);
 
 const bullsFortune = WcModifierDef(
   id: 'bullsFortune',
@@ -373,20 +384,18 @@ const wcInstantEvents = <WcInstantEventDef>[
 // ---------------------------------------------------------------------------
 
 const List<int> _modifierChancePctByLevel = [
-  0, 5, 5, 15, 15, 30, 30, 50, 50, 80, 80,
+  0, 5, 5, 15, 15, 30, 30, 65, 65, 90, 90,
 ];
 
 /// Percent chance a modifier is rolled at turn start, per chaos level (0-10).
 int wcModifierChancePct(int level) => _modifierChancePctByLevel[level];
 
-/// Deterministic joker count per chaos level (spec §3 table). The 7-8 band
-/// nominally reads "1-2" but the extra joker there only appears via the
-/// DOUBLE JEOPARDY event (added by the engine, not this base table) so the
-/// RNG-independent baseline stays 1.
+/// Deterministic joker count per chaos level (spec §3 table, QA round 3
+/// retune): 0 at level 0, 1 for levels 1-6, 2 from level 7 up.
 int wcJokerCount(int level) {
-  if (level <= 0) return 0;
-  if (level <= 8) return 1;
-  return 2;
+  if (level >= 7) return 2;
+  if (level >= 1) return 1;
+  return 0;
 }
 
 /// Severities eligible to be drawn for an instant event at this chaos level

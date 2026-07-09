@@ -26,7 +26,10 @@ void main() {
 
       expect(find.text('10'), findsOneWidget);
       expect(find.text('TOTAL CHAOS'), findsOneWidget);
-      expect(find.text('events @ 80% · 2 JOKERS'), findsOneWidget);
+      // NOTE (WILDCARD QA round 3, task 1): chance table bumped 80->90 at
+      // level 10; this literal is minimally patched to keep the suite green.
+      // The chaos-strip/meter widget tests get a fuller pass in the next task.
+      expect(find.text('events @ 90% · 2 JOKERS'), findsOneWidget);
       expect(find.text('EVENTS EVERY TURN'), findsNothing);
     });
 

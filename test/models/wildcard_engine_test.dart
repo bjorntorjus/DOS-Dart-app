@@ -333,9 +333,12 @@ void main() {
       expect(e.activeModifier?.id, 'holyTrinity');
       e.applyDart(20, 1);
       e.applyDart(5, 1);
-      final r = e.applyDart(2, 1); // {20,5,2} -> not the trinity set
+      // {20,5,2} -> not the trinity set, and the restriction (WQ3 task 1)
+      // now also dims the S2 dart to 0, since 2 isn't in {20,5,1}.
+      final r = e.applyDart(2, 1);
       expect(r.turnEnded, isTrue);
-      expect(e.totals[2], 27); // turnPoints 27, banked as-is, no bonus
+      expect(r.points, 0); // S2 dimmed by the trinity restriction
+      expect(e.totals[2], 25); // 20 + 5 + 0, banked as-is, no bonus
     });
 
     test('HOLY TRINITY: the trinity darts qualify in ANY throw order', () {
@@ -367,17 +370,20 @@ void main() {
 
     test(
         'HOLY TRINITY: D10+S5+S1 also sums to 26 but is NOT the trinity — '
-        'the literal segment-set rule replaces the old sum==26 check '
-        '(regression guard: old rule would have banked 126 here)', () {
+        'the literal segment-set rule replaces the old sum==26 check, and '
+        '(WQ3 task 1) segment 10 is now dimmed by the restriction on top of '
+        'that (regression guard: the pre-restriction rule would have banked '
+        '26 here)', () {
       final e = plain()..debugForceModifier('holyTrinity');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
       e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
-      e.applyDart(10, 2); // D10 = 20, a double, not segment 20
+      final d10 = e.applyDart(10, 2); // D10 = 20, but 10 isn't in {20,5,1}
+      expect(d10.points, 0); // dimmed by the trinity restriction
       e.applyDart(5, 1);
-      final r = e.applyDart(1, 1); // turnPoints 26, but D10 is not S20
+      final r = e.applyDart(1, 1); // turnPoints 0 + 5 + 1 = 6
       expect(r.turnEnded, isTrue);
-      expect(e.totals[1], 26); // banked plain — no +100 bonus
+      expect(e.totals[1], 6); // banked plain — no +100 bonus, D10 dimmed
     });
 
     test(
