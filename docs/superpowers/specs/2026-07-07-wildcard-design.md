@@ -1,7 +1,7 @@
 # WILDCARD Game Mode — Design Spec
 
 **Date:** 2026-07-07
-**Status:** Implemented (v1 2026-07-08; v1.1 QA tuning 2026-07-09 — value-based restrictions, literal trinity, meter/chance tuning, cooldown, TTS diet, board-shrink layout)
+**Status:** Implemented (v1 2026-07-08; v1.1 QA tuning 2026-07-09; v1.2 QA round 3 2026-07-09 — trinity as 5/20/1-restriction w/ coverage bonus, chaos boost 7+, compact chaos+round strip, winner popup removed → scoreboard w/ total score + per-round graph, first-turn announce fix, cursed number stays hidden, TTS queue cap, app renamed DOSSEDART)
 **Scope:** New game mode "WILDCARD" — chaos mode. Fourth new mode, built last (Gotcha → 1UP → Golf → **WILDCARD**).
 
 ---
@@ -39,8 +39,8 @@ At chaos level 0 nothing happens — it's a plain points race. That is both the 
 | 1–2 | 5% | 1 | mild |
 | 3–4 | 15% | 1 | mild |
 | 5–6 | 30% | 1 | mild + medium |
-| 7–8 | 50% | 1–2 | mild + medium + wild |
-| 9–10 | 80% | 2 | all, wild weighted up |
+| 7–8 | 65% (v1.2 — 50% felt tame) | 2 (v1.2) | mild + medium + wild |
+| 9–10 | 90% (v1.2) | 2 | all, wild weighted up |
 
 ## 4. Turn-modifiers (personal, announced before the throw)
 
@@ -54,7 +54,7 @@ A modifier applies to **one thrower, one turn**, and is announced (TTS + overlay
 | UPPER / LOWER / LEFT / RIGHT HALF | Only that half of the board scores (positional) | mild |
 | EVERYTHING ×2 | Turn total doubled | mild |
 | GOLDEN DART | Last dart counts ×3 | mild |
-| HOLY TRINITY | Hit **single 20, 5 and 1** (any order) → +100 bonus (v1.1: literal classic, not "any 26") | mild |
+| HOLY TRINITY | v1.2: RESTRICTION — only segments **5, 20 and 1** score (ANY ring: D5=10 counts); everything else (incl. **bull** — the one exception to "bull always scores") dims to 0. Cover all three numbers with the turn's darts → **+100**. Partial hits keep their points. | mild |
 | BULL'S FORTUNE | Bull worth 100 this turn | medium |
 | BULL'S CURSE | Bull drains 100 this turn | medium |
 | DOUBLE TROUBLE | Doubles score triple, triples score **zero** | medium |
