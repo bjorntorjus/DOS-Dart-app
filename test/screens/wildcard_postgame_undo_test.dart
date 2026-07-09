@@ -7,6 +7,7 @@ import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/screens/wildcard_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
+import 'package:dart_scoring/widgets/dossedart/progression_chart.dart';
 
 /// Widget tests for the WILDCARD post-game flow: winner celebration,
 /// PostGameScreen navigation, the deferred-stats Undo protocol (Shanghai/
@@ -204,5 +205,16 @@ void main() {
 
     expect(state.engineForTest.gameOver, isTrue);
     expect(state.engineForTest.winnerIndex, 1);
+
+    // Let the winner flow settle and PostGameScreen appear.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // When roster changes mid-game, the progression chart is suppressed
+    // (throwHistory still uses original seat indices, which misaligns with
+    // the final roster).
+    expect(find.byType(ProgressionChart), findsNothing,
+        reason: 'chart should be suppressed when roster changed');
   });
 }

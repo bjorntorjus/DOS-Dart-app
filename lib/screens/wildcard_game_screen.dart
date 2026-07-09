@@ -631,8 +631,10 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           result: GameResult(
             gameMode: 'wildcard',
             results: results,
-            throwHistory: List<DartThrow>.from(throwHistory),
-            progressionMode: 'wildcard',
+            // Chart lines index by seat; a changed roster misaligns them —
+            // suppress instead of mislabeling.
+            throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+            progressionMode: _midGamePlayerChanges ? null : 'wildcard',
           ),
         ),
       ),
