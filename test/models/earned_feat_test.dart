@@ -23,13 +23,13 @@ void main() {
   });
 
   test('Gotcha events map to their labels + tiers', () {
-    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaDoubleTap).label, 'Double tap');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaDoubleTap).label, 'DOUBLE TAP');
     expect(EarnedFeat.fromEvent(AchievementEvent.gotchaDoubleTap).tier, AchievementTier.gold);
-    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaPinata).label, 'Piñata');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaPinata).label, 'PIÑATA');
     expect(EarnedFeat.fromEvent(AchievementEvent.gotchaPinata).tier, AchievementTier.silver);
-    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaVendetta).label, 'Personal vendetta');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaVendetta).label, 'PERSONAL VENDETTA');
     expect(EarnedFeat.fromEvent(AchievementEvent.gotchaVendetta).tier, AchievementTier.silver);
-    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaCrashDummy).label, 'Crash test dummy');
+    expect(EarnedFeat.fromEvent(AchievementEvent.gotchaCrashDummy).label, 'CRASH TEST DUMMY');
     expect(EarnedFeat.fromEvent(AchievementEvent.gotchaCrashDummy).tier, AchievementTier.silver);
   });
 

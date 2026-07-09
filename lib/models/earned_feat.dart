@@ -55,13 +55,13 @@ class EarnedFeat {
       case AchievementEvent.clutchSave:
         return ('CLUTCH SAVE', AchievementTier.silver);
       case AchievementEvent.gotchaDoubleTap:
-        return ('Double tap', AchievementTier.gold);
+        return ('DOUBLE TAP', AchievementTier.gold);
       case AchievementEvent.gotchaPinata:
-        return ('Piñata', AchievementTier.silver);
+        return ('PIÑATA', AchievementTier.silver);
       case AchievementEvent.gotchaVendetta:
-        return ('Personal vendetta', AchievementTier.silver);
+        return ('PERSONAL VENDETTA', AchievementTier.silver);
       case AchievementEvent.gotchaCrashDummy:
-        return ('Crash test dummy', AchievementTier.silver);
+        return ('CRASH TEST DUMMY', AchievementTier.silver);
       case AchievementEvent.nice69:
         return ('NICE (69)', AchievementTier.bronze);
       case AchievementEvent.sixSeven:
