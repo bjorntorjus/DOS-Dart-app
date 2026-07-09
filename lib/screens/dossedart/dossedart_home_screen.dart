@@ -419,37 +419,44 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
     );
   }
 
+  // Standard tile chrome shared by live modes and fresh (NEW-ribbon) modes —
+  // QA decision 2026-07-09: fresh tiles must look identical to live ones,
+  // the yellow NEW ribbon is the only differentiator.
+  Widget _tileContainer(_GridTile t) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: DossedartTokens.surface,
+        border: Border.all(color: DossedartTokens.phosphor, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: DossedartTokens.phosphor.withValues(alpha: 0.2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(t.emoji, style: const TextStyle(fontSize: 28)),
+          const SizedBox(height: 6),
+          Text(
+            t.label.toUpperCase(),
+            style: _press(9, color: Colors.white),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _gridCell(_GridTile t) {
     switch (t.kind) {
       case _TileKind.live:
         return InkWell(
           onTap: () => _startGame(t.mode!),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            decoration: BoxDecoration(
-              color: DossedartTokens.surface,
-              border: Border.all(color: DossedartTokens.phosphor, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: DossedartTokens.phosphor.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(t.emoji, style: const TextStyle(fontSize: 28)),
-                const SizedBox(height: 6),
-                Text(
-                  t.label.toUpperCase(),
-                  style: _press(9, color: Colors.white),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
+          child: _tileContainer(t),
         );
       case _TileKind.fresh:
         return InkWell(
@@ -461,32 +468,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             // label text (~1/3 width, QA regression 2026-07-08).
             fit: StackFit.passthrough,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: DossedartTokens.cyan.withValues(alpha: 0.06),
-                  border: Border.all(color: DossedartTokens.cyan, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: DossedartTokens.cyan.withValues(alpha: 0.4),
-                      blurRadius: 16,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(t.emoji, style: const TextStyle(fontSize: 28)),
-                    const SizedBox(height: 6),
-                    Text(
-                      t.label.toUpperCase(),
-                      style: _press(9, color: DossedartTokens.cyan),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
+              _tileContainer(t),
               Positioned(
                 top: -9,
                 right: -6,

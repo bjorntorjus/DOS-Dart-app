@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dart_scoring/screens/dossedart/dossedart_home_screen.dart';
+import 'package:dart_scoring/theme/dossedart_tokens.dart';
 import 'package:dart_scoring/widgets/dossedart/arcade_frame.dart';
 
 /// Widget tests for the DOSSEDART home's "OR PICK A LEVEL" 3×3 grid: 5 live
@@ -61,6 +62,32 @@ void main() {
         reason: 'Gotcha tile must be as wide as its live siblings');
     expect(wildcard.width, moreOrLessEquals(shanghai.width, epsilon: 1.0),
         reason: 'WILDCARD tile must be as wide as its live siblings');
+  });
+
+  testWidgets(
+      'fresh tiles use standard live chrome (phosphor border), not cyan',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
+    await tester.pumpAndSettle();
+
+    // QA decision 2026-07-09: the NEW ribbon is the only differentiator —
+    // the tile Container itself must match the live phosphor chrome.
+    for (final e in ['💀', '🃏']) {
+      final container = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.text(e),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final decoration = container.decoration as BoxDecoration;
+      final border = decoration.border as Border;
+      expect(border.top.color, DossedartTokens.phosphor,
+          reason: 'fresh tile "$e" must use the standard phosphor border');
+      expect(decoration.color, DossedartTokens.surface,
+          reason: 'fresh tile "$e" must use the standard surface fill');
+    }
   });
 
   testWidgets('coming-soon tiles are not tappable', (tester) async {
