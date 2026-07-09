@@ -157,5 +157,115 @@ void main() {
       await tester.tapAt(seg1Offset);
       expect(lastZone, const DartZone.single(1));
     });
+
+    testWidgets(
+        'per-ring rendering smoke: EVENS predicate — '
+        '(s, m) => (s * m).isOdd renders without exception',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 320,
+              height: 320,
+              child: DossedartX01Dartboard(
+                onTap: (_) {},
+                isDim: (s, m) => (s * m).isOdd,
+              ),
+            ),
+          ),
+        ),
+      ));
+      expect(find.byType(CustomPaint), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'per-ring rendering smoke: DIV3 predicate — '
+        '(s, m) => (s * m) % 3 != 0 renders without exception',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 320,
+              height: 320,
+              child: DossedartX01Dartboard(
+                onTap: (_) {},
+                isDim: (s, m) => (s * m) % 3 != 0,
+              ),
+            ),
+          ),
+        ),
+      ));
+      expect(find.byType(CustomPaint), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'hit-testing unaffected by partial dim: segment 5 double/single '
+        'with EVENS predicate — taps resolve to correct zones',
+        (tester) async {
+      DartZone? lastZone;
+      const boardSize = 320.0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: boardSize,
+              height: boardSize,
+              child: DossedartX01Dartboard(
+                onTap: (z) => lastZone = z,
+                // EVENS: (5*2).isOdd=false (double lit), (5*1).isOdd=true (single dim)
+                isDim: (s, m) => (s * m).isOdd,
+              ),
+            ),
+          ),
+        ),
+      ));
+
+      final centre = tester.getCenter(find.byType(DossedartX01Dartboard));
+      final boardRadius = boardSize / 2;
+
+      // Segment 5 is at index 19 (last segment); angle = 18 * 19 = 342°
+      // Tap in segment 5's double band (r between kOuterSingleR=0.82, kDoubleR=0.95)
+      const doubleR = 0.88;
+      final angleRad5 = (18 * 19 * math.pi / 180) - (math.pi / 2);
+      final seg5DoubleOffset = centre +
+          Offset(
+            math.cos(angleRad5) * boardRadius * doubleR,
+            math.sin(angleRad5) * boardRadius * doubleR,
+          );
+      await tester.tapAt(seg5DoubleOffset);
+      expect(lastZone, const DartZone.double_(5));
+
+      // Tap in segment 5's outer-single band (r between kTripleR=0.58, kOuterSingleR=0.82)
+      const singleR = 0.70;
+      final seg5SingleOffset = centre +
+          Offset(
+            math.cos(angleRad5) * boardRadius * singleR,
+            math.sin(angleRad5) * boardRadius * singleR,
+          );
+      await tester.tapAt(seg5SingleOffset);
+      expect(lastZone, const DartZone.single(5));
+    });
+
+    testWidgets(
+        'predicate-contract: EVENS band mapping — '
+        'segment 5 (odd) dims singles/triples, segment 8 (even) dims nothing',
+        (tester) async {
+      // EVENS predicate: (s * m).isOdd
+      // Segment 5: 5*1=5(odd)→true, 5*3=15(odd)→true, 5*2=10(even)→false
+      // Segment 8: 8*1=8(even)→false, 8*3=24(even)→false, 8*2=16(even)→false
+      bool evensDim(int segment, int multiplier) => (segment * multiplier).isOdd;
+
+      // Document the band states:
+      expect(evensDim(5, 1), true);  // single (m=1) dims
+      expect(evensDim(5, 3), true);  // triple (m=3) dims
+      expect(evensDim(5, 2), false); // double (m=2) lit
+      expect(evensDim(8, 1), false); // segment 8 all lit
+      expect(evensDim(8, 3), false);
+      expect(evensDim(8, 2), false);
+    });
   });
 }

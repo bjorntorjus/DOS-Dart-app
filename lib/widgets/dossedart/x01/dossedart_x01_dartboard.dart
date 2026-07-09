@@ -162,6 +162,11 @@ class _DartboardPainter extends CustomPainter {
           style: TextStyle(
             fontFamily: 'PressStart2P',
             fontSize: 11,
+            // Label dim follows the SINGLE-band (multiplier 1) result: for any
+            // value-based restriction, this equals the "majority of bands" rule
+            // (single + single bands both agree). 'All bands agree' is degenerate:
+            // EVENS never dims any double band (doubles are always even), so a
+            // label would never dim under that logic.
             color: dimmedSingle ? _dimNumber : Colors.white,
           ),
         ),
