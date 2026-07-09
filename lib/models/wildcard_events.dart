@@ -37,11 +37,15 @@ class WcModifierDef {
 
   final WcSeverity severity;
 
-  /// Returns true for segments (1–20) that do NOT score while this modifier
-  /// is active. Also drives live board dimming (spec §6). `null` means the
-  /// modifier does not restrict which segments score (e.g. EVERYTHING ×2).
-  /// Bull is never covered by [dims] — see [bullScores].
-  final bool Function(int segment)? dims;
+  /// Returns true for a (segment, multiplier) dart that does NOT score while
+  /// this modifier is active. Value-based modifiers (ONLY EVENS/ODDS, DIVIDE
+  /// BY THREE) judge the resulting dart *value* (segment × multiplier), so a
+  /// D5 scores under ONLY EVENS even though S5 does not; positional
+  /// modifiers (ONLY BLACK/WHITE, the board halves) ignore the multiplier.
+  /// Also drives live board dimming (spec §6). `null` means the modifier
+  /// does not restrict which segments score (e.g. EVERYTHING ×2). Bull is
+  /// never covered by [dims] — see [bullScores].
+  final bool Function(int segment, int multiplier)? dims;
 
   /// Whether bull hits score under this modifier. Always `true` per the
   /// locked rules (interpretation #1/#2): no modifier currently excludes
@@ -122,21 +126,21 @@ const onlyEvens = WcModifierDef(
   id: 'onlyEvens',
   name: 'ONLY EVENS',
   icon: '🔢',
-  desc: 'Only even numbers score this turn',
+  desc: 'Only even dart values score this turn',
   severity: WcSeverity.mild,
-  dims: _dimsOdd,
+  dims: _dimsOddValue,
 );
-bool _dimsOdd(int s) => s.isOdd;
+bool _dimsOddValue(int s, int m) => (s * m).isOdd;
 
 const onlyOdds = WcModifierDef(
   id: 'onlyOdds',
   name: 'ONLY ODDS',
   icon: '🔢',
-  desc: 'Only odd numbers score this turn',
+  desc: 'Only odd dart values score this turn',
   severity: WcSeverity.mild,
-  dims: _dimsEven,
+  dims: _dimsEvenValue,
 );
-bool _dimsEven(int s) => s.isEven;
+bool _dimsEvenValue(int s, int m) => (s * m).isEven;
 
 const onlyBlack = WcModifierDef(
   id: 'onlyBlack',
@@ -146,7 +150,7 @@ const onlyBlack = WcModifierDef(
   severity: WcSeverity.mild,
   dims: _dimsNonBlack,
 );
-bool _dimsNonBlack(int s) => !wcBlackSegments.contains(s);
+bool _dimsNonBlack(int s, int _) => !wcBlackSegments.contains(s);
 
 const onlyWhite = WcModifierDef(
   id: 'onlyWhite',
@@ -156,17 +160,17 @@ const onlyWhite = WcModifierDef(
   severity: WcSeverity.mild,
   dims: _dimsBlack,
 );
-bool _dimsBlack(int s) => wcBlackSegments.contains(s);
+bool _dimsBlack(int s, int _) => wcBlackSegments.contains(s);
 
 const divideByThree = WcModifierDef(
   id: 'divideByThree',
   name: 'DIVIDE BY THREE',
   icon: '➗',
-  desc: 'Only numbers divisible by 3 score this turn',
+  desc: 'Only dart values divisible by 3 score',
   severity: WcSeverity.mild,
   dims: _dimsNotDivisibleByThree,
 );
-bool _dimsNotDivisibleByThree(int s) => s % 3 != 0;
+bool _dimsNotDivisibleByThree(int s, int m) => (s * m) % 3 != 0;
 
 const upperHalf = WcModifierDef(
   id: 'upperHalf',
@@ -176,7 +180,7 @@ const upperHalf = WcModifierDef(
   severity: WcSeverity.mild,
   dims: _dimsNotUpper,
 );
-bool _dimsNotUpper(int s) => !wcUpperHalf.contains(s);
+bool _dimsNotUpper(int s, int _) => !wcUpperHalf.contains(s);
 
 const lowerHalf = WcModifierDef(
   id: 'lowerHalf',
@@ -186,7 +190,7 @@ const lowerHalf = WcModifierDef(
   severity: WcSeverity.mild,
   dims: _dimsNotLower,
 );
-bool _dimsNotLower(int s) => !wcLowerHalf.contains(s);
+bool _dimsNotLower(int s, int _) => !wcLowerHalf.contains(s);
 
 const leftHalf = WcModifierDef(
   id: 'leftHalf',
@@ -196,7 +200,7 @@ const leftHalf = WcModifierDef(
   severity: WcSeverity.mild,
   dims: _dimsNotLeft,
 );
-bool _dimsNotLeft(int s) => !wcLeftHalf.contains(s);
+bool _dimsNotLeft(int s, int _) => !wcLeftHalf.contains(s);
 
 const rightHalf = WcModifierDef(
   id: 'rightHalf',
@@ -206,7 +210,7 @@ const rightHalf = WcModifierDef(
   severity: WcSeverity.mild,
   dims: _dimsNotRight,
 );
-bool _dimsNotRight(int s) => !wcRightHalf.contains(s);
+bool _dimsNotRight(int s, int _) => !wcRightHalf.contains(s);
 
 const everythingX2 = WcModifierDef(
   id: 'everythingX2',
@@ -228,7 +232,7 @@ const holyTrinity = WcModifierDef(
   id: 'holyTrinity',
   name: 'HOLY TRINITY',
   icon: '🙏',
-  desc: 'Exactly 26 this turn scores a +100 bonus',
+  desc: 'Hit single 20, 5 and 1 — the classic',
   severity: WcSeverity.mild,
 );
 
@@ -369,7 +373,7 @@ const wcInstantEvents = <WcInstantEventDef>[
 // ---------------------------------------------------------------------------
 
 const List<int> _modifierChancePctByLevel = [
-  0, 10, 10, 25, 25, 45, 45, 70, 70, 100, 100,
+  0, 5, 5, 15, 15, 30, 30, 50, 50, 80, 80,
 ];
 
 /// Percent chance a modifier is rolled at turn start, per chaos level (0-10).

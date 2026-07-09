@@ -65,11 +65,14 @@ class DossedartX01Dartboard extends StatelessWidget {
 
   final ValueChanged<DartZone> onTap;
 
-  /// WILDCARD: optional predicate marking a segment number (1-20) as
-  /// non-scoring during a restriction, so it renders dimmed. Null (default)
-  /// preserves today's rendering exactly — hit-testing is never affected,
-  /// dimmed segments stay fully tappable.
-  final bool Function(int segment)? isDim;
+  /// WILDCARD: optional predicate marking a (segment, multiplier) dart as
+  /// non-scoring during a restriction, so that ring renders dimmed. Called
+  /// once per band with that band's multiplier (inner/outer single = 1,
+  /// triple = 3, double = 2), so a value-based restriction can dim only
+  /// some of a segment's rings. Null (default) preserves today's rendering
+  /// exactly — hit-testing is never affected, dimmed segments stay fully
+  /// tappable.
+  final bool Function(int segment, int multiplier)? isDim;
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +106,7 @@ class DossedartX01Dartboard extends StatelessWidget {
 class _DartboardPainter extends CustomPainter {
   _DartboardPainter(this.isDim);
 
-  final bool Function(int segment)? isDim;
+  final bool Function(int segment, int multiplier)? isDim;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -124,16 +127,29 @@ class _DartboardPainter extends CustomPainter {
       // Singles = twilight purple felt; triple + double = magenta/cyan ring.
       // Dark felt (i even, e.g. segment 20) → magenta ring; light felt → cyan.
       final n = kSegmentOrder[i];
-      final dimmed = isDim?.call(n) == true;
-      final singleCol =
-          dimmed ? _dimSingle : ((i % 2 == 0) ? _twiSingleDark : _twiSingleLight);
-      final ringCol =
-          dimmed ? _dimRing : ((i % 2 == 0) ? _twiRingMagenta : _twiRingCyan);
+      // Per-ring dimming: value-based restrictions (e.g. ONLY EVENS) can dim
+      // a segment's single band while leaving its double/triple band lit
+      // (D5 = 10 scores under ONLY EVENS even though S5 does not), so each
+      // band is evaluated with its own multiplier.
+      final dimmedSingle = isDim?.call(n, 1) == true;
+      final dimmedTriple = isDim?.call(n, 3) == true;
+      final dimmedDouble = isDim?.call(n, 2) == true;
+      final singleCol = dimmedSingle
+          ? _dimSingle
+          : ((i % 2 == 0) ? _twiSingleDark : _twiSingleLight);
+      final tripleRingCol = dimmedTriple
+          ? _dimRing
+          : ((i % 2 == 0) ? _twiRingMagenta : _twiRingCyan);
+      final doubleRingCol = dimmedDouble
+          ? _dimRing
+          : ((i % 2 == 0) ? _twiRingMagenta : _twiRingCyan);
 
       _wedge(canvas, c, r * kBullR, r * kInnerSingleR, start, end, singleCol);
-      _wedge(canvas, c, r * kInnerSingleR, r * kTripleR, start, end, ringCol);
+      _wedge(
+          canvas, c, r * kInnerSingleR, r * kTripleR, start, end, tripleRingCol);
       _wedge(canvas, c, r * kTripleR, r * kOuterSingleR, start, end, singleCol);
-      _wedge(canvas, c, r * kOuterSingleR, r * kDoubleR, start, end, ringCol);
+      _wedge(
+          canvas, c, r * kOuterSingleR, r * kDoubleR, start, end, doubleRingCol);
       _wedge(canvas, c, r * kDoubleR, r, start, end, _twiBase);
 
       // Segment number label, placed in the outer band.
@@ -146,7 +162,7 @@ class _DartboardPainter extends CustomPainter {
           style: TextStyle(
             fontFamily: 'PressStart2P',
             fontSize: 11,
-            color: dimmed ? _dimNumber : Colors.white,
+            color: dimmedSingle ? _dimNumber : Colors.white,
           ),
         ),
         textDirection: TextDirection.ltr,

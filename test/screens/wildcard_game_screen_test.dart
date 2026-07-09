@@ -144,7 +144,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(state.overlayKindForTest, isNull);
     expect(state.engineForTest.dimPredicate, isNotNull);
-    expect(state.engineForTest.dimPredicate!(7), isTrue);
+    expect(state.engineForTest.dimPredicate!(7, 1), isTrue);
 
     // A dimmed single-7 scores nothing.
     state.onDartHitForTest(7, 1);
@@ -251,7 +251,7 @@ void main() {
     final dynamic state = tester
         .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
 
-    // startingChaos:5 carries a 45% chance (wcModifierChancePct) of rolling
+    // startingChaos:5 carries a 30% chance (wcModifierChancePct) of rolling
     // a turn modifier for round 1's very first turn — dismiss it if it
     // showed so it doesn't block the joker dart below (input is a no-op
     // while any overlay is up).

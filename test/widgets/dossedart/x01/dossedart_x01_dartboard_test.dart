@@ -105,7 +105,7 @@ void main() {
               height: 320,
               child: DossedartX01Dartboard(
                 onTap: (_) {},
-                isDim: (n) => n.isOdd,
+                isDim: (n, _) => n.isOdd,
               ),
             ),
           ),
@@ -130,7 +130,7 @@ void main() {
                 onTap: (z) => lastZone = z,
                 // 20 is even (not dimmed), 1 is odd (dimmed) — both must
                 // still resolve to their zone; dimming is purely visual.
-                isDim: (n) => n.isOdd,
+                isDim: (n, _) => n.isOdd,
               ),
             ),
           ),

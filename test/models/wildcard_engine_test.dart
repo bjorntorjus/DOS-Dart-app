@@ -227,8 +227,8 @@ void main() {
       e.applyDart(20, 1);
       e.applyDart(20, 1); // P0 banks; P1's turn rolls the forced modifier
       expect(e.activeModifier?.id, 'onlyEvens');
-      expect(e.dimPredicate!(7), isTrue);
-      expect(e.dimPredicate!(8), isFalse);
+      expect(e.dimPredicate!(7, 1), isTrue);
+      expect(e.dimPredicate!(8, 1), isFalse);
       final r = e.applyDart(7, 3); // dimmed triple
       expect(r.points, 0);
       expect(r.meterDelta, 1);
@@ -425,19 +425,27 @@ void main() {
       expect(e.dartsInTurn, 2);
     });
 
-    test('statistical sanity: at chaos 10 a modifier always rolls', () {
+    test('statistical sanity: at chaos 10 a modifier rolls most turns '
+        '(80% table)', () {
       final e = WildcardEngine(
-          playerCount: 2, rounds: 20, startingChaos: 10, rng: math.Random(1));
+          playerCount: 2, rounds: 100, startingChaos: 10, rng: math.Random(1));
       var turnsChecked = 0;
-      for (var i = 0; i < 15 && !e.gameOver; i++) {
+      var rolled = 0;
+      for (var i = 0; i < 200 && !e.gameOver; i++) {
         turnsChecked++;
-        expect(e.activeModifier, isNotNull,
-            reason: 'chaos 10 is a 100% modifier chance every turn');
-        e.applyDart(1, 1);
-        e.applyDart(1, 1);
-        e.applyDart(1, 1); // plain darts: no triples/misses/bulls
+        if (e.activeModifier != null) rolled++;
+        // Plain darts: no triples/misses/bulls, but segment 1 may be a
+        // joker and trigger an event (e.g. CUT!) that ends the turn early —
+        // stop throwing once that happens rather than asserting past it.
+        for (var d = 0; d < 3 && !e.gameOver; d++) {
+          e.applyDart(1, 1);
+        }
       }
       expect(turnsChecked, greaterThan(0));
+      // chaos 10 is a 80% modifier chance every turn (tuned table); allow
+      // generous tolerance for a statistical test.
+      expect(rolled / turnsChecked, greaterThan(0.6));
+      expect(rolled / turnsChecked, lessThan(0.95));
     });
   });
 

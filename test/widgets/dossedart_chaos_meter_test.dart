@@ -8,7 +8,7 @@ void main() {
   Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
   group('DossedartChaosMeter', () {
-    testWidgets('level 3: level number, /10, BUBBLING label, 25% chance',
+    testWidgets('level 3: level number, /10, BUBBLING label, 15% chance',
         (tester) async {
       await tester.pumpWidget(wrap(const DossedartChaosMeter(level: 3)));
       await tester.pump(const Duration(milliseconds: 100));
@@ -16,7 +16,7 @@ void main() {
       expect(find.text('3'), findsOneWidget);
       expect(find.text('/10'), findsOneWidget);
       expect(find.text('BUBBLING'), findsOneWidget);
-      expect(find.text('events @ 25%'), findsOneWidget);
+      expect(find.text('events @ 15%'), findsOneWidget);
     });
 
     testWidgets('level 10: TOTAL CHAOS label + max-meter footer',

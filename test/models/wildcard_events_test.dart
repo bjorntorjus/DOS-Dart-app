@@ -109,6 +109,11 @@ void main() {
       }
     });
 
+    test('holyTrinity desc is the literal classic combo text', () {
+      final byId = {for (final m in wcModifiers) m.id: m.desc};
+      expect(byId['holyTrinity'], 'Hit single 20, 5 and 1 — the classic');
+    });
+
     test('bullScores is true for all modifiers per locked rules', () {
       for (final m in wcModifiers) {
         expect(m.bullScores, isTrue, reason: m.id);
@@ -117,75 +122,85 @@ void main() {
 
     WcModifierDef modifier(String id) => wcModifiers.firstWhere((m) => m.id == id);
 
-    test('onlyEvens dims odd segments', () {
-      expect(modifier('onlyEvens').dims!(7), isTrue);
-      expect(modifier('onlyEvens').dims!(8), isFalse);
+    test('onlyEvens: value-based, not segment-based — D5 (=10) scores', () {
+      final dims = modifier('onlyEvens').dims!;
+      expect(dims(5, 1), isTrue); // S5 = 5, odd, dimmed
+      expect(dims(5, 2), isFalse); // D5 = 10, even, scores!
+      expect(dims(5, 3), isTrue); // T5 = 15, odd, dimmed
+      expect(dims(8, 1), isFalse); // S8 = 8, even, scores
     });
 
-    test('onlyOdds dims even segments', () {
-      expect(modifier('onlyOdds').dims!(8), isTrue);
-      expect(modifier('onlyOdds').dims!(7), isFalse);
+    test('onlyOdds: value-based — D5 (=10, even) is dimmed', () {
+      final dims = modifier('onlyOdds').dims!;
+      expect(dims(5, 2), isTrue); // D5 = 10, even, dimmed
+      expect(dims(5, 1), isFalse); // S5 = 5, odd, scores
     });
 
-    test('onlyBlack dims non-black (white) segments', () {
+    test('onlyBlack dims non-black (white) segments, ignores multiplier', () {
       final dims = modifier('onlyBlack').dims!;
       for (final s in wcBlackSegments) {
-        expect(dims(s), isFalse, reason: 'black segment $s should score');
+        expect(dims(s, 1), isFalse, reason: 'black segment $s should score');
       }
-      expect(dims(1), isTrue); // 1 is white
-      expect(dims(20), isFalse); // 20 is black
+      expect(dims(1, 1), isTrue); // 1 is white
+      expect(dims(20, 1), isFalse); // 20 is black
     });
 
-    test('onlyWhite dims black segments', () {
+    test('onlyWhite dims black segments, ignores multiplier', () {
       final dims = modifier('onlyWhite').dims!;
       for (final s in wcBlackSegments) {
-        expect(dims(s), isTrue, reason: 'black segment $s should be dimmed');
+        expect(dims(s, 1), isTrue, reason: 'black segment $s should be dimmed');
       }
-      expect(dims(1), isFalse); // 1 is white, scores
+      expect(dims(1, 1), isFalse); // 1 is white, scores
     });
 
-    test('divideByThree dims non-multiples', () {
+    test('divideByThree: value-based — T7 (=21) scores, S7 (=7) is dimmed', () {
       final dims = modifier('divideByThree').dims!;
-      for (final s in [3, 6, 9, 12, 15, 18]) {
-        expect(dims(s), isFalse, reason: '$s is a multiple of 3');
+      expect(dims(7, 3), isFalse); // T7 = 21, divisible by 3, scores
+      expect(dims(7, 1), isTrue); // S7 = 7, not divisible by 3, dimmed
+      expect(dims(9, 1), isFalse); // S9 = 9, divisible by 3, scores
+      for (final s in [3, 6, 12, 15, 18]) {
+        expect(dims(s, 1), isFalse, reason: '$s is a multiple of 3');
       }
-      expect(dims(20), isTrue);
+      expect(dims(20, 1), isTrue);
     });
 
-    test('upperHalf dims everything outside wcUpperHalf', () {
+    test('upperHalf dims everything outside wcUpperHalf, ignores multiplier',
+        () {
       final dims = modifier('upperHalf').dims!;
       for (final s in wcUpperHalf) {
-        expect(dims(s), isFalse);
+        expect(dims(s, 1), isFalse);
       }
-      expect(dims(10), isTrue); // in lower half
-      expect(dims(6), isTrue); // boundary, dims (not in upper)
+      expect(dims(10, 1), isTrue); // in lower half
+      expect(dims(6, 1), isTrue); // boundary, dims (not in upper)
+      // Ignores the multiplier — position is what matters here.
+      expect(dims(10, 2), dims(10, 1));
     });
 
     test('lowerHalf dims everything outside wcLowerHalf', () {
       final dims = modifier('lowerHalf').dims!;
       for (final s in wcLowerHalf) {
-        expect(dims(s), isFalse);
+        expect(dims(s, 1), isFalse);
       }
-      expect(dims(20), isTrue); // in upper half
-      expect(dims(11), isTrue); // boundary, dims (not in lower)
+      expect(dims(20, 1), isTrue); // in upper half
+      expect(dims(11, 1), isTrue); // boundary, dims (not in lower)
     });
 
     test('leftHalf dims everything outside wcLeftHalf', () {
       final dims = modifier('leftHalf').dims!;
       for (final s in wcLeftHalf) {
-        expect(dims(s), isFalse);
+        expect(dims(s, 1), isFalse);
       }
-      expect(dims(1), isTrue); // in right half
-      expect(dims(20), isTrue); // boundary, dims (not in left)
+      expect(dims(1, 1), isTrue); // in right half
+      expect(dims(20, 1), isTrue); // boundary, dims (not in left)
     });
 
     test('rightHalf dims everything outside wcRightHalf', () {
       final dims = modifier('rightHalf').dims!;
       for (final s in wcRightHalf) {
-        expect(dims(s), isFalse);
+        expect(dims(s, 1), isFalse);
       }
-      expect(dims(19), isTrue); // in left half
-      expect(dims(3), isTrue); // boundary, dims (not in right)
+      expect(dims(19, 1), isTrue); // in left half
+      expect(dims(3, 1), isTrue); // boundary, dims (not in right)
     });
 
     test('non-restriction modifiers have null dims (no board dimming)', () {
@@ -257,7 +272,7 @@ void main() {
     test('modifier chance table matches spec §3', () {
       expect(
         [for (var l = 0; l <= 10; l++) wcModifierChancePct(l)],
-        [0, 10, 10, 25, 25, 45, 45, 70, 70, 100, 100],
+        [0, 5, 5, 15, 15, 30, 30, 50, 50, 80, 80],
       );
     });
 

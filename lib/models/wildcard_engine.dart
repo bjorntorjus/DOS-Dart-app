@@ -251,10 +251,10 @@ class WildcardEngine {
   bool isSkipped(int index) => _skipped.contains(index);
   int get activePlayerCount => totals.length - _skipped.length;
 
-  /// Returns true for segments that do NOT score under the active modifier;
-  /// null while no modifier restricts scoring (open throw or THE WINDOW —
-  /// dimming never applies during a window, spec §4).
-  bool Function(int segment)? get dimPredicate {
+  /// Returns true for a (segment, multiplier) dart that does NOT score under
+  /// the active modifier; null while no modifier restricts scoring (open
+  /// throw or THE WINDOW — dimming never applies during a window, spec §4).
+  bool Function(int segment, int multiplier)? get dimPredicate {
     if (window != null) return null;
     return activeModifier?.dims;
   }
@@ -329,7 +329,9 @@ class WildcardEngine {
       } else {
         points = rawPoints; // 25 (single) or 50 (double), unaffected
       }
-    } else if (segment != 0 && mod?.dims != null && mod!.dims!(segment)) {
+    } else if (segment != 0 &&
+        mod?.dims != null &&
+        mod!.dims!(segment, multiplier)) {
       points = 0; // dimmed restriction hit — alive, but scores nothing
     } else if (mod?.id == 'doubleTrouble' && multiplier == 2) {
       points = segment * 3;
