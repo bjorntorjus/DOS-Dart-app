@@ -500,6 +500,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
+              _log.logExit(gameMode: 'Gotcha');
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(

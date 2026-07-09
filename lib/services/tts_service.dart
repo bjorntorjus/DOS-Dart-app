@@ -23,10 +23,22 @@ class TtsService {
   final Queue<String> _queue = Queue<String>();
   final List<VoidCallback> _idleCallbacks = [];
 
+  // Cap on PENDING (not-yet-speaking) utterances. A 2026-07-09 WILDCARD game
+  // log showed the queue hitting 73 pending entries under rapid scoring —
+  // announcements ended up minutes behind the live game. Capping means the
+  // spoken audio stays close to real time; older, now-stale announcements
+  // are dropped rather than eventually spoken out of context. The utterance
+  // currently being spoken (already handed to the plugin, no longer in
+  // [_queue]) is never touched.
+  static const int _maxPendingQueue = 3;
+
   bool get enabled => _enabled;
 
   @visibleForTesting
   bool get isInitialized => _initialized;
+
+  @visibleForTesting
+  List<String> get pendingQueueForTesting => List<String>.unmodifiable(_queue);
 
   @visibleForTesting
   void resetForTesting() {
@@ -100,6 +112,16 @@ class TtsService {
     if (!_enabled) return;
     GameLogger.instance.logTts(event: 'speak "$text"', queueLength: _queue.length);
     _queue.add(text);
+    // Drop the OLDEST pending utterance(s) once the cap is exceeded. The
+    // active (currently-speaking) utterance is never in [_queue] — it was
+    // already removed by [_playNext] — so this can never cancel in-flight
+    // speech, only stale backlog.
+    while (_queue.length > _maxPendingQueue) {
+      final dropped = _queue.removeFirst();
+      GameLogger.instance.logTts(
+          event: 'queue cap ($_maxPendingQueue) hit — dropping oldest pending "$dropped"',
+          queueLength: _queue.length);
+    }
     if (!_speaking) {
       _playNext();
     }

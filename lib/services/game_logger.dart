@@ -93,6 +93,14 @@ class GameLogger {
     _write('=' * 60);
   }
 
+  /// Marks a user-initiated quit (the "Quit" button in the exit-confirm
+  /// dialog), so a log review can tell an early abort apart from a normal
+  /// [logGameEnd] — round-3 QA found no marker at all for quit-exits.
+  void logExit({required String gameMode}) {
+    if (!isGeneralAllowed) return;
+    _write('EXIT $gameMode (user quit)');
+  }
+
   void logGameEnd({
     required List<String> playerNames,
     required List<int> finishedOrder,

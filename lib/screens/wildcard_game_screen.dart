@@ -757,6 +757,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
+              _log.logExit(gameMode: 'Wildcard');
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
