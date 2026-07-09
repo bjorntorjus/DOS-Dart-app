@@ -1,7 +1,7 @@
 # Gotcha Game Mode — Design Spec
 
 **Date:** 2026-07-07
-**Status:** Approved rules; awaiting visual design (DOSSEDART artboards) before implementation
+**Status:** Implemented (v1 2026-07-08; v1.1 halving/hardcore + chain-gotcha achievements 2026-07-09)
 **Scope:** New game mode "Gotcha" + home screen 3-column grid with coming-soon tiles for Legs and Golf
 
 ---
@@ -17,11 +17,26 @@ This is the first of three new modes (Gotcha → 1UP → Golf), built one at a t
 - All players start at 0. Target score is selectable in setup: **101 / 201 / 301 / 501**, default **301** (same button pattern as X01's 301/501/701).
 - The target must be hit **exactly**. Overshooting is a **bust**: the player's score reverts to what it was at the start of the turn and the turn ends (identical semantics to X01 bust).
 - **No double-out.** Any dart can finish (straight-out). No double-out toggle in v1 (YAGNI).
-- **Kill (per dart):** after each individual dart, if the thrower's new total exactly equals an opponent's total, that opponent is reset to 0. If several opponents share that score, **all of them** are reset.
-  - Players at 0 cannot be killed (resetting 0 to 0 is a no-op; no kill event fires).
+- **Kill (per dart):** after each individual dart, if the thrower's new total exactly equals an opponent's total, that opponent is **gotcha'd**. If several opponents share that score, **all of them** are hit.
+  - **Default (v1.1): the victim's score is HALVED** (integer floor, `~/ 2`; a player on 1 halves to 0 — halving can finish someone off). Reset-to-0 felt too brutal in playtesting (Bjørn 2026-07-08).
+  - **Hardcore (setup toggle): the victim is reset to 0** (the v1 behavior).
+  - Players at 0 cannot be gotcha'd (no-op; no kill event fires).
   - Kills do not affect the thrower's own score.
   - **Kills are final even if the thrower busts later in the same turn.** Bust reverts only the thrower's score; per-dart kills already resolved stand. (Rationale: kills resolve immediately per dart; reverting them on bust would be confusing mid-drama.)
 - **Win:** first player whose total equals the target exactly. Single game in v1 — no legs/sets (consistent with the other non-X01 modes).
+
+### 2.1 Chain gotchas & achievements (v1.1)
+
+Halving makes chain-gotchas possible (a halved victim's new total is landable again — even within the same turn). Four event-based achievements, fired in **both** modes from the engine's event-sourced kill log:
+
+| Achievement | Trigger | Recipient |
+|---|---|---|
+| DOUBLE TAP (gold) | Gotcha the same victim twice in one round | attacker |
+| PIÑATA (silver) | Get gotcha'd twice in the same round (any attackers) | victim |
+| PERSONAL VENDETTA (silver) | Gotcha the same victim two rounds in a row | attacker |
+| CRASH TEST DUMMY (silver) | Get gotcha'd two rounds in a row (any attackers) | victim |
+
+Overlaps are not suppressed (a double tap also earns the victim a PIÑATA); each achievement fires at most once per player per game (one-time unlock semantics are service-side as usual).
 
 ## 3. Tips logic
 
@@ -122,6 +137,7 @@ DOSSEDART cockpit pattern (TopBar · player carousel · dartboard input · Actio
 ## 9. Out of scope (v1)
 
 - Double-out toggle, legs/sets, dedicated kill sound-pack recordings (TTS fallback ok), dedicated winner video, Legs & Golf modes (own specs later).
+- **Parked for v3 (Bjørn 2026-07-08/09, see memory `project_gotcha_v2_feedback.md`):** continue-after-first-winner for multiplayer — remaining players finish, ranking counts darts-to-target (fewest wins on equal totals), and a finished player on the target stays gotcha-able by someone landing the same total on fewer darts (taking over the win). Open rule questions: tie on both total and darts, re-kill of a halved player, interaction with the kill modes.
 
 ## 10. Delivery flow
 
