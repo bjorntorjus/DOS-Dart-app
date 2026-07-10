@@ -1,7 +1,7 @@
 # WILDCARD Game Mode — Design Spec
 
 **Date:** 2026-07-07
-**Status:** Implemented (v1 2026-07-08; v1.1 QA tuning 2026-07-09; v1.2 QA round 3 2026-07-09 — trinity as 5/20/1-restriction w/ coverage bonus, chaos boost 7+, compact chaos+round strip, winner popup removed → scoreboard w/ total score + per-round graph, first-turn announce fix, cursed number stays hidden, TTS queue cap, app renamed DOSSEDART)
+**Status:** Implemented (v1 2026-07-08; v1.1 QA tuning 2026-07-09; v1.2 QA round 3 2026-07-09; v1.3 QA round 4 2026-07-10 — DOUBLE TROUBLE v2 doubles-only ×5 + new TRIPLE THREAT, GIFT targets true last place incl. hitter, FROZEN turn visible in directive+standings, TTS restored per locked spec w/ event outcomes, event/bull/TTS-completion logging)
 **Scope:** New game mode "WILDCARD" — chaos mode. Fourth new mode, built last (Gotcha → 1UP → Golf → **WILDCARD**).
 
 ---
@@ -57,7 +57,8 @@ A modifier applies to **one thrower, one turn**, and is announced (TTS + overlay
 | HOLY TRINITY | v1.2: RESTRICTION — only segments **5, 20 and 1** score (ANY ring: D5=10 counts); everything else (incl. **bull** — the one exception to "bull always scores") dims to 0. Cover all three numbers with the turn's darts → **+100**. Partial hits keep their points. | mild |
 | BULL'S FORTUNE | Bull worth 100 this turn | medium |
 | BULL'S CURSE | Bull drains 100 this turn | medium |
-| DOUBLE TROUBLE | Doubles score triple, triples score **zero** | medium |
+| DOUBLE TROUBLE | v1.3: RESTRICTION — only the **double ring** scores (board dims everything else), and a double pays **segment ×5** (D20 = 100). Bull exempt as usual (25/50 + chaos choice, no ×5). | medium |
+| TRIPLE THREAT | v1.3 (new) — only the **triple ring** scores, and a triple pays **segment ×5** (T20 = 100). Bull exempt. (Named to avoid the X01 achievement 'TREBLE TROUBLE'.) | medium |
 | THE WINDOW | See below | medium |
 
 **THE WINDOW (dynamic):** bounds are randomized on every activation — high (e.g. 80–120), mid (e.g. 40–60), or absurdly low (e.g. 3–9; the theoretical floor with 3 hits is 3 × S1). Higher chaos skews toward narrower/weirder windows. **All 3 darts must hit the board** — a true miss voids the turn (prevents cheesing a low window by deliberately missing). Land the total inside the window → score a flat **100 (WINDOW PRIZE)**; outside → 0. Flat prize keeps every window worth the same — the low ones are just harder and funnier.
@@ -72,8 +73,8 @@ A modifier applies to **one thrower, one turn**, and is announced (TTS + overlay
 | CHAOS SURGE | Meter +3 immediately | mild |
 | SCORE SWAP | Swap totals with a random player | medium |
 | ROBIN HOOD | Steal 50 from the leader | medium |
-| GIFT | The rest of this turn's points go to the player in last place | medium |
-| FREEZE | The current leader scores 0 next round | medium |
+| GIFT | The rest of this turn's points go to the player in last place — **including the hitter** (v1.3: if the hitter IS last, they keep their own points; the old "lowest among others" turned 2-player GIFT into feed-the-leader) | medium |
+| FREEZE | The current leader scores 0 next round. v1.3 UI: the frozen turn shows a 🧊 FROZEN directive ('THIS TURN SCORES 0') + a FROZEN standings chip — the player still throws (meter effects live). | medium |
 | CURSED NUMBER | A new hidden number scores **negative** (−segment value) until someone hits it or the game ends | medium |
 | DOUBLE JEOPARDY | Two jokers on the board next round | wild |
 | CUT! | The round ends immediately — players who haven't thrown lose their turn | wild |
@@ -142,7 +143,7 @@ DOSSEDART cockpit pattern, with WILDCARD specifics:
 
 ## 9. Integrations
 
-- **GameAnnouncer / TTS:** the mode's backbone — modifier announcements pre-turn, joker reveals, WINDOW PRIZE, CUT!/REWIND drama. `assets/sounds/wildcard/`; TTS fallback for everything, dedicated recordings later. MemeService hooks as standard.
+- **GameAnnouncer / TTS (v1.3 — Bjørn's locked spec):** next-player at every turn change; per-dart REGISTERED points spoken (a dimmed T20 says '0', a DOUBLE TROUBLE D20 says '100'); modifier/joker name stings pre-turn; event OUTCOMES spoken with names and amounts ('50 stolen from KARI', 'P and Q swap scores', 'X is frozen next turn'); trinity completion → '1, 20, 5 — plus 100!'; WINDOW PRIZE via the engine bonus signal; CURSED number stays secret ('A number is cursed'). `assets/sounds/wildcard/`; TTS fallback for everything, dedicated recordings later. MemeService hooks as standard. TtsService logs utterance completion (diagnosability).
 - **Stats (StatsRecorder):** games, wins, jokers hit, window prizes, chaos peak, highest turn, points stolen. H2H recorded. **No Elo in v1** — flagged decision: outcomes are deliberately luck-heavy, and rating swings from coin-flip events would pollute ratings earned in the skill modes. Revisit if it feels wrong.
 - **Removed-player handling:** removed-player-wins fix pattern + regression test. Events referencing "the leader"/"last place" resolve against players still in the game.
 - **VideoService:** generic winner video.
@@ -156,6 +157,8 @@ DOSSEDART cockpit pattern, with WILDCARD specifics:
 - REWIND on round 1: round restarts from zero scores for everyone.
 - Two jokers cannot share a number; joker re-roll excludes the number just hit.
 - Bull dialog during BULL'S CURSE: the −100 applies AND the chaos choice still happens (bull control is unconditional).
+- Bull under DOUBLE TROUBLE / TRIPLE THREAT (v1.3): scores normally (25/50, no ×5) and the chaos choice fires — bull is its own lever; only HOLY TRINITY dims it.
+- GIFT self-gift (v1.3): the hitter being last place makes the redirect a no-op — points bank normally, exactly once.
 - Bull under HOLY TRINITY (v1.2): scores **0** and never counts toward coverage — the one exception to "bull always scores under restrictions" — but the chaos ±choice STILL fires (bull control is unconditional). The board dims the bull rings during trinity so the exception is visible.
 - Meter clamps at 0 and 10; changes beyond the clamp are discarded.
 - Undo re-hides revealed jokers and restores the meter, swapped scores, and rewound rounds.
