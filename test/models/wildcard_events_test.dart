@@ -62,6 +62,7 @@ void main() {
         'bullsFortune',
         'bullsCurse',
         'doubleTrouble',
+        'tripleThreat',
         'theWindow',
       ]);
     });
@@ -83,6 +84,7 @@ void main() {
       expect(byId['bullsFortune'], "BULL'S FORTUNE");
       expect(byId['bullsCurse'], "BULL'S CURSE");
       expect(byId['doubleTrouble'], 'DOUBLE TROUBLE');
+      expect(byId['tripleThreat'], 'TRIPLE THREAT');
       expect(byId['theWindow'], 'THE WINDOW');
     });
 
@@ -104,7 +106,13 @@ void main() {
       ]) {
         expect(byId[id], WcSeverity.mild, reason: id);
       }
-      for (final id in ['bullsFortune', 'bullsCurse', 'doubleTrouble', 'theWindow']) {
+      for (final id in [
+        'bullsFortune',
+        'bullsCurse',
+        'doubleTrouble',
+        'tripleThreat',
+        'theWindow',
+      ]) {
         expect(byId[id], WcSeverity.medium, reason: id);
       }
     });
@@ -112,6 +120,12 @@ void main() {
     test('holyTrinity desc is the literal restriction text', () {
       final byId = {for (final m in wcModifiers) m.id: m.desc};
       expect(byId['holyTrinity'], 'Only 5, 20 and 1 score — hit all three for +100');
+    });
+
+    test('doubleTrouble/tripleThreat descs are the literal ×5 restriction text', () {
+      final byId = {for (final m in wcModifiers) m.id: m.desc};
+      expect(byId['doubleTrouble'], 'Only doubles score — and they pay ×5');
+      expect(byId['tripleThreat'], 'Only triples score — and they pay ×5');
     });
 
     test('bullScores is true for all modifiers per locked rules', () {
@@ -209,11 +223,29 @@ void main() {
         'goldenDart',
         'bullsFortune',
         'bullsCurse',
-        'doubleTrouble',
         'theWindow',
       ]) {
         expect(modifier(id).dims, isNull, reason: id);
       }
+    });
+
+    test(
+        'doubleTrouble (v2): ring-based dims — ONLY the double ring scores, '
+        'any segment', () {
+      final dims = modifier('doubleTrouble').dims!;
+      expect(dims(20, 1), isTrue); // S20 dimmed — not a double
+      expect(dims(20, 2), isFalse); // D20 scores — the double ring
+      expect(dims(7, 2), isFalse); // D7 scores too — ring-based, any segment
+      expect(dims(20, 3), isTrue); // T20 dimmed — not a double
+    });
+
+    test(
+        'tripleThreat: ring-based dims — ONLY the triple ring scores, '
+        'any segment', () {
+      final dims = modifier('tripleThreat').dims!;
+      expect(dims(20, 3), isFalse); // T20 scores — the triple ring
+      expect(dims(20, 2), isTrue); // D20 dimmed — not a triple
+      expect(dims(7, 3), isFalse); // T7 scores too — ring-based, any segment
     });
 
     test(

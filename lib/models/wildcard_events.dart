@@ -265,13 +265,45 @@ const bullsCurse = WcModifierDef(
   severity: WcSeverity.medium,
 );
 
+// DOUBLE TROUBLE v2 (QA round 4): only the double ring scores — dims every
+// (segment, multiplier) pair where the ring isn't a double, ANY segment
+// 1-20. This is a new dims flavor (ring-based rather than value- or
+// position-based), which the per-ring board dimming already supports
+// (band-level predicates operate on the multiplier same as any other dims
+// consumer). Bull is NEVER consulted through [dims] here — same blanket
+// bull-exemption every modifier gets except HOLY TRINITY (see the comment
+// on [holyTrinity] and the `mod.id == 'holyTrinity'` check in
+// wildcard_engine.dart's `applyDart`); the engine keeps bull's own ±100
+// FORTUNE/CURSE lever and its D-Bull payout independent of this dims
+// predicate. The surviving double's ×5 payout (D20 = 100) is an engine-side
+// value transform (next task) — this def only declares the restriction.
 const doubleTrouble = WcModifierDef(
   id: 'doubleTrouble',
   name: 'DOUBLE TROUBLE',
   icon: '🎭',
-  desc: 'Doubles score triple, triples score zero',
+  desc: 'Only doubles score — and they pay ×5',
   severity: WcSeverity.medium,
+  dims: _dimsNonDouble,
 );
+bool _dimsNonDouble(int _, int m) => m != 2;
+
+// TRIPLE THREAT (QA round 4 sibling to DOUBLE TROUBLE v2): only the triple
+// ring scores — same ring-based dims flavor, mirrored for m == 3. Bull is
+// likewise never consulted through [dims] (blanket bull-exemption, see the
+// comment on [doubleTrouble] above and on [holyTrinity]). The surviving
+// triple's ×5 payout (T20 = 100) is an engine-side value transform (next
+// task) — this def only declares the restriction. Named TRIPLE THREAT
+// (not TREBLE TROUBLE) to avoid colliding with the existing X01 achievement
+// name.
+const tripleThreat = WcModifierDef(
+  id: 'tripleThreat',
+  name: 'TRIPLE THREAT',
+  icon: '⚡',
+  desc: 'Only triples score — and they pay ×5',
+  severity: WcSeverity.medium,
+  dims: _dimsNonTriple,
+);
+bool _dimsNonTriple(int _, int m) => m != 3;
 
 const theWindow = WcModifierDef(
   id: 'theWindow',
@@ -281,7 +313,7 @@ const theWindow = WcModifierDef(
   severity: WcSeverity.medium,
 );
 
-/// All 16 turn-modifiers, exact ids per the implementation plan.
+/// All 17 turn-modifiers, exact ids per the implementation plan.
 const wcModifiers = <WcModifierDef>[
   onlyEvens,
   onlyOdds,
@@ -298,6 +330,7 @@ const wcModifiers = <WcModifierDef>[
   bullsFortune,
   bullsCurse,
   doubleTrouble,
+  tripleThreat,
   theWindow,
 ];
 
