@@ -409,8 +409,21 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         _announcer.announceChaos('Rewind!');
       case 'cursedNumber':
         _announcer.announceChaos('A number is cursed');
-      case 'gift':
       case 'robinHood':
+        final res = engine.lastEventResolution;
+        if (res != null) {
+          // Extract stolen amount and victim index from detail like 'STEAL 50 · P1 100 → 50'
+          final match = RegExp(r'STEAL (\d+) · P(\d+)').firstMatch(res.detail);
+          if (match != null) {
+            final stolen = match.group(1) ?? '';
+            final victimIdx = int.tryParse(match.group(2) ?? '');
+            if (victimIdx != null && victimIdx >= 0 && victimIdx < players.length) {
+              final victimName = players[victimIdx].name.toUpperCase();
+              _announcer.announceChaos('$stolen stolen from $victimName');
+            }
+          }
+        }
+      case 'gift':
       case 'scoreSwap':
       case 'freeze':
       case 'chaosSurge':
