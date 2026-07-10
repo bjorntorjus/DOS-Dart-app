@@ -279,30 +279,75 @@ void main() {
     });
 
     test(
-        "DOUBLE TROUBLE: D20 scores 60 (meter +1, new double-ring lever), "
-        "T20 scores 0 (meter +2, triple tuning)", () {
+        'DOUBLE TROUBLE v2 (QA round 4): D20 scores 100 (20x5, meter +1, '
+        'the double-ring lever), T20 dims to 0 (only doubles score; meter '
+        '+2 triple tuning still applies)', () {
       final e = plain()..debugForceModifier('doubleTrouble');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
       e.applyDart(1, 1); // P0 banks; P1's turn rolls doubleTrouble
       expect(e.activeModifier?.id, 'doubleTrouble');
-      final r1 = e.applyDart(20, 2); // D20 -> 20*3
-      expect(r1.points, 60);
+      final r1 = e.applyDart(20, 2); // D20 -> 20*5 (was x3 pre-QA4)
+      expect(r1.points, 100);
       expect(r1.meterDelta, 1); // double-ring: +1 (new)
-      final r2 = e.applyDart(20, 3); // T20 -> 0, meter still reacts
+      final r2 = e.applyDart(20, 3); // T20 -> dimmed to 0, meter still reacts
       expect(r2.points, 0);
       expect(r2.meterDelta, 2); // triple: +2 (was +1)
     });
 
-    test('DOUBLE TROUBLE: D-Bull scores 75 (25 x 3)', () {
+    test(
+        'DOUBLE TROUBLE v2: S20 (single ring) also dims to 0 — only the '
+        'double ring scores', () {
+      final e = plain()..debugForceModifier('doubleTrouble');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls doubleTrouble
+      final r = e.applyDart(20, 1); // S20, dimmed
+      expect(r.points, 0);
+    });
+
+    test(
+        'DOUBLE TROUBLE v2: bull is exempt from the x5 payout — D-Bull '
+        'still scores a plain 50 (was x3 = 75 pre-QA4), only the meter '
+        'choice mechanic applies', () {
       final e = plain()..debugForceModifier('doubleTrouble');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
       e.applyDart(1, 1); // P0 banks; P1's turn rolls doubleTrouble
       final r = e.applyDart(25, 2); // D-Bull
-      expect(r.points, 75);
+      expect(r.points, 50); // exempt: plain double-bull value, no x5/x3
       expect(r.needsBullChoice, isTrue);
       expect(r.bullChoiceMagnitude, 3);
+    });
+
+    test(
+        'TRIPLE THREAT (QA round 4, DT\'s sibling): T20 scores 100 (20x5, '
+        'meter +2), D20 dims to 0 (only triples score; meter +1 still '
+        'applies)', () {
+      final e = plain()..debugForceModifier('tripleThreat');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls tripleThreat
+      expect(e.activeModifier?.id, 'tripleThreat');
+      final r1 = e.applyDart(20, 3); // T20 -> 20*5
+      expect(r1.points, 100);
+      expect(r1.meterDelta, 2); // triple: +2
+      final r2 = e.applyDart(20, 2); // D20 -> dimmed to 0
+      expect(r2.points, 0);
+      expect(r2.meterDelta, 1); // double-ring: +1 still applies
+    });
+
+    test(
+        'TRIPLE THREAT: bull is exempt from the x5 payout — S-Bull scores '
+        'a plain 25', () {
+      final e = plain()..debugForceModifier('tripleThreat');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls tripleThreat
+      final r = e.applyDart(25, 1); // single bull
+      expect(r.points, 25);
+      expect(r.needsBullChoice, isTrue);
+      expect(r.bullChoiceMagnitude, 1);
     });
 
     test('GOLDEN DART: third dart of the turn triples', () {
@@ -840,7 +885,7 @@ void main() {
       e.debugForceEvent('chaosSurge');
       e.applyDart(1, 1);
       expect(e.chaos, 8); // 3 + 2 (joker) + 3 (surge)
-      expect(e.lastEventResolution?.detail, 'CHAOS +3');
+      expect(e.lastEventResolution?.detail, 'Chaos +3');
     });
 
     test('CHAOS SURGE: clamped at 10 near the cap', () {
@@ -850,7 +895,7 @@ void main() {
       e.debugForceEvent('chaosSurge');
       e.applyDart(1, 1); // joker: 9 -> 10 (clamped, +1 applied); surge: 10 -> 10 (+0)
       expect(e.chaos, 10);
-      expect(e.lastEventResolution?.detail, 'CHAOS +0');
+      expect(e.lastEventResolution?.detail, 'Chaos +0');
     });
 
     test(
@@ -866,7 +911,7 @@ void main() {
       final r = e.applyDart(1, 1); // P0 (hitter) hits the joker
       expect(r.jokerHit, 1);
       expect(e.totals, [40, 100, 10]); // P0 <-> P1 (the rng-picked other)
-      expect(e.lastEventResolution?.detail, 'SWAP · P0 100 ↔ P1 40');
+      expect(e.lastEventResolution?.detail, 'P0 and P1 swap scores');
       expect(e.lastEventResolution?.flags, [
         (playerIndex: 0, flagText: '-60 SWAP', good: false),
         (playerIndex: 1, flagText: '+60 SWAP', good: true),
@@ -907,23 +952,60 @@ void main() {
     });
 
     test(
-        'GIFT: the triggering dart\'s points plus the remaining darts of the '
-        'turn credit last place instead of the thrower', () {
+        'GIFT (fixed QA round 4): 3-player, hitter is NOT last — the '
+        'triggering dart\'s points plus the remaining darts of the turn '
+        'credit the true lowest total (hitter included in the comparison, '
+        'but not the target here)', () {
       final e = WildcardEngine(
           playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
-      e.totals[2] = 5; // last place among P1/P2 (P1 stays at 0... use P1=300)
+      e.totals[0] = 50; // hitter — clearly not last
       e.totals[1] = 300;
+      e.totals[2] = 5; // true lowest among all 3, hitter included
       expect(e.jokers, {1});
       e.applyDart(2, 1); // dart 1 (not the joker): 2 points, pre-gift
       e.debugForceEvent('gift');
       final d2 = e.applyDart(1, 1); // dart 2 hits the joker: +1, triggers GIFT
       expect(d2.jokerHit, 1);
-      expect(e.lastEventResolution?.detail, 'GIFT · rest of turn to P2');
+      expect(e.lastEventResolution?.detail, 'Rest of the turn goes to P2');
       final d3 = e.applyDart(7, 1); // dart 3: +7, all of it redirected
       expect(d3.turnEnded, isTrue);
-      // Thrower banks only the pre-gift 2; P2 gets the gift joker dart (1)
-      // plus the remaining dart (7) = 8.
-      expect(e.totals, [2, 300, 13]);
+      // Thrower banks only the pre-gift 2 (on top of its starting 50); P2
+      // gets the gift joker dart (1) plus the remaining dart (7) = 8.
+      expect(e.totals, [52, 300, 13]);
+    });
+
+    test(
+        'GIFT (log-diagnosed 2-player bug, fixed QA round 4): hitter is '
+        'already in last place — the redirect targets the hitter itself '
+        '(self-gift, a documented no-op) and the turn banks NORMALLY '
+        'exactly once: no double-bank, no loss, opponent untouched', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[1] = 300; // P1 leads; hitter P0 stays lowest, incl. itself
+      expect(e.jokers, {1});
+      e.applyDart(2, 1); // dart 1 (not the joker): 2 points, pre-gift
+      e.debugForceEvent('gift');
+      final d2 = e.applyDart(1, 1); // dart 2 hits the joker: +1, triggers GIFT
+      expect(d2.jokerHit, 1);
+      expect(e.lastEventResolution?.detail, 'Rest of the turn goes to P0');
+      final d3 = e.applyDart(7, 1); // dart 3: +7
+      expect(d3.turnEnded, isTrue);
+      // Self-redirect: the whole 2+1+7=10 banks to P0 exactly once.
+      expect(e.totals, [10, 300]);
+    });
+
+    test(
+        'GIFT: 3-player tie for last place (excluding the hitter, who leads) '
+        'resolves to the earliest seat', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 50; // hitter, clearly not last
+      e.totals[1] = 5;
+      e.totals[2] = 5; // tied for last with P1
+      expect(e.jokers, {1});
+      e.debugForceEvent('gift');
+      e.applyDart(1, 1); // hits the joker -> GIFT
+      expect(e.lastEventResolution?.detail, 'Rest of the turn goes to P1');
     });
 
     test('FREEZE: flags the current leader (hitter included, tie -> '
@@ -936,7 +1018,8 @@ void main() {
       e.debugForceEvent('freeze');
       e.applyDart(1, 1);
       expect(e.frozenPlayer, 1);
-      expect(e.lastEventResolution?.detail, 'FREEZE · P1');
+      expect(e.lastEventResolution?.detail,
+          'P1 is frozen — their next turn scores 0');
     });
 
     test('FREEZE: ties resolve to the earliest seat, hitter included', () {
@@ -974,6 +1057,7 @@ void main() {
       e.debugForceEvent('doubleJeopardy');
       e.applyDart(1, 1); // hits the joker, fires DOUBLE JEOPARDY, re-rolls
       expect(e.jokers, {18}); // the usual per-hit reroll still happens
+      expect(e.lastEventResolution?.detail, '2 jokers next round');
       e.applyDart(1, 1);
       e.applyDart(1, 1); // P0 banks; round is still 1
       expect(e.round, 1);
@@ -984,6 +1068,69 @@ void main() {
       e.applyDart(1, 1); // P1 banks -> round 2 rolls over
       expect(e.round, 2);
       expect(e.jokers, {7, 19}); // forced to 2, not wcJokerCount(chaos)==1
+    });
+  });
+
+  group('WildcardEngine lastBankedBonusKind (trinity/window outcome signal)',
+      () {
+    test('HOLY TRINITY completion sets lastBankedBonusKind to trinity', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      expect(e.lastBankedBonusKind, isNull);
+      e.applyDart(5, 1);
+      e.applyDart(20, 1);
+      e.applyDart(1, 1); // completes the trinity -> +100
+      expect(e.lastBankedBonusKind, WcBonusKind.trinity);
+    });
+
+    test('THE WINDOW prize sets lastBankedBonusKind to window', () {
+      final e = plain()..debugForceModifier('theWindow');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls theWindow
+      e.window = (lo: 40, hi: 60);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // total 60, inside [40, 60] -> flat 100
+      expect(e.lastBankedBonusKind, WcBonusKind.window);
+    });
+
+    test('a non-bonus bank leaves lastBankedBonusKind null', () {
+      final e = plain();
+      e.applyDart(5, 1);
+      e.applyDart(5, 1);
+      e.applyDart(5, 1); // plain bank, no bonus
+      expect(e.lastBankedBonusKind, isNull);
+    });
+
+    test(
+        "lastBankedBonusKind clears at the start of the NEXT player's first "
+        'dart', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(5, 1);
+      e.applyDart(20, 1);
+      e.applyDart(1, 1); // P1 completes trinity -> bonus set
+      expect(e.lastBankedBonusKind, WcBonusKind.trinity);
+      e.applyDart(5, 1); // P2's first dart of the new turn
+      expect(e.lastBankedBonusKind, isNull);
+    });
+
+    test('undo restores lastBankedBonusKind (snapshot-safe)', () {
+      final e = plain()..debugForceModifier('holyTrinity');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls holyTrinity
+      e.applyDart(5, 1);
+      e.applyDart(20, 1);
+      e.applyDart(1, 1); // completes the trinity
+      expect(e.lastBankedBonusKind, WcBonusKind.trinity);
+      e.undo(); // undoes the trinity-completing dart itself
+      expect(e.lastBankedBonusKind, isNull);
     });
   });
 
@@ -1128,6 +1275,7 @@ void main() {
         'thrower normally', () {
       final e = WildcardEngine(
           playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 50; // hitter — not last, so the gift has a real target
       e.totals[2] = 5;
       e.applyDart(2, 1); // dart 1: 2 points
       e.debugForceEvent('gift');
@@ -1137,7 +1285,7 @@ void main() {
       e.debugForceEvent('chaosSurge'); // replay dart 2 without GIFT this time
       e.applyDart(1, 1);
       e.applyDart(7, 1); // dart 3 banks
-      expect(e.totals, [10, 0, 5]); // all of it stays with P0, P2 untouched
+      expect(e.totals, [60, 0, 5]); // all of it stays with P0, P2 untouched
     });
 
     test(

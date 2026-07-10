@@ -94,6 +94,7 @@ class _WcUndoEntry {
   final int? giftTargetIndex;
   final int giftBaselinePoints;
   final WcEventResolution? lastEventResolution;
+  final WcBonusKind? lastBankedBonusKind;
 
   _WcUndoEntry({
     required this.totals,
@@ -125,6 +126,7 @@ class _WcUndoEntry {
     required this.giftTargetIndex,
     required this.giftBaselinePoints,
     required this.lastEventResolution,
+    required this.lastBankedBonusKind,
   });
 }
 
@@ -141,6 +143,12 @@ typedef WcEventResolution = ({
   String detail,
   List<WcEventFlag> flags,
 });
+
+/// Which +100 coverage/prize bonus the just-banked turn included, or null.
+/// Drives the screen's outcome announcement ('1, 20, 5 — plus 100!' for
+/// trinity; the existing WINDOW prize line otherwise) — see
+/// [WildcardEngine.lastBankedBonusKind].
+enum WcBonusKind { trinity, window }
 
 class WildcardEngine {
   final int rounds;
@@ -222,6 +230,16 @@ class WildcardEngine {
   /// The most recently resolved instant event, or null. Cleared at the start
   /// of every [applyDart] call.
   WcEventResolution? lastEventResolution;
+
+  /// Set at banking time when the just-completed turn included a HOLY
+  /// TRINITY coverage bonus or a THE WINDOW prize (both +100), so the
+  /// screen can announce the outcome distinctly ('1, 20, 5 — plus 100!' for
+  /// trinity). Null for every other bank (including a GIFT redirect, which
+  /// bypasses [_computeBankedAmount] entirely). Cleared at the start of the
+  /// NEXT [applyDart] call — mirrors [lastEventResolution] — so it survives
+  /// exactly until the next dart is thrown (by any player). Snapshotted for
+  /// undo like every other mutable field.
+  WcBonusKind? lastBankedBonusKind;
 
   /// Scores 0 on their next turn: every dart banks 0 points, but meter/bull
   /// effects still fire and the thrower rolls no [activeModifier] (locked
@@ -348,27 +366,32 @@ class WildcardEngine {
 
     _pushUndo();
     lastEventResolution = null; // cleared at the start of every dart
+    lastBankedBonusKind = null; // cleared at the start of every dart
 
     final mod = activeModifier;
     final frozenTurn = frozenPlayer == currentPlayerIndex;
     final rawPoints = segment * multiplier;
     final turnPointsBeforeDart = turnPoints;
 
-    // Per-dart scoring transform, per the locked interpretations (§4):
-    // freeze zeroes everything; bull always scores (FORTUNE/CURSE replace
-    // its points with a flat ±100; DOUBLE TROUBLE's ×3 still applies to a
-    // double bull) — EXCEPT under HOLY TRINITY, the one modifier where bull
-    // does NOT score (spec §4/§10, locked with Bjørn): trinity is about
-    // exactly three numbers, so bull is deliberately excluded from the
-    // blanket bull-exemption below and falls through to the dims check
-    // instead, which zeroes it like any other non-{20,5,1} segment. This is
-    // a hardcoded id check, not a generic "consult dims for bull" rule,
-    // because a VALUE-based restriction (e.g. ONLY EVENS) would otherwise
-    // wrongly dim bull too — 25 is odd. Do not genericize this.
+    // Per-dart scoring transform, per the locked interpretations (§4, QA
+    // round 4): freeze zeroes everything; bull always scores its plain
+    // 25/50 (FORTUNE/CURSE replace it with a flat ±100) — EXCEPT under HOLY
+    // TRINITY, the one modifier where bull does NOT score (spec §4/§10,
+    // locked with Bjørn): trinity is about exactly three numbers, so bull is
+    // deliberately excluded from the blanket bull-exemption below and falls
+    // through to the dims check instead, which zeroes it like any other
+    // non-{20,5,1} segment. This is a hardcoded id check, not a generic
+    // "consult dims for bull" rule, because a VALUE-based restriction (e.g.
+    // ONLY EVENS) would otherwise wrongly dim bull too — 25 is odd. Do not
+    // genericize this. DOUBLE TROUBLE v2/TRIPLE THREAT do NOT touch bull
+    // either — bull keeps its own ±1/±3 meter lever and plain 25/50 payout
+    // under both (QA round 4: no more ×3 D-Bull special case).
     // Restriction dims otherwise zero a non-bull dart on a dimmed segment;
-    // DOUBLE TROUBLE otherwise turns doubles into ×3 and triples into 0;
-    // everything else scores normally. GOLDEN DART then triples whatever
-    // the 3rd dart came out to.
+    // DOUBLE TROUBLE v2/TRIPLE THREAT then pay ×5 on the one surviving ring
+    // (D20/T20 = 100) — the OTHER ring is already zeroed by dims above, so
+    // these branches only ever see the ring that dims let through; everything
+    // else scores normally. GOLDEN DART then triples whatever the 3rd dart
+    // came out to.
     int points;
     if (frozenTurn) {
       points = 0;
@@ -377,19 +400,17 @@ class WildcardEngine {
         points = 100;
       } else if (mod?.id == 'bullsCurse') {
         points = -100;
-      } else if (mod?.id == 'doubleTrouble' && multiplier == 2) {
-        points = segment * 3; // D-Bull under DOUBLE TROUBLE: 75
       } else {
-        points = rawPoints; // 25 (single) or 50 (double), unaffected
+        points = rawPoints; // 25 (single) or 50 (double) — DT/TT exempt too
       }
     } else if (segment != 0 &&
         mod?.dims != null &&
         mod!.dims!(segment, multiplier)) {
       points = 0; // dimmed restriction hit — alive, but scores nothing
     } else if (mod?.id == 'doubleTrouble' && multiplier == 2) {
-      points = segment * 3;
-    } else if (mod?.id == 'doubleTrouble' && multiplier == 3) {
-      points = 0;
+      points = segment * 5; // surviving double under DT v2 (D20 = 100)
+    } else if (mod?.id == 'tripleThreat' && multiplier == 3) {
+      points = segment * 5; // surviving triple under TRIPLE THREAT (T20 = 100)
     } else {
       points = rawPoints;
     }
@@ -526,6 +547,7 @@ class WildcardEngine {
         final w = window!;
         if (turnPoints >= w.lo && turnPoints <= w.hi) {
           windowPrizes[currentPlayerIndex]++;
+          lastBankedBonusKind = WcBonusKind.window;
           return 100;
         }
         return 0;
@@ -534,6 +556,7 @@ class WildcardEngine {
       case 'holyTrinity':
         final segs = turnDarts.map((d) => d.segment).toSet();
         if (segs.containsAll(const {20, 5, 1})) {
+          lastBankedBonusKind = WcBonusKind.trinity;
           return turnPoints + 100;
         }
         return turnPoints;
@@ -548,14 +571,22 @@ class WildcardEngine {
   /// guillotined mid-turn), which both call this then handle rotation
   /// themselves.
   ///
-  /// GIFT redirect (locked interpretation #10): when [_giftTargetIndex] is
-  /// set, everything from the triggering dart onward ([_giftBaselinePoints]
-  /// through the raw [turnPoints]) is a "gift share" credited to that player
-  /// instead — floor 0 on both the thrower's remaining share and the gift
-  /// share. This bypasses the whole-turn modifier transforms below
+  /// GIFT redirect (locked interpretation #10, fixed QA round 4): when
+  /// [_giftTargetIndex] is set AND differs from the thrower, everything from
+  /// the triggering dart onward ([_giftBaselinePoints] through the raw
+  /// [turnPoints]) is a "gift share" credited to that player instead — floor
+  /// 0 on both the thrower's remaining share and the gift share. This
+  /// bypasses the whole-turn modifier transforms below
   /// ([_computeBankedAmount]) deliberately: GIFT is a raw-points redirect,
   /// not a re-run of the turn-total math (no test exercises GIFT stacked
   /// with a restriction/multiplier modifier in the same turn).
+  ///
+  /// When the target IS the thrower (the hitter was already in last place —
+  /// the GIFT fix's self-redirect case), this is a documented no-op: the
+  /// split above is skipped entirely and the turn banks through the exact
+  /// same [_computeBankedAmount] path as a no-gift turn, so the points are
+  /// credited exactly once (no double-bank via the split's two additions,
+  /// no loss from flooring each half separately).
   void _bankCurrentTurn() {
     // Cooldown (spec §4 tuning): a modifier assigned this turn (rolled or
     // forced) puts this player's NEXT turn on cooldown — see
@@ -566,7 +597,7 @@ class WildcardEngine {
     }
     final giftTarget = _giftTargetIndex;
     int bankedAmount;
-    if (giftTarget != null) {
+    if (giftTarget != null && giftTarget != currentPlayerIndex) {
       final throwerShare = math.max(0, _giftBaselinePoints);
       final giftShare = math.max(0, turnPoints - _giftBaselinePoints);
       bankedAmount = throwerShare;
@@ -791,7 +822,7 @@ class WildcardEngine {
       case 'chaosSurge':
         final applied = _applyMeterChange(3);
         lastEventResolution =
-            (event: event, detail: 'CHAOS +$applied', flags: <WcEventFlag>[]);
+            (event: event, detail: 'Chaos +$applied', flags: <WcEventFlag>[]);
         return false;
 
       case 'scoreSwap':
@@ -810,7 +841,7 @@ class WildcardEngine {
         final otherDelta = a - b;
         lastEventResolution = (
           event: event,
-          detail: 'SWAP · P$hitter $a ↔ P$other $b',
+          detail: 'P$hitter and P$other swap scores',
           flags: <WcEventFlag>[
             (
               playerIndex: hitter,
@@ -855,18 +886,19 @@ class WildcardEngine {
         return false;
 
       case 'gift':
-        final others = _livingOthers(hitter);
-        if (others.isEmpty) {
-          lastEventResolution =
-              (event: event, detail: 'GIFT · no target', flags: <WcEventFlag>[]);
-          return false;
-        }
-        final target = _lowestAmong(others);
+        // Locked GIFT fix (QA round 4, log-diagnosed 2-player bug): the
+        // target is whoever has the LOWEST total INCLUDING the hitter
+        // (tie -> earliest seat, via _lowestAmong's left-to-right scan) —
+        // not "lowest among the OTHERS", which handed a 2-player GIFT to
+        // the leader whenever the hitter itself was already in last place.
+        // If the hitter IS last, the redirect target is the hitter: a
+        // no-op self-gift that must bank normally (see _bankCurrentTurn).
+        final target = _lowestAmong(_livingIncluding(hitter));
         _giftTargetIndex = target;
         _giftBaselinePoints = turnPointsBeforeDart;
         lastEventResolution = (
           event: event,
-          detail: 'GIFT · rest of turn to P$target',
+          detail: 'Rest of the turn goes to P$target',
           flags: <WcEventFlag>[],
         );
         return false;
@@ -877,7 +909,7 @@ class WildcardEngine {
         frozenPlayer = leader;
         lastEventResolution = (
           event: event,
-          detail: 'FREEZE · P$leader',
+          detail: 'P$leader is frozen — their next turn scores 0',
           flags: <WcEventFlag>[],
         );
         return false;
@@ -898,7 +930,7 @@ class WildcardEngine {
         _doubleJeopardyPending = true;
         lastEventResolution = (
           event: event,
-          detail: 'DOUBLE JEOPARDY · 2 jokers next round',
+          detail: '2 jokers next round',
           flags: <WcEventFlag>[],
         );
         return false;
@@ -993,6 +1025,7 @@ class WildcardEngine {
       giftTargetIndex: _giftTargetIndex,
       giftBaselinePoints: _giftBaselinePoints,
       lastEventResolution: lastEventResolution,
+      lastBankedBonusKind: lastBankedBonusKind,
     ));
   }
 
@@ -1028,6 +1061,7 @@ class WildcardEngine {
     _giftTargetIndex = e.giftTargetIndex;
     _giftBaselinePoints = e.giftBaselinePoints;
     lastEventResolution = e.lastEventResolution;
+    lastBankedBonusKind = e.lastBankedBonusKind;
   }
 
   void clearUndoStack() => _undoStack.clear();
