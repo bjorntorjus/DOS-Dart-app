@@ -1097,6 +1097,26 @@ void main() {
       expect(e.lastBankedBonusKind, WcBonusKind.window);
     });
 
+    test(
+        'THE WINDOW: a deferred bull (3rd dart) defers the bank until '
+        'resolveBullChoice, and still sets lastBankedBonusKind to window '
+        'when the total including the bull lands inside the bounds', () {
+      final e = plain(players: 2)..debugForceModifier('theWindow');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks; P1's turn rolls theWindow
+      e.window = (lo: 40, hi: 60); // deterministic override for the test
+      e.applyDart(15, 1);
+      e.applyDart(15, 1); // 30 so far
+      final r = e.applyDart(25, 1); // single bull: +25 -> total 55
+      expect(r.needsBullChoice, isTrue);
+      expect(r.turnEnded, isFalse); // bank deferred until the choice resolves
+      expect(e.lastBankedBonusKind, isNull); // not banked yet
+      e.resolveBullChoice(1);
+      expect(e.totals[1], 100); // 55 is inside [40, 60] -> flat 100
+      expect(e.lastBankedBonusKind, WcBonusKind.window);
+    });
+
     test('a non-bonus bank leaves lastBankedBonusKind null', () {
       final e = plain();
       e.applyDart(5, 1);

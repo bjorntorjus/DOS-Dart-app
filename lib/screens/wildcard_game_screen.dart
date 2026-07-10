@@ -428,7 +428,13 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       case 'freeze':
       case 'chaosSurge':
         final detail = engine.lastEventResolution?.detail;
-        if (detail != null) _announcer.announceChaos(_mapEventDetail(detail));
+        if (detail != null) {
+          // '+' is vocalized inconsistently across TTS engines — spell it out
+          // for speech only; the dialog (which reuses _mapEventDetail on the
+          // raw detail separately) keeps the glyph.
+          final spoken = _mapEventDetail(detail).replaceAll('+', 'plus ');
+          _announcer.announceChaos(spoken);
+        }
       default:
         break;
     }
