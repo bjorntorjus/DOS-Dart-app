@@ -263,6 +263,30 @@ class GameLogger {
     _write('TTS $event$q');
   }
 
+  // ─── WILDCARD diagnostics ───────────────────────────────────
+
+  /// A turn-modifier was rolled (or force-set) for the player about to
+  /// throw — style-matched to [logThrow]/[logAdvance]'s `P<i>` convention.
+  void logModifier({required String name, required int playerIndex}) {
+    if (!isGeneralAllowed) return;
+    _write('MODIFIER $name for P$playerIndex');
+  }
+
+  /// An instant event resolved. [detail] is the engine's raw (index-based)
+  /// detail string — kept unmapped here so the log stays useful even when
+  /// the screen-side name substitution changes.
+  void logEvent({required String name, required String detail}) {
+    if (!isGeneralAllowed) return;
+    _write('EVENT $name $detail');
+  }
+
+  /// A bull-choice dialog resolved with the given signed meter [delta]
+  /// (e.g. +3 or -1).
+  void logBullChoice({required int delta}) {
+    if (!isGeneralAllowed) return;
+    _write('BULL_CHOICE ${delta >= 0 ? '+' : ''}$delta');
+  }
+
   // ─── Errors ─────────────────────────────────────────────────
 
   void logError(String message, [Object? error, StackTrace? stack]) {

@@ -8,6 +8,7 @@ import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/models/wildcard_events.dart';
 import 'package:dart_scoring/screens/wildcard_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
+import 'package:dart_scoring/theme/dossedart_tokens.dart';
 import 'package:dart_scoring/widgets/dossedart/wildcard/dossedart_wildcard_scorecard.dart';
 import 'package:dart_scoring/widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 
@@ -543,5 +544,200 @@ void main() {
     // surface's available height, so the board renders at (near) its full
     // width-class size rather than being height-clamped.
     expect(side, closeTo(820 - 28, 2));
+  });
+
+  // QA round 4: FROZEN precedence + standings chip (log-diagnosed bug — a
+  // frozen player saw 'OPEN THROW · SCORE MAX' while every dart of theirs
+  // scored 0).
+  testWidgets(
+      'FROZEN directive takes precedence over OPEN THROW when frozenPlayer '
+      '== currentPlayerIndex', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    expect(state.engineForTest.currentPlayerIndex, 0);
+    expect(find.text('OPEN THROW · SCORE MAX'), findsOneWidget);
+
+    // White-box: set the field directly (a real freeze requires a joker
+    // hit + forced instant event — this isolates the directive-band logic).
+    state.engineForTest.frozenPlayer = 0;
+    state.maybeAnnounceForTest(); // triggers a setState → rebuild only.
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('FROZEN — THIS TURN SCORES 0'), findsOneWidget);
+    expect(find.text('OPEN THROW · SCORE MAX'), findsNothing);
+    expect(
+        find.text('Darts still count for the meter · thaws next turn'),
+        findsOneWidget);
+  });
+
+  testWidgets(
+      'standings show a cyan FROZEN chip for the frozen seat, distinct from '
+      'the green/red event flags', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    state.engineForTest.frozenPlayer = 1;
+    state.maybeAnnounceForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('FROZEN'), findsOneWidget);
+    final chip = tester.widget<Text>(find.text('FROZEN'));
+    expect(chip.style?.color, DossedartTokens.cyan);
+  });
+
+  testWidgets(
+      'a HOLY TRINITY coverage bonus banks +100 without crashing and '
+      'lastBankedBonusKind is consumed (cleared) by the next dart',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    // Force B's turn modifier to HOLY TRINITY (A's first turn at chaos 0
+    // already rolled none in the constructor).
+    state.engineForTest.debugForceModifier('holyTrinity');
+    state.onDartHitForTest(2, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(2, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(2, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.engineForTest.currentPlayerIndex, 1);
+    expect(state.overlayKindForTest, WcOverlayKind.announce);
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // B covers 20, 5 and 1 in one turn — full trinity coverage.
+    state.onDartHitForTest(20, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(5, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    state.onDartHitForTest(1, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(tester.takeException(), isNull);
+    expect(state.engineForTest.totals[1], 20 + 5 + 1 + 100);
+    expect(state.engineForTest.currentPlayerIndex, 0);
+
+    // A throws the next dart — lastBankedBonusKind must already be cleared
+    // (WildcardEngine.applyDart clears it at the start of every dart).
+    state.onDartHitForTest(2, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.engineForTest.lastBankedBonusKind, isNull);
+  });
+
+  testWidgets(
+      'FREEZE event dialog names the frozen victim and the consequence '
+      '(via the engine\'s richer detail line, names substituted)',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    if (state.overlayKindForTest == WcOverlayKind.announce) {
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty);
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('freeze');
+    state.onDartHitForTest(jokerNumber, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.joker);
+
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.event);
+
+    // Both players are tied at 0 — _highestAmong resolves the tie to the
+    // earliest seat, so the victim is always player A regardless of who
+    // threw the joker.
+    expect(
+        find.text('A is frozen — their next turn scores 0'), findsOneWidget);
+  });
+
+  testWidgets(
+      'smoke: rapid darts through a forced GIFT/ROBIN HOOD/SCORE SWAP/'
+      'CHAOS SURGE event chain do not crash the announce path',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    if (state.overlayKindForTest == WcOverlayKind.announce) {
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    for (final eventId in [
+      'chaosSurge',
+      'scoreSwap',
+      'robinHood',
+      'gift',
+    ]) {
+      final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+      expect(jokers, isNotEmpty);
+      final jokerNumber = jokers.first;
+
+      state.engineForTest.debugForceEvent(eventId);
+      state.onDartHitForTest(jokerNumber, 1);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(state.overlayKindForTest, WcOverlayKind.joker);
+
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(state.overlayKindForTest, WcOverlayKind.event);
+
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+      if (state.overlayKindForTest == WcOverlayKind.announce) {
+        state.dismissOverlayForTest();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    expect(tester.takeException(), isNull);
   });
 }

@@ -20,6 +20,10 @@ class TtsService {
   Future<void>? _initializing;
   bool _enabled = false;
   bool _speaking = false;
+  // The utterance currently handed to the plugin — tracked purely so the
+  // completion handler below can log which line just finished (flutter_tts'
+  // completion callback carries no text of its own).
+  String? _currentUtterance;
   final Queue<String> _queue = Queue<String>();
   final List<VoidCallback> _idleCallbacks = [];
 
@@ -46,6 +50,7 @@ class TtsService {
     _initializing = null;
     _enabled = false;
     _speaking = false;
+    _currentUtterance = null;
     _queue.clear();
     _idleCallbacks.clear();
   }
@@ -82,6 +87,10 @@ class TtsService {
     }
 
     _tts.setCompletionHandler(() {
+      // "TTS done" is the completion counterpart to speak()'s own "TTS
+      // speak" log line — a field log otherwise only shows what was
+      // enqueued, never whether it was actually spoken aloud.
+      GameLogger.instance.logTts(event: 'done "$_currentUtterance"');
       _speaking = false;
       _playNext();
       // Fire idle callbacks once the queue has drained
@@ -131,6 +140,7 @@ class TtsService {
     if (_queue.isEmpty) return;
     _speaking = true;
     final text = _queue.removeFirst();
+    _currentUtterance = text;
     _tts.speak(text);
   }
 

@@ -214,7 +214,6 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     final dartNo = engine.dartsInTurn;
     final before = engine.totals[playerIdx];
     if (dartNo == 0) _turnStartScore = before;
-    final windowActive = engine.window != null;
 
     // Captured BEFORE applyDart: a round-closing dart (the last player's 3rd
     // dart) advances engine.round as a side effect, so reading it afterward
@@ -255,30 +254,38 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       dartNumber: dartNo,
     );
 
-    // TTS diet (QA 2026-07-09): per-dart announceThrow removed — the
-    // scorecard already shows every dart's label live.
-    _meme.onThrow(throwHistory.last);
+    // TTS restoration (QA round 4, Bjørn's binding spec): speak the
+    // REGISTERED (effective, post-modifier/curse/freeze) points this dart
+    // scored — a dimmed T20 says '0', a DOUBLE TROUBLE D20 says '100'.
+    // Meme-gated the same way Gotcha's announceThrow is: a meme sting
+    // already reacted to this exact dart, so don't also speak the plain
+    // number on top of it.
+    final memeTriggered = _meme.onThrow(throwHistory.last);
+    if (!memeTriggered) _announcer.announceThrow('${result.points}');
 
-    _maybeAnnounceWindowPrize(playerIdx, result.turnEnded, windowActive);
+    _maybeAnnounceBankedBonus();
 
     if (result.turnEnded) _meme.onTurnEnd();
 
     _routeDartResult(result);
   }
 
-  /// THE WINDOW: a simple heuristic (spec-approved) rather than a dedicated
-  /// engine signal — a window turn that just banked exactly its +100 prize.
-  /// Shared by both paths that can end a turn: the normal 3rd-dart bank in
-  /// [_onDartHit], and a bull dart's deferred bank in [_onBullChoice].
-  /// [windowWasActive] must be captured by the caller BEFORE the engine call
-  /// that may have banked the turn — banking rolls a fresh modifier for the
-  /// next thrower, which clears `engine.window`.
-  void _maybeAnnounceWindowPrize(
-      int playerIdx, bool turnEnded, bool windowWasActive) {
-    if (turnEnded &&
-        windowWasActive &&
-        (engine.totals[playerIdx] - _turnStartScore) == 100) {
-      _announcer.announceGameEvent('Window prize! 100 points');
+  /// Speaks the just-banked turn's outcome bonus, if any (TTS spec, QA round
+  /// 4): a HOLY TRINITY coverage bonus or a THE WINDOW prize, both a flat
+  /// +100. Reads [WildcardEngine.lastBankedBonusKind] — the authoritative
+  /// engine signal set at banking time — instead of the old `delta == 100`
+  /// heuristic, which couldn't tell a genuine window prize apart from any
+  /// other turn that happened to net exactly 100 and had no trinity
+  /// equivalent at all. Safe to call after every dart (bull-choice
+  /// resolution included): the getter is null on every non-banking dart.
+  void _maybeAnnounceBankedBonus() {
+    switch (engine.lastBankedBonusKind) {
+      case WcBonusKind.trinity:
+        _announcer.announceChaos('1, 20, 5 — plus 100!');
+      case WcBonusKind.window:
+        _announcer.announceChaos('Window prize! 100 points');
+      case null:
+        break;
     }
   }
 
@@ -315,14 +322,13 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     // lands: in release builds (asserts stripped) engine.resolveBullChoice's
     // own assert wouldn't fire, and the meter would apply twice.
     if (engine.pendingBullChoice == null) return;
-    final playerIdx = engine.currentPlayerIndex;
-    final windowActive = engine.window != null;
     setState(() {
       engine.resolveBullChoice(signedDelta);
       _overlay = null;
     });
+    _log.logBullChoice(delta: signedDelta);
     final turnEnded = engine.dartsInTurn == 0;
-    _maybeAnnounceWindowPrize(playerIdx, turnEnded, windowActive);
+    _maybeAnnounceBankedBonus();
     if (turnEnded) _meme.onTurnEnd();
     _finishTurn(turnEnded);
   }
@@ -335,6 +341,8 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     }
     final event = result.instantEvent;
     if (event != null) {
+      _log.logEvent(
+          name: event.name, detail: engine.lastEventResolution?.detail ?? '');
       setState(() => _overlay = _overlayKindForEvent(event));
       _announceEvent(event);
       return; // _pendingResult stays set for the event dismiss below.
@@ -384,15 +392,30 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     }
   }
 
-  /// TTS diet (QA 2026-07-09): CUT!/REWIND get a one-word sting; every other
-  /// instant event is shown on-screen only (the event dialog carries the
-  /// full detail) and is not spoken at all.
+  /// TTS restoration (QA round 4, Bjørn's binding spec): CUT!/REWIND keep
+  /// their one-word stings; CURSED NUMBER speaks a fixed, number-secret
+  /// phrase (the whole point of the curse is that the number stays hidden);
+  /// every other event with a meaningful outcome speaks its mapped detail
+  /// line (names substituted via [_mapEventDetail]) — short, since the
+  /// engine's detail is fire-time phrasing (e.g. GIFT's amount isn't known
+  /// until banking, so the redirect target is what gets spoken instead).
+  /// DOUBLE JEOPARDY has no outcome worth speaking (its effect is silent
+  /// until next round's extra joker) and stays screen-only.
   void _announceEvent(WcInstantEventDef event) {
     switch (event.id) {
       case 'cutEvent':
         _announcer.announceChaos('Cut!');
       case 'rewindEvent':
         _announcer.announceChaos('Rewind!');
+      case 'cursedNumber':
+        _announcer.announceChaos('A number is cursed');
+      case 'gift':
+      case 'robinHood':
+      case 'scoreSwap':
+      case 'freeze':
+      case 'chaosSurge':
+        final detail = engine.lastEventResolution?.detail;
+        if (detail != null) _announcer.announceChaos(_mapEventDetail(detail));
       default:
         break;
     }
@@ -404,9 +427,11 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// still needs announcing.
   void _finishTurn(bool turnEnded) {
     if (turnEnded && !engine.gameOver) {
-      // TTS diet (QA 2026-07-09): announceNextPlayer removed — the
-      // scorecard already shows whose turn it is.
       _turnIdCounter++;
+      // TTS restoration (QA round 4, Bjørn's binding spec): announceNextPlayer
+      // is back — engine.currentPlayerIndex has already advanced to the next
+      // thrower by the time turnEnded is true.
+      _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
     }
     if (engine.gameOver) {
       _onGameEnd();
@@ -433,6 +458,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     _announcedTurnId = _turnIdCounter;
     final mod = engine.activeModifier;
     if (mod == null) return;
+    _log.logModifier(name: mod.name, playerIndex: engine.currentPlayerIndex);
     _overlay = WcOverlayKind.announce;
     // TTS diet (QA 2026-07-09): name-only sting — the overlay already
     // spells out the description and the "X only" restriction.
@@ -785,6 +811,19 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   }
 
   WcDirective _buildDirective(int cur) {
+    // Precedence (QA round 4, log-diagnosed): frozen > window > modifier >
+    // open. A frozen thrower used to fall through to the "OPEN THROW ·
+    // SCORE MAX" band (activeModifier stays null while frozen — see
+    // WildcardEngine._rollTurnModifier) even though every dart of theirs
+    // this turn scores 0 — the exact opposite of what the band promised.
+    if (engine.frozenPlayer == cur) {
+      return const WcDirective(
+        icon: '🧊',
+        color: DossedartTokens.cyan,
+        head: 'FROZEN — THIS TURN SCORES 0',
+        sub: 'Darts still count for the meter · thaws next turn',
+      );
+    }
     final window = engine.window;
     if (window != null) {
       return WcDirective(
@@ -824,8 +863,16 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           accent: dossedartAccent(idx),
           total: engine.totals[idx],
           isActive: idx == cur,
-          flagText: flags[idx]?.flagText,
+          // A transient event flag (STEAL/ROBBED/SWAP) always wins over the
+          // persistent FROZEN chip — an event flag clears on the very next
+          // dart, so there's never a lasting conflict, and the event is the
+          // more specific/urgent thing to show in that instant.
+          flagText: flags[idx]?.flagText ??
+              (engine.frozenPlayer == idx ? 'FROZEN' : null),
           flagGood: flags[idx]?.good ?? false,
+          flagColor: flags[idx] == null && engine.frozenPlayer == idx
+              ? DossedartTokens.cyan
+              : null,
         ),
     ];
   }

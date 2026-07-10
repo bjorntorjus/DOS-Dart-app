@@ -11,6 +11,7 @@ class WcStandingEntry {
     required this.isActive,
     this.flagText,
     this.flagGood = false,
+    this.flagColor,
   });
 
   final String name;
@@ -20,12 +21,19 @@ class WcStandingEntry {
   /// True for the player currently throwing — gets the highlighted cell.
   final bool isActive;
 
-  /// A Robin-Hood event tag (e.g. `+50 STEAL`, `-50 ROBBED`). When set, it
-  /// replaces the leader crown / last-place marker for this cell.
+  /// A Robin-Hood event tag (e.g. `+50 STEAL`, `-50 ROBBED`) or a persistent
+  /// state tag (`FROZEN`). When set, it replaces the leader crown /
+  /// last-place marker for this cell.
   final String? flagText;
 
-  /// Green styling for [flagText] when true, red when false.
+  /// Green styling for [flagText] when true, red when false. Ignored when
+  /// [flagColor] is set.
   final bool flagGood;
+
+  /// Explicit override for [flagText]'s color (e.g. cyan for FROZEN, which
+  /// is neither a "good" nor a "bad" outcome) — when null, [flagGood] picks
+  /// green/red as before.
+  final Color? flagColor;
 }
 
 /// THIS TURN directive content — built by the screen from engine state
@@ -618,8 +626,8 @@ class _StandingsStrip extends StatelessWidget {
 
       Widget trailing;
       if (entry.flagText != null) {
-        final flagColor =
-            entry.flagGood ? DossedartTokens.green : DossedartTokens.red;
+        final flagColor = entry.flagColor ??
+            (entry.flagGood ? DossedartTokens.green : DossedartTokens.red);
         trailing = Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(border: Border.all(color: flagColor)),
