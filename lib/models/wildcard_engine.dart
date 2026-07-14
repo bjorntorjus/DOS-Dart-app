@@ -82,6 +82,7 @@ class _WcUndoEntry {
   final ({int lo, int hi})? window;
   final bool windowVoided;
   final bool missedThisTurn;
+  final int missesThisTurn;
   final List<({int segment, int multiplier})> turnDarts;
   final List<bool> hadModifierLastTurn;
   final Set<int> jokers;
@@ -114,6 +115,7 @@ class _WcUndoEntry {
     required this.window,
     required this.windowVoided,
     required this.missedThisTurn,
+    required this.missesThisTurn,
     required this.turnDarts,
     required this.hadModifierLastTurn,
     required this.jokers,
@@ -203,6 +205,13 @@ class WildcardEngine {
   /// same turn are a no-op (still void THE WINDOW, see [applyDart]). Reset
   /// for each new turn in [_rollTurnModifier].
   bool _missedThisTurn = false;
+
+  /// Count of TRUE misses (segment 0) landed so far during the current
+  /// turn — unlike [_missedThisTurn] (first-miss-only meter guard), every
+  /// true miss increments this, feeding the HEAVY CROWN banking penalty
+  /// ([kHeavyCrownPenalty], applied in [_bankCurrentTurn]). Reset for each
+  /// new turn in [_rollTurnModifier] and [_bankCurrentTurn].
+  int _missesThisTurn = 0;
 
   /// Per-player cooldown: true when that player's PREVIOUS turn had an
   /// [activeModifier] (rolled or forced), set at banking time
@@ -461,6 +470,7 @@ class WildcardEngine {
         _missedThisTurn = true;
         meterDelta = _applyMeterChange(-1);
       }
+      _missesThisTurn++;
       if (mod?.id == 'theWindow') _windowVoided = true;
     }
 
@@ -618,12 +628,18 @@ class WildcardEngine {
       highestTurn[currentPlayerIndex] = bankedAmount;
     }
     if (frozenPlayer == currentPlayerIndex) frozenPlayer = null;
+    if (activeModifier?.id == 'heavyCrown') {
+      final penalty = kHeavyCrownPenalty[_missesThisTurn.clamp(0, 3)];
+      totals[currentPlayerIndex] =
+          math.max(0, totals[currentPlayerIndex] - penalty);
+    }
     turnPoints = 0;
     dartsInTurn = 0;
     turnDartLabels = List.filled(3, '—');
     turnDarts = [];
     _giftTargetIndex = null;
     _giftBaselinePoints = 0;
+    _missesThisTurn = 0;
   }
 
   void _bankTurnAndAdvance() {
@@ -654,6 +670,7 @@ class WildcardEngine {
     window = null;
     _windowVoided = false;
     _missedThisTurn = false;
+    _missesThisTurn = 0;
 
     if (frozenPlayer == currentPlayerIndex) return;
 
@@ -1081,6 +1098,7 @@ class WildcardEngine {
       window: window,
       windowVoided: _windowVoided,
       missedThisTurn: _missedThisTurn,
+      missesThisTurn: _missesThisTurn,
       turnDarts: List.of(turnDarts),
       hadModifierLastTurn: List.of(_hadModifierLastTurn),
       jokers: Set.of(jokers),
@@ -1117,6 +1135,7 @@ class WildcardEngine {
     window = e.window;
     _windowVoided = e.windowVoided;
     _missedThisTurn = e.missedThisTurn;
+    _missesThisTurn = e.missesThisTurn;
     turnDarts = e.turnDarts;
     _hadModifierLastTurn = e.hadModifierLastTurn;
     jokers = e.jokers;

@@ -698,6 +698,97 @@ void main() {
       e.applyDart(20, 1); // bank P0, roll P1's turn
       expect(e.activeModifier?.id, 'heavyCrown');
     });
+
+    test('HEAVY CROWN: 1 true miss costs 20 off the game total', () {
+      final e = plain(players: 2, rounds: 10)..debugForceModifier('heavyCrown');
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 -> 60, banks; P1's turn rolls heavyCrown (forced)
+      expect(e.activeModifier?.id, 'heavyCrown');
+
+      e.totals[1] = 300; // base total, set by hand before P1 throws
+      e.applyDart(0, 0); // true miss #1
+      e.applyDart(5, 1); // scores 5 — not a miss
+      e.applyDart(5, 1); // scores 5 — not a miss; turn banks
+      // turnPoints = 5 + 5 = 10; 1 true miss -> penalty 20.
+      // banked total: 300 + 10 - 20 = 290.
+      expect(e.totals[1], 290);
+    });
+
+    test('HEAVY CROWN: 2 true misses cost 40 off the game total', () {
+      final e = plain(players: 2, rounds: 10)..debugForceModifier('heavyCrown');
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 -> 60, banks; P1's turn rolls heavyCrown (forced)
+      expect(e.activeModifier?.id, 'heavyCrown');
+
+      e.totals[1] = 300;
+      e.applyDart(0, 0); // true miss #1
+      e.applyDart(0, 0); // true miss #2
+      e.applyDart(5, 1); // scores 5 — not a miss; turn banks
+      // turnPoints = 5; 2 true misses -> penalty 40.
+      // banked total: 300 + 5 - 40 = 265.
+      expect(e.totals[1], 265);
+    });
+
+    test('HEAVY CROWN: 3 true misses cost 80 off the game total', () {
+      final e = plain(players: 2, rounds: 10)..debugForceModifier('heavyCrown');
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 -> 60, banks; P1's turn rolls heavyCrown (forced)
+      expect(e.activeModifier?.id, 'heavyCrown');
+
+      e.totals[1] = 300;
+      e.applyDart(0, 0); // true miss #1
+      e.applyDart(0, 0); // true miss #2
+      e.applyDart(0, 0); // true miss #3; turn banks
+      // turnPoints = 0; 3 true misses -> penalty 80.
+      // banked total: 300 + 0 - 80 = 220.
+      expect(e.totals[1], 220);
+    });
+
+    test('HEAVY CROWN penalty floors at 0', () {
+      final e = plain(players: 2, rounds: 10)..debugForceModifier('heavyCrown');
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 -> 60, banks; P1's turn rolls heavyCrown (forced)
+      expect(e.activeModifier?.id, 'heavyCrown');
+
+      e.totals[1] = 50; // smaller than the 80-point 3-miss penalty
+      e.applyDart(0, 0);
+      e.applyDart(0, 0);
+      e.applyDart(0, 0);
+      // 50 + 0 - 80 = -30, floored to 0, not negative.
+      expect(e.totals[1], 0);
+    });
+
+    test(
+        'undo across a HEAVY CROWN turn restores the total and the '
+        'per-turn miss counter', () {
+      final e = plain(players: 2, rounds: 10)..debugForceModifier('heavyCrown');
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 -> 60, banks; P1's turn rolls heavyCrown (forced)
+      expect(e.activeModifier?.id, 'heavyCrown');
+
+      e.totals[1] = 300;
+      e.applyDart(0, 0); // true miss #1
+      e.applyDart(0, 0); // true miss #2
+      e.applyDart(0, 0); // true miss #3; turn banks: 300 + 0 - 80 = 220
+      expect(e.totals[1], 220);
+
+      e.undo(); // undo the 3rd (banking) dart
+      expect(e.totals[1], 300); // total restored
+      expect(e.dartsInTurn, 2); // still mid-turn, 2 darts thrown
+
+      // If the per-turn miss counter had NOT been restored to 2 (e.g. left
+      // at 3, or wrongly reset to 0), finishing the turn with a scoring dart
+      // instead of a 3rd miss would bank a different total than expected.
+      e.applyDart(5, 1); // scores 5, not a miss; turn banks
+      // turnPoints = 5; miss counter must read back as 2 -> penalty 40.
+      // banked total: 300 + 5 - 40 = 265.
+      expect(e.totals[1], 265);
+    });
   });
 
   group('WildcardEngine modifier cooldown', () {

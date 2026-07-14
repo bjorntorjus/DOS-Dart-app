@@ -144,6 +144,36 @@ void main() {
     expect(find.text('ONLY EVENS'), findsAtLeastNWidgets(1));
   });
 
+  testWidgets(
+      'a forced HEAVY CROWN shows the announce overlay with title '
+      'HEAVY CROWN', (tester) async {
+    // HEAVY CROWN is just activeModifier != null like every other modifier —
+    // the existing announce overlay path (see the test above) already shows
+    // its icon/name/desc with no HEAVY-CROWN-specific screen code, so this is
+    // a smoke test confirming that generic path covers it too.
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 0),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    expect(state.overlayKindForTest, isNull);
+
+    state.engineForTest.activeModifier = heavyCrown;
+    state.resetAnnounceForTest();
+    state.maybeAnnounceForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.announce);
+    expect(find.text('▓ CHAOS STRIKES ▓'), findsOneWidget);
+    expect(find.text('HEAVY CROWN'), findsAtLeastNWidgets(1));
+  });
+
   testWidgets('bull hit opens the choice overlay; resolving moves the meter '
       'and a single undo reverts dart and meter together', (tester) async {
     await tester.pumpWidget(MaterialApp(
