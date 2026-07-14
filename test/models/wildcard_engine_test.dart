@@ -32,15 +32,15 @@ void main() {
       expect(e.turnPoints, 0);
     });
 
-    test('meter: triple +2, true miss −1, clamps at 0 and 10', () {
+    test('meter: triple +1, true miss −1, clamps at 0 and 10', () {
       final e = plain();
       final r1 = e.applyDart(0, 0); // miss at 0 → clamped
       expect(r1.meterDelta, 0);
       expect(e.chaos, 0);
       final r2 = e.applyDart(20, 3);
-      // Tuning: triple is now +2 (was +1).
-      expect(r2.meterDelta, 2);
-      expect(e.chaos, 2);
+      // QA5 loop-taming: triple is now +1 (was +2).
+      expect(r2.meterDelta, 1);
+      expect(e.chaos, 1);
     });
 
     test('meter: double-ring dart is +1 (new lever; D-Bull excluded)', () {
@@ -48,6 +48,47 @@ void main() {
       final r = e.applyDart(20, 2); // D20: a plain double-ring dart
       expect(r.meterDelta, 1);
       expect(e.chaos, 1);
+    });
+
+    test('a triple raises the meter by 1 (was 2)', () {
+      final e = plain();
+      final r = e.applyDart(20, 3);
+      expect(r.meterDelta, 1);
+      expect(e.chaos, 1);
+    });
+
+    test('joker hit raises the meter by 1 (was 2)', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1}); // seed 7, chaos 3 -> wcJokerCount == 1
+      // doubleJeopardy has no chaos side effect of its own (just sets a
+      // one-round flag), so the whole meter movement here is the joker's.
+      e.debugForceEvent('doubleJeopardy');
+      final r = e.applyDart(1, 1); // single dart hits the joker
+      expect(r.jokerHit, 1);
+      expect(r.meterDelta, 1); // joker: +1 (was +2)
+      expect(e.chaos, 4); // 3 base + 1 joker
+    });
+
+    test('meter decays by 1 at the start of each new round', () {
+      final e = plain(players: 1, rounds: 3); // 1 player -> round advances every turn
+      e.applyDart(20, 3); // triple: chaos 0 -> 1
+      e.applyDart(20, 3); // triple: chaos 1 -> 2
+      final prevChaos = e.chaos;
+      expect(prevChaos, 2);
+      e.applyDart(1, 1); // 3rd dart banks the turn; round advances -> decay -1
+      expect(e.chaos, prevChaos - 1); // 2 -> 1
+      expect(e.round, 2);
+    });
+
+    test('round-start decay clamps at 0', () {
+      final e = plain(players: 1, rounds: 3); // chaos starts at 0
+      expect(e.chaos, 0);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // banks the turn; round advances -> decay tries -1
+      expect(e.chaos, 0); // clamped, not negative
+      expect(e.round, 2);
     });
 
     test(
@@ -249,8 +290,8 @@ void main() {
   group('WildcardEngine turn-modifiers', () {
     test(
         'ONLY EVENS: odd segment scores 0 and is dimmed; even scores; '
-        'meter still +2 on a dimmed triple (meter follows the dart, not '
-        'the points; triple tuning applies here too)', () {
+        'meter still +1 on a dimmed triple (meter follows the dart, not '
+        'the points; QA5 triple tuning applies here too)', () {
       final e = plain()..debugForceModifier('onlyEvens');
       e.applyDart(20, 1);
       e.applyDart(20, 1);
@@ -260,8 +301,8 @@ void main() {
       expect(e.dimPredicate!(8, 1), isFalse);
       final r = e.applyDart(7, 3); // dimmed triple
       expect(r.points, 0);
-      expect(r.meterDelta, 2); // triple: +2 (was +1)
-      expect(e.chaos, 2);
+      expect(r.meterDelta, 1); // triple: +1 (QA5, was +2)
+      expect(e.chaos, 1);
     });
 
     test(
@@ -281,7 +322,7 @@ void main() {
     test(
         'DOUBLE TROUBLE v2 (QA round 4): D20 scores 100 (20x5, meter +1, '
         'the double-ring lever), T20 dims to 0 (only doubles score; meter '
-        '+2 triple tuning still applies)', () {
+        '+1 QA5 triple tuning still applies)', () {
       final e = plain()..debugForceModifier('doubleTrouble');
       e.applyDart(1, 1);
       e.applyDart(1, 1);
@@ -292,7 +333,7 @@ void main() {
       expect(r1.meterDelta, 1); // double-ring: +1 (new)
       final r2 = e.applyDart(20, 3); // T20 -> dimmed to 0, meter still reacts
       expect(r2.points, 0);
-      expect(r2.meterDelta, 2); // triple: +2 (was +1)
+      expect(r2.meterDelta, 1); // triple: +1 (QA5, was +2)
     });
 
     test(
@@ -322,7 +363,7 @@ void main() {
 
     test(
         'TRIPLE THREAT (QA round 4, DT\'s sibling): T20 scores 100 (20x5, '
-        'meter +2), D20 dims to 0 (only triples score; meter +1 still '
+        'meter +1 QA5), D20 dims to 0 (only triples score; meter +1 still '
         'applies)', () {
       final e = plain()..debugForceModifier('tripleThreat');
       e.applyDart(1, 1);
@@ -331,7 +372,7 @@ void main() {
       expect(e.activeModifier?.id, 'tripleThreat');
       final r1 = e.applyDart(20, 3); // T20 -> 20*5
       expect(r1.points, 100);
-      expect(r1.meterDelta, 2); // triple: +2
+      expect(r1.meterDelta, 1); // triple: +1 (QA5, was +2)
       final r2 = e.applyDart(20, 2); // D20 -> dimmed to 0
       expect(r2.points, 0);
       expect(r2.meterDelta, 1); // double-ring: +1 still applies
@@ -582,7 +623,7 @@ void main() {
 
       final r = e.applyDart(20, 3); // would be a triple; frozen zeroes points
       expect(r.points, 0);
-      expect(r.meterDelta, 2); // meter still reacts to the dart (triple: +2)
+      expect(r.meterDelta, 1); // meter still reacts to the dart (triple: +1, QA5)
       e.applyDart(20, 1);
       e.applyDart(20, 1);
       expect(e.totals[1], 0); // banked 0 despite the meter movement
@@ -620,6 +661,15 @@ void main() {
       var turnsChecked = 0;
       var rolled = 0;
       for (var i = 0; i < 200 && !e.gameOver; i++) {
+        // QA5 added a -1/round decay (a deliberate, SEPARATE mechanic to tame
+        // the chaos-meter ratchet). Left unchecked over 100 rounds it would
+        // walk chaos down toward 0, confounding this test's cooldown-only
+        // statistic with the decay's own effect. Pin chaos back to 10 at the
+        // top of every turn: levels 9 and 10 share the same 90% entry in
+        // _modifierChancePctByLevel, so at most one round's worth of decay
+        // (-1) can ever be in effect at roll time regardless — the reset
+        // just stops it from accumulating turn over turn.
+        e.chaos = 10;
         turnsChecked++;
         if (e.activeModifier != null) rolled++;
         // Plain darts: no triples/misses/bulls, but segment 1 may be a
@@ -929,10 +979,14 @@ void main() {
   group('WildcardEngine controller robustness', () {
     test('meter clamps at 10: a further triple past the cap gives '
         'meterDelta 0', () {
-      final e = plain();
+      // 4 players (not the default 3): a bank only rotates the seat, and a
+      // round only wraps (triggering the QA5 round-start decay) once every
+      // 4 turns / 12 darts. 10 darts here land mid-round-1 (seat 3's first
+      // dart), so no decay confounds the pure +1-per-triple accumulation.
+      final e = plain(players: 4);
       for (var i = 0; i < 10; i++) {
-        // Triples are now +2 (tuning): the cap is reached after the 5th
-        // (0,2,4,6,8,10); the remaining 5 iterations are no-ops at the cap.
+        // Triples are now +1 (QA5 tuning, was +2): the cap is reached
+        // exactly on the 10th (1,2,...,10).
         e.applyDart(20, 3);
       }
       expect(e.chaos, 10);
@@ -992,8 +1046,8 @@ void main() {
     });
 
     test(
-        'joker hit: reveals, meter +2, jokersHitCount increments, re-rolls '
-        'excluding the just-hit number and other actives', () {
+        'joker hit: reveals, meter +1 (QA5), jokersHitCount increments, '
+        're-rolls excluding the just-hit number and other actives', () {
       final e = WildcardEngine(
           playerCount: 2, rounds: 5, startingChaos: 9, rng: math.Random(7));
       expect(e.jokers, {1, 18});
@@ -1024,7 +1078,7 @@ void main() {
       expect(r.points, 0);
       expect(r.jokerHit, 1);
       expect(r.instantEvent?.id, 'chaosSurge');
-      expect(e.chaos, 8); // 3 (base) + 2 (joker) + 3 (chaosSurge)
+      expect(e.chaos, 7); // 3 (base) + 1 (joker, QA5) + 3 (chaosSurge)
     });
   });
 
@@ -1035,7 +1089,7 @@ void main() {
       expect(e.jokers, {1});
       e.debugForceEvent('chaosSurge');
       e.applyDart(1, 1);
-      expect(e.chaos, 8); // 3 + 2 (joker) + 3 (surge)
+      expect(e.chaos, 7); // 3 + 1 (joker, QA5) + 3 (surge)
       expect(e.lastEventResolution?.detail, 'Chaos +3');
     });
 
@@ -1044,7 +1098,7 @@ void main() {
           playerCount: 2, rounds: 5, startingChaos: 9, rng: math.Random(7));
       expect(e.jokers, {1, 18});
       e.debugForceEvent('chaosSurge');
-      e.applyDart(1, 1); // joker: 9 -> 10 (clamped, +1 applied); surge: 10 -> 10 (+0)
+      e.applyDart(1, 1); // joker: 9 -> 10 (+1 applied, QA5); surge: 10 -> 10 (+0, clamped)
       expect(e.chaos, 10);
       expect(e.lastEventResolution?.detail, 'Chaos +0');
     });
@@ -1466,7 +1520,7 @@ void main() {
       e.debugForceEvent('chaosSurge');
       e.applyDart(1, 1);
       expect(e.jokers, {18});
-      expect(e.chaos, 8);
+      expect(e.chaos, 7); // 3 + 1 (joker, QA5) + 3 (surge)
 
       e.undo();
       expect(e.jokers, {1}); // re-hidden

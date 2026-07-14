@@ -460,7 +460,7 @@ class WildcardEngine {
       bullChoiceMagnitude = multiplier == 2 ? 3 : 1;
       pendingBullChoice = bullChoiceMagnitude;
     } else if (multiplier == 3) {
-      meterDelta = _applyMeterChange(2); // triple: +2 (tablet-QA tuning)
+      meterDelta = _applyMeterChange(1); // triple: +1 (QA5 loop-taming)
     } else if (multiplier == 2) {
       meterDelta = _applyMeterChange(1); // double-ring: +1 (new)
     } else if (segment == 0) {
@@ -485,7 +485,7 @@ class WildcardEngine {
     if (!needsBullChoice && segment >= 1 && segment <= 20 && jokers.contains(segment)) {
       jokerHit = segment;
       jokersHitCount[currentPlayerIndex]++;
-      meterDelta += _applyMeterChange(2);
+      meterDelta += _applyMeterChange(1);
       instantEvent = _drawInstantEvent();
       roundRestructured =
           _resolveInstantEvent(instantEvent, turnPointsBeforeDart);
@@ -754,6 +754,7 @@ class WildcardEngine {
           return;
         }
         roundStartTotals = List.of(totals);
+        _applyMeterChange(-1); // QA5: cool the meter between rounds
         _assignJokersForRound();
       }
       if (currentPlayerIndex == startIndex) break;
