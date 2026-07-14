@@ -301,11 +301,15 @@ void main() {
   });
 
   testWidgets(
-      'a joker hit chains into a forced CUT! event; dismissing both '
-      'overlays clears the round', (tester) async {
+      'a joker hit chains into a forced CUT! event; the reveal names only '
+      'the players who had not yet thrown this round', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: WildcardGameScreen(
-        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
         config: const WildcardConfig(startingChaos: 5),
       ),
     ));
@@ -315,13 +319,31 @@ void main() {
         .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
 
     // startingChaos:5 carries a 30% chance (wcModifierChancePct) of rolling
-    // a turn modifier for round 1's very first turn — dismiss it if it
-    // showed so it doesn't block the joker dart below (input is a no-op
-    // while any overlay is up).
-    if (state.overlayKindForTest == WcOverlayKind.announce) {
-      state.dismissOverlayForTest();
+    // a turn modifier for any given turn — dismiss it whenever it shows so
+    // it never blocks the next dart (input is a no-op while any overlay is
+    // up). Misses (0,0) never trigger a joker or a bull choice, so A's turn
+    // banks cleanly regardless of whatever modifier (if any) gets rolled.
+    Future<void> dismissAnnounceIfShown() async {
+      if (state.overlayKindForTest == WcOverlayKind.announce) {
+        state.dismissOverlayForTest();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    await dismissAnnounceIfShown(); // A's turn-1 modifier, if any
+
+    // A (seat 0) throws out their whole turn first and banks normally,
+    // handing the seat to B (seat 1) — the MIDDLE seat is the scenario that
+    // catches the bug: the thrower's own seat must never appear in the
+    // reveal, and a seat that already threw (A) must not appear either.
+    for (var i = 0; i < 3; i++) {
+      state.onDartHitForTest(0, 0);
       await tester.pump(const Duration(milliseconds: 50));
     }
+    await dismissAnnounceIfShown(); // B's turn modifier, if any
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'B should be up after A banks their 3 darts');
 
     final Set<int> jokers = state.engineForTest.jokers as Set<int>;
     expect(
@@ -334,7 +356,7 @@ void main() {
     final roundBefore = state.engineForTest.round as int;
 
     state.engineForTest.debugForceEvent('cutEvent');
-    state.onDartHitForTest(jokerNumber, 1);
+    state.onDartHitForTest(jokerNumber, 1); // B's first dart of their turn
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(state.overlayKindForTest, WcOverlayKind.joker);
@@ -344,9 +366,14 @@ void main() {
 
     expect(state.overlayKindForTest, WcOverlayKind.cut);
 
-    // Names who lost their turn this round (everyone except whoever's up
-    // next — see _cutDialog's comment on why it's approximated this way).
-    expect(find.textContaining('LOSES TURN'), findsOneWidget);
+    // Only C (seat 2, the one seat after thrower B) had not yet thrown this
+    // round — A already banked, B is the thrower. Asserting the exact
+    // string (not just textContaining('LOSES TURN')) is what catches the
+    // old `ranking() \ currentPlayerIndex` bug: that derivation would have
+    // wrongly listed B (the thrower who just threw) alongside C here.
+    final losesTurnFinder = find.textContaining('LOSES TURN');
+    expect(losesTurnFinder, findsOneWidget);
+    expect(tester.widget<Text>(losesTurnFinder).data, 'LOSES TURN: C');
 
     state.dismissOverlayForTest();
     await tester.pump(const Duration(milliseconds: 50));
@@ -354,13 +381,67 @@ void main() {
     // CUT! advances to a fresh round, whose first thrower rolls its own
     // modifier chance independently — dismiss it too if it fired, then
     // confirm the overlay chain has fully drained.
-    if (state.overlayKindForTest == WcOverlayKind.announce) {
-      state.dismissOverlayForTest();
-      await tester.pump(const Duration(milliseconds: 50));
-    }
+    await dismissAnnounceIfShown();
 
     expect(state.overlayKindForTest, isNull);
     expect(state.engineForTest.round, greaterThan(roundBefore));
+  });
+
+  testWidgets(
+      'a CUT! fired by the LAST active seat omits the "LOSES TURN" line '
+      'entirely (nobody was actually yet to throw)', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    Future<void> dismissAnnounceIfShown() async {
+      if (state.overlayKindForTest == WcOverlayKind.announce) {
+        state.dismissOverlayForTest();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    await dismissAnnounceIfShown(); // A's turn-1 modifier, if any
+
+    // A (seat 0) banks their turn first, handing the seat to B — the LAST
+    // active seat in a 2-player game. A CUT! fired here means every other
+    // seat already threw, so the reveal must show no names at all.
+    for (var i = 0; i < 3; i++) {
+      state.onDartHitForTest(0, 0);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await dismissAnnounceIfShown(); // B's turn modifier, if any
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'B should be up after A banks their 3 darts');
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty,
+        reason: 'wcJokerCount(5) should assign 1 joker at round 1');
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('cutEvent');
+    state.onDartHitForTest(jokerNumber, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.joker);
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.cut);
+
+    // No seat was left to throw — the specific line must be omitted, not
+    // rendered empty or with a bogus name.
+    expect(find.textContaining('LOSES TURN'), findsNothing);
+    expect(
+        find.textContaining('PLAYERS YET TO THROW LOSE THEIR TURN'),
+        findsOneWidget);
   });
 
   testWidgets(

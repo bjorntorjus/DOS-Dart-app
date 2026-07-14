@@ -158,6 +158,14 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// reads live `engine.lastEventResolution`, not this.
   WildcardDartResult? _pendingResult;
 
+  /// The throwing player's seat at the moment their dart fired a CUT! event
+  /// — stashed in [_onDartHit] BEFORE `applyDart` resolves the event and
+  /// reseats `engine.currentPlayerIndex` to the next round's first active
+  /// seat (see `WildcardEngine._executeCut`). [_cutDialog] needs the
+  /// original thrower's seat, not the post-reseat current seat, to work out
+  /// who actually had not thrown yet this round.
+  int? _cutThrowerSeat;
+
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -222,6 +230,12 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
 
     late WildcardDartResult result;
     setState(() => result = engine.applyDart(segment, multiplier));
+
+    // CUT! resolves synchronously inside applyDart (via the joker's instant
+    // event draw) — currentPlayerIndex is already reseated by the time we
+    // get here, so the pre-dart playerIdx captured above is the only place
+    // left to learn who actually threw the cut-triggering dart.
+    if (result.instantEvent?.id == 'cutEvent') _cutThrowerSeat = playerIdx;
 
     final label = segment == 0
         ? 'miss'
@@ -1033,18 +1047,25 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   }
 
   Widget _cutDialog() {
-    // CUT! resolves synchronously inside engine.applyDart (see
-    // WildcardEngine._executeCut) — by the time this dialog builds,
-    // currentPlayerIndex has already been reseated to the NEW round's
-    // first active seat, so the joker-hitter's original mid-round seat is
-    // gone. Rather than thread extra bookkeeping through the (pure) engine
-    // just for dialog copy, this approximates "who lost their turn" as
-    // every other active player: only one seat throws at a time, and it
-    // just changed hands, so everyone else was skipped by definition.
-    final losers = [
-      for (final i in engine.ranking())
-        if (i != engine.currentPlayerIndex) players[i].name.toUpperCase(),
-    ];
+    // "Loses turn" = active seats that had NOT yet thrown this round when
+    // CUT! fired. WILDCARD rotates strictly in ascending active-seat order
+    // within a round (see WildcardEngine._advancePlayer/_firstActiveSeat),
+    // so that's exactly the active seats with index > the thrower's seat —
+    // [_cutThrowerSeat], stashed in _onDartHit BEFORE applyDart reseats
+    // engine.currentPlayerIndex to the new round's first active seat.
+    // Deliberately NOT engine.ranking()\currentPlayerIndex (the old, wrong
+    // approximation): by the time this dialog builds, currentPlayerIndex is
+    // already the NEXT round's first seat, which has no relation to who
+    // actually skipped a throw this round — it falsely included the
+    // thrower whenever their seat wasn't 0, and falsely listed players when
+    // the thrower was the last active seat (nobody actually lost a turn).
+    final thrower = _cutThrowerSeat;
+    final losers = thrower == null
+        ? const <String>[]
+        : [
+            for (var i = thrower + 1; i < players.length; i++)
+              if (!engine.isSkipped(i)) players[i].name.toUpperCase(),
+          ];
     return WildcardDialog(
       accent: DossedartTokens.red,
       icon: '✂️',
