@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../app_version.dart';
 import '../../models/game_mode.dart';
 import '../../models/saved_player.dart';
 import '../../services/player_storage.dart';
@@ -157,7 +158,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             style: _vt(16, color: Colors.white, letterSpacing: 2),
           ),
           Text(
-            'v1.14.0',
+            kAppVersion,
             style: _vt(13, color: Colors.white38, letterSpacing: 2),
           ),
         ],

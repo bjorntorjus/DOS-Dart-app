@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/game_mode.dart';
 import '../models/saved_player.dart';
 import '../services/player_storage.dart';
@@ -59,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'v1.14.0',
+                  kAppVersion,
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
