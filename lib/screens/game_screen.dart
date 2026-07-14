@@ -26,6 +26,7 @@ import '../stats/game_detail_stats.dart';
 import '../widgets/player_avatar.dart';
 import '../models/game_result.dart';
 import '../services/game_logger.dart';
+import '../app_version.dart';
 import 'post_game_screen.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../services/battery_sampler.dart';
@@ -210,6 +211,7 @@ class _GameScreenState extends State<GameScreen> {
       playerNames: players.map((p) => p.name).toList(),
       playerScores: players.map((p) => p.score).toList(),
       config: {'handicap': widget.handicap, 'masterOut': widget.masterOut, 'noBust': widget.noBust},
+      build: kAppVersion,
     );
     BatterySampler.instance.start('X01');
     AppSettings.getSoundEffectsEnabled().then((v) {
@@ -832,6 +834,7 @@ class _GameScreenState extends State<GameScreen> {
     scoreAtStartOfTurn = players[currentPlayerIndex].score;
     _log.logAdvance(roundNumber: _roundNumber, fromIndex: fromIndex, toIndex: currentPlayerIndex, toName: players[currentPlayerIndex].name, toScore: scoreAtStartOfTurn);
     _log.logTurnStart(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: players[currentPlayerIndex].name, score: scoreAtStartOfTurn, checkoutHint: _checkoutFor(scoreAtStartOfTurn).isNotEmpty ? _checkoutFor(scoreAtStartOfTurn) : null);
+    _log.logStandings(roundNumber: _roundNumber, names: players.map((p) => p.name).toList(), scores: players.map((p) => p.score).toList());
     _announcer.announceNextPlayer(players[currentPlayerIndex].name);
     if (!_inSuddenDeath) {
       _announcer.announceScore('${players[currentPlayerIndex].score} remaining');
@@ -2221,6 +2224,12 @@ class _GameScreenState extends State<GameScreen> {
         _gameFullyOver = true;
       }
     });
+    _log.logRoster(
+        action: 'REMOVE',
+        playerIndex: playerIndex,
+        playerName: removed.name,
+        names: players.map((p) => p.name).toList(),
+        scores: players.map((p) => p.score).toList());
     if (_gameFullyOver) {
       _prepareRatingPreview().then((_) => _showPostGame());
     }
