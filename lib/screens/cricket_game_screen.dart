@@ -283,6 +283,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           score: engine.scores[engine.currentPlayerIndex],
         );
         _log.logStandings(
+          roundNumber: _roundNumber,
           names: players.map((p) => p.name).toList(),
           scores: engine.scores,
         );
