@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
@@ -152,6 +153,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         'rounds': rounds.map((r) => r.label).toList(),
         'isRandom': widget.config.isRandom,
       },
+      build: kAppVersion,
     );
     BatterySampler.instance.start('HalveIt');
   }
@@ -346,6 +348,17 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       toName: players[currentPlayerIndex].name,
       toScore: totalScores[currentPlayerIndex],
       reason: currentPlayerIndex == 0 ? 'new round ${currentRoundIndex + 1}' : null,
+    );
+    _log.logTurnStart(
+      roundNumber: currentRoundIndex + 1,
+      playerIndex: currentPlayerIndex,
+      playerName: players[currentPlayerIndex].name,
+      score: totalScores[currentPlayerIndex],
+    );
+    _log.logStandings(
+      roundNumber: currentRoundIndex + 1,
+      names: players.map((p) => p.name).toList(),
+      scores: totalScores,
     );
     _announcer.announceNextPlayer(players[currentPlayerIndex].name);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
@@ -1791,6 +1804,13 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         roundScores[ri].add(null);
       }
     });
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: totalScores,
+    );
   }
 
   /// Production removal logic, shared by the confirm dialog and tests.
@@ -1817,6 +1837,13 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
           .toList();
       if (remaining.length <= 1) gameOver = true;
     });
+    _log.logRoster(
+      action: 'REMOVE',
+      playerIndex: playerIndex,
+      playerName: removed.name,
+      names: players.map((p) => p.name).toList(),
+      scores: totalScores,
+    );
     if (gameOver) {
       _prepareRatingPreview().then((_) => _showPostGame());
     }
