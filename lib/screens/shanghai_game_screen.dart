@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_result.dart';
@@ -120,6 +121,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       playerNames: players.map((p) => p.name).toList(),
       playerScores: List.filled(players.length, 0),
       config: {'targetEnd': widget.config.targetEnd},
+      build: kAppVersion,
     );
     BatterySampler.instance.start('Shanghai');
     _meme.init();
@@ -241,6 +243,17 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       _turnHits.clear();
       _turnIdCounter++;
       if (!engine.gameOver) {
+        _log.logTurnStart(
+          roundNumber: engine.currentRound,
+          playerIndex: engine.currentPlayerIndex,
+          playerName: players[engine.currentPlayerIndex].name,
+          score: engine.totalScores[engine.currentPlayerIndex],
+        );
+        _log.logStandings(
+          roundNumber: engine.currentRound,
+          names: players.map((p) => p.name).toList(),
+          scores: engine.totalScores,
+        );
         _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
       }
     }
@@ -616,6 +629,13 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ));
       engine.addPlayer(initialScore: avgScore);
     });
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: engine.totalScores,
+    );
   }
 
   void _removePlayerMidGame(int playerIndex) {
@@ -646,6 +666,16 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                   _onGameEnd();
                 }
               });
+              // removePlayer flags the index in the engine's skip set rather
+              // than splicing — players[playerIndex] is still the removed
+              // player after the mutation, so the name read below is safe.
+              _log.logRoster(
+                action: 'REMOVE',
+                playerIndex: playerIndex,
+                playerName: players[playerIndex].name,
+                names: players.map((p) => p.name).toList(),
+                scores: engine.totalScores,
+              );
             },
             child: const Text('Remove'),
           ),
