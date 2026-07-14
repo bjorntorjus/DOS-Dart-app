@@ -139,4 +139,24 @@ void main() {
       expect(childTapped, isTrue);
     });
   });
+
+  group('WcBeforeAfterRows', () {
+    testWidgets('renders name and before → after per row', (tester) async {
+      await tester.pumpWidget(wrap(const WcBeforeAfterRows(rows: [
+        WcRevealRow(
+            name: 'AA', before: 123, after: 100, accent: DossedartTokens.cyan),
+        WcRevealRow(
+            name: 'AAA',
+            before: 100,
+            after: 123,
+            accent: DossedartTokens.magenta),
+      ])));
+
+      expect(find.text('AA'), findsOneWidget);
+      expect(find.text('AAA'), findsOneWidget);
+      expect(find.textContaining('123'), findsWidgets);
+      expect(find.textContaining('100'), findsWidgets);
+      expect(find.textContaining('→'), findsWidgets);
+    });
+  });
 }

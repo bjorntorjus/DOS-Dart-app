@@ -372,6 +372,98 @@ class BullChoiceDialog extends StatelessWidget {
   }
 }
 
+/// One "before → after" reveal row's data — a player's score/points
+/// snapshot around an instant WILDCARD event or REWIND.
+class WcRevealRow {
+  const WcRevealRow({
+    required this.name,
+    required this.before,
+    required this.after,
+    required this.accent,
+  });
+
+  final String name;
+  final int before;
+  final int after;
+  final Color accent;
+}
+
+/// Renders one "NAME  before → after" line per involved player under a
+/// WILDCARD moment dialog (e.g. an instant event or REWIND). The `after`
+/// value is tinted [DossedartTokens.green] when it moved favourably
+/// (`after >= before`) or [DossedartTokens.red] otherwise. Static —
+/// the parent [WildcardDialog]/[WildcardOverlay] already animates the
+/// whole moment in, so no animation lives here.
+class WcBeforeAfterRows extends StatelessWidget {
+  const WcBeforeAfterRows({super.key, required this.rows});
+
+  final List<WcRevealRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final row in rows) _RevealRow(row: row),
+      ],
+    );
+  }
+}
+
+/// One row of [WcBeforeAfterRows].
+class _RevealRow extends StatelessWidget {
+  const _RevealRow({required this.row});
+
+  final WcRevealRow row;
+
+  @override
+  Widget build(BuildContext context) {
+    final afterColor =
+        row.after >= row.before ? DossedartTokens.green : DossedartTokens.red;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(
+            row.name,
+            style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 12,
+              color: row.accent,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '${row.before}',
+            style: const TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 22,
+              color: Colors.white,
+            ),
+          ),
+          const Text(
+            ' → ',
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 22,
+              color: Colors.white54,
+            ),
+          ),
+          Text(
+            '${row.after}',
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 22,
+              color: afterColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// One tappable ignite/calm panel in [BullChoiceDialog].
 class _BullPanel extends StatelessWidget {
   const _BullPanel({
