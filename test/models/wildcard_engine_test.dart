@@ -1279,6 +1279,30 @@ void main() {
       expect(e.currentPlayerIndex, 0);
       expect(e.round, 1);
     });
+
+    test(
+        'REWIND resolution lists every player wiped back to round-start '
+        'totals', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 banks 60; P1's turn begins
+      expect(e.totals, [60, 0]);
+      e.debugForceEvent('rewindEvent');
+      e.applyDart(1, 1); // P1 hits the joker -> REWIND
+      expect(e.totals, [0, 0]);
+      final ch = e.lastEventResolution!.scoreChanges;
+      expect(ch.length, 2); // one row per living player
+      expect(ch, [
+        (playerIndex: 0, before: 60, after: 0),
+        (playerIndex: 1, before: 0, after: 0),
+      ]);
+      for (final c in ch) {
+        expect(c.after, e.roundStartTotals[c.playerIndex]); // restored
+      }
+    });
   });
 
   group('WildcardEngine undo across every event type', () {

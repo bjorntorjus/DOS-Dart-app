@@ -973,12 +973,16 @@ class WildcardEngine {
         return true;
 
       case 'rewindEvent':
-        _executeRewind();
+        final before = List.of(totals);
+        _executeRewind(); // mutates totals -> roundStartTotals
         lastEventResolution = (
           event: event,
           detail: 'REWIND · round $round restarts',
           flags: <WcEventFlag>[],
-          scoreChanges: const <WcScoreChange>[],
+          scoreChanges: <WcScoreChange>[
+            for (var i = 0; i < totals.length; i++)
+              if (!isSkipped(i)) (playerIndex: i, before: before[i], after: totals[i]),
+          ],
         );
         return true;
 
