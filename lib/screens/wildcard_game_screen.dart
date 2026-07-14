@@ -992,10 +992,25 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         ),
       );
 
+  /// Maps engine [WcScoreChange]s (Tasks 1/2 — SCORE SWAP, ROBIN HOOD,
+  /// REWIND) to reveal rows for [WcBeforeAfterRows]: resolves each
+  /// player's display name + standings accent so the dialog can render
+  /// "NAME  before → after" without touching engine internals.
+  List<WcRevealRow> _revealRows(List<WcScoreChange> changes) => [
+        for (final c in changes)
+          WcRevealRow(
+            name: players[c.playerIndex].name.toUpperCase(),
+            before: c.before,
+            after: c.after,
+            accent: dossedartAccent(c.playerIndex),
+          ),
+      ];
+
   Widget _eventDialog() {
     final res = engine.lastEventResolution;
     final event = res?.event ?? _pendingResult?.instantEvent;
     final detail = res != null ? _mapEventDetail(res.detail) : '';
+    final rows = res != null ? _revealRows(res.scoreChanges) : const <WcRevealRow>[];
     return WildcardDialog(
       accent: DossedartTokens.orange,
       icon: event?.icon ?? '⚡',
@@ -1009,24 +1024,48 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           textAlign: TextAlign.center,
           style: const TextStyle(fontFamily: 'VT323', fontSize: 20, color: Colors.white),
         ),
+        if (rows.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          WcBeforeAfterRows(rows: rows),
+        ],
       ],
     );
   }
 
   Widget _cutDialog() {
+    // CUT! resolves synchronously inside engine.applyDart (see
+    // WildcardEngine._executeCut) — by the time this dialog builds,
+    // currentPlayerIndex has already been reseated to the NEW round's
+    // first active seat, so the joker-hitter's original mid-round seat is
+    // gone. Rather than thread extra bookkeeping through the (pure) engine
+    // just for dialog copy, this approximates "who lost their turn" as
+    // every other active player: only one seat throws at a time, and it
+    // just changed hands, so everyone else was skipped by definition.
+    final losers = [
+      for (final i in engine.ranking())
+        if (i != engine.currentPlayerIndex) players[i].name.toUpperCase(),
+    ];
     return WildcardDialog(
       accent: DossedartTokens.red,
       icon: '✂️',
       title: 'CUT!',
       titleSize: 56,
       onTap: _onEventDismiss,
-      children: const [
-        SizedBox(height: 12),
-        Text(
+      children: [
+        const SizedBox(height: 12),
+        const Text(
           'ROUND ENDS NOW · PLAYERS YET TO THROW LOSE THEIR TURN',
           textAlign: TextAlign.center,
           style: TextStyle(fontFamily: 'VT323', fontSize: 20, color: Colors.white),
         ),
+        if (losers.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'LOSES TURN: ${losers.join(', ')}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontFamily: 'VT323', fontSize: 16, color: Colors.white70),
+          ),
+        ],
       ],
     );
   }
@@ -1045,6 +1084,10 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           'ROUND ${engine.round} SCORES WIPED · RESTART FROM FIRST PLAYER',
           textAlign: TextAlign.center,
           style: const TextStyle(fontFamily: 'VT323', fontSize: 20, color: Colors.white),
+        ),
+        const SizedBox(height: 14),
+        WcBeforeAfterRows(
+          rows: _revealRows(engine.lastEventResolution?.scoreChanges ?? const []),
         ),
       ],
     );

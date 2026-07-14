@@ -1060,7 +1060,7 @@ void main() {
       e.applyDart(1, 1);
       expect(e.frozenPlayer, 1);
       expect(e.lastEventResolution?.detail,
-          'P1 is frozen — their next turn scores 0');
+          'P1 FROZEN · skipped next turn (scores 0)');
     });
 
     test('FREEZE: ties resolve to the earliest seat, hitter included', () {

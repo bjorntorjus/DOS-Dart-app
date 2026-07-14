@@ -9,6 +9,7 @@ import 'package:dart_scoring/models/wildcard_events.dart';
 import 'package:dart_scoring/screens/wildcard_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
 import 'package:dart_scoring/theme/dossedart_tokens.dart';
+import 'package:dart_scoring/widgets/dossedart/wildcard/dossedart_wildcard_dialogs.dart';
 import 'package:dart_scoring/widgets/dossedart/wildcard/dossedart_wildcard_scorecard.dart';
 import 'package:dart_scoring/widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 
@@ -342,6 +343,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(state.overlayKindForTest, WcOverlayKind.cut);
+
+    // Names who lost their turn this round (everyone except whoever's up
+    // next — see _cutDialog's comment on why it's approximated this way).
+    expect(find.textContaining('LOSES TURN'), findsOneWidget);
 
     state.dismissOverlayForTest();
     await tester.pump(const Duration(milliseconds: 50));
@@ -687,8 +692,43 @@ void main() {
     // Both players are tied at 0 — _highestAmong resolves the tie to the
     // earliest seat, so the victim is always player A regardless of who
     // threw the joker.
-    expect(
-        find.text('A is frozen — their next turn scores 0'), findsOneWidget);
+    expect(find.text('A FROZEN · skipped next turn (scores 0)'),
+        findsOneWidget);
+  });
+
+  testWidgets('SCORE SWAP dialog shows both players before → after',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    if (state.overlayKindForTest == WcOverlayKind.announce) {
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty);
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('scoreSwap');
+    state.onDartHitForTest(jokerNumber, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.joker);
+
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.event);
+
+    expect(find.byType(WcBeforeAfterRows), findsOneWidget);
+    expect(find.textContaining('→'), findsWidgets);
   });
 
   testWidgets(

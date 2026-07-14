@@ -932,7 +932,7 @@ class WildcardEngine {
         frozenPlayer = leader;
         lastEventResolution = (
           event: event,
-          detail: 'P$leader is frozen — their next turn scores 0',
+          detail: 'P$leader FROZEN · skipped next turn (scores 0)',
           flags: <WcEventFlag>[],
           scoreChanges: const <WcScoreChange>[],
         );
