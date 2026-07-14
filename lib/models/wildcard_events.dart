@@ -313,6 +313,24 @@ const theWindow = WcModifierDef(
   severity: WcSeverity.medium,
 );
 
+/// Rare leader-only catch-up modifier. NOT part of [wcModifiers] — never rolls
+/// randomly; the engine applies it via a bespoke gate.
+const heavyCrown = WcModifierDef(
+  id: 'heavyCrown',
+  name: 'HEAVY CROWN',
+  icon: '👑',
+  desc: 'Misses are brutal — play it safe',
+  severity: WcSeverity.wild,
+);
+
+/// True-miss penalty subtracted from the leader's game total at turn end,
+/// indexed by miss count in the turn: 0,1,2,3 -> 0,20,40,80.
+const List<int> kHeavyCrownPenalty = [0, 20, 40, 80];
+
+/// Tunable gate constants (calibrate on tablet QA).
+const int kHeavyCrownLeadThreshold = 120; // min lead to qualify
+const int kHeavyCrownChancePct = 25; // per-qualifying-turn trigger chance
+
 /// All 17 turn-modifiers, exact ids per the implementation plan.
 const wcModifiers = <WcModifierDef>[
   onlyEvens,

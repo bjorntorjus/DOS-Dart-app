@@ -45,6 +45,14 @@ void main() {
   });
 
   group('wcModifiers definitions (spec §4)', () {
+    test('heavyCrown is not in the random modifier pool', () {
+      expect(wcModifiers.any((m) => m.id == 'heavyCrown'), isFalse);
+    });
+
+    test('heavy crown penalty table', () {
+      expect(kHeavyCrownPenalty, [0, 20, 40, 80]);
+    });
+
     test('exact ids in order', () {
       expect(wcModifiers.map((m) => m.id).toList(), [
         'onlyEvens',
