@@ -951,6 +951,47 @@ void main() {
       expect(e.pointsStolen[0], 30);
     });
 
+    test('SCORE SWAP resolution carries before/after for both players', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 100; // P0 banks a lead so totals differ
+      e.totals[1] = 40;
+      expect(e.jokers, {1});
+      e.debugForceEvent('scoreSwap');
+      e.applyDart(1, 1); // P0 (hitter) hits the joker, swaps with P1
+      expect(e.totals, [40, 100]);
+      final ch = e.lastEventResolution!.scoreChanges;
+      expect(ch, [
+        (playerIndex: 0, before: 100, after: 40),
+        (playerIndex: 1, before: 40, after: 100),
+      ]);
+      expect(ch.length, 2);
+      expect(ch[0].after, ch[1].before); // swap symmetry
+      expect(ch[1].after, ch[0].before);
+      expect(ch.any((c) => c.before != c.after), isTrue); // it actually changed
+    });
+
+    test('ROBIN HOOD resolution carries hitter and victim before/after', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      e.totals[0] = 10; // hitter
+      e.totals[1] = 300; // clear leader/victim
+      expect(e.jokers, {1});
+      e.debugForceEvent('robinHood');
+      e.applyDart(1, 1);
+      expect(e.totals, [60, 250]);
+      final ch = e.lastEventResolution!.scoreChanges;
+      expect(ch, [
+        (playerIndex: 0, before: 10, after: 60),
+        (playerIndex: 1, before: 300, after: 250),
+      ]);
+      expect(ch.length, 2);
+      final victim = ch.firstWhere((c) => c.after < c.before);
+      final hitter = ch.firstWhere((c) => c.after > c.before);
+      expect(
+          victim.before - victim.after, hitter.after - hitter.before); // conserved
+    });
+
     test(
         'GIFT (fixed QA round 4): 3-player, hitter is NOT last — the '
         'triggering dart\'s points plus the remaining darts of the turn '

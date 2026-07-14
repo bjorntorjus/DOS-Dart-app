@@ -134,6 +134,9 @@ class _WcUndoEntry {
 /// resolves (spec §5 dialog).
 typedef WcEventFlag = ({int playerIndex, String flagText, bool good});
 
+/// Before/after game total for one player involved in an instant event.
+typedef WcScoreChange = ({int playerIndex, int before, int after});
+
 /// Result of the most recently resolved instant event (cleared at the start
 /// of every [WildcardEngine.applyDart] call). `detail` is engine-built from
 /// indices/numbers only ('STEAL 50 · P1 288 → 238') — the screen maps player
@@ -142,6 +145,7 @@ typedef WcEventResolution = ({
   WcInstantEventDef event,
   String detail,
   List<WcEventFlag> flags,
+  List<WcScoreChange> scoreChanges,
 });
 
 /// Which +100 coverage/prize bonus the just-banked turn included, or null.
@@ -821,15 +825,23 @@ class WildcardEngine {
     switch (event.id) {
       case 'chaosSurge':
         final applied = _applyMeterChange(3);
-        lastEventResolution =
-            (event: event, detail: 'Chaos +$applied', flags: <WcEventFlag>[]);
+        lastEventResolution = (
+          event: event,
+          detail: 'Chaos +$applied',
+          flags: <WcEventFlag>[],
+          scoreChanges: const <WcScoreChange>[],
+        );
         return false;
 
       case 'scoreSwap':
         final others = _livingOthers(hitter);
         if (others.isEmpty) {
-          lastEventResolution =
-              (event: event, detail: 'SWAP · no target', flags: <WcEventFlag>[]);
+          lastEventResolution = (
+            event: event,
+            detail: 'SWAP · no target',
+            flags: <WcEventFlag>[],
+            scoreChanges: const <WcScoreChange>[],
+          );
           return false;
         }
         final other = others[_rng.nextInt(others.length)];
@@ -856,6 +868,10 @@ class WildcardEngine {
               good: otherDelta >= 0,
             ),
           ],
+          scoreChanges: <WcScoreChange>[
+            (playerIndex: hitter, before: a, after: b),
+            (playerIndex: other, before: b, after: a),
+          ],
         );
         return false;
 
@@ -866,12 +882,14 @@ class WildcardEngine {
             event: event,
             detail: 'STEAL · no target',
             flags: <WcEventFlag>[],
+            scoreChanges: const <WcScoreChange>[],
           );
           return false;
         }
         final victim = _highestAmong(others);
         final before = totals[victim];
         final stolen = math.min(50, before);
+        final hitterBefore = totals[hitter];
         totals[victim] = before - stolen;
         totals[hitter] += stolen;
         pointsStolen[hitter] += stolen;
@@ -881,6 +899,10 @@ class WildcardEngine {
           flags: <WcEventFlag>[
             (playerIndex: hitter, flagText: '+$stolen STEAL', good: true),
             (playerIndex: victim, flagText: '-$stolen ROBBED', good: false),
+          ],
+          scoreChanges: <WcScoreChange>[
+            (playerIndex: hitter, before: hitterBefore, after: totals[hitter]),
+            (playerIndex: victim, before: before, after: before - stolen),
           ],
         );
         return false;
@@ -900,6 +922,7 @@ class WildcardEngine {
           event: event,
           detail: 'Rest of the turn goes to P$target',
           flags: <WcEventFlag>[],
+          scoreChanges: const <WcScoreChange>[],
         );
         return false;
 
@@ -911,6 +934,7 @@ class WildcardEngine {
           event: event,
           detail: 'P$leader is frozen — their next turn scores 0',
           flags: <WcEventFlag>[],
+          scoreChanges: const <WcScoreChange>[],
         );
         return false;
 
@@ -923,6 +947,7 @@ class WildcardEngine {
           event: event,
           detail: 'A hidden number is now CURSED — hit it and it bites',
           flags: <WcEventFlag>[],
+          scoreChanges: const <WcScoreChange>[],
         );
         return false;
 
@@ -932,6 +957,7 @@ class WildcardEngine {
           event: event,
           detail: '2 jokers next round',
           flags: <WcEventFlag>[],
+          scoreChanges: const <WcScoreChange>[],
         );
         return false;
 
@@ -942,6 +968,7 @@ class WildcardEngine {
           event: event,
           detail: 'CUT! · round $roundEnding ends',
           flags: <WcEventFlag>[],
+          scoreChanges: const <WcScoreChange>[],
         );
         return true;
 
@@ -951,6 +978,7 @@ class WildcardEngine {
           event: event,
           detail: 'REWIND · round $round restarts',
           flags: <WcEventFlag>[],
+          scoreChanges: const <WcScoreChange>[],
         );
         return true;
 
