@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
@@ -116,6 +117,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         'targets': targets.map((t) => t == 25 ? 'Bull' : '$t').toList(),
         if (widget.config.isCutthroat) 'cutthroat': true,
       },
+      build: kAppVersion,
     );
     BatterySampler.instance.start('Cricket');
   }
@@ -273,6 +275,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           toName: players[engine.currentPlayerIndex].name,
           toScore: engine.scores[engine.currentPlayerIndex],
           reason: 'turn complete',
+        );
+        _log.logTurnStart(
+          roundNumber: _roundNumber,
+          playerIndex: engine.currentPlayerIndex,
+          playerName: players[engine.currentPlayerIndex].name,
+          score: engine.scores[engine.currentPlayerIndex],
+        );
+        _log.logStandings(
+          names: players.map((p) => p.name).toList(),
+          scores: engine.scores,
         );
         _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
         _scoreAtStartOfTurn = engine.scores[engine.currentPlayerIndex];
@@ -1699,6 +1711,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       // 2026-07-06, F8).
       engine.addPlayer(initialScore: avgPoints, initialMarks: newMarks);
     });
+    _log.logRoster(
+        action: 'ADD',
+        playerIndex: players.length - 1,
+        playerName: sp.name,
+        names: players.map((p) => p.name).toList(),
+        scores: engine.scores);
   }
 
   /// Production removal logic, shared by the confirm dialog and tests.
@@ -1735,6 +1753,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       }
       if (engine.gameOver) _gameFullyOver = true;
     });
+    _log.logRoster(
+        action: 'REMOVE',
+        playerIndex: playerIndex,
+        playerName: removed.name,
+        names: players.map((p) => p.name).toList(),
+        scores: engine.scores);
     if (_gameFullyOver) _showPostGame();
   }
 
