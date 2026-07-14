@@ -644,7 +644,11 @@ class WildcardEngine {
   /// happens (locked interpretation #16). A thrower on modifier COOLDOWN
   /// (see [_hadModifierLastTurn]) gets the same treatment: no roll, the
   /// cooldown flag clears, and any pending forced id survives untouched for
-  /// the next roll that actually happens.
+  /// the next roll that actually happens — EXCEPT HEAVY CROWN, which ignores
+  /// cooldown entirely (it's a bespoke leader-only gate, not part of the
+  /// normal chance table) — but a pending debug force always outranks the
+  /// crown, so the crown roll only runs when nothing is forced. Ordering:
+  /// frozen -> crown -> cooldown -> forced/normal roll.
   void _rollTurnModifier() {
     activeModifier = null;
     window = null;
@@ -653,27 +657,22 @@ class WildcardEngine {
 
     if (frozenPlayer == currentPlayerIndex) return;
 
-    if (_hadModifierLastTurn[currentPlayerIndex]) {
-      _hadModifierLastTurn[currentPlayerIndex] = false;
-      return;
-    }
-
-    WcModifierDef? chosen;
     final forcedId = _forcedModifierId;
-    if (forcedId != null) {
-      chosen = wcModifiers.firstWhere((m) => m.id == forcedId);
-      _forcedModifierId = null;
-    } else {
-      final chancePct = wcModifierChancePct(chaos);
-      if (chancePct > 0 && _rng.nextInt(100) < chancePct) {
-        final pool = wcSeverityPool(chaos);
-        final eligible = [
-          for (final m in wcModifiers)
-            if (pool.contains(m.severity)) m
-        ];
-        if (eligible.isNotEmpty) {
-          chosen = eligible[_rng.nextInt(eligible.length)];
-        }
+    WcModifierDef? chosen = forcedId == null ? _rollHeavyCrownOrNull() : null;
+
+    if (chosen == null && _hadModifierLastTurn[currentPlayerIndex]) {
+      // Cooldown skip: no roll, flag clears, any pending force survives
+      // untouched for the next roll that actually happens (unchanged from
+      // pre-HEAVY-CROWN behavior — this still gates the forced branch too).
+      _hadModifierLastTurn[currentPlayerIndex] = false;
+    } else if (chosen == null) {
+      if (forcedId != null) {
+        chosen = forcedId == 'heavyCrown'
+            ? heavyCrown
+            : wcModifiers.firstWhere((m) => m.id == forcedId);
+        _forcedModifierId = null;
+      } else {
+        chosen = _rollNormalModifier();
       }
     }
 
@@ -681,6 +680,43 @@ class WildcardEngine {
     if (chosen?.id == 'theWindow') {
       window = wcRollWindow(_rng, chaos);
     }
+  }
+
+  /// Bespoke gate for the rare leader-only catch-up modifier (spec §4,
+  /// HEAVY CROWN): only from round 4 on, only for the sole current leader,
+  /// only once their lead over 2nd place reaches [kHeavyCrownLeadThreshold],
+  /// and even then only [kHeavyCrownChancePct]% of qualifying turns. Runs
+  /// BEFORE the modifier-cooldown check in [_rollTurnModifier] — the crown
+  /// ignores cooldown, unlike every other modifier.
+  WcModifierDef? _rollHeavyCrownOrNull() {
+    if (round < 4) return null;
+    final rank = ranking(); // living, totals desc
+    if (rank.length < 2) return null;
+    if (rank.first != currentPlayerIndex) return null; // only the leader
+    final lead = totals[rank[0]] - totals[rank[1]];
+    if (lead < kHeavyCrownLeadThreshold) return null;
+    if (_rng.nextInt(100) >= kHeavyCrownChancePct) return null;
+    return heavyCrown;
+  }
+
+  /// The normal chance-roll: draws uniformly from [wcModifiers] filtered to
+  /// [wcSeverityPool] at [chancePct] = [wcModifierChancePct] for the current
+  /// [chaos]. The modifier-cooldown check that used to precede this lives in
+  /// [_rollTurnModifier] now (see its ordering comment) — this is just the
+  /// chance-roll itself, extracted unchanged.
+  WcModifierDef? _rollNormalModifier() {
+    final chancePct = wcModifierChancePct(chaos);
+    if (chancePct > 0 && _rng.nextInt(100) < chancePct) {
+      final pool = wcSeverityPool(chaos);
+      final eligible = [
+        for (final m in wcModifiers)
+          if (pool.contains(m.severity)) m
+      ];
+      if (eligible.isNotEmpty) {
+        return eligible[_rng.nextInt(eligible.length)];
+      }
+    }
+    return null;
   }
 
   /// Advance to the next non-skipped player. Wrapping past the last seat

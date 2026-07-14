@@ -640,6 +640,66 @@ void main() {
     });
   });
 
+  group('WildcardEngine HEAVY CROWN', () {
+    test('HEAVY CROWN never fires before round 4', () {
+      final e = plain(players: 2, rounds: 10);
+      // P0 holds a lead far past kHeavyCrownLeadThreshold (120) for the
+      // whole test; every dart below is a miss (0 pts) so it never changes.
+      e.totals[0] = 200;
+      // 5 banked turns walks currentPlayerIndex/round through: P1@r1,
+      // P0@r2, P1@r2, P0@r3, P1@r3 — every roll still lands in rounds 1-3.
+      // A 6th turn would wrap into round 4, which is out of scope here (see
+      // the threshold test below for round-4 behavior).
+      for (var t = 0; t < 5; t++) {
+        e.applyDart(0, 0);
+        e.applyDart(0, 0);
+        e.applyDart(0, 0);
+        expect(e.round, lessThan(4));
+        expect(e.activeModifier?.id, isNot('heavyCrown'));
+      }
+    });
+
+    test('HEAVY CROWN only targets a leader ahead by >= threshold', () {
+      // Drives P0 to a lead of [lead] and banks 6 miss-only turns (2
+      // players), which walks round 1 -> 4 and lands the crown-eligible
+      // roll on P0's round-4 turn (see trace in the test above). Chaos
+      // stays 0 throughout (no triples/doubles/bulls, jokerCount(0) == 0),
+      // so this is the FIRST and only _rng call the whole run makes —
+      // picking the seed picks the crown roll outright.
+      bool crownFires(int lead, int seed) {
+        final e = WildcardEngine(
+            playerCount: 2, rounds: 10, startingChaos: 0, rng: math.Random(seed));
+        e.totals[0] = lead;
+        for (var t = 0; t < 6; t++) {
+          e.applyDart(0, 0);
+          e.applyDart(0, 0);
+          e.applyDart(0, 0);
+        }
+        return e.activeModifier?.id == 'heavyCrown';
+      }
+
+      // 119 lead: under threshold, the guard rejects before ever touching
+      // the rng — true regardless of seed.
+      for (var seed = 0; seed < 30; seed++) {
+        expect(crownFires(119, seed), isFalse);
+      }
+
+      // 120 lead: at the threshold, some seed's 25%-chance roll must land
+      // a crown — bounded search over fixed seeds, not a live random draw.
+      final canCrown =
+          List<int>.generate(500, (i) => i).any((seed) => crownFires(120, seed));
+      expect(canCrown, isTrue);
+    });
+
+    test('debugForceModifier heavyCrown sets it as the active modifier', () {
+      final e = plain(players: 2, rounds: 10)..debugForceModifier('heavyCrown');
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // bank P0, roll P1's turn
+      expect(e.activeModifier?.id, 'heavyCrown');
+    });
+  });
+
   group('WildcardEngine modifier cooldown', () {
     test(
         'a modifier-having turn puts that player on cooldown for their '
