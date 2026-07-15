@@ -658,13 +658,19 @@ class WildcardEngine {
   /// A frozen thrower gets no roll at all — [activeModifier] stays null and
   /// a pending forced id is left queued for the next roll that actually
   /// happens (locked interpretation #16). A thrower on modifier COOLDOWN
-  /// (see [_hadModifierLastTurn]) gets the same treatment: no roll, the
-  /// cooldown flag clears, and any pending forced id survives untouched for
-  /// the next roll that actually happens — EXCEPT HEAVY CROWN, which ignores
-  /// cooldown entirely (it's a bespoke leader-only gate, not part of the
-  /// normal chance table) — but a pending debug force always outranks the
-  /// crown, so the crown roll only runs when nothing is forced. Ordering:
-  /// frozen -> crown -> cooldown -> forced/normal roll.
+  /// (see [_hadModifierLastTurn]) gets the same treatment below chaos 7: no
+  /// roll, the cooldown flag clears, and any pending forced id survives
+  /// untouched for the next roll that actually happens — EXCEPT HEAVY
+  /// CROWN, which ignores cooldown entirely (it's a bespoke leader-only
+  /// gate, not part of the normal chance table) — but a pending debug force
+  /// always outranks the crown, so the crown roll only runs when nothing is
+  /// forced. QA5 chaos-tuning: at chaos >= 7 the cooldown gate is ignored
+  /// too (product decision after tablet playtest flagged levels 7+ as too
+  /// tame) — the flag is left untouched rather than cleared in that case,
+  /// same documented benign quirk as HEAVY CROWN leaving it set; it self-
+  /// corrects the next time an actual cooldown-skip runs below chaos 7.
+  /// Ordering: frozen -> crown -> cooldown (chaos < 7 only) -> forced/normal
+  /// roll.
   void _rollTurnModifier() {
     activeModifier = null;
     window = null;
@@ -677,10 +683,12 @@ class WildcardEngine {
     final forcedId = _forcedModifierId;
     WcModifierDef? chosen = forcedId == null ? _rollHeavyCrownOrNull() : null;
 
-    if (chosen == null && _hadModifierLastTurn[currentPlayerIndex]) {
+    final onCooldown = _hadModifierLastTurn[currentPlayerIndex];
+    if (chosen == null && onCooldown && chaos < 7) {
       // Cooldown skip: no roll, flag clears, any pending force survives
       // untouched for the next roll that actually happens (unchanged from
       // pre-HEAVY-CROWN behavior — this still gates the forced branch too).
+      // QA5: this branch is only reachable below chaos 7 now.
       _hadModifierLastTurn[currentPlayerIndex] = false;
     } else if (chosen == null) {
       if (forcedId != null) {
@@ -754,7 +762,19 @@ class WildcardEngine {
           return;
         }
         roundStartTotals = List.of(totals);
-        _applyMeterChange(-1); // QA5: cool the meter between rounds
+        // QA5 chaos-tuning: the round-start decay halves at chaos >= 7
+        // (product decision after tablet playtest flagged levels 7+ as too
+        // tame) — skip it on even [round] numbers and apply it on odd ones
+        // while chaos stays >= 7 at this decay moment (an arbitrary but
+        // deterministic parity pick off the existing round counter, no new
+        // undo state). Once chaos drops below 7 it reverts to decaying
+        // every round, same as before. Normal-path-only: CUT!/REWIND
+        // restructure the round via _executeCut/_executeRewind, which
+        // never call this method, so they never decay either way.
+        final skipDecay = chaos >= 7 && round.isEven;
+        if (!skipDecay) {
+          _applyMeterChange(-1); // QA5: cool the meter between rounds
+        }
         _assignJokersForRound();
       }
       if (currentPlayerIndex == startIndex) break;

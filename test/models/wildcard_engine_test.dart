@@ -92,6 +92,35 @@ void main() {
     });
 
     test(
+        'round-start decay halves at chaos >= 7: two consecutive round '
+        'starts decay a total of -1, not -2 (QA5 chaos-tuning: decay skips '
+        'on even round transitions and applies on odd ones while chaos '
+        'stays >= 7 at the decay moment — an arbitrary but deterministic '
+        'parity pick; once chaos drops below 7 it reverts to every round)',
+        () {
+      final e = plain(players: 1, rounds: 5)..chaos = 7;
+      // 1 player -> round advances on every banked turn. Force jokers empty
+      // after every round rollover so a plain segment-1 dart can never hit
+      // one and pull in an unrelated instant-event side effect.
+      e.jokers = {};
+      expect(e.chaos, 7);
+      expect(e.round, 1);
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // banks turn 1 -> round 2 (even): decay SKIPPED
+      expect(e.round, 2);
+      expect(e.chaos, 7);
+      e.jokers = {};
+
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // banks turn 2 -> round 3 (odd): decay APPLIES
+      expect(e.round, 3);
+      expect(e.chaos, 6); // total across both round-starts: -1, not -2
+    });
+
+    test(
         'meter: only the FIRST true miss in a turn costs the meter; a '
         'second miss the same turn is a no-op (not just clamp-related)', () {
       // startingChaos 0 keeps jokers empty (wcJokerCount(0) == 0), so the
@@ -654,22 +683,25 @@ void main() {
     });
 
     test(
-        'statistical sanity: at chaos 10 the modifier COOLDOWN roughly '
-        'halves the raw 80% chance table\'s effective rate', () {
+        'statistical sanity: at chaos 6 the modifier COOLDOWN roughly '
+        'halves the raw 30% chance table\'s effective rate (QA5 '
+        'chaos-tuning: moved down from chaos 10, which is now >= 7 and '
+        'bypasses the cooldown gate entirely — see the dedicated bypass '
+        'test below)', () {
       final e = WildcardEngine(
-          playerCount: 2, rounds: 100, startingChaos: 10, rng: math.Random(1));
+          playerCount: 2, rounds: 100, startingChaos: 6, rng: math.Random(1));
       var turnsChecked = 0;
       var rolled = 0;
       for (var i = 0; i < 200 && !e.gameOver; i++) {
         // QA5 added a -1/round decay (a deliberate, SEPARATE mechanic to tame
         // the chaos-meter ratchet). Left unchecked over 100 rounds it would
         // walk chaos down toward 0, confounding this test's cooldown-only
-        // statistic with the decay's own effect. Pin chaos back to 10 at the
-        // top of every turn: levels 9 and 10 share the same 90% entry in
-        // _modifierChancePctByLevel, so at most one round's worth of decay
-        // (-1) can ever be in effect at roll time regardless — the reset
-        // just stops it from accumulating turn over turn.
-        e.chaos = 10;
+        // statistic with the decay's own effect. Pin chaos back to 6 at the
+        // top of every turn (chaos 6 is below the QA5 >= 7 halved-decay
+        // threshold too, so every round would otherwise decay -1 same as
+        // before) — the reset just stops it from accumulating turn over
+        // turn.
+        e.chaos = 6;
         turnsChecked++;
         if (e.activeModifier != null) rolled++;
         // Plain darts: no triples/misses/bulls, but segment 1 may be a
@@ -680,13 +712,57 @@ void main() {
         }
       }
       expect(turnsChecked, greaterThan(0));
-      // chaos 10 is an 80% modifier chance per eligible roll (tuned table),
-      // but cooldown means a player who got a modifier skips their very
-      // next roll — a 2-state Markov chain (rollable <-> cooldown) whose
-      // stationary "modifier assigned" fraction is p/(1+p) = 0.8/1.8 ≈
-      // 0.444, not the raw 0.8. Generous tolerance for a statistical test.
-      expect(rolled / turnsChecked, greaterThan(0.25));
-      expect(rolled / turnsChecked, lessThan(0.6));
+      // chaos 6 is a 30% modifier chance per eligible roll (unchanged by
+      // QA5's table bump, which only touched levels 7-10), but cooldown
+      // still applies below chaos 7: a player who got a modifier skips
+      // their very next roll — a 2-state Markov chain (rollable <->
+      // cooldown) whose stationary "modifier assigned" fraction is
+      // p/(1+p) = 0.3/1.3 ≈ 0.231, not the raw 0.3. Generous tolerance for
+      // a statistical test.
+      expect(rolled / turnsChecked, greaterThan(0.1));
+      expect(rolled / turnsChecked, lessThan(0.35));
+    });
+
+    test(
+        'at chaos >= 7 the modifier cooldown is ignored entirely: a forced '
+        "modifier queued while the thrower's cooldown flag is still set "
+        'rolls immediately on their very next turn (QA5 chaos-tuning; '
+        'this is the "fresh force survives a cooldown skip" test above, '
+        're-run with chaos bumped up right before the critical roll — the '
+        'force must land immediately instead of surviving)', () {
+      final e = plain(players: 2); // startingChaos 0: deterministic setup,
+      // no unforced roll can contaminate the sequence.
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 1 (unforced, null); rolls turn 2 P1
+      e.debugForceModifier('onlyEvens');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks turn 2 (no modifier); rolls turn 3 P0
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier?.id, 'onlyEvens'); // turn 3 (P0): forced
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 banks turn 3 (HAD a modifier) -> P0 cooldown
+      // flag set; rolls turn 4 P1 (chaos 0 -> null, unforced)
+      expect(e.currentPlayerIndex, 1);
+      expect(e.activeModifier, isNull);
+
+      // Bump chaos to 10 (comfortably >= 7) right before the critical
+      // roll: turn 5 (P0) would normally be blocked by P0's cooldown flag
+      // set above — but QA5 says the gate is ignored at chaos >= 7. This
+      // P1->P0 bank also wraps the round (2-player rotation), which fires
+      // the QA5 halved round-start decay (odd-round parity applies it
+      // here) — 10, not 7, so chaos is still >= 7 by the time the
+      // cooldown check runs right after.
+      e.chaos = 10;
+      e.debugForceModifier('doubleTrouble');
+      e.applyDart(1, 1);
+      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P1 banks turn 4 (no modifier); rolls turn 5 (P0)
+      expect(e.currentPlayerIndex, 0);
+      expect(e.activeModifier?.id,
+          'doubleTrouble'); // cooldown ignored: rolled immediately
     });
   });
 
@@ -1419,6 +1495,10 @@ void main() {
       expect(e.round, 2);
       expect(e.currentPlayerIndex, 0); // next round starts at the first seat
       expect(e.jokers, {19}); // fresh round-2 jokers, no reroll double-add
+      // Round-start decay (QA5) is normal-path-only: CUT! rolls the round
+      // over via its own restructure, not _advancePlayer, so no -1 decay
+      // applies here — only the joker-hit's own +1 (3 base + 1 = 4).
+      expect(e.chaos, 4);
     });
 
     test('CUT! mid-turn (dart 1 of 3) still bank-and-cuts immediately', () {

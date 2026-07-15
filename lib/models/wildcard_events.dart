@@ -436,8 +436,11 @@ const wcInstantEvents = <WcInstantEventDef>[
 // Chaos tables (spec §3).
 // ---------------------------------------------------------------------------
 
+// QA5 chaos-tuning (product decision after tablet playtest flagged levels
+// 7+ as too tame): levels 7-10 bumped 65/65/90/90 -> 75/75/95/95. Levels 0-6
+// unchanged.
 const List<int> _modifierChancePctByLevel = [
-  0, 5, 5, 15, 15, 30, 30, 65, 65, 90, 90,
+  0, 5, 5, 15, 15, 30, 30, 75, 75, 95, 95,
 ];
 
 /// Percent chance a modifier is rolled at turn start, per chaos level (0-10).

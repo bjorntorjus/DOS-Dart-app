@@ -320,10 +320,11 @@ void main() {
   });
 
   group('chaos tables (spec §3)', () {
-    test('modifier chance table matches spec §3', () {
+    test('modifier chance table matches spec §3 (QA5 chaos-tuning: '
+        'levels 7-10 bumped 65/65/90/90 -> 75/75/95/95; 0-6 unchanged)', () {
       expect(
         [for (var l = 0; l <= 10; l++) wcModifierChancePct(l)],
-        [0, 5, 5, 15, 15, 30, 30, 65, 65, 90, 90],
+        [0, 5, 5, 15, 15, 30, 30, 75, 75, 95, 95],
       );
     });
 
