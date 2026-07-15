@@ -452,10 +452,18 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       case 'chaosSurge':
         final detail = engine.lastEventResolution?.detail;
         if (detail != null) {
+          // FREEZE's detail now leads with 'FREEZE · triggered by P<n> · '
+          // (Task: dialog/log must name the trigger seat) — TTS copy is out
+          // of scope for that change, so strip the trigger clause before
+          // speaking and keep announcing only the outcome, exactly as
+          // before. A no-op for every other event id here, none of which
+          // ever contain a "triggered by" clause.
+          final outcomeOnly =
+              detail.replaceFirst(RegExp(r'^.*?triggered by P\d+ · '), '');
           // '+' is vocalized inconsistently across TTS engines — spell it out
           // for speech only; the dialog (which reuses _mapEventDetail on the
           // raw detail separately) keeps the glyph.
-          final spoken = _mapEventDetail(detail).replaceAll('+', 'plus ');
+          final spoken = _mapEventDetail(outcomeOnly).replaceAll('+', 'plus ');
           _announcer.announceChaos(spoken);
         }
       default:
@@ -1110,6 +1118,15 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   }
 
   Widget _rewindDialog() {
+    // Engine detail is 'REWIND · triggered by P<n> · round <r> restarts' —
+    // names the seat that threw the joker; mapped to the actual player name
+    // same as every other event dialog. Shown alongside the existing
+    // friendly summary line rather than replacing it (CUT!'s dialog uses
+    // the same two-line pattern: a fixed headline, then a white70 detail
+    // line — see _cutDialog's 'LOSES TURN: ...' line).
+    final triggerLine = engine.lastEventResolution != null
+        ? _mapEventDetail(engine.lastEventResolution!.detail)
+        : '';
     return WildcardDialog(
       accent: DossedartTokens.cyan,
       icon: '⟲',
@@ -1124,6 +1141,14 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           textAlign: TextAlign.center,
           style: const TextStyle(fontFamily: 'VT323', fontSize: 20, color: Colors.white),
         ),
+        if (triggerLine.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            triggerLine,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontFamily: 'VT323', fontSize: 16, color: Colors.white70),
+          ),
+        ],
         const SizedBox(height: 14),
         WcBeforeAfterRows(
           rows: _revealRows(engine.lastEventResolution?.scoreChanges ?? const []),

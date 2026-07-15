@@ -802,9 +802,51 @@ void main() {
 
     // Both players are tied at 0 — _highestAmong resolves the tie to the
     // earliest seat, so the victim is always player A regardless of who
-    // threw the joker.
-    expect(find.text('A FROZEN · skipped next turn (scores 0)'),
+    // threw the joker. The engine's very first turn belongs to seat 0 (A),
+    // so A is also the trigger here — the detail line names both.
+    expect(
+        find.text('FREEZE · triggered by A · A FROZEN · skipped next turn '
+            '(scores 0)'),
         findsOneWidget);
+  });
+
+  testWidgets(
+      'REWIND dialog names the trigger (the thrower who hit the joker) '
+      'alongside the affected players\' before → after rows',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    if (state.overlayKindForTest == WcOverlayKind.announce) {
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty);
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('rewindEvent');
+    state.onDartHitForTest(jokerNumber, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.joker);
+
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.rewind);
+
+    // A is seat 0, always the current thrower on the engine's very first
+    // turn — it hit the joker, so it's the trigger.
+    expect(find.textContaining('triggered by A'), findsOneWidget);
+    expect(find.byType(WcBeforeAfterRows), findsOneWidget);
   });
 
   testWidgets('SCORE SWAP dialog shows both players before → after',

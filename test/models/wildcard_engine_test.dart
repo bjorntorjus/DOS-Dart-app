@@ -1262,10 +1262,10 @@ void main() {
       e.totals[1] = 300; // leader
       e.totals[2] = 20;
       e.debugForceEvent('freeze');
-      e.applyDart(1, 1);
+      e.applyDart(1, 1); // P0 throws the joker dart -> triggers FREEZE
       expect(e.frozenPlayer, 1);
       expect(e.lastEventResolution?.detail,
-          'P1 FROZEN · skipped next turn (scores 0)');
+          'FREEZE · triggered by P0 · P1 FROZEN · skipped next turn (scores 0)');
     });
 
     test('FREEZE: ties resolve to the earliest seat, hitter included', () {
@@ -1502,11 +1502,72 @@ void main() {
       expect(ch.length, 2); // one row per living player
       expect(ch, [
         (playerIndex: 0, before: 60, after: 0),
-        (playerIndex: 1, before: 0, after: 0),
+        // P1 is the thrower: before includes the 1 point from the very
+        // joker-hit dart that triggered REWIND (turnPoints, discarded by
+        // the rewind before it ever reached totals) — not just the banked
+        // total (0), which is what a plain totals-only before/after would
+        // wrongly report (field log 2026-07-15 regression).
+        (playerIndex: 1, before: 1, after: 0),
       ]);
       for (final c in ch) {
         expect(c.after, e.roundStartTotals[c.playerIndex]); // restored
       }
+      expect(e.lastEventResolution?.detail,
+          'REWIND · triggered by P1 · round 1 restarts');
+    });
+
+    test(
+        'REWIND: thrower\'s reported before includes the discarded '
+        'in-progress turn (banked + unbanked) — not just the banked total '
+        '(field log 2026-07-15: a T18 (54) dart vanished but the reveal '
+        'showed before == after)', () {
+      final e = WildcardEngine(
+          playerCount: 2, rounds: 5, startingChaos: 0, rng: math.Random(7));
+      // Round 1: P0 banks 38 (18 + 20 + a true miss), P1 banks 0. Chaos 0
+      // keeps this fully deterministic — no modifier roll, no auto jokers.
+      e.applyDart(18, 1);
+      e.applyDart(20, 1);
+      e.applyDart(0, 0); // banks 38
+      expect(e.totals[0], 38);
+      e.applyDart(0, 0);
+      e.applyDart(0, 0);
+      e.applyDart(0, 0); // P1 banks 0 -> round wraps to 2
+      expect(e.round, 2);
+      expect(e.roundStartTotals, [38, 0]);
+      expect(e.currentPlayerIndex, 0);
+
+      // Round 2: force the hidden joker onto 18 and hit T18 (54) as the
+      // very first dart of P0's turn — mirrors the field log exactly.
+      e.jokers = {18};
+      e.debugForceEvent('rewindEvent');
+      final r = e.applyDart(18, 3); // T18 = 54, hits the joker -> REWIND
+      expect(r.jokerHit, 18);
+      expect(e.totals[0], 38); // rewound to round-start — the 54 vanished
+
+      final change =
+          e.lastEventResolution!.scoreChanges.firstWhere((c) => c.playerIndex == 0);
+      expect(change.before, 92); // 38 banked + 54 discarded in-progress
+      expect(change.after, 38);
+      expect(e.lastEventResolution?.detail,
+          'REWIND · triggered by P0 · round 2 restarts');
+    });
+
+    test('REWIND: scoreChanges excludes a removed (skipped) player', () {
+      final e = WildcardEngine(
+          playerCount: 3, rounds: 5, startingChaos: 3, rng: math.Random(7));
+      expect(e.jokers, {1});
+      e.removePlayer(2); // P2 leaves before round 1 finishes
+      e.applyDart(20, 1);
+      e.applyDart(20, 1);
+      e.applyDart(20, 1); // P0 banks 60; P1's turn begins (P2 is skipped)
+      expect(e.totals[0], 60);
+      expect(e.currentPlayerIndex, 1);
+
+      e.debugForceEvent('rewindEvent');
+      e.applyDart(1, 1); // P1 hits the joker -> REWIND
+
+      final ch = e.lastEventResolution!.scoreChanges;
+      expect(ch.map((c) => c.playerIndex).toList(), [0, 1]); // P2 excluded
     });
   });
 

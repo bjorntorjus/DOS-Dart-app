@@ -986,7 +986,8 @@ class WildcardEngine {
         frozenPlayer = leader;
         lastEventResolution = (
           event: event,
-          detail: 'P$leader FROZEN · skipped next turn (scores 0)',
+          detail:
+              'FREEZE · triggered by P$hitter · P$leader FROZEN · skipped next turn (scores 0)',
           flags: <WcEventFlag>[],
           scoreChanges: const <WcScoreChange>[],
         );
@@ -1028,14 +1029,28 @@ class WildcardEngine {
 
       case 'rewindEvent':
         final before = List.of(totals);
+        // The thrower's in-progress turn (already-banked totals[hitter] plus
+        // this turn's unbanked turnPoints, INCLUDING the very dart that hit
+        // the joker — turnPoints is updated before this switch runs) is
+        // wiped by _executeRewind() below without ever reaching totals, so
+        // the plain totals-only before/after used for every other player
+        // would misreport the thrower's real loss as before==after (field
+        // log 2026-07-15: a 54-point T18 vanished but the reveal showed
+        // 38→38). Capture it here, BEFORE _executeRewind() zeroes turnPoints.
+        final throwerBefore = totals[hitter] + turnPoints;
         _executeRewind(); // mutates totals -> roundStartTotals
         lastEventResolution = (
           event: event,
-          detail: 'REWIND · round $round restarts',
+          detail: 'REWIND · triggered by P$hitter · round $round restarts',
           flags: <WcEventFlag>[],
           scoreChanges: <WcScoreChange>[
             for (var i = 0; i < totals.length; i++)
-              if (!isSkipped(i)) (playerIndex: i, before: before[i], after: totals[i]),
+              if (!isSkipped(i))
+                (
+                  playerIndex: i,
+                  before: i == hitter ? throwerBefore : before[i],
+                  after: totals[i],
+                ),
           ],
         );
         return true;
