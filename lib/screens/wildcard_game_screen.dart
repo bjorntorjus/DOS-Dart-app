@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../app_version.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_mode.dart';
@@ -200,6 +201,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         'rounds': widget.config.rounds,
         'startingChaos': widget.config.startingChaos,
       },
+      build: kAppVersion,
     );
     BatterySampler.instance.start('Wildcard');
     _meme.init();
@@ -355,8 +357,15 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     }
     final event = result.instantEvent;
     if (event != null) {
-      _log.logEvent(
-          name: event.name, detail: engine.lastEventResolution?.detail ?? '');
+      final res = engine.lastEventResolution;
+      final baseDetail = res?.detail ?? '';
+      // Parity with ROBIN HOOD (whose detail already embeds "before → after"
+      // inline): append per-player totals whenever the resolution carries
+      // scoreChanges (Plan A), so SCORE SWAP/REWIND also show the numbers.
+      final detail = (res != null && res.scoreChanges.isNotEmpty)
+          ? '$baseDetail · ${res.scoreChanges.map((c) => 'P${c.playerIndex} ${c.before}→${c.after}').join(', ')}'
+          : baseDetail;
+      _log.logEvent(name: event.name, detail: detail);
       setState(() => _overlay = _overlayKindForEvent(event));
       _announceEvent(event);
       return; // _pendingResult stays set for the event dismiss below.
@@ -465,6 +474,15 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       // is back — engine.currentPlayerIndex has already advanced to the next
       // thrower by the time turnEnded is true.
       _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+      _log.logStandings(
+          roundNumber: engine.round,
+          names: players.map((p) => p.name).toList(),
+          scores: engine.totals);
+      _log.log('R${engine.round} STATE chaos=${engine.chaos} '
+          'mod=${engine.activeModifier?.name ?? '-'} '
+          'jokers=${engine.jokers.toList()..sort()} '
+          '${engine.window != null ? 'window=[${engine.window!.lo},${engine.window!.hi}] ' : ''}'
+          '${engine.cursedNumber != null ? 'cursed=${engine.cursedNumber} ' : ''}');
     }
     if (engine.gameOver) {
       _onGameEnd();
