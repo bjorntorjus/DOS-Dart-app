@@ -443,19 +443,18 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         if (currentPlayerIndex == startIndex) break;
       } while (finishedPlayers.contains(currentPlayerIndex));
     }
-    // Suppressed on a game-over transition (e.g. removing the current player
-    // ends the game — see _performRemovePlayer, which now resolves that
-    // before calling here) so TURN/STANDINGS never logs a "next" turn that
-    // will never actually be played.
+    _log.logAdvance(
+      roundNumber: _roundNumber,
+      fromIndex: fromIndex,
+      toIndex: currentPlayerIndex,
+      toName: players[currentPlayerIndex].name,
+      toScore: currentTargets[currentPlayerIndex],
+      reason: _inSuddenDeath ? 'sudden death' : null,
+    );
+    // Gated so TURN/STANDINGS never logs a "next" turn on a path where the
+    // game is already over (e.g. undo restoring onto a removed player after
+    // game end). Log-only gate — gameplay flow is untouched.
     if (!_gameFullyOver) {
-      _log.logAdvance(
-        roundNumber: _roundNumber,
-        fromIndex: fromIndex,
-        toIndex: currentPlayerIndex,
-        toName: players[currentPlayerIndex].name,
-        toScore: currentTargets[currentPlayerIndex],
-        reason: _inSuddenDeath ? 'sudden death' : null,
-      );
       // ATC has no running "score" — currentTargets holds the next target
       // number (1-20, or 25 for Bull) each player must hit, not points. The
       // numbers logged here (and in the STANDINGS line below) are targets.
@@ -470,8 +469,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         names: players.map((p) => p.name).toList(),
         scores: currentTargets,
       );
-      _announcer.announceNextPlayer(players[currentPlayerIndex].name);
     }
+    _announcer.announceNextPlayer(players[currentPlayerIndex].name);
   }
 
   bool _isRoundComplete() {
@@ -1876,10 +1875,12 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         names: players.map((p) => p.name).toList(),
         scores: currentTargets,
       );
+      if (playerIndex == currentPlayerIndex) {
+        dartsInTurn = 0;
+        _advancePlayer();
+      }
       // If only 1 (or 0) active players remain, end the game
-      // (audit 2026-07-06, F7 — mirrors X01). Resolved before _advancePlayer
-      // so its TURN/STANDINGS log is suppressed on this game-over transition
-      // (precedent: Killer, Task 6, checks its winner before advancing).
+      // (audit 2026-07-06, F7 — mirrors X01).
       final remaining = List.generate(players.length, (i) => i)
           .where((i) => !finishedPlayers.contains(i))
           .toList();
@@ -1889,10 +1890,6 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         }
         winnerIndex = _winnerIndexExcludingRemoved();
         _gameFullyOver = true;
-      }
-      if (playerIndex == currentPlayerIndex) {
-        dartsInTurn = 0;
-        _advancePlayer();
       }
     });
     if (_gameFullyOver) {
