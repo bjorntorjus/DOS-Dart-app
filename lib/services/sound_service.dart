@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'app_settings.dart';
 import 'game_logger.dart';
@@ -8,21 +10,97 @@ import 'game_logger.dart';
 /// Plays short sound effect files from assets/sounds/.
 /// Sounds are queued so they never overlap each other.
 /// Falls back silently if a file doesn't exist or playback fails.
+///
+/// A 2026-07-15 field log showed a sound starting at 11:29:27 with NO
+/// completion or error ever arriving from the native player: [_isPlaying]
+/// stayed true forever, the queue grew monotonically 0→15 over 9 minutes,
+/// and nothing (including the winner sound) played for the rest of the
+/// game. Three defenses were added as a result:
+///  1. A watchdog timer per in-flight sound — if neither completion nor
+///     error arrives within [watchdogDuration], the stall is logged and the
+///     queue is force-advanced. A monotonically increasing "generation"
+///     token guards against a late completion/error (or the watchdog
+///     itself) double-advancing the queue once it has already moved on.
+///  2. Completion/error logging, so a future game log shows the queue
+///     actually draining instead of only ever showing enqueues.
+///  3. A cap (4) on the PENDING queue — mirrors [TtsService]'s cap-3 fix
+///     from the 2026-07-09 WILDCARD QA round. The currently-playing sound
+///     is never in the pending queue, so it's never touched by the cap.
 class SoundService {
-  SoundService._();
+  SoundService._({AudioPlayer? player})
+      : _player = player ?? AudioPlayer(playerId: 'sound_service');
+
   static final SoundService instance = SoundService._();
 
-  final AudioPlayer _player = AudioPlayer();
+  /// Creates a standalone (non-singleton) instance wrapping [player], so
+  /// tests can exercise the queue/watchdog/cap logic against a player whose
+  /// method- and event-channels they control, without touching the real
+  /// [instance] used by the running app.
+  @visibleForTesting
+  factory SoundService.forTesting(AudioPlayer player) =>
+      SoundService._(player: player);
+
+  final AudioPlayer _player;
   final Queue<String> _queue = Queue<String>();
   final Random _random = Random();
   bool _enabled = true;
   bool _isPlaying = false;
 
+  // Cap on PENDING (not-yet-playing) sounds. The currently-playing sound has
+  // already been removed from [_queue] by [_playNextQueued], so this can
+  // never cancel in-flight audio — only stale backlog. Mirrors
+  // TtsService._maxPendingQueue (cap 3 there; sound effects are shorter and
+  // more frequent, so a slightly larger cap avoids over-trimming bursts).
+  static const int _maxPendingQueue = 4;
+
+  // How long to wait for onPlayerComplete/catchError before assuming the
+  // native player has stalled and forcing the queue to advance. Production
+  // default is comfortably longer than any effect in assets/sounds/.
+  // Overridable for tests only.
+  @visibleForTesting
+  static Duration watchdogDuration = const Duration(seconds: 20);
+
+  /// F18-style hard off-switch for tests (mirrors VideoService/ArcadeFrame/
+  /// BatterySampler's `disableForTest`, wired in test/flutter_test_config.dart).
+  /// Without it, the watchdog Timer introduced by the 2026-07-15 fix is a
+  /// real (or FakeAsync) Timer that many existing widget/screen tests never
+  /// elapse or explicitly cancel, tripping flutter_test's "no pending
+  /// timers" invariant even though those tests don't care about sound at
+  /// all. Checked at play()-time, before anything else.
+  @visibleForTesting
+  static bool disableForTest = false;
+
+  Timer? _watchdogTimer;
+
+  // Bumped every time a new sound starts playing. The watchdog callback and
+  // the completion/error handlers only act if the generation they were
+  // armed/invoked for is still the current one — this prevents a late
+  // completion (or the watchdog firing after a completion already advanced
+  // the queue) from advancing the queue a second time.
+  int _generation = 0;
+  String? _currentName;
+
+  @visibleForTesting
+  List<String> get pendingQueueForTesting => List<String>.unmodifiable(_queue);
+
+  @visibleForTesting
+  bool get isPlayingForTesting => _isPlaying;
+
+  @visibleForTesting
+  void resetForTesting() {
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+    _generation++; // invalidate any still-in-flight watchdog/completion
+    _queue.clear();
+    _isPlaying = false;
+    _enabled = true;
+    _currentName = null;
+  }
+
   Future<void> init() async {
     _enabled = await AppSettings.getSoundEffectsEnabled();
     _player.onPlayerComplete.listen((_) {
-      _isPlaying = false;
-      _playNextQueued();
+      _settle(_generation, outcome: 'done');
     });
   }
 
@@ -32,10 +110,26 @@ class SoundService {
 
   /// Play [name].mp3 from assets/sounds/. Queued — will not overlap other sounds.
   Future<void> play(String name) async {
+    if (disableForTest) return;
     if (!_enabled) return;
     GameLogger.instance.logSound(source: 'SoundService', event: 'play($name)', outcome: 'queued (queueLen=${_queue.length}, playing=$_isPlaying)');
     _queue.add(name);
+    _enforcePendingCap();
     if (!_isPlaying) _playNextQueued();
+  }
+
+  /// Drop the OLDEST pending sound(s) once [_maxPendingQueue] is exceeded.
+  /// The currently-playing sound is never in [_queue], so this never
+  /// interrupts in-flight audio — only stale backlog.
+  void _enforcePendingCap() {
+    while (_queue.length > _maxPendingQueue) {
+      final dropped = _queue.removeFirst();
+      GameLogger.instance.logSound(
+        source: 'SoundService',
+        event: 'play($dropped)',
+        outcome: 'queue cap ($_maxPendingQueue) hit — dropping oldest pending',
+      );
+    }
   }
 
   void _playNextQueued() {
@@ -45,10 +139,41 @@ class SoundService {
     }
     final name = _queue.removeFirst();
     _isPlaying = true;
+    _currentName = name;
+    final generation = ++_generation;
+
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer(watchdogDuration, () => _onWatchdogFired(generation));
+
     _player.play(AssetSource('sounds/$name.mp3')).catchError((_) {
-      _isPlaying = false;
-      _playNextQueued();
+      _settle(generation, outcome: 'failed');
     });
+  }
+
+  void _onWatchdogFired(int generation) {
+    if (generation != _generation) return; // stale — already advanced past this
+    final seconds = watchdogDuration.inMilliseconds / 1000;
+    GameLogger.instance.logSound(
+      source: 'SoundService',
+      event: 'play($_currentName)',
+      outcome: 'watchdog: no completion in ${seconds}s — forcing queue advance',
+    );
+    _settle(generation, outcome: null);
+  }
+
+  /// Common exit path for a playback that just finished settling — via a
+  /// real completion, a playback error, or the watchdog giving up. Only the
+  /// FIRST of these to arrive for a given [generation] has any effect; the
+  /// others are stale no-ops (see class doc).
+  void _settle(int generation, {required String? outcome}) {
+    if (generation != _generation) return;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+    if (outcome != null) {
+      GameLogger.instance.logSound(source: 'SoundService', event: 'play($_currentName)', outcome: outcome);
+    }
+    _isPlaying = false;
+    _playNextQueued();
   }
 
   /// Like [playRandom], but only plays with a 1-in-[chance] probability.
