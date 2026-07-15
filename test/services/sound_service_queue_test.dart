@@ -142,8 +142,14 @@ void main() {
   /// Builds a fresh SoundService + AudioPlayer pair with fully mocked
   /// method/event channels, and returns the recorded native calls plus a
   /// way to reach the captured event sink (for injecting onComplete, etc).
+  ///
+  /// [holdSetSource], if provided, is consulted per setSourceUrl call (by
+  /// logical sound name); returning a Future holds that call's native
+  /// response open until the Future completes — this gives tests a
+  /// deterministic window in which a sound has been dequeued and its
+  /// play() pipeline started, but play() has verifiably NOT resolved yet.
   ({SoundService service, List<String> nativeCalls, MockStreamHandlerEventSink? Function() sink})
-      setUpPlayer() {
+      setUpPlayer({Future<void>? Function(String soundName)? holdSetSource}) {
     final playerId = 'sound-test-${playerCounter++}';
     final nativeCalls = <String>[];
     MockStreamHandlerEventSink? sink;
@@ -161,7 +167,10 @@ void main() {
       switch (call.method) {
         case 'setSourceUrl':
           final url = args['url'] as String;
-          nativeCalls.add('setSourceUrl:${soundNameFromUrl(url)}');
+          final soundName = soundNameFromUrl(url);
+          nativeCalls.add('setSourceUrl:$soundName');
+          final hold = holdSetSource?.call(soundName);
+          if (hold != null) await hold;
           // Real native side reports "prepared" once the source is set;
           // AudioPlayer.play() awaits this event (with a 30s timeout)
           // before resolving.
@@ -264,6 +273,86 @@ void main() {
   });
 
   test(
+      'late completion AFTER a watchdog-forced advance does not double-advance',
+      () async {
+    // The Critical review finding on the first round of this fix: the
+    // completion handler passed the LIVE _generation into _settle, making
+    // its guard a tautology — a delayed onComplete from a sound the
+    // watchdog had already abandoned would advance the queue a SECOND
+    // time, skipping the sound that had just started.
+    //
+    // Interleaving reproduced here:
+    //   1. win/win (N) starts, then stalls — no completion ever sent.
+    //   2. Its watchdog fires → force-advance → triple/triple (N+1) is
+    //      dequeued and its play() pipeline starts. We hold N+1's
+    //      setSourceUrl response open so N+1 is verifiably mid-play() —
+    //      a deterministic window in which any completion event is
+    //      unambiguously stale (N+1 can't have finished: it hasn't even
+    //      finished loading, let alone resumed).
+    //   3. The stuck native player NOW emits N's delayed onComplete.
+    //   4. Required: the queue must NOT advance again — miss/bruhhh (N+2)
+    //      stays pending and un-started; N+1 remains the current sound.
+    SoundService.watchdogDuration = const Duration(milliseconds: 300);
+    final holdTriple = Completer<void>();
+    addTearDown(() {
+      // Never leave the held native call dangling if an expect fails.
+      if (!holdTriple.isCompleted) holdTriple.complete();
+    });
+    final h = setUpPlayer(
+      holdSetSource: (name) => name == 'triple/triple' ? holdTriple.future : null,
+    );
+    await h.service.init();
+
+    h.service.play('win/win'); // N — stalls, watchdog abandons it
+    h.service.play('triple/triple'); // N+1
+    h.service.play('miss/bruhhh'); // N+2
+
+    await waitUntil(() => h.nativeCalls.where((c) => c == 'resume').length == 1);
+    expect(h.service.pendingQueueForTesting, ['triple/triple', 'miss/bruhhh']);
+
+    // No completion for win/win — its watchdog fires and force-advances.
+    // triple/triple's setSourceUrl arrives and is held open.
+    await waitUntil(() => h.nativeCalls.contains('setSourceUrl:triple/triple'));
+    expect(h.service.pendingQueueForTesting, ['miss/bruhhh'],
+        reason: 'watchdog advance must have dequeued exactly triple/triple');
+
+    // The delayed, stale completion for win/win arrives.
+    h.sink()!.success({'event': 'audio.onComplete'});
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(h.service.pendingQueueForTesting, ['miss/bruhhh'],
+        reason: 'stale completion must NOT advance the queue a second time');
+    expect(h.nativeCalls.where((c) => c == 'setSourceUrl:miss/bruhhh'), isEmpty,
+        reason: 'N+2 must not have been started by the stale completion');
+
+    // Release N+1's held setSourceUrl and prove the queue is not wedged.
+    // Note the audioplayers library's OWN reaction to the stale completion:
+    // AudioPlayer's internal listener set the player's desiredState to
+    // 'completed', so the still-in-flight play(triple/triple) skips its
+    // native resume when it finally proceeds (see AudioPlayer._resume) —
+    // the sound never audibly starts and no completion will ever arrive
+    // for it. That is exactly the class of silent stall the watchdog
+    // exists for: triple/triple's watchdog fires and advances to N+2, and
+    // the queue keeps flowing (advanced by exactly one sound at a time).
+    holdTriple.complete();
+    await waitUntil(() => h.nativeCalls.contains('setSourceUrl:miss/bruhhh'));
+    await waitUntil(() => h.nativeCalls.where((c) => c == 'resume').length == 2);
+    expect(h.service.pendingQueueForTesting, isEmpty);
+    expect(
+      h.nativeCalls.where((c) => c.startsWith('setSourceUrl:')).toList(),
+      [
+        'setSourceUrl:win/win',
+        'setSourceUrl:triple/triple',
+        'setSourceUrl:miss/bruhhh',
+      ],
+      reason: 'each sound started exactly once, in order — no skips, no repeats',
+    );
+    h.sink()!.success({'event': 'audio.onComplete'}); // genuine: miss/bruhhh
+    await waitUntil(
+        () => h.service.pendingQueueForTesting.isEmpty && !h.service.isPlayingForTesting);
+  });
+
+  test(
       'pending queue is capped at 4 (newest kept, oldest dropped), drains in order',
       () async {
     final h = setUpPlayer();
@@ -285,16 +374,20 @@ void main() {
     expect(h.service.pendingQueueForTesting, names.sublist(3),
         reason: 'oldest pending (indices 1,2) dropped; newest 4 kept in order');
 
-    await waitUntil(() => h.nativeCalls.contains('setSourceUrl:${names[0]}'));
+    // Wait for the first sound to actually be PLAYING (resume issued —
+    // which also means its play() call has resolved) before injecting its
+    // completion: a completion arriving while play() is still in flight is
+    // now correctly treated as a stale leftover from a previous sound and
+    // ignored, so injecting on the earlier setSourceUrl signal would race.
+    await waitUntil(() => h.nativeCalls.where((c) => c == 'resume').length == 1);
     expect(h.nativeCalls.where((c) => c.startsWith('setSourceUrl:')),
         ['setSourceUrl:${names[0]}']);
 
     // Drain: each completion should start the next pending sound, in order.
     for (var i = 0; i < 4; i++) {
       h.sink()!.success({'event': 'audio.onComplete'});
-      await waitUntil(() => h.nativeCalls
-          .where((c) => c.startsWith('setSourceUrl:'))
-          .length == i + 2);
+      await waitUntil(
+          () => h.nativeCalls.where((c) => c == 'resume').length == i + 2);
     }
 
     expect(h.service.pendingQueueForTesting, isEmpty);

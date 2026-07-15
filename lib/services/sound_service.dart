@@ -19,8 +19,14 @@ import 'game_logger.dart';
 ///  1. A watchdog timer per in-flight sound — if neither completion nor
 ///     error arrives within [watchdogDuration], the stall is logged and the
 ///     queue is force-advanced. A monotonically increasing "generation"
-///     token guards against a late completion/error (or the watchdog
-///     itself) double-advancing the queue once it has already moved on.
+///     token — captured per sound by the watchdog, the play() error path
+///     AND the (per-sound re-armed) completion subscription — guards
+///     against any of them double-advancing the queue once it has already
+///     moved on. Because completion events carry no per-sound attribution,
+///     the completion path is additionally gated on [_playResolved]: a
+///     delayed completion from a watchdog-abandoned sound arriving while
+///     the next sound is still mid-play() is detected as stale and ignored
+///     instead of skipping the sound that just started.
 ///  2. Completion/error logging, so a future game log shows the queue
 ///     actually draining instead of only ever showing enqueues.
 ///  3. A cap (4) on the PENDING queue — mirrors [TtsService]'s cap-3 fix
@@ -72,6 +78,25 @@ class SoundService {
 
   Timer? _watchdogTimer;
 
+  // Per-sound completion subscription, re-armed in [_playNextQueued] with
+  // that sound's captured generation token — so the completion path carries
+  // a captured (not live) generation, exactly like the watchdog and
+  // catchError paths. Re-subscribing also drops any completion event that
+  // was still queued for delivery to the PREVIOUS sound's subscription.
+  StreamSubscription<void>? _completeSub;
+
+  // True once the current sound's play() call has fully resolved (i.e. the
+  // native resume returned). A genuine completion for the current sound can
+  // only ever arrive after that — audio cannot finish before it has started
+  // — so a completion observed while this is still false is necessarily a
+  // stray from a PREVIOUS sound (e.g. one the watchdog already abandoned)
+  // and must not advance the queue. This is the second half of the
+  // late-completion guard: the generation token alone cannot catch this
+  // case, because the completion event stream carries no per-sound
+  // attribution — any event delivered while sound N+1 is current
+  // necessarily arrives with N+1's (current) generation.
+  bool _playResolved = false;
+
   // Bumped every time a new sound starts playing. The watchdog callback and
   // the completion/error handlers only act if the generation they were
   // armed/invoked for is still the current one — this prevents a late
@@ -90,18 +115,18 @@ class SoundService {
   void resetForTesting() {
     _watchdogTimer?.cancel();
     _watchdogTimer = null;
+    _completeSub?.cancel();
+    _completeSub = null;
     _generation++; // invalidate any still-in-flight watchdog/completion
     _queue.clear();
     _isPlaying = false;
+    _playResolved = false;
     _enabled = true;
     _currentName = null;
   }
 
   Future<void> init() async {
     _enabled = await AppSettings.getSoundEffectsEnabled();
-    _player.onPlayerComplete.listen((_) {
-      _settle(_generation, outcome: 'done');
-    });
   }
 
   void setEnabled(bool value) {
@@ -140,14 +165,44 @@ class SoundService {
     final name = _queue.removeFirst();
     _isPlaying = true;
     _currentName = name;
+    _playResolved = false;
     final generation = ++_generation;
 
     _watchdogTimer?.cancel();
     _watchdogTimer = Timer(watchdogDuration, () => _onWatchdogFired(generation));
 
-    _player.play(AssetSource('sounds/$name.mp3')).catchError((_) {
+    _completeSub?.cancel();
+    _completeSub =
+        _player.onPlayerComplete.listen((_) => _onCompletion(generation));
+
+    _player.play(AssetSource('sounds/$name.mp3')).then((_) {
+      // Only mark resolved if this sound is still the current one — the
+      // watchdog may have force-advanced past it while play() was in
+      // flight, in which case this resolution belongs to an abandoned
+      // sound and must not unlock the NEXT sound's completion gate.
+      if (generation == _generation) _playResolved = true;
+    }).catchError((_) {
       _settle(generation, outcome: 'failed');
     });
+  }
+
+  void _onCompletion(int generation) {
+    if (generation != _generation) return; // stale subscription — ignore
+    if (!_playResolved) {
+      // See [_playResolved]: a completion can't belong to the current sound
+      // if the current sound's play() hasn't even resolved yet. This is a
+      // delayed completion from a previous (watchdog-abandoned) sound;
+      // swallowing it prevents a double-advance that would skip the sound
+      // that just started. The current sound still advances normally via
+      // its own completion, error, or watchdog.
+      GameLogger.instance.logSound(
+        source: 'SoundService',
+        event: 'play($_currentName)',
+        outcome: 'stale completion from a previous sound — ignored',
+      );
+      return;
+    }
+    _settle(generation, outcome: 'done');
   }
 
   void _onWatchdogFired(int generation) {
