@@ -26,6 +26,7 @@ import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
 import '../services/battery_sampler.dart';
 import '../theme/dossedart_tokens.dart';
+import '../app_version.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
@@ -209,6 +210,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         'startTarget': start,
         'maxTarget': _maxTarget,
       },
+      build: kAppVersion,
     );
     BatterySampler.instance.start('AroundTheClock');
     AppSettings.getSoundEffectsEnabled().then((v) {
@@ -441,15 +443,35 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         if (currentPlayerIndex == startIndex) break;
       } while (finishedPlayers.contains(currentPlayerIndex));
     }
-    _log.logAdvance(
-      roundNumber: _roundNumber,
-      fromIndex: fromIndex,
-      toIndex: currentPlayerIndex,
-      toName: players[currentPlayerIndex].name,
-      toScore: currentTargets[currentPlayerIndex],
-      reason: _inSuddenDeath ? 'sudden death' : null,
-    );
-    _announcer.announceNextPlayer(players[currentPlayerIndex].name);
+    // Suppressed on a game-over transition (e.g. removing the current player
+    // ends the game — see _performRemovePlayer, which now resolves that
+    // before calling here) so TURN/STANDINGS never logs a "next" turn that
+    // will never actually be played.
+    if (!_gameFullyOver) {
+      _log.logAdvance(
+        roundNumber: _roundNumber,
+        fromIndex: fromIndex,
+        toIndex: currentPlayerIndex,
+        toName: players[currentPlayerIndex].name,
+        toScore: currentTargets[currentPlayerIndex],
+        reason: _inSuddenDeath ? 'sudden death' : null,
+      );
+      // ATC has no running "score" — currentTargets holds the next target
+      // number (1-20, or 25 for Bull) each player must hit, not points. The
+      // numbers logged here (and in the STANDINGS line below) are targets.
+      _log.logTurnStart(
+        roundNumber: _roundNumber,
+        playerIndex: currentPlayerIndex,
+        playerName: players[currentPlayerIndex].name,
+        score: currentTargets[currentPlayerIndex],
+      );
+      _log.logStandings(
+        roundNumber: _roundNumber,
+        names: players.map((p) => p.name).toList(),
+        scores: currentTargets,
+      );
+      _announcer.announceNextPlayer(players[currentPlayerIndex].name);
+    }
   }
 
   bool _isRoundComplete() {
@@ -1820,6 +1842,14 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       ));
       currentTargets.add(target);
     });
+    // currentTargets holds target numbers (1-20/25), not points.
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: currentTargets,
+    );
   }
 
   /// Production removal logic, shared by the confirm dialog and tests.
@@ -1834,12 +1864,22 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       if (!finishedPlayers.contains(playerIndex)) {
         finishedPlayers.add(playerIndex);
       }
-      if (playerIndex == currentPlayerIndex) {
-        dartsInTurn = 0;
-        _advancePlayer();
-      }
+      // Logged here (post-mutation, pre-advance) rather than after setState:
+      // removing the current player calls _advancePlayer() below, which logs
+      // its own TURN/STANDINGS pair immediately — logging ROSTER first keeps
+      // the log file in causal order (removal, then the resulting advance).
+      // currentTargets holds target numbers, not points.
+      _log.logRoster(
+        action: 'REMOVE',
+        playerIndex: playerIndex,
+        playerName: removed.name,
+        names: players.map((p) => p.name).toList(),
+        scores: currentTargets,
+      );
       // If only 1 (or 0) active players remain, end the game
-      // (audit 2026-07-06, F7 — mirrors X01).
+      // (audit 2026-07-06, F7 — mirrors X01). Resolved before _advancePlayer
+      // so its TURN/STANDINGS log is suppressed on this game-over transition
+      // (precedent: Killer, Task 6, checks its winner before advancing).
       final remaining = List.generate(players.length, (i) => i)
           .where((i) => !finishedPlayers.contains(i))
           .toList();
@@ -1849,6 +1889,10 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         }
         winnerIndex = _winnerIndexExcludingRemoved();
         _gameFullyOver = true;
+      }
+      if (playerIndex == currentPlayerIndex) {
+        dartsInTurn = 0;
+        _advancePlayer();
       }
     });
     if (_gameFullyOver) {
