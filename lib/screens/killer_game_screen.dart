@@ -28,6 +28,7 @@ import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
 import '../services/battery_sampler.dart';
 import '../theme/dossedart_tokens.dart';
+import '../app_version.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
@@ -193,6 +194,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           'shields': widget.config.shields,
           'multiplyHits': widget.config.multiplyHits,
         },
+        build: kAppVersion,
       );
       BatterySampler.instance.start('Killer');
       if (!widget.config.throwToPick) {
@@ -547,6 +549,20 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         toName: players[currentPlayerIndex].name,
         toScore: lives[currentPlayerIndex],
         reason: 'turn complete',
+      );
+      // Killer has no running "score" — lives is the closest analogue, so
+      // the numbers logged here (and in the STANDINGS line below) are lives
+      // remaining, not points.
+      _log.logTurnStart(
+        roundNumber: _roundNumber,
+        playerIndex: currentPlayerIndex,
+        playerName: players[currentPlayerIndex].name,
+        score: lives[currentPlayerIndex],
+      );
+      _log.logStandings(
+        roundNumber: _roundNumber,
+        names: players.map((p) => p.name).toList(),
+        scores: lives,
       );
       _announcer.announceNextPlayer(players[currentPlayerIndex].name);
     }
@@ -1844,6 +1860,14 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       // crash. Roster changes reset undo history (audit 2026-07-06, F8).
       _undoStack.clear();
     });
+    // scores here are lives, not points.
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: lives,
+    );
   }
 
   /// Production removal logic, shared by the confirm dialog and tests.
@@ -1861,6 +1885,18 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       // wholesale — roster changes reset undo history (audit 2026-07-06,
       // F8/F9).
       _undoStack.clear();
+      // Logged here (post-mutation, pre-advance) rather than after setState:
+      // removing the current player calls _advancePlayer() below, which logs
+      // its own TURN/STANDINGS pair immediately — logging ROSTER first keeps
+      // the log file in causal order (removal, then the resulting advance).
+      // scores here are lives, not points.
+      _log.logRoster(
+        action: 'REMOVE',
+        playerIndex: playerIndex,
+        playerName: removed.name,
+        names: players.map((p) => p.name).toList(),
+        scores: lives,
+      );
       // Removing the second-to-last alive player must end the game
       // (audit 2026-07-06, F7 — removal never checked for a winner).
       _checkForWinner();
