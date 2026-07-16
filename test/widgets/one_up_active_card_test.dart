@@ -93,4 +93,23 @@ void main() {
     expect(find.text('💀'), findsOneWidget); // only Per (eliminated)
     expect(find.text('OUT'), findsOneWidget); // only Per's label
   });
+
+  testWidgets('eliminated wins over outOfRound when both flags are set',
+      (t) async {
+    // The engine sets BOTH flags on every survivor elimination (the fail
+    // joins _outOfRound before the lives check) — this pins the precedence.
+    await t.pumpWidget(_wrap(DossedartOneUpActiveCard(
+      playerName: 'Jonas', accentColor: DossedartTokens.cyan,
+      lives: 3, maxLives: 3, target: 87, turnTotal: 42,
+      currentDartIndex: 1, cardMode: OneUpCardMode.normal, lastLife: false,
+      variantChip: 'SURVIVOR · R3', isRoundFree: false,
+      opponents: const [
+        OneUpOpponentEntry(name: 'Per', accent: DossedartTokens.green,
+            lives: 0, maxLives: 3, eliminated: true, outOfRound: true),
+      ],
+    )));
+    expect(find.text('💀'), findsOneWidget);
+    expect(find.text('OUT'), findsOneWidget);
+    expect(find.text('ROUND OUT'), findsNothing);
+  });
 }

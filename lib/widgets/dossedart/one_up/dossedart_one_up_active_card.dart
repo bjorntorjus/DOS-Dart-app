@@ -4,7 +4,7 @@ import 'one_up_life_pips.dart';
 
 /// Which primary content the [DossedartOneUpActiveCard] shows.
 enum OneUpCardMode {
-  /// No target yet — this turn sets the bar (game open / new BEST round).
+  /// No target yet — this turn sets the bar (game open / new SURVIVOR round).
   free,
 
   /// Normal beat-the-target turn.
@@ -77,8 +77,8 @@ class DossedartOneUpActiveCard extends StatelessWidget {
   /// e.g. 'BEAT THE LAST' / 'SURVIVOR · R3'.
   final String variantChip;
 
-  /// True when [cardMode] is [OneUpCardMode.free] because a new BEST round
-  /// just started (rather than the very first throw of the game).
+  /// True when [cardMode] is [OneUpCardMode.free] because a new SURVIVOR
+  /// round just started (rather than the very first throw of the game).
   final bool isRoundFree;
 
   final List<OneUpOpponentEntry> opponents;
@@ -728,7 +728,8 @@ class _OpponentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dead = entry.eliminated;
-    // Eliminated wins over out-of-round when (impossibly) both are true.
+    // The engine sets BOTH flags on every survivor elimination (the fail
+    // joins _outOfRound before the lives check) — eliminated styling wins.
     final roundOut = !dead && entry.outOfRound;
     final dimmed = dead || roundOut;
     final color = dimmed ? Colors.white.withValues(alpha: 0.25) : entry.accent;
