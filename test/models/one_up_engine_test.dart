@@ -120,6 +120,83 @@ void main() {
       expect(e.turnsSurvived, [1, 1]);
     });
   });
+
+  group('OneUpEngine BEAT THE BEST', () {
+    OneUpEngine best(int players, int lives) => OneUpEngine(
+        playerCount: players, startingLives: lives,
+        variant: OneUpVariant.beatTheBest);
+
+    test('every round opens with a free throw and the max resets', () {
+      final e = best(2, 3);
+      expect(e.isFreeThrow, isTrue);
+      _turn(e, 60);  // P0 free-sets 60
+      _turn(e, 100); // P1 beats → round ends
+      expect(e.roundNumber, 2);
+      expect(e.isFreeThrow, isTrue); // reset
+      expect(e.target, isNull);
+    });
+
+    test('fail never lowers the round max, several can lose lives to one throw', () {
+      final e = best(4, 3);
+      _turn(e, 150); // P0 free-sets 150
+      _turn(e, 60);  // P1 fails
+      _turn(e, 60);  // P2 fails
+      expect(e.target, 150); // max stood the whole round
+      expect(e.livesLeft, [3, 2, 2, 3]);
+      _turn(e, 150); // P3 ties → safe, max unchanged
+      expect(e.livesLeft, [3, 2, 2, 3]);
+    });
+
+    test('beating the max raises it mid-round', () {
+      final e = best(3, 3);
+      _turn(e, 60);
+      _turn(e, 100); // P1 raises
+      expect(e.target, 100);
+      expect(e.targetSetBy, 1);
+      _turn(e, 80); // P2 fails vs 100
+      expect(e.livesLeft[2], 2);
+    });
+
+    test('a 0 opening makes the whole round risk-free', () {
+      final e = best(3, 1);
+      _turn(e, 0); // free throw of 0
+      _turn(e, 0); // ties 0 → safe
+      _turn(e, 0); // ties 0 → safe
+      expect(e.livesLeft, [1, 1, 1]);
+      expect(e.roundNumber, 2);
+    });
+
+    test('starter rotates round-robin when randomOrder is off', () {
+      final e = best(3, 3);
+      expect(e.currentPlayerIndex, 0);
+      _turn(e, 50); _turn(e, 60); _turn(e, 70); // round 1: 0,1,2
+      expect(e.roundNumber, 2);
+      expect(e.currentPlayerIndex, 1); // round 2 starts P1
+      _turn(e, 50); _turn(e, 60); _turn(e, 70); // round 2: 1,2,0
+      expect(e.currentPlayerIndex, 2); // round 3 starts P2
+    });
+
+    test('starter rotation skips eliminated players', () {
+      final e = best(3, 1);
+      _turn(e, 100); // P0 sets
+      _turn(e, 40);  // P1 fails → out
+      _turn(e, 100); // P2 ties → safe; round over
+      expect(e.roundNumber, 2);
+      // round 2 starter would be P1 but they're dead → P2
+      expect(e.currentPlayerIndex, 2);
+    });
+
+    test('undo across a round boundary restores the round max', () {
+      final e = best(2, 3);
+      _turn(e, 60);
+      _turn(e, 100); // round ends
+      expect(e.target, isNull);
+      e.undo(); // rewind P1's 3rd dart
+      expect(e.roundNumber, 1);
+      expect(e.target, 60);
+      expect(e.dartsInTurn, 2);
+    });
+  });
 }
 
 /// Throws one full 3-dart turn totalling [total]: greedy T20s, then the
