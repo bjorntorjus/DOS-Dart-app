@@ -404,7 +404,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
       case OneUpCardMode.safe:
         tint = DossedartTokens.green;
         content = Text(
-          'BEAT $target · REMAINING DARTS PAD THE TARGET',
+          'BEAT $target · REMAINING DARTS PAD THE NEW TARGET',
           style: TextStyle(
             fontFamily: 'PressStart2P',
             fontSize: 10,

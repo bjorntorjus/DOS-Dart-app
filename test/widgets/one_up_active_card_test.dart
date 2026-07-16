@@ -52,7 +52,8 @@ void main() {
   testWidgets('safe state (tie included)', (t) async {
     await t.pumpWidget(_wrap(_card(mode: OneUpCardMode.safe, turnTotal: 87)));
     expect(find.textContaining('SAFE'), findsOneWidget);
-    expect(find.textContaining('NEW TARGET'), findsOneWidget);
+    expect(find.textContaining('NEW TARGET ·'), findsOneWidget); // primary block
+    expect(find.textContaining('PAD THE NEW TARGET'), findsOneWidget); // status line
   });
 
   testWidgets('cant-beat state', (t) async {
