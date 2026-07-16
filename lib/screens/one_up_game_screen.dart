@@ -75,6 +75,12 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
+  /// Guards [_onGameEnd] against double-fire from the winner overlay's tap
+  /// handler (no other reentrancy source exists — see the overlay/removal
+  /// seam notes on this class). Reset to false on the post-game 'undo' path
+  /// since the game reopens and can legitimately be finished again.
+  bool _gameEndFired = false;
+
   @visibleForTesting
   OneUpEngine get engineForTest => engine;
 
@@ -288,6 +294,8 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   }
 
   Future<void> _onGameEnd() async {
+    if (_gameEndFired) return;
+    _gameEndFired = true;
     final ranking = _rankPlayers();
     _log.logGameEnd(
       playerNames: players.map((p) => p.name).toList(),
@@ -480,6 +488,9 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
             final lastThrow = throwHistory.removeLast();
             _turnIdCounter = lastThrow.turnId;
           }
+          // The game reopens and can be finished again — let _onGameEnd
+          // fire once more when it does.
+          _gameEndFired = false;
         });
         return;
       }
