@@ -44,7 +44,7 @@ void main() {
   testWidgets('BEST round free state uses round wording', (t) async {
     await t.pumpWidget(_wrap(_card(
         mode: OneUpCardMode.free, target: null, isRoundFree: true,
-        variantChip: 'BEAT THE BEST · R3')));
+        variantChip: 'SURVIVOR · R3')));
     expect(find.textContaining('NEW ROUND'), findsOneWidget);
     expect(find.textContaining('ROUND TARGET'), findsOneWidget);
   });

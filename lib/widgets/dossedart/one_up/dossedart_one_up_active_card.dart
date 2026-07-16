@@ -69,7 +69,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
   final OneUpCardMode cardMode;
   final bool lastLife;
 
-  /// e.g. 'BEAT THE LAST' / 'BEAT THE BEST · R3'.
+  /// e.g. 'BEAT THE LAST' / 'SURVIVOR · R3'.
   final String variantChip;
 
   /// True when [cardMode] is [OneUpCardMode.free] because a new BEST round

@@ -433,7 +433,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       gameConfig: '${widget.config.lives} lives · '
-          '${widget.config.variant == OneUpVariant.beatTheBest ? 'Beat the best' : 'Beat the last'}'
+          '${widget.config.variant == OneUpVariant.survivor ? 'Beat the best' : 'Beat the last'}'
           '${widget.config.randomOrder ? ' · Shuffle' : ''}',
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
@@ -526,8 +526,8 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     return OneUpCardMode.normal;
   }
 
-  String get _variantChip => widget.config.variant == OneUpVariant.beatTheBest
-      ? 'BEAT THE BEST · R${engine.roundNumber}'
+  String get _variantChip => widget.config.variant == OneUpVariant.survivor
+      ? 'SURVIVOR · R${engine.roundNumber}'
       : 'BEAT THE LAST';
 
   void _confirmExit() {
@@ -653,7 +653,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                     lastLife: engine.livesLeft[cur] == 1,
                     variantChip: _variantChip,
                     isRoundFree:
-                        widget.config.variant == OneUpVariant.beatTheBest &&
+                        widget.config.variant == OneUpVariant.survivor &&
                             engine.isFreeThrow &&
                             engine.roundNumber > 0,
                     opponents: [

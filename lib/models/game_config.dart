@@ -163,7 +163,7 @@ class WildcardConfig extends GameConfig {
 
 class OneUpConfig extends GameConfig {
   final int lives; // 1 / 3 / 5 (default 3)
-  final OneUpVariant variant; // beatTheLast (default) / beatTheBest
+  final OneUpVariant variant; // beatTheLast (default) / survivor
   final bool randomOrder; // shuffle alive rotation every round
   const OneUpConfig({
     this.lives = 3,

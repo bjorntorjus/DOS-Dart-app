@@ -46,7 +46,7 @@ class _DossedartOneUpSetupScreenState extends State<DossedartOneUpSetupScreen> {
           value: _variant,
           options: const [
             ('BEAT THE LAST', OneUpVariant.beatTheLast),
-            ('BEAT THE BEST', OneUpVariant.beatTheBest),
+            ('SURVIVOR', OneUpVariant.survivor),
           ],
           onChanged: (v) => setState(() => _variant = v),
         ),
@@ -63,7 +63,7 @@ class _DossedartOneUpSetupScreenState extends State<DossedartOneUpSetupScreen> {
   String _summary(int playerCount) => [
         '$playerCount PLAYERS',
         '$_lives ${_lives == 1 ? 'LIFE' : 'LIVES'}',
-        _variant == OneUpVariant.beatTheBest ? 'BEAT THE BEST' : 'BEAT THE LAST',
+        _variant == OneUpVariant.survivor ? 'SURVIVOR' : 'BEAT THE LAST',
         if (_shuffleEachRound) 'SHUFFLE',
       ].join(' · ');
 
