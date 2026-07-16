@@ -295,6 +295,14 @@ class _PlayerResultTile extends StatelessWidget {
         if (stats['busts'] != null) entries.add('Busts: ${stats['busts']}');
         if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
         if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
+      case 'oneUp':
+        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
+        if (stats['targetsSet'] != null) entries.add('Targets: ${stats['targetsSet']}');
+        if (stats['livesLost'] != null) entries.add('Lives lost: ${stats['livesLost']}');
+        if (stats['turnsSurvived'] != null) entries.add('Turns: ${stats['turnsSurvived']}');
+        if (stats['lastDartSaves'] != null && stats['lastDartSaves'] != 0) {
+          entries.add('Last-dart saves: ${stats['lastDartSaves']}');
+        }
       case 'wildcard':
         if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');
