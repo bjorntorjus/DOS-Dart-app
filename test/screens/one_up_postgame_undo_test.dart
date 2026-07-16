@@ -86,4 +86,75 @@ void main() {
     expect(engine.gameOver, isFalse);
     expect(engine.livesLeft[1], 1);
   });
+
+  testWidgets('1UP: removed mid-game player does not become winner',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: OneUpGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const OneUpConfig(lives: 1),
+      ),
+    ));
+    await tester.pump();
+    final state =
+        tester.state<State<OneUpGameScreen>>(find.byType(OneUpGameScreen));
+    final engine = (state as dynamic).engineForTest as OneUpEngine;
+
+    // A free-sets the target at 100 (T20 + D20 + miss); turn then advances
+    // to B, so neither removal below touches the current thrower.
+    engine.applyDart(20, 3);
+    engine.applyDart(20, 2);
+    engine.applyDart(0, 1);
+    expect(engine.target, 100);
+
+    // Remove A (the target owner) and C, leaving only B — the survivor
+    // must win even though A set the target.
+    (state as dynamic).removePlayerForTest(0);
+    (state as dynamic).removePlayerForTest(2);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(engine.winnerIndex, 1);
+    expect((state as dynamic).removedPlayerIndicesForTest, {0, 2});
+  });
+
+  testWidgets('1UP: removed player is excluded from the result screen',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: OneUpGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const OneUpConfig(lives: 1),
+      ),
+    ));
+    await tester.pump();
+    final state =
+        tester.state<State<OneUpGameScreen>>(find.byType(OneUpGameScreen));
+    final engine = (state as dynamic).engineForTest as OneUpEngine;
+
+    engine.applyDart(20, 3);
+    engine.applyDart(20, 2);
+    engine.applyDart(0, 1);
+
+    (state as dynamic).removePlayerForTest(0);
+    (state as dynamic).removePlayerForTest(2);
+    // Same three-pump requirement as the Undo test above: each pump only
+    // unwinds one microtask hop of the _onGameEnd await-chain.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(engine.winnerIndex, 1);
+    expect(find.byType(PostGameScreen), findsOneWidget);
+    expect(find.text('A'), findsNothing);
+    expect(find.text('C'), findsNothing);
+    expect(find.text('B'), findsWidgets);
+  });
 }

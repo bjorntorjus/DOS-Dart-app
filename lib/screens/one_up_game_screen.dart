@@ -64,9 +64,10 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   final DateTime _gameStart = DateTime.now();
 
   // Roster-change gating for the deferred-stats protocol (Shanghai/Gotcha
-  // parity). Not yet wired to the player sheet — Task 9 adds full roster
-  // stats and flips these from add/removePlayerMidGame.
-  // ignore: prefer_final_fields  // Task 9 mutates this to true.
+  // parity). Flipped true by _addSavedPlayerMidGame/_removePlayerMidGame,
+  // which also populate the joined/left id sets below; _updateStats reads
+  // this to divert to StatsRecorder.recordMidGameChanges instead of the
+  // full recordGame path.
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -563,7 +564,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       gameOver: engine.gameOver,
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
-      addInfoText: 'Joins next round with ${widget.config.lives} lives.',
+      addInfoText: 'Joins next round with ${widget.config.lives} lives',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -571,6 +572,8 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
     setState(() {
+      _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
         score: 0,
@@ -589,7 +592,10 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   }
 
   void _removePlayerMidGame(int playerIndex) {
+    final removedId = players[playerIndex].savedPlayerId;
     setState(() {
+      _midGamePlayerChanges = true;
+      if (removedId != null) _leftMidGameIds.add(removedId);
       engine.removePlayer(playerIndex);
       if (engine.gameOver) _onGameEnd();
     });
@@ -601,6 +607,9 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       scores: engine.livesLeft,
     );
   }
+
+  @visibleForTesting
+  void removePlayerForTest(int i) => _removePlayerMidGame(i);
 
   @override
   Widget build(BuildContext context) {
