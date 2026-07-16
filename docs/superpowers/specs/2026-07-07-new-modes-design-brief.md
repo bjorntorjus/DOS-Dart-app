@@ -39,7 +39,7 @@ All four modes are built on the DOSSEDART arcade system. The following exist, ar
 
 **Gotcha:** score-counting-UP active card (`total` big + `TO GO`), kill-tip content in the tip strip (`💀 T19 → KARI`), skull/danger marker on threatened peek cards, the **kill event** moment ("GOTCHA!", score dropping to 0), win+kill tips shown together.
 
-**1UP:** `BEAT <target>` as primary number + `NEED n MORE`, **life pips** on all player cards, SAFE and CAN'T-BEAT states, free-throw state (`SET THE TARGET` — game start, and every round start in the BEAT THE BEST variant), **life lost** moment, last-life persistent danger styling. Setup adds three option controls: lives chips (1/3/5), variant chips (BEAT THE LAST / BEAT THE BEST), random-order toggle. (Spec revised 2026-07-16 — two variants, tie = success.)
+**1UP:** `BEAT <target>` as primary number + `NEED n MORE`, **life pips** on all player cards, SAFE and CAN'T-BEAT states, free-throw state (`SET THE TARGET` — game start, and every round start in the SURVIVOR variant), out-of-round opponent styling (`ROUND OUT`, SURVIVOR), **life lost** moment, last-life persistent danger styling. Setup adds three option controls: lives chips (1/3/5), variant chips (BEAT THE LAST / SURVIVOR), random-order toggle. (Spec revised 2026-07-16; rev b replaced BEAT THE BEST with SURVIVOR — round-based last-man-standing.)
 
 **Golf:** hole context (`HOLE 7 · PAR 3` + `LYING n`), the **LOCK IN** button in the ActionBar (new interaction — only mode with a fourth action), **scorecard** (hole-by-hole grid, inline/sheet — design decides), ACE celebration, sudden-death state.
 
