@@ -7,6 +7,7 @@ enum GameMode {
   shanghai,
   gotcha,
   wildcard,
+  oneUp,
 }
 
 extension GameModeLabel on GameMode {
@@ -28,6 +29,8 @@ extension GameModeLabel on GameMode {
         return 'Gotcha';
       case GameMode.wildcard:
         return 'WILDCARD';
+      case GameMode.oneUp:
+        return '1UP';
     }
   }
 }
@@ -51,6 +54,8 @@ extension GameModeEmoji on GameMode {
         return '💀';
       case GameMode.wildcard:
         return '🃏';
+      case GameMode.oneUp:
+        return '❤️';
     }
   }
 }

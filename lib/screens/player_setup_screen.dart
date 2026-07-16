@@ -20,6 +20,8 @@ import 'killer_game_screen.dart';
 import 'shanghai_game_screen.dart';
 import 'gotcha_game_screen.dart';
 import 'wildcard_game_screen.dart';
+import 'one_up_game_screen.dart';
+import '../models/one_up_engine.dart';
 
 class PlayerSetupScreen extends StatefulWidget {
   final GameMode gameMode;
@@ -84,6 +86,11 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   // Wildcard options
   int _wildcardRounds = 10;
   int _wildcardChaos = 5;
+
+  // 1UP options
+  int _oneUpLives = 3;
+  OneUpVariant _oneUpVariant = OneUpVariant.beatTheLast;
+  bool _oneUpShuffle = false;
 
   int get _minPlayers {
     switch (widget.gameMode) {
@@ -551,6 +558,15 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           config: WildcardConfig(
             rounds: _wildcardRounds,
             startingChaos: _wildcardChaos,
+          ),
+        );
+      case GameMode.oneUp:
+        screen = OneUpGameScreen(
+          players: players,
+          config: OneUpConfig(
+            lives: _oneUpLives,
+            variant: _oneUpVariant,
+            randomOrder: _oneUpShuffle,
           ),
         );
     }
@@ -1035,6 +1051,54 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                 visualDensity: VisualDensity.compact,
               ),
             ),
+          ),
+        ]);
+
+      case GameMode.oneUp:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Lives'),
+            subtitle: Text('$_oneUpLives lives per player'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 1, label: Text('1')),
+                ButtonSegment(value: 3, label: Text('3')),
+                ButtonSegment(value: 5, label: Text('5')),
+              ],
+              selected: {_oneUpLives},
+              onSelectionChanged: (v) =>
+                  setState(() => _oneUpLives = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          ListTile(
+            title: const Text('Variant'),
+            subtitle: Text(_oneUpVariant == OneUpVariant.beatTheBest
+                ? 'Beat the best score each round'
+                : 'Beat the last thrown score'),
+            trailing: SegmentedButton<OneUpVariant>(
+              segments: const [
+                ButtonSegment(
+                    value: OneUpVariant.beatTheLast, label: Text('Last')),
+                ButtonSegment(
+                    value: OneUpVariant.beatTheBest, label: Text('Best')),
+              ],
+              selected: {_oneUpVariant},
+              onSelectionChanged: (v) =>
+                  setState(() => _oneUpVariant = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text('Shuffle every round'),
+            subtitle: const Text('Randomize the throwing order each round'),
+            value: _oneUpShuffle,
+            onChanged: (v) => setState(() => _oneUpShuffle = v),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
           ),
         ]);
     }

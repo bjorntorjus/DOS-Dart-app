@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'game_mode.dart';
 import 'halve_it_round.dart';
+import 'one_up_engine.dart';
 
 sealed class GameConfig {
   final GameMode mode;
@@ -158,4 +159,15 @@ class WildcardConfig extends GameConfig {
   final int startingChaos;
   const WildcardConfig({this.rounds = 10, this.startingChaos = 5})
       : super(GameMode.wildcard);
+}
+
+class OneUpConfig extends GameConfig {
+  final int lives; // 1 / 3 / 5 (default 3)
+  final OneUpVariant variant; // beatTheLast (default) / beatTheBest
+  final bool randomOrder; // shuffle alive rotation every round
+  const OneUpConfig({
+    this.lives = 3,
+    this.variant = OneUpVariant.beatTheLast,
+    this.randomOrder = false,
+  }) : super(GameMode.oneUp);
 }

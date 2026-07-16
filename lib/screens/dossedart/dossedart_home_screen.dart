@@ -13,6 +13,7 @@ import 'dossedart_atc_setup_screen.dart';
 import 'dossedart_cricket_setup_screen.dart';
 import 'dossedart_gotcha_setup_screen.dart';
 import 'dossedart_killer_setup_screen.dart';
+import 'dossedart_one_up_setup_screen.dart';
 import 'dossedart_shanghai_setup_screen.dart';
 import 'dossedart_splitscore_setup_screen.dart';
 import 'dossedart_wildcard_setup_screen.dart';
@@ -40,7 +41,7 @@ const _gridTiles = [
   // Hardcoded placeholders until the modes exist — no dead enum values.
   // '1UP', not 'Legs': locked terminology decision (collides with X01
   // legs/sets otherwise).
-  _GridTile(_TileKind.soon, '❤️', '1UP', soonText: 'COMING SOON'),
+  _GridTile(_TileKind.fresh, '❤️', '1UP', mode: GameMode.oneUp),
   _GridTile(_TileKind.soon, '⛳', 'Golf', soonText: 'COMING SOON'),
   _GridTile(_TileKind.fresh, '🃏', 'Wildcard', mode: GameMode.wildcard),
 ];
@@ -656,6 +657,8 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
         screen = const DossedartGotchaSetupScreen();
       case GameMode.wildcard:
         screen = const DossedartWildcardSetupScreen();
+      case GameMode.oneUp:
+        screen = const DossedartOneUpSetupScreen();
     }
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _loadTopPlayers();
