@@ -136,4 +136,38 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(PostGameScreen), findsOneWidget);
   });
+
+  testWidgets(
+      'round-ending dart keeps round 1 in history, not the incremented round',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: OneUpGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const OneUpConfig(lives: 3),
+      ),
+    ));
+    await tester.pump();
+
+    final state = tester.state<State<OneUpGameScreen>>(
+        find.byType(OneUpGameScreen));
+    final dyn = state as dynamic;
+    // Two full turns (A then B) complete round 1. B's 3rd dart is the one
+    // that used to be mis-tagged with the incremented roundNumber (2)
+    // instead of the round it actually closed out (1).
+    dyn.onDartHitForTest(20, 3); // A dart 1
+    dyn.onDartHitForTest(20, 3); // A dart 2
+    dyn.onDartHitForTest(20, 3); // A dart 3 -> sets target, advances to B
+    dyn.onDartHitForTest(1, 1); // B dart 1
+    dyn.onDartHitForTest(1, 1); // B dart 2
+    dyn.onDartHitForTest(1, 1); // B dart 3 -> ends round 1, rolls to round 2
+    await tester.pump();
+
+    final throwHistory = dyn.throwHistory as List<dynamic>;
+    expect(throwHistory.length, 6);
+    for (final t in throwHistory) {
+      expect((t as dynamic).roundNumber, 1,
+          reason: 'every round-1 dart, including the round-closing one, '
+              'must keep roundNumber == 1');
+    }
+  });
 }

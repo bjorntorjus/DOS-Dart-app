@@ -157,6 +157,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     final turnBefore = engine.turnPoints;
     _lastThrowerSeat = playerIdx;
     _failedTarget = engine.target ?? 0;
+    final roundNo = engine.roundNumber;
 
     final result = engine.applyDart(segment, multiplier);
 
@@ -177,11 +178,11 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       turnNumber: dartNo,
       scoreAtStartOfTurn: 0,
       turnId: _turnIdCounter,
-      roundNumber: engine.roundNumber,
+      roundNumber: roundNo,
     ));
 
     _log.logThrow(
-      roundNumber: engine.roundNumber,
+      roundNumber: roundNo,
       playerIndex: playerIdx,
       label: label,
       points: result.points,
