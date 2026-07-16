@@ -21,6 +21,10 @@ class DossedartTokens {
   static const Color purple = Color(0xFF7B3FFF);
   static const Color orange = Color(0xFFFF7A00);
 
+  /// 1UP / extra-life accent — mode brand only (approved 2026-07-16).
+  /// Never a player colour; red/green keep the danger/SAFE roles.
+  static const Color lime = Color(0xFFC6FF3C);
+
   // Inactive content / non-active opponents (single phosphor tone, not a
   // per-player colour) + podium placements.
   static const Color phosphor = Color(0xFFD9D2C2);
