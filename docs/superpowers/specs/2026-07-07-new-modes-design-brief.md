@@ -39,7 +39,7 @@ All four modes are built on the DOSSEDART arcade system. The following exist, ar
 
 **Gotcha:** score-counting-UP active card (`total` big + `TO GO`), kill-tip content in the tip strip (`💀 T19 → KARI`), skull/danger marker on threatened peek cards, the **kill event** moment ("GOTCHA!", score dropping to 0), win+kill tips shown together.
 
-**1UP:** `BEAT <target>` as primary number + `NEED n MORE`, **life pips** on all player cards, SAFE and CAN'T-BEAT states, free-opening-throw state (`SET THE TARGET`), **life lost** moment, last-life persistent danger styling.
+**1UP:** `BEAT <target>` as primary number + `NEED n MORE`, **life pips** on all player cards, SAFE and CAN'T-BEAT states, free-throw state (`SET THE TARGET` — game start, and every round start in the BEAT THE BEST variant), **life lost** moment, last-life persistent danger styling. Setup adds three option controls: lives chips (1/3/5), variant chips (BEAT THE LAST / BEAT THE BEST), random-order toggle. (Spec revised 2026-07-16 — two variants, tie = success.)
 
 **Golf:** hole context (`HOLE 7 · PAR 3` + `LYING n`), the **LOCK IN** button in the ActionBar (new interaction — only mode with a fourth action), **scorecard** (hole-by-hole grid, inline/sheet — design decides), ACE celebration, sudden-death state.
 
@@ -49,6 +49,6 @@ All four modes are built on the DOSSEDART arcade system. The following exist, ar
 
 - Deliverable: **HTML artboards with spec cards**, same convention as previous DOSSEDART handoffs — spec cards are fasit.
 - Target: **tablet** (Samsung Galaxy Tab class), dark arcade theme.
-- Colors: **DOSSEDART tokens only** (the arcade track palette) — no new hex values, no Material colorScheme roles.
+- Colors: **DOSSEDART tokens only** (the arcade track palette) — no new hex values, no Material colorScheme roles. **Exception (1UP handoff):** the 7 accent tokens are all taken (WILDCARD already shares purple with Halve It), so the 1UP handoff must include a designed **palette extension** — a new accent token proposal (value + role), delivered as part of the spec cards, which implementation adds to `DossedartTokens`.
 - All UI strings **English** (a guard test fails the build on Norwegian strings).
 - Terminology is locked in the specs: LOCK IN (not "bank"), 1UP (not "Legs"), HOLY TRINITY (exactly 26), WINDOW PRIZE, CHAOS METER.
