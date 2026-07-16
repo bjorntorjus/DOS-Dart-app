@@ -113,6 +113,7 @@ the classic four-role palette (decision 2026-07-06). It never uses
 | `red` | `#FF3050` | negative, destructive |
 | `purple` | `#7B3FFF` | secondary accent |
 | `orange` | `#FF7A00` | warm accent (start CTA gradient) |
+| `lime` | `#C6FF3C` | 1UP / extra-life accent — mode brand only (approved 2026-07-16; ships with 1UP). Never a player colour; red/green keep danger/SAFE roles |
 | `phosphor` | `#D9D2C2` | body text |
 | `silver` / `bronze` | `#C9D2DA` / `#D08A4A` | podium metals |
 | `disabledFill/Border/Fg` | white @ 12/24/38% | disabled states |
