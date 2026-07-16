@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dart_scoring/models/one_up_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -203,6 +205,79 @@ void main() {
       expect(e.roundNumber, 1);
       expect(e.target, 60);
       expect(e.dartsInTurn, 2);
+    });
+  });
+
+  group('OneUpEngine shuffle + roster', () {
+    test('randomOrder reshuffles alive players each round (seeded)', () {
+      final e = OneUpEngine(
+          playerCount: 4, startingLives: 3, randomOrder: true,
+          rng: Random(42));
+      final round1 = List.of(e.roundOrder);
+      for (var i = 0; i < 12; i++) { e.applyDart(1, 1); } // 4 turns → round 2
+      expect(e.roundNumber, 2);
+      final round2 = List.of(e.roundOrder);
+      expect(round2.toSet(), {0, 1, 2, 3});
+      // With seed 42 the two orders differ; if this ever collides, bump the seed.
+      expect(round2, isNot(equals(round1)));
+    });
+
+    test('shuffled order is restored by undo', () {
+      final e = OneUpEngine(
+          playerCount: 3, startingLives: 3, randomOrder: true,
+          rng: Random(7));
+      final round1 = List.of(e.roundOrder);
+      for (var i = 0; i < 9; i++) { e.applyDart(1, 1); } // → round 2
+      final round2 = List.of(e.roundOrder);
+      e.undo(); // back into round 1's last turn
+      expect(e.roundNumber, 1);
+      expect(e.roundOrder, round1); // the ROUND-1 order is byte-restored
+      e.applyDart(1, 1); // redo the dart → round 2 again
+      // The re-shuffle draws fresh randomness, so identity with the first
+      // round-2 order is NOT guaranteed — only membership:
+      expect(e.roundNumber, 2);
+      expect(e.roundOrder.toSet(), round2.toSet());
+    });
+
+    test('addPlayer joins from the next round with full lives', () {
+      final e = OneUpEngine(playerCount: 2, startingLives: 3);
+      _turn(e, 60);
+      e.addPlayer();
+      expect(e.playerCount, 3);
+      expect(e.livesLeft[2], 3);
+      expect(e.roundOrder.contains(2), isFalse); // not in current round
+      expect(e.canUndo, isFalse); // roster change cleared the stack
+      _turn(e, 100); // P1 finishes the round
+      expect(e.roundOrder.contains(2), isTrue); // in from round 2
+    });
+
+    test('removePlayer: current thrower removed → in-progress turn discarded, target unchanged', () {
+      final e = OneUpEngine(playerCount: 3, startingLives: 3);
+      _turn(e, 100); // P0 sets 100
+      e.applyDart(20, 3); // P1 starts a turn
+      e.removePlayer(1);
+      expect(e.currentPlayerIndex, 2);
+      expect(e.turnPoints, 0);
+      expect(e.dartsInTurn, 0);
+      expect(e.target, 100); // just a number — stays
+      expect(e.canUndo, isFalse);
+    });
+
+    test('removing down to one alive player ends the game (survivor wins)', () {
+      final e = OneUpEngine(playerCount: 3, startingLives: 1);
+      _turn(e, 100);
+      _turn(e, 40); // P1 eliminated
+      e.removePlayer(0);
+      expect(e.gameOver, isTrue);
+      expect(e.winnerIndex, 2); // removed player never wins
+    });
+
+    test('a removed player is never the winner', () {
+      final e = OneUpEngine(playerCount: 2, startingLives: 3);
+      _turn(e, 100);
+      e.removePlayer(0); // the leader leaves
+      expect(e.winnerIndex, 1);
+      expect(e.isSkipped(0), isTrue);
     });
   });
 }

@@ -270,5 +270,37 @@ class OneUpEngine {
 
   void clearUndoStack() => _undoStack.clear();
 
-  // addPlayer / removePlayer implemented in Task 4.
+  /// New player joins the rotation from the NEXT round with full lives.
+  void addPlayer() {
+    _undoStack.clear();
+    livesLeft.add(startingLives);
+    livesLost.add(0);
+    targetsSet.add(0);
+    highestTurn.add(0);
+    turnsSurvived.add(0);
+    lastDartSaves.add(0);
+    elimsDealt.add(0);
+    // _order is rebuilt at the next round boundary and picks them up.
+  }
+
+  /// Removes a seat from play. Their last completed throw may still be the
+  /// standing target (it is just a number). If they were mid-turn, the
+  /// in-progress darts are discarded. Survivor wins when one remains.
+  void removePlayer(int index) {
+    if (gameOver || _skipped.contains(index)) return;
+    _undoStack.clear();
+    final wasCurrent = index == currentPlayerIndex;
+    _skipped.add(index);
+    final alive = aliveIndices;
+    if (alive.length <= 1) {
+      turnPoints = 0;
+      dartsInTurn = 0;
+      gameOver = true;
+      winnerIndex = alive.isEmpty ? null : alive.first;
+      return;
+    }
+    if (wasCurrent) {
+      _advance(); // resets turnPoints/dartsInTurn and moves off the seat
+    }
+  }
 }
