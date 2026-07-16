@@ -435,6 +435,8 @@ class _StatsScreenState extends State<StatsScreen>
         return _buildGotchaStats(ms);
       case 'wildcard':
         return _buildWildcardStats(ms);
+      case 'oneUp':
+        return _buildOneUpStats(ms);
       default:
         return [];
     }
@@ -500,6 +502,18 @@ class _StatsScreenState extends State<StatsScreen>
         _StatItem('🎯', 'Window prizes', '${ms.get('windowPrizes')}'),
         _StatItem('🏹', 'Points stolen', '${ms.get('pointsStolen')}'),
         _StatItem('🌡️', 'Chaos peak', '${ms.get('chaosPeak')}'),
+        _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
+      ]),
+    ];
+  }
+
+  List<Widget> _buildOneUpStats(ModeStats ms) {
+    return [
+      _buildStatsGrid([
+        _StatItem('❤️‍🩹', 'Lives lost', '${ms.get('livesLost')}'),
+        _StatItem('📈', 'Targets set', '${ms.get('targetsSet')}'),
+        _StatItem('⏳', 'Turns survived', '${ms.get('turnsSurvived')}'),
+        _StatItem('🎯', 'Last-dart saves', '${ms.get('lastDartSaves')}'),
         _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
       ]),
     ];

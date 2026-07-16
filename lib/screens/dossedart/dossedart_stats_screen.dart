@@ -24,8 +24,9 @@ const _modeAccent = <String, Color>{
   'gotcha': DossedartTokens.red,
   // purple shared with halveIt — all 7 accent tokens are claimed; WILDCARD's
   // own chaos color is the least-bad reuse. Palette expansion needed when
-  // Golf/1UP ship.
+  // Golf ships.
   'wildcard': DossedartTokens.purple,
+  'oneUp': DossedartTokens.lime,
 };
 
 /// Arcade statistics hub — 4 tabs: PROFILE / MODES / HEATMAP / HISTORY.
@@ -49,6 +50,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     ('shanghai', 'SHANGHAI'),
     ('gotcha', 'GOTCHA'),
     ('wildcard', 'WILDCARD'),
+    ('oneUp', '1UP'),
   ];
 
   late final TabController _tabs = TabController(length: 4, vsync: this);
@@ -283,6 +285,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
         return ['kills ${ms.get('kills')}', 'best turn ${ms.get('highestTurn')}'];
       case 'wildcard':
         return ['jokers ${ms.get('jokersHit')}', 'best turn ${ms.get('highestTurn')}'];
+      case 'oneUp':
+        return ['eliminations ${ms.get('elimsDealt')}', 'best turn ${ms.get('highestTurn')}'];
       default:
         return const [];
     }
