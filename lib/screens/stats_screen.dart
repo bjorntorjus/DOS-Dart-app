@@ -510,6 +510,7 @@ class _StatsScreenState extends State<StatsScreen>
   List<Widget> _buildOneUpStats(ModeStats ms) {
     return [
       _buildStatsGrid([
+        _StatItem('💀', 'Eliminations', '${ms.get('elimsDealt')}'),
         _StatItem('❤️‍🩹', 'Lives lost', '${ms.get('livesLost')}'),
         _StatItem('📈', 'Targets set', '${ms.get('targetsSet')}'),
         _StatItem('⏳', 'Turns survived', '${ms.get('turnsSurvived')}'),
