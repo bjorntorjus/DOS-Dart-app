@@ -89,10 +89,10 @@ DOSSEDART cockpit pattern (TopBar · player carousel · dartboard input · Actio
   2. Default (`BEAT 87` + `NEED n MORE`)
   3. SAFE (target matched or beaten mid-turn, building new target)
   4. CAN'T-BEAT (needed > max possible with darts left)
-  5. Life lost (pip breaking — the signature moment)
+  5. Life lost (pip breaking — the signature moment). Full-frame moment overlay auto-dismisses after **1 second** (tap dismisses early); same treatment for the elimination overlay.
   6. Last life (persistent danger styling on that player's card)
   7. Elimination
-  8. Winner
+  8. Winner — **no dedicated winner overlay** (rev 2026-07-16b QA): the post-game screen IS the winner surface; game end goes straight there after the winner announcement/video.
 - Input: reuses X01 dartboard/score input.
 
 ### 4.4 Post-game
@@ -111,7 +111,7 @@ DOSSEDART cockpit pattern (TopBar · player carousel · dartboard input · Actio
 
 ## 6. Integrations
 
-- **GameAnnouncer / sounds:** `assets/sounds/one_up/` — events: target beaten ("beat that!"), life lost, last life, elimination, big target set (≥ 100), winner. TTS fallback for all; dedicated recordings optional later. MemeService hooks as standard.
+- **GameAnnouncer / sounds:** `assets/sounds/one_up/` — events: target beaten ("beat that!"), life lost, last life, elimination, big target set (≥ 100), winner. **Plus the cross-mode staples (QA 2026-07-16): `announceThrow` per dart and `announceNextPlayer` on turn change** — a mode without them is effectively silent. TTS fallback for all; dedicated recordings optional later. MemeService hooks as standard.
 - **Stats (StatsRecorder):** games, wins, highest turn, avg turn, lives lost, eliminations dealt (players who died failing to beat *your* target — optional if cheap), placements. H2H + Elo recorded. Turn history for match-details drill-down.
 - **Removed-player handling:** removed-player-wins fix pattern from day one + regression test.
 - **VideoService:** generic winner video.
