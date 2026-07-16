@@ -147,6 +147,14 @@ void main() {
       expect(e.livesLeft, [3, 2, 2, 3]);
     });
 
+    test('tie mid-round does not transfer target ownership', () {
+      final e = best(3, 3);
+      _turn(e, 60); // P0 free-sets 60, owner 0
+      _turn(e, 60); // P1 ties → safe; round still live (P2 to throw)
+      expect(e.target, 60);
+      expect(e.targetSetBy, 0); // tie does NOT transfer ownership
+    });
+
     test('beating the max raises it mid-round', () {
       final e = best(3, 3);
       _turn(e, 60);
