@@ -26,6 +26,7 @@ class OneUpOpponentEntry {
     required this.lives,
     required this.maxLives,
     required this.eliminated,
+    this.outOfRound = false,
   });
 
   final String name;
@@ -33,6 +34,10 @@ class OneUpOpponentEntry {
   final int lives;
   final int maxLives;
   final bool eliminated;
+
+  /// SURVIVOR only: knocked out of the current round (fail cost a life but
+  /// the game goes on) — distinct from [eliminated] (out of lives entirely).
+  final bool outOfRound;
 }
 
 /// Active player card for the DOSSEDART 1UP cockpit.
@@ -723,14 +728,17 @@ class _OpponentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dead = entry.eliminated;
-    final color = dead ? Colors.white.withValues(alpha: 0.25) : entry.accent;
+    // Eliminated wins over out-of-round when (impossibly) both are true.
+    final roundOut = !dead && entry.outOfRound;
+    final dimmed = dead || roundOut;
+    final color = dimmed ? Colors.white.withValues(alpha: 0.25) : entry.accent;
     return Opacity(
-      opacity: dead ? 0.5 : 1,
+      opacity: dimmed ? 0.5 : 1,
       child: Container(
         width: 88,
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
         decoration: BoxDecoration(
-          color: dead
+          color: dimmed
               ? Colors.white.withValues(alpha: 0.02)
               : entry.accent.withValues(alpha: 0.05),
           border: Border.all(color: color, width: 2),
@@ -747,7 +755,7 @@ class _OpponentTile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'VT323',
                 fontSize: 14,
-                color: Colors.white.withValues(alpha: dead ? 0.6 : 1),
+                color: Colors.white.withValues(alpha: dimmed ? 0.6 : 1),
                 letterSpacing: 1,
               ),
             ),
@@ -760,6 +768,19 @@ class _OpponentTile extends StatelessWidget {
                   fontSize: 8,
                   color: DossedartTokens.red,
                   letterSpacing: 1,
+                ),
+              )
+            else if (roundOut)
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'ROUND OUT',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 8,
+                    color: DossedartTokens.yellow,
+                    letterSpacing: 1,
+                  ),
                 ),
               )
             else

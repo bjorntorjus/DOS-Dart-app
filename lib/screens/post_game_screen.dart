@@ -303,6 +303,7 @@ class _PlayerResultTile extends StatelessWidget {
         if (stats['lastDartSaves'] != null && stats['lastDartSaves'] != 0) {
           entries.add('Last-dart saves: ${stats['lastDartSaves']}');
         }
+        if (stats['roundsWon'] != null && stats['roundsWon'] != 0) entries.add('Rounds won: ${stats['roundsWon']}');
       case 'wildcard':
         if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');

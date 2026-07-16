@@ -1076,14 +1076,14 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           ListTile(
             title: const Text('Variant'),
             subtitle: Text(_oneUpVariant == OneUpVariant.survivor
-                ? 'Beat the best score each round'
+                ? 'Round survival — last one standing wins the round'
                 : 'Beat the last thrown score'),
             trailing: SegmentedButton<OneUpVariant>(
               segments: const [
                 ButtonSegment(
                     value: OneUpVariant.beatTheLast, label: Text('Last')),
                 ButtonSegment(
-                    value: OneUpVariant.survivor, label: Text('Best')),
+                    value: OneUpVariant.survivor, label: Text('Survivor')),
               ],
               selected: {_oneUpVariant},
               onSelectionChanged: (v) =>

@@ -150,10 +150,15 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       names: players.map((p) => p.name).toList(),
       scores: engine.livesLeft,
     );
+    final outOfRoundNames = widget.config.variant == OneUpVariant.survivor &&
+            engine.outOfRoundIndices.isNotEmpty
+        ? engine.outOfRoundIndices.map((i) => players[i].name).join(',')
+        : null;
     _log.log('R${engine.roundNumber} STATE '
         'target=${engine.target ?? '-'} '
         'setBy=${engine.targetSetBy >= 0 ? players[engine.targetSetBy].name : '-'} '
-        'variant=${widget.config.variant.name}');
+        'variant=${widget.config.variant.name}'
+        '${outOfRoundNames != null ? ' out=[$outOfRoundNames]' : ''}');
   }
 
   void _onDartHit(int segment, int multiplier) {
@@ -247,6 +252,14 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       });
     } else if (engine.targetSetBy == seat && (engine.target ?? 0) >= 100) {
       _announcer.announceOneUp('${engine.target}! Beat that!');
+    }
+    // SURVIVOR: the round winner is announced via TTS only — the overlay
+    // above (if any) already covered the moment for the player who just
+    // failed; this is purely informational and never null when playerWon
+    // (the engine doesn't set roundWonBy on a game-ending fail).
+    if (result.roundWonBy != null) {
+      _announcer.announceOneUp(
+          '${players[result.roundWonBy!].name} wins the round!');
     }
     _logTurn();
   }
@@ -394,6 +407,9 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
         'max:highestTurn': engine.highestTurn[pi],
         'totalDarts': throwHistory.where((t) => t.playerIndex == pi).length,
         'totalGames': 1,
+        // Always included (0 in BEAT THE LAST games) — simpler than gating
+        // on variant, and harmless since the counter has no meaning there.
+        'roundsWon': engine.roundsWon[pi],
       };
     }
 
@@ -433,7 +449,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       gameConfig: '${widget.config.lives} lives · '
-          '${widget.config.variant == OneUpVariant.survivor ? 'Beat the best' : 'Beat the last'}'
+          '${widget.config.variant == OneUpVariant.survivor ? 'Survivor' : 'Beat the last'}'
           '${widget.config.randomOrder ? ' · Shuffle' : ''}',
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
@@ -458,6 +474,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
           'turnsSurvived': engine.turnsSurvived[i],
           'lastDartSaves': engine.lastDartSaves[i],
           'elimsDealt': engine.elimsDealt[i],
+          'roundsWon': engine.roundsWon[i],
         },
         ratingBefore: players[i].savedPlayerId != null
             ? _ratingsBefore[players[i].savedPlayerId!]
@@ -654,8 +671,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                     variantChip: _variantChip,
                     isRoundFree:
                         widget.config.variant == OneUpVariant.survivor &&
-                            engine.isFreeThrow &&
-                            engine.roundNumber > 0,
+                            engine.isFreeThrow,
                     opponents: [
                       for (int i = 0; i < players.length; i++)
                         if (i != cur && !engine.isSkipped(i))
@@ -665,6 +681,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                             lives: engine.livesLeft[i],
                             maxLives: widget.config.lives,
                             eliminated: engine.isEliminated(i),
+                            outOfRound: engine.isOutOfRound(i),
                           ),
                     ],
                   ),

@@ -41,7 +41,7 @@ void main() {
     expect(find.textContaining('FREE THROW'), findsOneWidget);
   });
 
-  testWidgets('BEST round free state uses round wording', (t) async {
+  testWidgets('survivor round free state uses round wording', (t) async {
     await t.pumpWidget(_wrap(_card(
         mode: OneUpCardMode.free, target: null, isRoundFree: true,
         variantChip: 'SURVIVOR · R3')));
@@ -73,5 +73,24 @@ void main() {
   testWidgets('eliminated opponent shows OUT', (t) async {
     await t.pumpWidget(_wrap(_card()));
     expect(find.text('OUT'), findsOneWidget);
+  });
+
+  testWidgets('round-out opponent shows ROUND OUT, no skull, distinct from OUT',
+      (t) async {
+    await t.pumpWidget(_wrap(DossedartOneUpActiveCard(
+      playerName: 'Jonas', accentColor: DossedartTokens.cyan,
+      lives: 3, maxLives: 3, target: 87, turnTotal: 42,
+      currentDartIndex: 1, cardMode: OneUpCardMode.normal, lastLife: false,
+      variantChip: 'SURVIVOR · R3', isRoundFree: false,
+      opponents: const [
+        OneUpOpponentEntry(name: 'Kari', accent: DossedartTokens.magenta,
+            lives: 2, maxLives: 3, eliminated: false, outOfRound: true),
+        OneUpOpponentEntry(name: 'Per', accent: DossedartTokens.green,
+            lives: 0, maxLives: 3, eliminated: true),
+      ],
+    )));
+    expect(find.text('ROUND OUT'), findsOneWidget);
+    expect(find.text('💀'), findsOneWidget); // only Per (eliminated)
+    expect(find.text('OUT'), findsOneWidget); // only Per's label
   });
 }

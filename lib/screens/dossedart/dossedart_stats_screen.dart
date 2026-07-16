@@ -286,7 +286,11 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
       case 'wildcard':
         return ['jokers ${ms.get('jokersHit')}', 'best turn ${ms.get('highestTurn')}'];
       case 'oneUp':
-        return ['eliminations ${ms.get('elimsDealt')}', 'best turn ${ms.get('highestTurn')}'];
+        return [
+          'eliminations ${ms.get('elimsDealt')}',
+          'best turn ${ms.get('highestTurn')}',
+          if (ms.get('roundsWon') > 0) '🏁 rounds won ${ms.get('roundsWon')}',
+        ];
       default:
         return const [];
     }

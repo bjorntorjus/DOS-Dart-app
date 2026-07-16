@@ -516,6 +516,7 @@ class _StatsScreenState extends State<StatsScreen>
         _StatItem('⏳', 'Turns survived', '${ms.get('turnsSurvived')}'),
         _StatItem('🎯', 'Last-dart saves', '${ms.get('lastDartSaves')}'),
         _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
+        _StatItem('🏁', 'Rounds won', '${ms.get('roundsWon')}'),
       ]),
     ];
   }

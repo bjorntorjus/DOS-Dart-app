@@ -170,4 +170,59 @@ void main() {
               'must keep roundNumber == 1');
     }
   });
+
+  testWidgets(
+      'SURVIVOR: a fail marks ROUND OUT, last one standing wins the round',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: OneUpGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const OneUpConfig(lives: 3, variant: OneUpVariant.survivor),
+      ),
+    ));
+    await tester.pump();
+
+    final state = tester.state<State<OneUpGameScreen>>(
+        find.byType(OneUpGameScreen));
+    final dyn = state as dynamic;
+
+    // A (seat 0) free-sets 100.
+    dyn.onDartHitForTest(20, 3); // T20
+    dyn.onDartHitForTest(20, 2); // D20 -> 100
+    dyn.onDartHitForTest(0, 1); // miss, total stays 100
+    await tester.pump();
+
+    // B (seat 1) misses the whole turn -> fails -> ROUND OUT, life lost.
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    await tester.pump();
+
+    expect(find.text('−1 LIFE'), findsOneWidget);
+    // The overlay blocks further input — dismiss it before C throws.
+    await tester.tap(find.text('−1 LIFE'));
+    await tester.pump();
+
+    final engine = dyn.engineForTest as OneUpEngine;
+    expect(engine.isOutOfRound(1), isTrue);
+    expect(find.textContaining('ROUND OUT'), findsOneWidget);
+
+    // C (seat 2) also misses the whole turn -> fails -> only A remains
+    // in-round -> A wins round 1, round 2 starts (free throw again).
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    await tester.pump();
+
+    expect(find.text('−1 LIFE'), findsOneWidget);
+    await tester.tap(find.text('−1 LIFE'));
+    await tester.pump();
+
+    expect(find.textContaining('SET THE'), findsOneWidget);
+    expect(engine.roundsWon[0], 1);
+  });
 }
