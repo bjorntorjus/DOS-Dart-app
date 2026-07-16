@@ -438,10 +438,10 @@ class DossedartOneUpActiveCard extends StatelessWidget {
             Expanded(
               child: Text(
                 '· LIFE AT RISK · need $_need, max $maxPossible',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'VT323',
                   fontSize: 16,
-                  color: Color(0xFFFF8FA6),
+                  color: DossedartTokens.red.withValues(alpha: 0.75),
                   letterSpacing: 1,
                 ),
               ),
