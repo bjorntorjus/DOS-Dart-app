@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../models/dart_throw.dart';
@@ -30,10 +32,11 @@ import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 import 'post_game_screen.dart';
 
 /// Overlay moments the 1UP cockpit shows, one at a time, full-frame on top
-/// of the Stack — a life lost, an elimination (with placement), or the
-/// winner. Every kind dismisses on tap; [_OuOverlay.winner] additionally
-/// triggers [_OneUpGameScreenState._onGameEnd] on dismiss.
-enum _OuOverlay { lifeLost, eliminated, winner }
+/// of the Stack — a life lost or an elimination (with placement). The
+/// winner overlay was dropped (tablet-QA task 14): the post-game screen is
+/// the sole winner surface. Every kind dismisses on tap, and auto-dismisses
+/// after 1s via [_OneUpGameScreenState._overlayTimer].
+enum _OuOverlay { lifeLost, eliminated }
 
 /// The DOSSEDART 1UP cockpit: each 3-dart turn must match or beat the
 /// standing target or the thrower loses a life. Last player alive wins.
@@ -75,10 +78,11 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
-  /// Guards [_onGameEnd] against double-fire from the winner overlay's tap
-  /// handler (no other reentrancy source exists — see the overlay/removal
-  /// seam notes on this class). Reset to false on the post-game 'undo' path
-  /// since the game reopens and can legitimately be finished again.
+  /// Guards [_onGameEnd] against double-fire — it's called both from
+  /// `_handleTurnEnd`'s playerWon branch and from `_removePlayerMidGame`
+  /// when a removal ends the game, so both paths route through this same
+  /// guard. Reset to false on the post-game 'undo' path since the game
+  /// reopens and can legitimately be finished again.
   bool _gameEndFired = false;
 
   @visibleForTesting
@@ -93,10 +97,18 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   @visibleForTesting
   void onDartHitForTest(int s, int m) => _onDartHit(s, m);
 
-  // ─── Moment overlays (Task 8) ────────────────────────────────
+  // ─── Moment overlays (Task 8; auto-dismiss added task 14) ─────
   _OuOverlay? _overlay;
   String _momentName = '';
   int _momentTarget = 0;
+
+  /// Auto-dismisses the current moment overlay after 1s (task 14 QA fix).
+  /// [_overlayToken] is bumped each time an overlay is (re)shown so a stale
+  /// timer firing after a later overlay replaced it — or after the overlay
+  /// was already cleared by a tap/undo — is a no-op instead of clobbering
+  /// unrelated state.
+  Timer? _overlayTimer;
+  int _overlayToken = 0;
 
   /// The thrower's seat, captured in [_onDartHit] BEFORE `engine.applyDart`
   /// — `_handleTurnEnd` runs after the engine has already advanced
@@ -136,6 +148,12 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       build: kAppVersion,
     );
     _logTurn();
+  }
+
+  @override
+  void dispose() {
+    _overlayTimer?.cancel();
+    super.dispose();
   }
 
   void _logTurn() {
@@ -202,6 +220,13 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       dartNumber: dartNo,
     );
 
+    // Every dart gets a plain throw-result callout (Gotcha parity, task 14
+    // QA fix — the mode was near-silent). Unlike Gotcha there's no per-dart
+    // competing announcement (bust/kill) to gate this on; the turn-level
+    // moments below (life lost/eliminated/etc.) are separate TTS lines that
+    // queue after this one.
+    _announcer.announceThrow(segment == 0 ? 'miss' : '${segment * multiplier}');
+
     // A completed turn opens a fresh turnId group for the next thrower.
     if (result.turnEnded && !engine.gameOver) _turnIdCounter++;
 
@@ -224,34 +249,31 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     final seat = _lastThrowerSeat;
     final name = players[seat].name.toUpperCase();
     if (result.playerWon) {
-      final winnerName = players[engine.winnerIndex!].name;
-      _announcer.announceOneUp(
-        '$winnerName wins! Last player standing!',
-        soundFolders: const ['one_up/winner', 'win'],
-      );
-      setState(() {
-        _overlay = _OuOverlay.winner;
-        _momentName = winnerName.toUpperCase();
-      });
+      // The post-game screen is the sole winner surface (task 14 QA fix) —
+      // no overlay, no dedicated announceOneUp; _onGameEnd -> announceWinner
+      // covers the TTS. _gameEndFired still guards double-fire inside it.
+      _onGameEnd();
       return;
     }
+    // Tracks whether this turn already produced a "moment" announcement
+    // (life lost / elimination / big target / round win) — those name the
+    // next beat themselves or hand off to an overlay, so the plain
+    // next-player announcement below is skipped to avoid stepping on them.
+    var momentAnnounced = false;
     if (result.eliminated) {
       _announcer.announceOneUp('$name is eliminated!',
           soundFolders: const ['one_up/eliminated']);
-      setState(() {
-        _overlay = _OuOverlay.eliminated;
-        _momentName = name;
-      });
+      _showOverlay(_OuOverlay.eliminated, momentName: name);
+      momentAnnounced = true;
     } else if (result.lostLife) {
       _announcer.announceOneUp('$name loses a life!',
           soundFolders: const ['one_up/life_lost']);
-      setState(() {
-        _overlay = _OuOverlay.lifeLost;
-        _momentName = name;
-        _momentTarget = _failedTarget;
-      });
+      _showOverlay(_OuOverlay.lifeLost,
+          momentName: name, momentTarget: _failedTarget);
+      momentAnnounced = true;
     } else if (engine.targetSetBy == seat && (engine.target ?? 0) >= 100) {
       _announcer.announceOneUp('${engine.target}! Beat that!');
+      momentAnnounced = true;
     }
     // SURVIVOR: the round winner is announced via TTS only — the overlay
     // above (if any) already covered the moment for the player who just
@@ -260,8 +282,39 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     if (result.roundWonBy != null) {
       _announcer.announceOneUp(
           '${players[result.roundWonBy!].name} wins the round!');
+      momentAnnounced = true;
+    }
+    if (!momentAnnounced) {
+      _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
     }
     _logTurn();
+  }
+
+  /// Shows a moment overlay and (re)starts its 1s auto-dismiss timer —
+  /// cancelling any timer left over from a previous overlay first. The
+  /// captured [token] lets the delayed callback recognise a stale firing
+  /// (overlay already replaced or cleared) and no-op instead of clearing
+  /// unrelated state.
+  void _showOverlay(_OuOverlay overlay, {String? momentName, int? momentTarget}) {
+    _overlayTimer?.cancel();
+    final token = ++_overlayToken;
+    setState(() {
+      _overlay = overlay;
+      if (momentName != null) _momentName = momentName;
+      if (momentTarget != null) _momentTarget = momentTarget;
+    });
+    _overlayTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted || token != _overlayToken) return;
+      setState(() => _overlay = null);
+    });
+  }
+
+  /// Dismisses the current moment overlay early (tap) and cancels its
+  /// pending auto-dismiss timer so it can't fire later against whatever
+  /// replaces `_overlay`.
+  void _dismissOverlay() {
+    _overlayTimer?.cancel();
+    setState(() => _overlay = null);
   }
 
   /// Placement for the just-eliminated seat: `activePlayerCount` already
@@ -289,6 +342,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   void _onUndo() {
     if (engine.gameOver) return;
     if (!engine.canUndo) return;
+    _overlayTimer?.cancel();
     setState(() {
       _overlay = null;
       engine.undo();
@@ -760,7 +814,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       case _OuOverlay.lifeLost:
         return _momentOverlay(
           tint: DossedartTokens.red,
-          onTap: () => setState(() => _overlay = null),
+          onTap: _dismissOverlay,
           children: [
             const Text('💔', style: TextStyle(fontSize: 60)),
             const SizedBox(height: 14),
@@ -787,7 +841,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       case _OuOverlay.eliminated:
         return _momentOverlay(
           tint: DossedartTokens.red,
-          onTap: () => setState(() => _overlay = null),
+          onTap: _dismissOverlay,
           children: [
             const Text('💀', style: TextStyle(fontSize: 64)),
             const SizedBox(height: 12),
@@ -816,48 +870,6 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                   fontFamily: 'PressStart2P',
                   fontSize: 13,
                   color: DossedartTokens.yellow,
-                  letterSpacing: 2),
-            ),
-          ],
-        );
-      case _OuOverlay.winner:
-        return _momentOverlay(
-          tint: DossedartTokens.yellow,
-          onTap: () {
-            setState(() => _overlay = null);
-            _onGameEnd();
-          },
-          children: [
-            const Text(
-              '★ ★ ★',
-              style: TextStyle(
-                  fontSize: 34, letterSpacing: 6, color: DossedartTokens.yellow),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              '1UP!',
-              style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 52,
-                  color: DossedartTokens.yellow,
-                  letterSpacing: 2),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              '$_momentName WINS',
-              style: const TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 20,
-                  color: Colors.white,
-                  letterSpacing: 2),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'LAST PLAYER STANDING',
-              style: TextStyle(
-                  fontFamily: 'VT323',
-                  fontSize: 22,
-                  color: DossedartTokens.cyan,
                   letterSpacing: 2),
             ),
           ],

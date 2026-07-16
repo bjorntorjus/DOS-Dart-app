@@ -106,7 +106,37 @@ void main() {
     expect(find.text('−1 LIFE'), findsNothing);
   });
 
-  testWidgets('winner overlay shows 1UP! and leads to post-game',
+  testWidgets('life lost overlay auto-dismisses after 1s without a tap',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: OneUpGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const OneUpConfig(lives: 3),
+      ),
+    ));
+    await tester.pump();
+
+    final state = tester.state<State<OneUpGameScreen>>(
+        find.byType(OneUpGameScreen));
+    final dyn = state as dynamic;
+    // A sets 100, B misses the whole turn -> B loses a life.
+    dyn.onDartHitForTest(20, 3);
+    dyn.onDartHitForTest(20, 2);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    await tester.pump();
+
+    expect(find.text('−1 LIFE'), findsOneWidget);
+
+    // No tap — the 1s auto-dismiss timer clears it on its own.
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(find.text('−1 LIFE'), findsNothing);
+  });
+
+  testWidgets(
+      'game-ending dart leads straight to post-game, with no 1UP! overlay',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: OneUpGameScreen(
@@ -128,12 +158,15 @@ void main() {
     dyn.onDartHitForTest(0, 1);
     await tester.pump();
 
-    expect(find.text('1UP!'), findsOneWidget);
-
-    await tester.tap(find.text('1UP!'));
-    await tester.pump();
+    // No extra winner overlay — the post-game screen is the sole winner
+    // surface (task 14 QA fix). Same three-pump requirement as the
+    // one_up_postgame_undo_test cases: each pump unwinds one microtask hop
+    // of the _onGameEnd await-chain (VideoService -> PlayerStorage.loadPlayers
+    // -> Navigator.push).
+    expect(find.text('1UP!'), findsNothing);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('1UP!'), findsNothing);
     expect(find.byType(PostGameScreen), findsOneWidget);
   });
 
