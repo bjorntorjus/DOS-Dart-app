@@ -7,6 +7,7 @@ import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/one_up_engine.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/screens/one_up_game_screen.dart';
+import 'package:dart_scoring/screens/post_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
 
 /// Widget smoke test for the DOSSEDART 1UP cockpit core (Task 6).
@@ -74,5 +75,65 @@ void main() {
     expect(find.text('BEAT'), findsOneWidget);
     expect(find.text('180'), findsOneWidget);
     expect(find.textContaining('NEED 180 MORE'), findsOneWidget);
+  });
+
+  testWidgets('life lost overlay appears and tap dismisses', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: OneUpGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const OneUpConfig(lives: 3),
+      ),
+    ));
+    await tester.pump();
+
+    final state = tester.state<State<OneUpGameScreen>>(
+        find.byType(OneUpGameScreen));
+    final dyn = state as dynamic;
+    // A sets 100, B misses the whole turn -> B loses a life.
+    dyn.onDartHitForTest(20, 3);
+    dyn.onDartHitForTest(20, 2);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    await tester.pump();
+
+    expect(find.text('−1 LIFE'), findsOneWidget);
+    expect(find.textContaining('FAILED TO BEAT 100'), findsOneWidget);
+
+    await tester.tap(find.text('−1 LIFE'));
+    await tester.pump();
+    expect(find.text('−1 LIFE'), findsNothing);
+  });
+
+  testWidgets('winner overlay shows 1UP! and leads to post-game',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: OneUpGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const OneUpConfig(lives: 1),
+      ),
+    ));
+    await tester.pump();
+
+    final state = tester.state<State<OneUpGameScreen>>(
+        find.byType(OneUpGameScreen));
+    final dyn = state as dynamic;
+    // A free-sets 100; B misses the whole turn -> eliminated -> A wins.
+    dyn.onDartHitForTest(20, 3);
+    dyn.onDartHitForTest(20, 2);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    dyn.onDartHitForTest(0, 1);
+    await tester.pump();
+
+    expect(find.text('1UP!'), findsOneWidget);
+
+    await tester.tap(find.text('1UP!'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(PostGameScreen), findsOneWidget);
   });
 }

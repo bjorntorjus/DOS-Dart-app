@@ -51,6 +51,17 @@ class GameAnnouncer {
     _tts.callWhenIdle(() => _sound.playRandom(['gotcha/kill']));
   }
 
+  /// 1UP moment (target beaten / life lost / last life / elimination / big
+  /// target). [soundFolders] ships no recordings in v1 — assets/sounds/
+  /// one_up/... is UNDECLARED in pubspec.yaml on purpose, so playRandom is a
+  /// silent no-op until files are added + declared, same as [announceKill].
+  void announceOneUp(String phrase, {List<String> soundFolders = const []}) {
+    if (_gameEvents) _tts.speak(phrase);
+    if (soundFolders.isNotEmpty) {
+      _tts.callWhenIdle(() => _sound.playRandom(soundFolders));
+    }
+  }
+
   void announceGameEvent(String event) {
     if (_gameEvents) _tts.speak(event);
     if (event == 'Bust') _tts.callWhenIdle(() => _sound.play('bust'));

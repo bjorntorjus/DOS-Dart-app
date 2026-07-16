@@ -29,6 +29,12 @@ import '../widgets/dossedart/one_up/dossedart_one_up_active_card.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 import 'post_game_screen.dart';
 
+/// Overlay moments the 1UP cockpit shows, one at a time, full-frame on top
+/// of the Stack — a life lost, an elimination (with placement), or the
+/// winner. Every kind dismisses on tap; [_OuOverlay.winner] additionally
+/// triggers [_OneUpGameScreenState._onGameEnd] on dismiss.
+enum _OuOverlay { lifeLost, eliminated, winner }
+
 /// The DOSSEDART 1UP cockpit: each 3-dart turn must match or beat the
 /// standing target or the thrower loses a life. Last player alive wins.
 /// Assembles the [OneUpEngine] (Tasks 2-4), [DossedartOneUpActiveCard]
@@ -77,6 +83,26 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   @visibleForTesting
   void onGameEndForTest() => _onGameEnd();
 
+  @visibleForTesting
+  void onDartHitForTest(int s, int m) => _onDartHit(s, m);
+
+  // ─── Moment overlays (Task 8) ────────────────────────────────
+  _OuOverlay? _overlay;
+  String _momentName = '';
+  int _momentTarget = 0;
+
+  /// The thrower's seat, captured in [_onDartHit] BEFORE `engine.applyDart`
+  /// — `_handleTurnEnd` runs after the engine has already advanced
+  /// `currentPlayerIndex` to the next player, so it can't be read there.
+  int _lastThrowerSeat = 0;
+
+  /// `engine.target` captured in [_onDartHit] BEFORE `engine.applyDart` —
+  /// in BEAT THE LAST a failed turn overwrites `engine.target` with the
+  /// (lower) failed total as a side effect of `_endTurn`, so by the time
+  /// `_handleTurnEnd` runs the live value is no longer the number the
+  /// thrower actually failed to beat.
+  int _failedTarget = 0;
+
   @override
   void initState() {
     super.initState();
@@ -124,10 +150,12 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   }
 
   void _onDartHit(int segment, int multiplier) {
-    if (engine.gameOver) return;
+    if (engine.gameOver || _overlay != null) return;
     final playerIdx = engine.currentPlayerIndex;
     final dartNo = engine.dartsInTurn;
     final turnBefore = engine.turnPoints;
+    _lastThrowerSeat = playerIdx;
+    _failedTarget = engine.target ?? 0;
 
     final result = engine.applyDart(segment, multiplier);
 
@@ -169,23 +197,79 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   }
 
   void _onMiss() {
+    if (engine.gameOver || _overlay != null) return;
     SoundService.instance.play('miss/miss');
     _onDartHit(0, 0);
   }
 
+  /// Routes a completed turn to the right MOMENTS overlay (life lost /
+  /// elimination / winner), or the "big target" callout for a fresh
+  /// 100+ target — [_lastThrowerSeat]/[_failedTarget] (captured in
+  /// [_onDartHit] before the engine advanced) stand in for
+  /// `engine.currentPlayerIndex`, which by now points at the NEXT thrower.
   void _handleTurnEnd(OneUpDartResult result) {
-    // Task 8 layers overlays/announcements here; core flow:
+    final seat = _lastThrowerSeat;
+    final name = players[seat].name.toUpperCase();
     if (result.playerWon) {
-      _onGameEnd();
+      final winnerName = players[engine.winnerIndex!].name;
+      _announcer.announceOneUp(
+        '$winnerName wins! Last player standing!',
+        soundFolders: const ['one_up/winner', 'win'],
+      );
+      setState(() {
+        _overlay = _OuOverlay.winner;
+        _momentName = winnerName.toUpperCase();
+      });
       return;
     }
+    if (result.eliminated) {
+      _announcer.announceOneUp('$name is eliminated!',
+          soundFolders: const ['one_up/eliminated']);
+      setState(() {
+        _overlay = _OuOverlay.eliminated;
+        _momentName = name;
+      });
+    } else if (result.lostLife) {
+      _announcer.announceOneUp('$name loses a life!',
+          soundFolders: const ['one_up/life_lost']);
+      setState(() {
+        _overlay = _OuOverlay.lifeLost;
+        _momentName = name;
+        _momentTarget = _failedTarget;
+      });
+    } else if (engine.targetSetBy == seat && (engine.target ?? 0) >= 100) {
+      _announcer.announceOneUp('${engine.target}! Beat that!');
+    }
     _logTurn();
+  }
+
+  /// Placement for the just-eliminated seat: `activePlayerCount` already
+  /// excludes them (their elimination happened in `_endTurn`, before
+  /// `_handleTurnEnd` ran) — the seat lands one place below everyone still
+  /// alive. Proven against the brief's scenarios: 4 players, 1st out with
+  /// 3 left alive → 4TH; 2nd out with 2 left alive → 3RD; with one removed
+  /// seat (3 in-game), 1st out with 2 left alive → 3RD.
+  int get _eliminationPlacement => engine.activePlayerCount + 1;
+
+  String _ordinal(int n) {
+    if (n % 100 >= 11 && n % 100 <= 13) return '${n}TH';
+    switch (n % 10) {
+      case 1:
+        return '${n}ST';
+      case 2:
+        return '${n}ND';
+      case 3:
+        return '${n}RD';
+      default:
+        return '${n}TH';
+    }
   }
 
   void _onUndo() {
     if (engine.gameOver) return;
     if (!engine.canUndo) return;
     setState(() {
+      _overlay = null;
       engine.undo();
       if (throwHistory.isNotEmpty) {
         final lastThrow = throwHistory.removeLast();
@@ -596,6 +680,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                               ),
                               child: DossedartX01Dartboard(
                                 onTap: (zone) {
+                                  if (engine.gameOver || _overlay != null) return;
                                   final (seg, mult) = zone.toSegmentMultiplier();
                                   if (seg == 0) {
                                     _onMiss();
@@ -622,9 +707,153 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                   ),
                 ],
               ),
-              // Task 8 slots its turn-end / elimination / winner overlays into
-              // this outer Stack without re-layout.
+              if (_overlay != null) _buildOverlay(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── MOMENTS overlays ─────────────────────────────────────────
+
+  Widget _buildOverlay() {
+    switch (_overlay!) {
+      case _OuOverlay.lifeLost:
+        return _momentOverlay(
+          tint: DossedartTokens.red,
+          onTap: () => setState(() => _overlay = null),
+          children: [
+            const Text('💔', style: TextStyle(fontSize: 60)),
+            const SizedBox(height: 14),
+            const Text(
+              '−1 LIFE',
+              style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 34,
+                  color: DossedartTokens.red,
+                  letterSpacing: 2),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '$_momentName FAILED TO BEAT $_momentTarget',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 24,
+                  color: Colors.white,
+                  letterSpacing: 2),
+            ),
+          ],
+        );
+      case _OuOverlay.eliminated:
+        return _momentOverlay(
+          tint: DossedartTokens.red,
+          onTap: () => setState(() => _overlay = null),
+          children: [
+            const Text('💀', style: TextStyle(fontSize: 64)),
+            const SizedBox(height: 12),
+            const Text(
+              'ELIMINATED',
+              style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 36,
+                  color: DossedartTokens.red,
+                  letterSpacing: 3),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '$_momentName · OUT OF LIVES',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 26,
+                  color: Colors.white,
+                  letterSpacing: 2),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '${_ordinal(_eliminationPlacement)} PLACE',
+              style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 13,
+                  color: DossedartTokens.yellow,
+                  letterSpacing: 2),
+            ),
+          ],
+        );
+      case _OuOverlay.winner:
+        return _momentOverlay(
+          tint: DossedartTokens.yellow,
+          onTap: () {
+            setState(() => _overlay = null);
+            _onGameEnd();
+          },
+          children: [
+            const Text(
+              '★ ★ ★',
+              style: TextStyle(
+                  fontSize: 34, letterSpacing: 6, color: DossedartTokens.yellow),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              '1UP!',
+              style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 52,
+                  color: DossedartTokens.yellow,
+                  letterSpacing: 2),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              '$_momentName WINS',
+              style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 20,
+                  color: Colors.white,
+                  letterSpacing: 2),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'LAST PLAYER STANDING',
+              style: TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 22,
+                  color: DossedartTokens.cyan,
+                  letterSpacing: 2),
+            ),
+          ],
+        );
+    }
+  }
+
+  /// Full-frame moment overlay: a radial tint over the whole cockpit Stack,
+  /// tap-anywhere to dismiss via [onTap]. Static (no pulse) — v1 per the
+  /// brief; a future pulse would need to respect
+  /// `MediaQuery.disableAnimations`, same as Wildcard's `_DangerVignette`.
+  Widget _momentOverlay({
+    required Color tint,
+    required VoidCallback onTap,
+    required List<Widget> children,
+  }) {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              colors: [
+                tint.withValues(alpha: 0.13),
+                DossedartTokens.bg.withValues(alpha: 0.86),
+              ],
+              stops: const [0.0, 0.7],
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: children,
           ),
         ),
       ),
