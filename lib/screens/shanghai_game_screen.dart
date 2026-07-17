@@ -538,6 +538,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       scoreRestored: engine.totalScores[engine.currentPlayerIndex],
       roundNumber: engine.currentRound,
     );
+    _announcer.announceGameEvent('Back');
   }
 
   void _confirmExit() {

@@ -97,6 +97,9 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   @visibleForTesting
   void onDartHitForTest(int s, int m) => _onDartHit(s, m);
 
+  @visibleForTesting
+  void onUndoForTest() => _onUndo();
+
   // ─── Moment overlays (Task 8; auto-dismiss added task 14) ─────
   _OuOverlay? _overlay;
   String _momentName = '';
@@ -358,6 +361,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       scoreRestored: engine.livesLeft[engine.currentPlayerIndex],
       roundNumber: engine.roundNumber,
     );
+    _announcer.announceGameEvent('Back');
   }
 
   Future<void> _onGameEnd() async {

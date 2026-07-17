@@ -568,6 +568,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       scoreRestored: engine.totals[engine.currentPlayerIndex],
       roundNumber: engine.round,
     );
+    _announcer.announceGameEvent('Back');
   }
 
   // ─── Game end ───────────────────────────────────────────────

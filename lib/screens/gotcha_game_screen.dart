@@ -244,6 +244,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       scoreRestored: engine.totals[engine.currentPlayerIndex],
       roundNumber: _roundNumber,
     );
+    _announcer.announceGameEvent('Back');
   }
 
   Future<void> _onGameEnd() async {
