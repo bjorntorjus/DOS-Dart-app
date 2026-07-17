@@ -60,7 +60,9 @@ DOSSEDART cockpit pattern (TopBar · player carousel · dartboard input · Actio
   5. Bogey (hole ends on a miss — stroke 5)
   6. Between holes / round transition (all players done with hole N)
   7. Sudden death (playoff hole on 19/20/Bull, tied leaders only)
-  8. Winner
+  8. Winner — **the post-game screen is the sole winner surface** (1UP QA lesson 2026-07-16: its dedicated winner overlay was designed, then dropped). Design the post-game podium content, not an in-cockpit winner overlay.
+
+- **Moment overlays** (ACE celebration, bogey, sudden death start): tap-to-dismiss AND 1s auto-dismiss, per the 1UP QA convention — play never stalls behind an overlay.
 - Input: reuses ATC's target-zone input (S/D/T on the hole's number + miss).
 
 ### 4.4 Post-game
@@ -80,6 +82,7 @@ DOSSEDART cockpit pattern (TopBar · player carousel · dartboard input · Actio
 ## 6. Integrations
 
 - **GameAnnouncer / sounds:** `assets/sounds/golf/` — events with golf terminology: **ACE** (triple, stroke 1), **BIRDIE** (double, stroke 2), **PAR** (single, stroke 3), **BOGEY** (miss, stroke 5), locked in, sudden death start, winner. TTS fallback for all; dedicated recordings optional later. MemeService hooks as standard.
+- **Cross-mode TTS staples (REQUIRED — 1UP QA lesson 2026-07-16, the mode shipped near-silent without them):** per-dart throw callout (`announceThrow`), next-player announcement (`announceNextPlayer`) whenever no mode-specific moment already names the next beat, undo speaks **'Back'** (`announceGameEvent('Back')`, all-modes convention 2026-07-17), winner via `announceWinner`. All gated by the standard TTS category settings.
 - **Stats (StatsRecorder):** games, wins, aces, avg strokes per hole (comparable across 9/18-hole games), best round (per course length), lock-in rate. H2H + Elo recorded. Scorecard/turn history for match-details drill-down.
 - **Removed-player handling:** removed-player-wins fix pattern from day one + regression test.
 - **VideoService:** generic winner video.

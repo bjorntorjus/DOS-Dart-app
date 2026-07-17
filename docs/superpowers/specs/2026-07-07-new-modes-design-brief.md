@@ -49,6 +49,7 @@ All four modes are built on the DOSSEDART arcade system. The following exist, ar
 
 - Deliverable: **HTML artboards with spec cards**, same convention as previous DOSSEDART handoffs — spec cards are fasit.
 - Target: **tablet** (Samsung Galaxy Tab class), dark arcade theme.
-- Colors: **DOSSEDART tokens only** (the arcade track palette) — no new hex values, no Material colorScheme roles. **Exception (1UP handoff):** the 7 accent tokens are all taken (WILDCARD already shares purple with Halve It), so the 1UP handoff must include a designed **palette extension** — a new accent token proposal (value + role), delivered as part of the spec cards, which implementation adds to `DossedartTokens`.
+- Colors: **DOSSEDART tokens only** (the arcade track palette) — no new hex values, no Material colorScheme roles. **Exception (1UP handoff):** the 7 accent tokens are all taken (WILDCARD already shares purple with Halve It), so the 1UP handoff must include a designed **palette extension** — a new accent token proposal (value + role), delivered as part of the spec cards, which implementation adds to `DossedartTokens`. *(Resolved: lime `#C6FF3C` approved 2026-07-16 as the 8th token — 1UP brand.)*
+- **Golf accent:** default to the existing `green` token as the mode brand (⛳ fits, and green is not another mode's brand color — it's the shared safe/positive state color). If a distinct Golf identity needs its own hue, deliver a new token **PROPOSAL** in the spec cards, same protocol as 1UP's lime — do not introduce unlisted hex values.
 - All UI strings **English** (a guard test fails the build on Norwegian strings).
 - Terminology is locked in the specs: LOCK IN (not "bank"), 1UP (not "Legs"), HOLY TRINITY (exactly 26), WINDOW PRIZE, CHAOS METER.
