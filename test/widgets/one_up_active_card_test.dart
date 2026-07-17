@@ -94,6 +94,18 @@ void main() {
     expect(find.text('OUT'), findsOneWidget); // only Per's label
   });
 
+  testWidgets('card stays inside the compact height budget', (t) async {
+    // Tablet-QA 2026-07-17: the card crowded the dartboard and clipped the
+    // top "20" segment. Pins the compressed layout — the normal state (BEAT
+    // + status line + opponents strip) measured 331px before the fix; the
+    // ~20% compression must keep it at or under 265px at tablet width so
+    // the bottom-anchored board keeps its full square.
+    await t.pumpWidget(MaterialApp(
+        home: Scaffold(body: Center(child: SizedBox(width: 800, child: _card())))));
+    final height = t.getSize(find.byType(DossedartOneUpActiveCard)).height;
+    expect(height, lessThanOrEqualTo(265));
+  });
+
   testWidgets('eliminated wins over outOfRound when both flags are set',
       (t) async {
     // The engine sets BOTH flags on every survivor elimination (the fail

@@ -83,12 +83,13 @@ class DossedartOneUpActiveCard extends StatelessWidget {
 
   final List<OneUpOpponentEntry> opponents;
 
-  /// Same downscaling curve as the Gotcha active card's `_nameFontSize`.
+  /// Same downscaling curve as the Gotcha active card's `_nameFontSize`,
+  /// one notch smaller across the board (compact card, tablet-QA 2026-07-17).
   double _nameFontSize() {
     final len = playerName.length;
-    if (len <= 6) return 17;
-    if (len <= 10) return 14;
-    if (len <= 16) return 11;
+    if (len <= 6) return 15;
+    if (len <= 10) return 12;
+    if (len <= 16) return 10;
     return 9;
   }
 
@@ -120,12 +121,12 @@ class DossedartOneUpActiveCard extends StatelessWidget {
     final dartsLeft = 3 - currentDartIndex;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 4),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -153,7 +154,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
                   maxLives: maxLives,
                   lastLife: lastLife,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -168,10 +169,10 @@ class DossedartOneUpActiveCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 13),
+                const SizedBox(height: 7),
                 _buildStatusLine(dartsLeft),
                 if (opponents.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   _OpponentsStrip(opponents: opponents),
                 ],
               ],
@@ -249,7 +250,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
               'SET THE',
               style: TextStyle(
                 fontFamily: 'PressStart2P',
-                fontSize: 22,
+                fontSize: 18,
                 color: DossedartTokens.lime,
                 letterSpacing: 1,
                 height: 1.15,
@@ -265,7 +266,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
               headlineLine2,
               style: TextStyle(
                 fontFamily: 'PressStart2P',
-                fontSize: 22,
+                fontSize: 18,
                 color: DossedartTokens.lime,
                 letterSpacing: 1,
                 height: 1.15,
@@ -292,7 +293,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
                   'SAFE',
                   style: TextStyle(
                     fontFamily: 'PressStart2P',
-                    fontSize: 26,
+                    fontSize: 21,
                     color: DossedartTokens.green,
                     letterSpacing: 1,
                     shadows: [
@@ -360,7 +361,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
               'BEAT',
               style: TextStyle(
                 fontFamily: 'PressStart2P',
-                fontSize: 13,
+                fontSize: 11,
                 color: danger ? DossedartTokens.red : Colors.white60,
                 letterSpacing: 2,
               ),
@@ -370,7 +371,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
               '${target ?? 0}',
               style: TextStyle(
                 fontFamily: 'PressStart2P',
-                fontSize: 54,
+                fontSize: 42,
                 color: danger ? DossedartTokens.red : Colors.white,
                 letterSpacing: -2,
                 height: 0.95,
@@ -507,7 +508,7 @@ class DossedartOneUpActiveCard extends StatelessWidget {
         lastLife;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
       decoration: BoxDecoration(
         color: tinted
             ? tint.withValues(alpha: 0.09)
@@ -550,8 +551,8 @@ class _HeaderRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 48,
-          height: 48,
+          width: 38,
+          height: 38,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: DossedartTokens.bg,
@@ -564,7 +565,7 @@ class _HeaderRow extends StatelessWidget {
             initials,
             style: TextStyle(
               fontFamily: 'PressStart2P',
-              fontSize: 13,
+              fontSize: 11,
               color: accentColor,
               shadows: [
                 Shadow(color: accentColor.withValues(alpha: 0.67), blurRadius: 8),
@@ -588,8 +589,8 @@ class _HeaderRow extends StatelessWidget {
                   letterSpacing: 2,
                 ),
               ),
-              const SizedBox(height: 8),
-              OneUpLifePips(lives: lives, max: maxLives, color: pipColor),
+              const SizedBox(height: 6),
+              OneUpLifePips(lives: lives, max: maxLives, color: pipColor, size: 14),
             ],
           ),
         ),
@@ -663,7 +664,7 @@ class _TurnBlock extends StatelessWidget {
           '$turnTotal',
           style: TextStyle(
             fontFamily: 'PressStart2P',
-            fontSize: 32,
+            fontSize: 24,
             color: color,
             height: 1,
             letterSpacing: -1,
@@ -672,7 +673,7 @@ class _TurnBlock extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -736,8 +737,8 @@ class _OpponentTile extends StatelessWidget {
     return Opacity(
       opacity: dimmed ? 0.5 : 1,
       child: Container(
-        width: 88,
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+        width: 80,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: dimmed
               ? Colors.white.withValues(alpha: 0.02)
@@ -748,7 +749,7 @@ class _OpponentTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (dead)
-              const Text('💀', style: TextStyle(fontSize: 13, height: 1)),
+              const Text('💀', style: TextStyle(fontSize: 11, height: 1)),
             Text(
               entry.name.toUpperCase(),
               maxLines: 1,
@@ -760,7 +761,7 @@ class _OpponentTile extends StatelessWidget {
                 letterSpacing: 1,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             if (dead)
               Text(
                 'OUT',
