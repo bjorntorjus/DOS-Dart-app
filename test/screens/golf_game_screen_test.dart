@@ -8,6 +8,7 @@ import 'package:dart_scoring/models/golf_engine.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/screens/golf_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
+import 'package:dart_scoring/widgets/dossedart/golf/dossedart_golf_active_card.dart';
 
 /// Smoke test for the DOSSEDART Golf cockpit's core loop: tee off → a miss
 /// (lying) → a made dart that ends the hole and advances to the next player.
@@ -72,6 +73,48 @@ void main() {
     final engine = dyn.engineForTest as GolfEngine;
     expect(engine.scorecards[0][0], 3);
     expect(engine.currentPlayerIndex, 1);
+  });
+
+  testWidgets(
+      'hole-result window shows the finishing player, not the incoming one',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+    dyn.onDartHitForTest(0); // A misses
+    await tester.pump();
+    dyn.onDartHitForTest(2); // A hits a double after 1 miss = 3 strokes = PAR
+    await tester.pump();
+
+    // Immediately (before the 1s result window elapses) the engine has
+    // already advanced to B, but the card must still read A's identity and
+    // A's just-finished result — not B's, and not a phantom pip for B.
+    final engine = dyn.engineForTest as GolfEngine;
+    expect(engine.currentPlayerIndex, 1); // engine moved on to B
+    var card = tester.widget<DossedartGolfActiveCard>(
+        find.byType(DossedartGolfActiveCard));
+    expect(card.playerName, 'A');
+    expect(card.holeStrokes, 3);
+    expect(card.dartsThrown, 2); // A's actual darts this hole: 1 miss + 1 hit
+    expect(card.statusLine, contains('PAR — 3 STROKES'));
+    expect(card.opponents.map((o) => o.name), ['B']);
+
+    // After the 1s window elapses the card hands off to B for their tee off.
+    await tester.pump(const Duration(milliseconds: 1100));
+    card = tester.widget<DossedartGolfActiveCard>(
+        find.byType(DossedartGolfActiveCard));
+    expect(card.playerName, 'B');
+    expect(card.holeStrokes, isNull);
+    expect(card.statusLine, contains('TEE OFF'));
+    expect(card.opponents.map((o) => o.name), ['A']);
   });
 
   testWidgets('sudden death overlay appears on tie and auto-dismisses',

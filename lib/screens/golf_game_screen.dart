@@ -184,7 +184,11 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     setState(() {});
     if (result.holeEnded) {
       _turnIdCounter++;
-      _handleHoleEnd(seat, result);
+      // dartNo was captured BEFORE applyDart, i.e. the misses already
+      // stacked on this hole for `seat` — so dartNo + 1 is this dart,
+      // giving the total darts thrown this hole for both a hit (misses +
+      // the made dart) and a wash (2 misses + the 3rd miss = 3).
+      _handleHoleEnd(seat, dartNo + 1, result);
     }
   }
 
@@ -199,9 +203,9 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// game, opens the sudden-death overlay, or announces the next playoff
   /// target — `announceNextPlayer` always fires last, queueing after the
   /// term via the TTS queue so both staples are heard (spec §6).
-  void _handleHoleEnd(int seat, GolfDartResult result) {
+  void _handleHoleEnd(int seat, int darts, GolfDartResult result) {
     final strokes = result.holeStrokes!;
-    _showHoleResult(strokes);
+    _showHoleResult(seat, strokes, darts);
 
     final phrase = switch (strokes) {
       1 => 'Ace! Hole in one!',
@@ -232,13 +236,26 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// then clears it — cancelling/replacing any window left over from a
   /// still-pending previous hole first. [_resultToken] guards the delayed
   /// clear against firing after a NEWER hole result (or undo) replaced it.
-  void _showHoleResult(int strokes) {
+  ///
+  /// [seat] and [darts] are captured alongside [strokes] so the card can
+  /// keep showing the FINISHING player's identity/pips during the window —
+  /// `engine.currentPlayerIndex`/`engine.missesThisHole` have already moved
+  /// on to the next thrower by the time this runs.
+  void _showHoleResult(int seat, int strokes, int darts) {
     _resultTimer?.cancel();
     final token = ++_resultToken;
-    setState(() => _lastHoleStrokes = strokes);
+    setState(() {
+      _lastHoleStrokes = strokes;
+      _lastHoleSeat = seat;
+      _lastHoleDarts = darts;
+    });
     _resultTimer = Timer(const Duration(seconds: 1), () {
       if (!mounted || token != _resultToken) return;
-      setState(() => _lastHoleStrokes = null);
+      setState(() {
+        _lastHoleStrokes = null;
+        _lastHoleSeat = null;
+        _lastHoleDarts = null;
+      });
     });
   }
 
@@ -273,6 +290,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     _overlayToken++;
     setState(() {
       _lastHoleStrokes = null;
+      _lastHoleSeat = null;
+      _lastHoleDarts = null;
       _overlaySuddenDeath = false;
       engine.undo();
       if (throwHistory.isNotEmpty) {
@@ -511,7 +530,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     return engine.missesThisHole == 0 ? GolfCardPhase.teeOff : GolfCardPhase.midHole;
   }
 
-  int? _lastHoleStrokes; // set in _handleHoleEnd, cleared on next dart/undo (Task 8 wires the 1s display window alongside overlays)
+  // Result-window trio: all three are set together in _showHoleResult and
+  // cleared together (by its 1s timer or by undo) — never partially, so the
+  // card's build-time derivation can gate on _lastHoleStrokes alone and
+  // trust _lastHoleSeat/_lastHoleDarts are present too.
+  int? _lastHoleStrokes; // finished hole's stroke count, shown on the card
+  int? _lastHoleSeat; // seat that finished the hole (identity for the card)
+  int? _lastHoleDarts; // darts thrown that hole, for the dart-pip display
 
   String get _statusLine {
     final done = _lastHoleStrokes;
@@ -577,7 +602,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cur = engine.currentPlayerIndex;
+    // During the 1s hole-result window the active card must keep showing
+    // the player who just FINISHED the hole (name/avatar/accent/total/vs-par
+    // + the opponents-strip exclusion), not engine.currentPlayerIndex, which
+    // applyDart already advanced to the next thrower before this build runs.
+    final displaySeat = _lastHoleStrokes != null && _lastHoleSeat != null
+        ? _lastHoleSeat!
+        : engine.currentPlayerIndex;
 
     return Scaffold(
       backgroundColor: DossedartTokens.bg,
@@ -596,20 +627,22 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                     onExit: _confirmExit,
                   ),
                   DossedartGolfActiveCard(
-                    playerName: players[cur].name,
-                    avatarPath: players[cur].avatarPath,
-                    accentColor: dossedartAccent(cur),
+                    playerName: players[displaySeat].name,
+                    avatarPath: players[displaySeat].avatarPath,
+                    accentColor: dossedartAccent(displaySeat),
                     holeLabel: _holeLabel,
-                    dartsThrown: engine.missesThisHole +
-                        (_lastHoleStrokes != null ? 1 : 0),
-                    total: engine.total(cur),
-                    vsPar: engine.vsPar(cur),
+                    dartsThrown: _lastHoleStrokes != null &&
+                            _lastHoleDarts != null
+                        ? _lastHoleDarts!
+                        : engine.missesThisHole,
+                    total: engine.total(displaySeat),
+                    vsPar: engine.vsPar(displaySeat),
                     phase: _phase,
                     statusLine: _statusLine,
                     holeStrokes: _lastHoleStrokes,
                     opponents: [
                       for (int i = 0; i < players.length; i++)
-                        if (i != cur && !engine.isSkipped(i))
+                        if (i != displaySeat && !engine.isSkipped(i))
                           GolfOpponentEntry(
                             name: players[i].name,
                             total: engine.total(i),
@@ -642,7 +675,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                   // regulation-only.
                   if (!engine.inSuddenDeath)
                     GolfScorecardStrip(
-                      strokes: engine.scorecards[cur],
+                      strokes: engine.scorecards[displaySeat],
                       currentHole: engine.currentHole,
                       onExpand: _openScoreSheet,
                     ),
