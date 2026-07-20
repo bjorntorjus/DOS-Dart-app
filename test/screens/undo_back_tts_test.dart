@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/models/shanghai_engine.dart' show HitType;
+import 'package:dart_scoring/screens/golf_game_screen.dart';
 import 'package:dart_scoring/screens/gotcha_game_screen.dart';
 import 'package:dart_scoring/screens/one_up_game_screen.dart';
 import 'package:dart_scoring/screens/shanghai_game_screen.dart';
@@ -153,5 +154,26 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(spoken, contains('Back'),
         reason: 'Wildcard undo must speak Back like the classic modes');
+  });
+
+  testWidgets('Golf: undo announces Back', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final dynamic state =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen));
+    state.onDartHitForTest(1);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    spoken.clear();
+    state.onUndoForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(spoken, contains('Back'),
+        reason: 'Golf undo must speak Back like the classic modes');
   });
 }

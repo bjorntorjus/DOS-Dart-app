@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../models/dart_throw.dart';
@@ -88,6 +90,20 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   @visibleForTesting
   void onGameEndForTest() => _onGameEnd();
 
+  @visibleForTesting
+  void onUndoForTest() => _onUndo();
+
+  // ─── Moments (Task 8): hole-result display window + sudden-death overlay ──
+  // Both timers are token-guarded (1UP QA pattern, task 14): the token is
+  // bumped every time the timer is (re)started, so a stale callback firing
+  // after a NEWER result/overlay replaced it — or after undo already
+  // cleared the state — is a no-op instead of clobbering unrelated state.
+  Timer? _resultTimer;
+  int _resultToken = 0;
+  Timer? _overlayTimer;
+  int _overlayToken = 0;
+  bool _overlaySuddenDeath = false;
+
   /// Minimal roster-removal hook — the full add/remove player-sheet flow
   /// (mid-game stats gating, join/leave tracking) lands in Task 9. For now
   /// this just drives the engine's own removePlayer/game-over handling so
@@ -119,6 +135,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     _logTurn();
   }
 
+  @override
+  void dispose() {
+    _resultTimer?.cancel();
+    _overlayTimer?.cancel();
+    super.dispose();
+  }
+
   void _logTurn() {
     _log.logTurnStart(
       roundNumber: engine.holeNumber,
@@ -136,7 +159,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   }
 
   void _onDartHit(int multiplier) {
-    if (engine.gameOver) return;
+    if (engine.gameOver || _overlaySuddenDeath) return;
     final seat = engine.currentPlayerIndex;
     final target = engine.targetNumber;
     // Golf strokes only land on the scorecard when the hole ends (a hit, or
@@ -171,20 +194,86 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     _onDartHit(0);
   }
 
+  /// Routes a completed hole to its moment: the golf-term announcement
+  /// (always) plus a 1s scorecard-strip result window, then either ends the
+  /// game, opens the sudden-death overlay, or announces the next playoff
+  /// target — `announceNextPlayer` always fires last, queueing after the
+  /// term via the TTS queue so both staples are heard (spec §6).
   void _handleHoleEnd(int seat, GolfDartResult result) {
-    // Task 8 fills in the hole-end moment overlay/announcement here; the
-    // core loop only needs to end the game or advance the turn log.
+    final strokes = result.holeStrokes!;
+    _showHoleResult(strokes);
+
+    final phrase = switch (strokes) {
+      1 => 'Ace! Hole in one!',
+      6 => 'Triple bogey.',
+      _ => '${golfTerm(strokes).toLowerCase()}!',
+    };
+    _announcer.announceGolf(phrase, soundFolders: [
+      'golf/${golfTerm(strokes).toLowerCase().replaceAll(' ', '_')}'
+    ]);
+
     if (result.gameOver) {
       _onGameEnd();
       return;
     }
+    if (result.suddenDeathStarted) {
+      _announcer.announceGolf('Sudden death!',
+          soundFolders: const ['golf/sudden_death']);
+      _showSuddenDeathOverlay();
+    } else if (result.playoffContinued) {
+      _announcer.announceGolf('Still tied! Next hole: '
+          '${engine.targetNumber == 25 ? 'bull' : engine.targetNumber}.');
+    }
+    _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
     _logTurn();
+  }
+
+  /// Shows the just-finished hole's stroke result on the active card for 1s,
+  /// then clears it — cancelling/replacing any window left over from a
+  /// still-pending previous hole first. [_resultToken] guards the delayed
+  /// clear against firing after a NEWER hole result (or undo) replaced it.
+  void _showHoleResult(int strokes) {
+    _resultTimer?.cancel();
+    final token = ++_resultToken;
+    setState(() => _lastHoleStrokes = strokes);
+    _resultTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted || token != _resultToken) return;
+      setState(() => _lastHoleStrokes = null);
+    });
+  }
+
+  /// Shows the sudden-death overlay and (re)starts its 1s auto-dismiss timer
+  /// — same token-guard construction as [_showHoleResult] (and 1UP's
+  /// `_showOverlay`) so a stale timer can't dismiss a newer overlay.
+  void _showSuddenDeathOverlay() {
+    _overlayTimer?.cancel();
+    final token = ++_overlayToken;
+    setState(() => _overlaySuddenDeath = true);
+    _overlayTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted || token != _overlayToken) return;
+      setState(() => _overlaySuddenDeath = false);
+    });
+  }
+
+  /// Dismisses the sudden-death overlay early (tap) and invalidates its
+  /// pending auto-dismiss timer so it can't fire later against whatever
+  /// replaces `_overlaySuddenDeath`.
+  void _dismissSuddenDeathOverlay() {
+    _overlayTimer?.cancel();
+    _overlayToken++;
+    setState(() => _overlaySuddenDeath = false);
   }
 
   void _onUndo() {
     if (engine.gameOver) return;
     if (!engine.canUndo) return;
+    _resultTimer?.cancel();
+    _overlayTimer?.cancel();
+    _resultToken++;
+    _overlayToken++;
     setState(() {
+      _lastHoleStrokes = null;
+      _overlaySuddenDeath = false;
       engine.undo();
       if (throwHistory.isNotEmpty) {
         final lastThrow = throwHistory.removeLast();
@@ -502,7 +591,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                   DossedartTopBar(
                     title: '⛳ GOLF',
                     trailing: engine.inSuddenDeath
-                        ? 'SUDDEN DEATH'
+                        ? 'PLAYOFF'
                         : 'HOLE ${engine.holeNumber}/${widget.config.holes}',
                     onExit: _confirmExit,
                   ),
@@ -544,7 +633,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                         child: GolfInputCells(
                           targetNumber: engine.targetNumber,
                           onHit: _onDartHit,
-                          enabled: !engine.gameOver,
+                          enabled: !_overlaySuddenDeath && !engine.gameOver,
                         ),
                       ),
                     ),
@@ -569,7 +658,91 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                   ),
                 ],
               ),
+              if (_overlaySuddenDeath) _buildSuddenDeathOverlay(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── MOMENTS overlay: sudden death (Task 8) ────────────────────
+  // No ACE overlay, no winner overlay — per RULES-DELTA and the 1UP QA
+  // lesson (task 14), the post-game screen is the sole winner surface and
+  // aces are celebrated via sound/TTS only.
+
+  Widget _buildSuddenDeathOverlay() {
+    final targetLabel =
+        engine.targetNumber == 25 ? 'BULL' : '${engine.targetNumber}';
+    final names =
+        engine.playoffParticipants.map((i) => players[i].name).join(' vs ');
+    return _momentOverlay(
+      tint: DossedartTokens.red,
+      onTap: _dismissSuddenDeathOverlay,
+      children: [
+        const Text('⛳', style: TextStyle(fontSize: 56)),
+        const SizedBox(height: 12),
+        const Text(
+          'SUDDEN DEATH',
+          style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 30,
+              color: DossedartTokens.red,
+              letterSpacing: 2,
+              shadows: [
+                Shadow(color: DossedartTokens.red, blurRadius: 20),
+              ]),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'PLAYOFF ON $targetLabel',
+          style: const TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 24,
+              color: Colors.white,
+              letterSpacing: 2),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          names,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 20,
+              color: Colors.white70,
+              letterSpacing: 1),
+        ),
+      ],
+    );
+  }
+
+  /// Full-frame moment overlay: a radial tint over the whole cockpit Stack,
+  /// tap-anywhere to dismiss via [onTap]. Static (no pulse) — a future
+  /// pulse would need to respect `MediaQuery.disableAnimations`, same as
+  /// 1UP's/Wildcard's equivalents.
+  Widget _momentOverlay({
+    required Color tint,
+    required VoidCallback onTap,
+    required List<Widget> children,
+  }) {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              colors: [
+                tint.withValues(alpha: 0.13),
+                DossedartTokens.bg.withValues(alpha: 0.86),
+              ],
+              stops: const [0.0, 0.7],
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: children,
           ),
         ),
       ),

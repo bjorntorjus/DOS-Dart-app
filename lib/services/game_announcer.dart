@@ -62,6 +62,14 @@ class GameAnnouncer {
     }
   }
 
+  /// Golf moment (hole result term / sudden death / ace).
+  void announceGolf(String phrase, {List<String> soundFolders = const []}) {
+    if (_gameEvents) _tts.speak(phrase);
+    if (soundFolders.isNotEmpty) {
+      _tts.callWhenIdle(() => _sound.playRandom(soundFolders));
+    }
+  }
+
   void announceGameEvent(String event) {
     if (_gameEvents) _tts.speak(event);
     if (event == 'Bust') _tts.callWhenIdle(() => _sound.play('bust'));
