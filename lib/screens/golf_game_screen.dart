@@ -221,7 +221,41 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     final winner = engine.winnerIndex;
     await _fireWinnerCelebration(winner != null ? players[winner].name : '');
     if (!mounted) return;
+    // Preview rating deltas so they're visible on the result screen even
+    // though recording is deferred until the user leaves (1UP/audit F17
+    // parity — the plan omitted this step here).
+    await _prepareRatingPreview(placements);
+    if (!mounted) return;
     _showPostGame(placements);
+  }
+
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording stays
+  /// deferred until the user leaves the result screen.
+  Future<void> _prepareRatingPreview(List<int> placements) async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
   }
 
   Future<void> _fireWinnerCelebration(String winnerName) async {
@@ -332,6 +366,12 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             'holesPlayed': engine.holesCompleted(i),
             if (engine.bestHole[i] != null) 'bestHole': engine.bestHole[i],
           },
+          ratingBefore: players[i].savedPlayerId != null
+              ? _ratingsBefore[players[i].savedPlayerId!]
+              : null,
+          ratingAfter: players[i].savedPlayerId != null
+              ? _ratingsAfter[players[i].savedPlayerId!]
+              : null,
         ),
     ];
 
