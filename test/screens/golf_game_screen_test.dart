@@ -117,6 +117,43 @@ void main() {
     expect(card.opponents.map((o) => o.name), ['A']);
   });
 
+  testWidgets(
+      'hole-result window keeps the finished hole label when rotation wraps',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+    dyn.onDartHitForTest(1); // A pars hole 1
+    await tester.pump();
+
+    // B is last in rotation this hole — when B finishes, the engine's
+    // _advanceToNextActive() already bumps currentHole to hole 2 before
+    // _handleHoleEnd runs. The card must still show hole 1's label next to
+    // B's just-finished result, not hole 2's.
+    dyn.onDartHitForTest(1); // B pars hole 1, wraps rotation
+    await tester.pump();
+
+    var card = tester.widget<DossedartGolfActiveCard>(
+        find.byType(DossedartGolfActiveCard));
+    expect(card.playerName, 'B');
+    expect(card.holeStrokes, 3);
+    expect(card.holeLabel, 'HOLE 1 · PAR 3');
+
+    // After the 1s window elapses the card hands off to hole 2's live label.
+    await tester.pump(const Duration(milliseconds: 1100));
+    card = tester.widget<DossedartGolfActiveCard>(
+        find.byType(DossedartGolfActiveCard));
+    expect(card.holeLabel, 'HOLE 2 · PAR 3');
+  });
+
   testWidgets('sudden death overlay appears on tie and auto-dismisses',
       (tester) async {
     await tester.pumpWidget(MaterialApp(

@@ -167,6 +167,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     // scoreBefore and scoreAtStartOfTurn for the log/history entry.
     final scoreBefore = engine.total(seat);
     final dartNo = engine.missesThisHole;
+    // Captured BEFORE applyDart: when the finishing seat is last in
+    // rotation, _advanceToNextActive() (inside applyDart) may already have
+    // incremented currentHole / advanced the playoff target, so reading the
+    // label afterwards would show the NEXT hole/target next to this hole's
+    // just-finished result. _liveHoleLabel (not _holeLabel) so a still-open
+    // window from a previous hole can't poison this capture.
+    final holeLabel = _liveHoleLabel;
     final result = engine.applyDart(multiplier);
     throwHistory.add(DartThrow(
       playerIndex: seat,
@@ -188,7 +195,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       // stacked on this hole for `seat` — so dartNo + 1 is this dart,
       // giving the total darts thrown this hole for both a hit (misses +
       // the made dart) and a wash (2 misses + the 3rd miss = 3).
-      _handleHoleEnd(seat, dartNo + 1, result);
+      _handleHoleEnd(seat, dartNo + 1, result, holeLabel);
     }
   }
 
@@ -203,9 +210,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// game, opens the sudden-death overlay, or announces the next playoff
   /// target — `announceNextPlayer` always fires last, queueing after the
   /// term via the TTS queue so both staples are heard (spec §6).
-  void _handleHoleEnd(int seat, int darts, GolfDartResult result) {
+  void _handleHoleEnd(
+      int seat, int darts, GolfDartResult result, String holeLabel) {
     final strokes = result.holeStrokes!;
-    _showHoleResult(seat, strokes, darts);
+    _showHoleResult(seat, strokes, darts, holeLabel);
 
     final phrase = switch (strokes) {
       1 => 'Ace! Hole in one!',
@@ -240,14 +248,17 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// [seat] and [darts] are captured alongside [strokes] so the card can
   /// keep showing the FINISHING player's identity/pips during the window —
   /// `engine.currentPlayerIndex`/`engine.missesThisHole` have already moved
-  /// on to the next thrower by the time this runs.
-  void _showHoleResult(int seat, int strokes, int darts) {
+  /// on to the next thrower by the time this runs. [label] is likewise the
+  /// hole/sudden-death label as it read BEFORE this dart, since a rotation
+  /// wrap may have already advanced `engine.currentHole`/the playoff target.
+  void _showHoleResult(int seat, int strokes, int darts, String label) {
     _resultTimer?.cancel();
     final token = ++_resultToken;
     setState(() {
       _lastHoleStrokes = strokes;
       _lastHoleSeat = seat;
       _lastHoleDarts = darts;
+      _lastHoleLabel = label;
     });
     _resultTimer = Timer(const Duration(seconds: 1), () {
       if (!mounted || token != _resultToken) return;
@@ -255,6 +266,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         _lastHoleStrokes = null;
         _lastHoleSeat = null;
         _lastHoleDarts = null;
+        _lastHoleLabel = null;
       });
     });
   }
@@ -292,6 +304,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       _lastHoleStrokes = null;
       _lastHoleSeat = null;
       _lastHoleDarts = null;
+      _lastHoleLabel = null;
       _overlaySuddenDeath = false;
       engine.undo();
       if (throwHistory.isNotEmpty) {
@@ -537,6 +550,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   int? _lastHoleStrokes; // finished hole's stroke count, shown on the card
   int? _lastHoleSeat; // seat that finished the hole (identity for the card)
   int? _lastHoleDarts; // darts thrown that hole, for the dart-pip display
+  String? _lastHoleLabel; // hole/sudden-death label as of BEFORE this dart
 
   String get _statusLine {
     final done = _lastHoleStrokes;
@@ -552,9 +566,23 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     return 'LYING ${engine.missesThisHole} — $left DART${left == 1 ? '' : 'S'} LEFT';
   }
 
-  String get _holeLabel => engine.inSuddenDeath
+  // Live derivation straight off the engine — used both as the label's
+  // normal (no-window) value and as what _onDartHit captures BEFORE
+  // applyDart, so that capture is never accidentally poisoned by a still-
+  // open window left over from a previous hole.
+  String get _liveHoleLabel => engine.inSuddenDeath
       ? 'SUDDEN DEATH · ${engine.targetNumber == 25 ? 'BULL' : engine.targetNumber}'
       : 'HOLE ${engine.holeNumber} · PAR 3';
+
+  // While the hole-result window is active this must return the label as it
+  // read for the FINISHED hole, not the live derivation — on a rotation
+  // wrap `_advanceToNextActive` may have already bumped `engine.currentHole`
+  // / the playoff target before this getter runs again during the window.
+  String get _holeLabel {
+    final lastLabel = _lastHoleLabel;
+    if (_lastHoleStrokes != null && lastLabel != null) return lastLabel;
+    return _liveHoleLabel;
+  }
 
   void _confirmExit() {
     showDialog(
