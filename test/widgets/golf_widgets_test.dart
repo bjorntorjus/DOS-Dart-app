@@ -108,7 +108,7 @@ void main() {
     ))));
     await tester.tap(find.text('open'));
     await tester.pump(); await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('PAR'), findsOneWidget);
+    expect(find.text('PAR'), findsNWidgets(2)); // grid par row + legend label
     expect(find.text('TOTAL'), findsOneWidget);
     expect(find.text('ACE'), findsOneWidget); // legend
   });

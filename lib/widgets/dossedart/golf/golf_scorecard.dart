@@ -285,9 +285,10 @@ class _GolfScoreSheet extends StatelessWidget {
   Widget _playerRow(int seat) {
     final card = scorecards[seat];
     final row = Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Color(0x1AFF00AA)),
+          bottom: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.1)),
         ),
       ),
       child: Row(
@@ -368,8 +369,7 @@ class _GolfScoreSheet extends StatelessWidget {
 /// One term-colour swatch in the score sheet's legend. Covers the full 1-6
 /// stroke range so DOUBLE BOGEY (5) and TRIPLE BOGEY (6) both read as red,
 /// with TRIPLE BOGEY (the worst outcome) getting the strongest treatment —
-/// a filled swatch instead of an outline. PAR's swatch skips its text label
-/// since the PAR row directly above already spells it out.
+/// a filled swatch instead of an outline.
 class _LegendSwatch extends StatelessWidget {
   const _LegendSwatch({required this.stroke});
 
@@ -379,7 +379,6 @@ class _LegendSwatch extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = golfTermColor(stroke);
     final worst = stroke == 6;
-    final showLabel = stroke != 3;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -400,18 +399,16 @@ class _LegendSwatch extends StatelessWidget {
             ),
           ),
         ),
-        if (showLabel) ...[
-          const SizedBox(width: 5),
-          Text(
-            golfTerm(stroke),
-            style: const TextStyle(
-              fontFamily: 'VT323',
-              fontSize: 13,
-              color: Colors.white70,
-              letterSpacing: 1,
-            ),
+        const SizedBox(width: 5),
+        Text(
+          golfTerm(stroke),
+          style: const TextStyle(
+            fontFamily: 'VT323',
+            fontSize: 13,
+            color: Colors.white70,
+            letterSpacing: 1,
           ),
-        ],
+        ),
       ],
     );
   }
