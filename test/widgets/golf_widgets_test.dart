@@ -58,6 +58,35 @@ void main() {
     expect(find.text('KARI'), findsOneWidget);
   });
 
+  testWidgets(
+      'opponent tile totals clamp instead of overflowing on wide values',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 375,
+          child: DossedartGolfActiveCard(
+            playerName: 'A', avatarPath: null, accentColor: Colors.cyan,
+            holeLabel: 'HOLE 9 · PAR 3', dartsThrown: 0, total: 50, vsPar: 5,
+            phase: GolfCardPhase.teeOff, statusLine: 'TEE OFF',
+            opponents: const [
+              GolfOpponentEntry(
+                  name: 'BJØRNAR',
+                  total: 108,
+                  vsPar: 27,
+                  doneThisHole: false,
+                  accent: Colors.pink),
+            ],
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('108'), findsOneWidget);
+    expect(find.text('+27'), findsOneWidget);
+  });
+
   group('vsParLabel', () {
     test('formats even, over and under par', () {
       expect(vsParLabel(0), 'E');

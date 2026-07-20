@@ -395,27 +395,34 @@ class _OpponentTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${entry.total}',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 13,
-                  color: entry.accent,
+          // Wide values (e.g. total 108, vsPar +27) would otherwise overflow
+          // the tile's ~62px content budget — FittedBox scales the pair down
+          // as a unit rather than ellipsizing a digit out of either number.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${entry.total}',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 13,
+                    color: entry.accent,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                vsParLabel(entry.vsPar),
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 10,
-                  color: _vsParColor(entry.vsPar),
+                const SizedBox(width: 5),
+                Text(
+                  vsParLabel(entry.vsPar),
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 10,
+                    color: _vsParColor(entry.vsPar),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

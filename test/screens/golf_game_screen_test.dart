@@ -7,6 +7,7 @@ import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/golf_engine.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/screens/golf_game_screen.dart';
+import 'package:dart_scoring/screens/post_game_screen.dart';
 import 'package:dart_scoring/services/tts_service.dart';
 import 'package:dart_scoring/widgets/dossedart/golf/dossedart_golf_active_card.dart';
 
@@ -176,5 +177,124 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1100)); // 1s auto-dismiss
     expect(find.text('SUDDEN DEATH'), findsNothing);
     expect(find.textContaining('19'), findsWidgets); // playoff target visible
+  });
+
+  testWidgets(
+      'regulation end with visible opponents does not crash the cockpit build',
+      (tester) async {
+    // Regression pin for the game-end build guard: once regulation ends
+    // outright (no tie -> no sudden death), engine.currentHole == holes,
+    // one past the scorecards' valid indices. The opponents-strip builder
+    // in golf_game_screen.dart short-circuits on engine.gameOver before
+    // indexing engine.scorecards[i][engine.currentHole] — this test drives
+    // a real game to that exact state via the screen's dart-hit path (not
+    // the engine directly) so the build actually runs with opponents
+    // visible on the winning final dart.
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+    final engine = dyn.engineForTest as GolfEngine;
+
+    // A doubles every hole (2 strokes), B and C single every hole (3
+    // strokes) -> A finishes on 18, B and C tie for 2nd on 27. A is the
+    // sole leader, so regulation ends outright, with no sudden death.
+    for (var h = 0; h < 9; h++) {
+      dyn.onDartHitForTest(2); // A: double -> 2 strokes
+      await tester.pump(const Duration(seconds: 2));
+      dyn.onDartHitForTest(1); // B: single -> 3 strokes
+      await tester.pump(const Duration(seconds: 2));
+      dyn.onDartHitForTest(1); // C: single -> 3 strokes
+      if (h < 8) await tester.pump(const Duration(seconds: 2));
+    }
+    // C's final dart wrapped the rotation, advancing currentHole to 9
+    // (== holes) and ending the game with A as the sole leader -- the
+    // opponents strip just rendered with engine.gameOver == true and
+    // engine.currentHole one past the scorecards' valid range.
+    expect(tester.takeException(), isNull);
+    expect(engine.gameOver, isTrue);
+    expect(engine.winnerIndex, 0);
+    expect(engine.wonBySuddenDeath, isFalse);
+
+    // The screen's own _handleHoleEnd already called _onGameEnd on that
+    // final dart; onGameEndForTest must be a safe no-op against the
+    // _gameEndFired guard, not a double-fire.
+    dyn.onGameEndForTest();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+    expect(find.byType(PostGameScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'removing the finishing seat during the hole-result window does not '
+      'crash and the game continues',
+      (tester) async {
+    // No existing test removes a player while the 1s hole-result window
+    // (_lastHoleStrokes/_lastHoleSeat/_resultTimer) is open. This pins that
+    // the window's captured seat survives a roster mutation on the very
+    // seat it is displaying -- removing the FINISHING player mid-window,
+    // before the timer elapses.
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+    final engine = dyn.engineForTest as GolfEngine;
+
+    dyn.onDartHitForTest(1); // A: single -> pars hole 1, window opens
+    // Remove A -- the seat the just-opened result window is displaying --
+    // BEFORE the 1s window elapses.
+    dyn.removePlayerForTest(0);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(engine.gameOver, isFalse);
+    expect(dyn.removedPlayerIndicesForTest, {0});
+
+    // The window is still showing A's just-finished result even though A
+    // is now a skipped seat.
+    var card = tester.widget<DossedartGolfActiveCard>(
+        find.byType(DossedartGolfActiveCard));
+    expect(card.playerName, 'A');
+    expect(card.holeStrokes, 3);
+
+    // Let the 1s result window elapse -- the card must hand off to the
+    // engine's actual next (non-skipped) thrower, B, and the game must
+    // still be playable.
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(tester.takeException(), isNull);
+    expect(engine.currentPlayerIndex, 1);
+    card = tester.widget<DossedartGolfActiveCard>(
+        find.byType(DossedartGolfActiveCard));
+    expect(card.playerName, 'B');
+    expect(card.holeStrokes, isNull);
+    expect(card.statusLine, contains('TEE OFF'));
+    expect(card.opponents.map((o) => o.name), ['C']); // A excluded (skipped)
+
+    dyn.onDartHitForTest(1); // B: single -> pars hole 1, game continues
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(engine.scorecards[1][0], 3);
+    expect(engine.currentPlayerIndex, 2); // advanced to C
   });
 }
