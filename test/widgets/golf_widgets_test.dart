@@ -1,6 +1,7 @@
 import 'package:dart_scoring/theme/dossedart_tokens.dart';
 import 'package:dart_scoring/widgets/dossedart/golf/golf_input_cells.dart';
 import 'package:dart_scoring/widgets/dossedart/golf/dossedart_golf_active_card.dart';
+import 'package:dart_scoring/widgets/dossedart/golf/golf_scorecard.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -74,5 +75,41 @@ void main() {
       expect(golfTermColor(5), DossedartTokens.red);
       expect(golfTermColor(6), DossedartTokens.red);
     });
+  });
+
+  testWidgets('scorecard strip colours played holes and highlights current',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: GolfScorecardStrip(
+          strokes: [1, 4, null, null, null, null, null, null, null],
+          currentHole: 2,
+          onExpand: () {},
+        ),
+      ),
+    ));
+    expect(find.text('1'), findsWidgets); // hole numbers render
+    // played cells get term colour, unplayed are empty — assert by key:
+    expect(find.byKey(const ValueKey('golf-hole-0-played')), findsOneWidget);
+    expect(find.byKey(const ValueKey('golf-hole-2-current')), findsOneWidget);
+  });
+
+  testWidgets('score sheet shows par row, totals and legend', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(
+      builder: (context) => TextButton(
+        onPressed: () => showGolfScoreSheet(context,
+            names: ['A', 'B'],
+            scorecards: [
+              [1, 3, null], [6, 3, null],
+            ],
+            totals: [4, 9], vsPars: [-2, 3], skippedSeats: {}),
+        child: const Text('open'),
+      ),
+    ))));
+    await tester.tap(find.text('open'));
+    await tester.pump(); await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('PAR'), findsOneWidget);
+    expect(find.text('TOTAL'), findsOneWidget);
+    expect(find.text('ACE'), findsOneWidget); // legend
   });
 }
