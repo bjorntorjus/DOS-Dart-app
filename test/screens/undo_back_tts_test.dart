@@ -157,6 +157,18 @@ void main() {
   });
 
   testWidgets('Golf: undo announces Back', (tester) async {
+    // Cockpit v2 (2026-07-20) is taller than the old single-active-card
+    // layout — needs a tablet-like viewport, same as the golf-specific
+    // test files (golf_game_screen_test.dart / golf_postgame_undo_test.dart).
+    final originalSize = tester.view.physicalSize;
+    final originalRatio = tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalRatio;
+    });
+    tester.view.physicalSize = const Size(820, 1500);
+    tester.view.devicePixelRatio = 1.0;
+
     await tester.pumpWidget(MaterialApp(
       home: GolfGameScreen(
         players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],

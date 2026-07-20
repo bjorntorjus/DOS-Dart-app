@@ -16,12 +16,27 @@ import 'package:dart_scoring/services/tts_service.dart';
 /// NOTE: uses pump() + explicit Durations rather than pumpAndSettle() to
 /// avoid hanging on unmocked platform channels (battery_plus, audioplayers)
 /// — same harness as test/screens/one_up_postgame_undo_test.dart.
+///
+/// Cockpit v2 (2026-07-20) is taller than the old single-active-card
+/// layout, so every test sizes the test surface to a tablet-like viewport
+/// before pumping — see [_useTabletViewport].
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const ttsChannel = MethodChannel('flutter_tts');
   const batteryChannel =
       MethodChannel('dev.fluttercommunity.plus/battery/method');
+
+  void useTabletViewport(WidgetTester tester) {
+    final originalSize = tester.view.physicalSize;
+    final originalRatio = tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalRatio;
+    });
+    tester.view.physicalSize = const Size(820, 1500);
+    tester.view.devicePixelRatio = 1.0;
+  }
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -50,6 +65,7 @@ void main() {
   });
 
   testWidgets('post-game Undo reopens a finished golf game', (tester) async {
+    useTabletViewport(tester);
     await tester.pumpWidget(MaterialApp(
       home: GolfGameScreen(
         players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
@@ -80,6 +96,7 @@ void main() {
 
   testWidgets('golf: removed mid-game player does not become winner',
       (tester) async {
+    useTabletViewport(tester);
     await tester.pumpWidget(MaterialApp(
       home: GolfGameScreen(
         players: [
@@ -123,6 +140,7 @@ void main() {
 
   testWidgets('golf: removed player is excluded from the result screen',
       (tester) async {
+    useTabletViewport(tester);
     await tester.pumpWidget(MaterialApp(
       home: GolfGameScreen(
         players: [

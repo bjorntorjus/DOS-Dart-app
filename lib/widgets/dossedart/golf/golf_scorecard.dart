@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../models/golf_engine.dart' show golfTerm;
 import '../../../theme/dossedart_tokens.dart';
-import 'dossedart_golf_active_card.dart' show golfTermColor, vsParLabel;
+import 'golf_common.dart' show golfTermColor, vsParColor, vsParLabel;
 
-/// Inline per-hole scorecard for the active player, shown in the DOSSEDART
-/// Golf cockpit. One row of small hole cells — number on top, a coloured
-/// box below that fills in with [golfTermColor] once the hole is played,
-/// with the current hole getting a yellow highlight regardless of whether
-/// it has been played yet. Tapping anywhere on the strip opens the full
-/// [showGolfScoreSheet].
+/// Windowed per-hole scorecard strip for the DOSSEDART Golf cockpit v2 —
+/// 7 holes centred on the current one (clamped at either edge), replacing
+/// the old always-on 1-18 strip that QA found unreadable. Current hole gets
+/// a yellow highlight + `▶` marker; a trailing `SCORECARD ▸` affordance (and
+/// the strip itself) opens the full [showGolfScoreSheet].
 class GolfScorecardStrip extends StatelessWidget {
   const GolfScorecardStrip({
     super.key,
@@ -25,38 +24,81 @@ class GolfScorecardStrip extends StatelessWidget {
 
   final VoidCallback onExpand;
 
+  static const int _windowSize = 7;
+
+  /// 0-based visible hole indices, [_windowSize] wide (or fewer if
+  /// [strokes] has fewer holes), centred on [currentHole] with 3 holes of
+  /// lookback, clamped so the window never runs past either edge.
+  List<int> get _visible {
+    final holes = strokes.length;
+    final width = _windowSize < holes ? _windowSize : holes;
+    var start = currentHole - 3;
+    if (start < 0) start = 0;
+    final maxStart = holes - width;
+    if (start > maxStart) start = maxStart;
+    return [for (var i = 0; i < width; i++) start + i];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final nums = _visible;
     return InkWell(
       onTap: onExpand,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(14, 4, 14, 8),
-        padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+        margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+        padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
         decoration: BoxDecoration(
           color: DossedartTokens.surface,
           border: Border.all(
               color: DossedartTokens.magenta.withValues(alpha: 0.34)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            for (var i = 0; i < strokes.length; i++) ...[
-              Expanded(
-                child: _HoleCell(
-                  index: i,
-                  stroke: strokes[i],
-                  isCurrent: i == currentHole,
+            Row(
+              children: [
+                Text(
+                  'YOUR CARD · HOLES ${nums.first + 1}–${nums.last + 1}',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 9,
+                    color: Colors.white.withValues(alpha: 0.6),
+                    letterSpacing: 1,
+                  ),
                 ),
-              ),
-              if (i < strokes.length - 1) const SizedBox(width: 3),
-            ],
-            const SizedBox(width: 8),
-            Text(
-              '▸',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 14,
-                color: DossedartTokens.cyan,
-              ),
+                const Spacer(),
+                Text(
+                  'SCORECARD ▸',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 10,
+                    color: DossedartTokens.cyan,
+                    letterSpacing: 1,
+                    shadows: [
+                      Shadow(
+                        color: DossedartTokens.cyan.withValues(alpha: 0.6),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                for (final i in nums) ...[
+                  Expanded(
+                    child: _HoleCell(
+                      index: i,
+                      stroke: strokes[i],
+                      isCurrent: i == currentHole,
+                    ),
+                  ),
+                  if (i != nums.last) const SizedBox(width: 5),
+                ],
+              ],
             ),
           ],
         ),
@@ -91,14 +133,14 @@ class _HoleCell extends StatelessWidget {
           '${index + 1}',
           style: TextStyle(
             fontFamily: 'VT323',
-            fontSize: 10,
+            fontSize: 13,
             color: isCurrent ? DossedartTokens.yellow : Colors.white38,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 3),
         Container(
           key: ValueKey('golf-hole-$index-$suffix'),
-          height: 22,
+          height: 40,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isCurrent
@@ -107,10 +149,10 @@ class _HoleCell extends StatelessWidget {
             border: Border.all(color: accent, width: isCurrent ? 2 : 1),
           ),
           child: Text(
-            played ? '$stroke' : (isCurrent ? '●' : '·'),
+            played ? '$stroke' : (isCurrent ? '▶' : '·'),
             style: TextStyle(
               fontFamily: 'PressStart2P',
-              fontSize: 9,
+              fontSize: 15,
               color: accent,
             ),
           ),
@@ -152,16 +194,6 @@ const double _kLabelColWidth = 68;
 const double _kHoleColWidth = 30;
 const double _kTotalColWidth = 54;
 const double _kVsParColWidth = 46;
-
-/// Colour for a vs-par delta: under par is an advantage (green), over par a
-/// warning (orange), even is neutral phosphor. Mirrors the private helper in
-/// the active card without depending on it (kept local since it's not part
-/// of that file's exported surface).
-Color _vsParColor(int vsPar) {
-  if (vsPar < 0) return DossedartTokens.green;
-  if (vsPar > 0) return DossedartTokens.orange;
-  return DossedartTokens.phosphor;
-}
 
 class _GolfScoreSheet extends StatelessWidget {
   const _GolfScoreSheet({
@@ -299,7 +331,7 @@ class _GolfScoreSheet extends StatelessWidget {
           for (var i = 0; i < _holes; i++) _holeValueCell(card[i]),
           _cell('${totals[seat]}', width: _kTotalColWidth, color: Colors.white),
           _cell(vsParLabel(vsPars[seat]),
-              width: _kVsParColWidth, color: _vsParColor(vsPars[seat])),
+              width: _kVsParColWidth, color: vsParColor(vsPars[seat])),
         ],
       ),
     );

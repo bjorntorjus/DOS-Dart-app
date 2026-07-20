@@ -27,20 +27,25 @@ import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
-import '../widgets/dossedart/golf/dossedart_golf_active_card.dart';
+import '../widgets/dossedart/golf/golf_common.dart' show vsParLabel;
+import '../widgets/dossedart/golf/golf_hero.dart';
 import '../widgets/dossedart/golf/golf_input_cells.dart';
+import '../widgets/dossedart/golf/golf_leaderboard.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
 import 'post_game_screen.dart';
 
 /// The DOSSEDART Golf cockpit: each hole is one dartboard number (1..holes),
 /// hole ends on the first hit, misses stack strokes. Lowest total after
 /// every hole wins; a tie for 1st goes to sudden death (see [GolfEngine]).
-/// Assembles the [GolfEngine] (Tasks 1-3), [DossedartGolfActiveCard] /
-/// [GolfInputCells] (Task 4) and [GolfScorecardStrip] (Task 5) with the
-/// shared DOSSEDART chrome (top bar / action bar) into a playable screen.
+/// Assembles the [GolfEngine] with the cockpit v2 layout — [GolfHero],
+/// [GolfLeaderboard], the windowed [GolfScorecardStrip] and the
+/// [GolfInputCells] console — plus the shared DOSSEDART chrome (top bar /
+/// action bar) into a playable screen.
 ///
-/// Task 6 builds the core loop; Task 7 fills in `_onGameEnd`/stats and
-/// Task 8 layers the hole-end moments/overlays into `_handleHoleEnd`.
+/// Cockpit v2 (2026-07-20, tablet-QA feedback round): replaced the single
+/// `DossedartGolfActiveCard` with a hero target block + a standalone
+/// leaderboard; pure layout/copy reskin, no rule/state/flow changes — see
+/// `docs/design/dossedart-handoff/golf/v2/design_handoff_golf_cockpit_v2/HANDOVER.md`.
 class GolfGameScreen extends StatefulWidget {
   const GolfGameScreen({super.key, required this.players, required this.config});
 
@@ -187,11 +192,11 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     final dartNo = engine.missesThisHole;
     // Captured BEFORE applyDart: when the finishing seat is last in
     // rotation, _advanceToNextActive() (inside applyDart) may already have
-    // incremented currentHole / advanced the playoff target, so reading the
-    // label afterwards would show the NEXT hole/target next to this hole's
-    // just-finished result. _liveHoleLabel (not _holeLabel) so a still-open
+    // incremented currentHole / advanced the playoff target, so reading it
+    // afterwards would show the NEXT hole/target next to this hole's
+    // just-finished result. _liveHoleTarget (not _holeTarget) so a still-open
     // window from a previous hole can't poison this capture.
-    final holeLabel = _liveHoleLabel;
+    final holeTarget = _liveHoleTarget;
     // Same reasoning as holeLabel above — engine.holeNumber must be read
     // BEFORE applyDart, or the hole-closing dart for the last seat in
     // rotation gets tagged with the hole applyDart just advanced to (and the
@@ -239,7 +244,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       // stacked on this hole for `seat` — so dartNo + 1 is this dart,
       // giving the total darts thrown this hole for both a hit (misses +
       // the made dart) and a wash (2 misses + the 3rd miss = 3).
-      _handleHoleEnd(seat, dartNo + 1, result, holeLabel);
+      _handleHoleEnd(seat, dartNo + 1, result, holeTarget);
     }
   }
 
@@ -260,10 +265,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// game, opens the sudden-death overlay, or announces the next playoff
   /// target — `announceNextPlayer` always fires last, queueing after the
   /// term via the TTS queue so both staples are heard (spec §6).
-  void _handleHoleEnd(
-      int seat, int darts, GolfDartResult result, String holeLabel) {
+  void _handleHoleEnd(int seat, int darts, GolfDartResult result,
+      ({int target, bool playoff}) holeTarget) {
     final strokes = result.holeStrokes!;
-    _showHoleResult(seat, strokes, darts, holeLabel);
+    _showHoleResult(seat, strokes, darts, holeTarget);
 
     final phrase = switch (strokes) {
       1 => 'Hole in one!',
@@ -293,25 +298,26 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     _logTurn();
   }
 
-  /// Shows the just-finished hole's stroke result on the active card for 1s,
-  /// then clears it — cancelling/replacing any window left over from a
-  /// still-pending previous hole first. [_resultToken] guards the delayed
-  /// clear against firing after a NEWER hole result (or undo) replaced it.
+  /// Shows the just-finished hole's stroke result on the hero for 1s, then
+  /// clears it — cancelling/replacing any window left over from a still-
+  /// pending previous hole first. [_resultToken] guards the delayed clear
+  /// against firing after a NEWER hole result (or undo) replaced it.
   ///
-  /// [seat] and [darts] are captured alongside [strokes] so the card can
+  /// [seat] and [darts] are captured alongside [strokes] so the hero can
   /// keep showing the FINISHING player's identity/pips during the window —
   /// `engine.currentPlayerIndex`/`engine.missesThisHole` have already moved
-  /// on to the next thrower by the time this runs. [label] is likewise the
-  /// hole/sudden-death label as it read BEFORE this dart, since a rotation
+  /// on to the next thrower by the time this runs. [holeTarget] is likewise
+  /// the hole/playoff target as it read BEFORE this dart, since a rotation
   /// wrap may have already advanced `engine.currentHole`/the playoff target.
-  void _showHoleResult(int seat, int strokes, int darts, String label) {
+  void _showHoleResult(int seat, int strokes, int darts,
+      ({int target, bool playoff}) holeTarget) {
     _resultTimer?.cancel();
     final token = ++_resultToken;
     setState(() {
       _lastHoleStrokes = strokes;
       _lastHoleSeat = seat;
       _lastHoleDarts = darts;
-      _lastHoleLabel = label;
+      _lastHoleTarget = holeTarget;
     });
     _resultTimer = Timer(const Duration(seconds: 1), () {
       if (!mounted || token != _resultToken) return;
@@ -319,7 +325,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         _lastHoleStrokes = null;
         _lastHoleSeat = null;
         _lastHoleDarts = null;
-        _lastHoleLabel = null;
+        _lastHoleTarget = null;
       });
     });
   }
@@ -357,7 +363,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       _lastHoleStrokes = null;
       _lastHoleSeat = null;
       _lastHoleDarts = null;
-      _lastHoleLabel = null;
+      _lastHoleTarget = null;
       _overlaySuddenDeath = false;
       engine.undo();
       if (throwHistory.isNotEmpty) {
@@ -589,52 +595,59 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     });
   }
 
-  // ---- card-state derivation ----
-  GolfCardPhase get _phase {
-    final done = _lastHoleStrokes;
-    if (done != null) return done <= 3 ? GolfCardPhase.holeDoneGood : GolfCardPhase.holeDoneBad;
-    return engine.missesThisHole == 0 ? GolfCardPhase.teeOff : GolfCardPhase.midHole;
-  }
-
   // Result-window quartet: all four are set together in _showHoleResult and
   // cleared together (by its 1s timer or by undo) — never partially, so the
-  // card's build-time derivation can gate on _lastHoleStrokes alone and
-  // trust _lastHoleSeat/_lastHoleDarts/_lastHoleLabel are present too.
-  int? _lastHoleStrokes; // finished hole's stroke count, shown on the card
-  int? _lastHoleSeat; // seat that finished the hole (identity for the card)
+  // hero's build-time derivation can gate on _lastHoleStrokes alone and
+  // trust _lastHoleSeat/_lastHoleDarts/_lastHoleTarget are present too.
+  int? _lastHoleStrokes; // finished hole's stroke count, shown on the hero
+  int? _lastHoleSeat; // seat that finished the hole (identity for the hero)
   int? _lastHoleDarts; // darts thrown that hole, for the dart-pip display
-  String? _lastHoleLabel; // hole/sudden-death label as of BEFORE this dart
+  ({int target, bool playoff})?
+      _lastHoleTarget; // hole/playoff target as of BEFORE this dart
 
-  String get _statusLine {
-    final done = _lastHoleStrokes;
-    if (done != null) {
-      return '${golfTerm(done)} — $done STROKE${done == 1 ? '' : 'S'}';
-    }
-    if (engine.missesThisHole == 0) {
-      return engine.inSuddenDeath
-          ? 'PLAYOFF — THROW AT ${engine.targetNumber == 25 ? 'BULL' : 'THE ${engine.targetNumber}'}'
-          : 'TEE OFF — THROW AT THE ${engine.targetNumber}';
-    }
-    final left = 3 - engine.missesThisHole;
-    return 'LYING ${engine.missesThisHole} — $left DART${left == 1 ? '' : 'S'} LEFT';
-  }
-
-  // Live derivation straight off the engine — used both as the label's
-  // normal (no-window) value and as what _onDartHit captures BEFORE
+  // Live derivation straight off the engine — used both as the hero's
+  // normal (no-window) target and as what _onDartHit captures BEFORE
   // applyDart, so that capture is never accidentally poisoned by a still-
   // open window left over from a previous hole.
-  String get _liveHoleLabel => engine.inSuddenDeath
-      ? 'SUDDEN DEATH · ${engine.targetNumber == 25 ? 'BULL' : engine.targetNumber}'
-      : 'HOLE ${engine.holeNumber} · PAR 3';
+  ({int target, bool playoff}) get _liveHoleTarget =>
+      (target: engine.targetNumber, playoff: engine.inSuddenDeath);
 
-  // While the hole-result window is active this must return the label as it
+  // While the hole-result window is active this must return the target as it
   // read for the FINISHED hole, not the live derivation — on a rotation
   // wrap `_advanceToNextActive` may have already bumped `engine.currentHole`
   // / the playoff target before this getter runs again during the window.
-  String get _holeLabel {
-    final lastLabel = _lastHoleLabel;
-    if (_lastHoleStrokes != null && lastLabel != null) return lastLabel;
-    return _liveHoleLabel;
+  ({int target, bool playoff}) get _holeTarget {
+    final frozen = _lastHoleTarget;
+    if (_lastHoleStrokes != null && frozen != null) return frozen;
+    return _liveHoleTarget;
+  }
+
+  /// Rows for [GolfLeaderboard] — a live readout (not frozen to the hero's
+  /// result window): every non-skipped seat, restricted to the tied
+  /// playoff participants during sudden death (HANDOVER §Component notes).
+  List<GolfLeaderboardEntry> get _leaderboardEntries {
+    final rows = <GolfLeaderboardEntry>[];
+    for (var i = 0; i < players.length; i++) {
+      if (engine.isSkipped(i)) continue;
+      if (engine.inSuddenDeath && !engine.playoffParticipants.contains(i)) {
+        continue;
+      }
+      int? holeStroke;
+      if (engine.inSuddenDeath) {
+        holeStroke = engine.playoffStrokes[i];
+      } else if (!engine.gameOver && engine.currentHole < engine.holes) {
+        holeStroke = engine.scorecards[i][engine.currentHole];
+      }
+      rows.add(GolfLeaderboardEntry(
+        name: players[i].name,
+        accent: dossedartAccent(i),
+        total: engine.total(i),
+        vsPar: engine.vsPar(i),
+        isActive: i == engine.currentPlayerIndex,
+        holeStroke: holeStroke,
+      ));
+    }
+    return rows;
   }
 
   void _confirmExit() {
@@ -745,13 +758,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // During the 1s hole-result window the active card must keep showing
-    // the player who just FINISHED the hole (name/avatar/accent/total/vs-par
-    // + the opponents-strip exclusion), not engine.currentPlayerIndex, which
-    // applyDart already advanced to the next thrower before this build runs.
+    // During the 1s hole-result window the hero must keep showing the
+    // player who just FINISHED the hole (name/avatar/accent/total/vs-par),
+    // not engine.currentPlayerIndex, which applyDart already advanced to
+    // the next thrower before this build runs.
     final displaySeat = _lastHoleStrokes != null && _lastHoleSeat != null
         ? _lastHoleSeat!
         : engine.currentPlayerIndex;
+    final holeTarget = _holeTarget;
 
     return Scaffold(
       backgroundColor: DossedartTokens.bg,
@@ -769,65 +783,45 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                         : 'HOLE ${engine.holeNumber}/${widget.config.holes}',
                     onExit: _confirmExit,
                   ),
-                  DossedartGolfActiveCard(
+                  GolfHero(
                     playerName: players[displaySeat].name,
                     avatarPath: players[displaySeat].avatarPath,
                     accentColor: dossedartAccent(displaySeat),
-                    holeLabel: _holeLabel,
+                    targetNumber: holeTarget.target,
+                    playoff: holeTarget.playoff,
                     dartsThrown: _lastHoleStrokes != null &&
                             _lastHoleDarts != null
                         ? _lastHoleDarts!
                         : engine.missesThisHole,
                     total: engine.total(displaySeat),
                     vsPar: engine.vsPar(displaySeat),
-                    phase: _phase,
-                    statusLine: _statusLine,
                     holeStrokes: _lastHoleStrokes,
-                    opponents: [
-                      for (int i = 0; i < players.length; i++)
-                        if (i != displaySeat && !engine.isSkipped(i))
-                          GolfOpponentEntry(
-                            name: players[i].name,
-                            total: engine.total(i),
-                            vsPar: engine.vsPar(i),
-                            doneThisHole: engine.inSuddenDeath
-                                ? (!engine.playoffParticipants.contains(i) ||
-                                    engine.playoffStrokes[i] != null)
-                                // Regulation ending outright (no sudden
-                                // death) leaves currentHole == holes, one
-                                // past the scorecard's valid indices — the
-                                // game being over already means every hole
-                                // is done, so short-circuit before indexing.
-                                : (engine.gameOver ||
-                                    engine.scorecards[i][engine.currentHole] !=
-                                        null),
-                            accent: engine.inSuddenDeath &&
-                                    !engine.playoffParticipants.contains(i)
-                                ? dossedartAccent(i).withValues(alpha: 0.35)
-                                : dossedartAccent(i),
-                          ),
-                    ],
+                    nextPlayerName: _lastHoleStrokes != null
+                        ? players[engine.currentPlayerIndex].name
+                        : null,
                   ),
-                  Expanded(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: GolfInputCells(
-                          targetNumber: engine.targetNumber,
-                          onHit: _onDartHit,
-                          enabled: !_overlaySuddenDeath && !engine.gameOver,
-                        ),
-                      ),
-                    ),
+                  GolfLeaderboard(
+                    entries: _leaderboardEntries,
+                    holeNumber: engine.holeNumber,
+                    playoff: engine.inSuddenDeath,
                   ),
-                  // Playoff holes have no per-player card row — the strip is
-                  // regulation-only.
+                  // Playoff holes have no per-player scorecard row — the
+                  // strip is regulation-only (HANDOVER §Vertical layout).
                   if (!engine.inSuddenDeath)
                     GolfScorecardStrip(
                       strokes: engine.scorecards[displaySeat],
                       currentHole: engine.currentHole,
                       onExpand: _openScoreSheet,
                     ),
+                  const Expanded(child: SizedBox()),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: GolfInputCells(
+                      targetNumber: engine.targetNumber,
+                      onHit: _onDartHit,
+                      enabled: !_overlaySuddenDeath && !engine.gameOver,
+                    ),
+                  ),
                   DossedartActionBar(
                     onUndo: _onUndo,
                     onMiss: _onMiss,
