@@ -4,6 +4,10 @@ import '../stats/mode_progression.dart';
 import '../widgets/dossedart/progression_chart.dart';
 import '../widgets/player_avatar.dart';
 
+/// Golf's vs-par display: 'E' at even, '+n' over, 'n' (with the leading '-'
+/// already in the int's string form) under.
+String vsParText(dynamic v) => v == null || v == 0 ? 'E' : (v > 0 ? '+$v' : '$v');
+
 class PostGameScreen extends StatelessWidget {
   final GameResult result;
 
@@ -304,6 +308,13 @@ class _PlayerResultTile extends StatelessWidget {
           entries.add('Last-dart saves: ${stats['lastDartSaves']}');
         }
         if (stats['roundsWon'] != null && stats['roundsWon'] != 0) entries.add('Rounds won: ${stats['roundsWon']}');
+      case 'golf':
+        if (stats['strokes'] != null) {
+          entries.add('Strokes: ${stats['strokes']} (${vsParText(stats['vsPar'])})');
+        }
+        if ((stats['aces'] ?? 0) != 0) entries.add('Aces: ${stats['aces']}');
+        if ((stats['bogeys'] ?? 0) != 0) entries.add('Bogeys: ${stats['bogeys']}');
+        if (stats['bestHole'] != null) entries.add('Best hole: ${stats['bestHole']}');
       case 'wildcard':
         if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');

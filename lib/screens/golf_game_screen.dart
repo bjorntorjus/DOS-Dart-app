@@ -2,15 +2,23 @@ import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../models/game_mode.dart';
+import '../models/game_result.dart';
 import '../models/golf_engine.dart';
 import '../models/player.dart';
+import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
+import '../services/elo_service.dart';
 import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
+import '../services/player_storage.dart';
 import '../services/sound_service.dart';
+import '../services/stats_recorder.dart';
+import '../services/video_service.dart';
 import '../theme/dossedart_tokens.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../utils/earned_feats_builder.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
@@ -18,6 +26,7 @@ import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/golf/dossedart_golf_active_card.dart';
 import '../widgets/dossedart/golf/golf_input_cells.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
+import 'post_game_screen.dart';
 
 /// The DOSSEDART Golf cockpit: each hole is one dartboard number (1..holes),
 /// hole ends on the first hit, misses stack strokes. Lowest total after
@@ -46,8 +55,26 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   final MemeService _meme = MemeService();
   final List<DartThrow> throwHistory = [];
   int _turnIdCounter = 0;
-  // ignore: unused_field
-  final DateTime _gameStart = DateTime.now(); // consumed by Task 7's duration calc
+  final DateTime _gameStart = DateTime.now();
+
+  // Roster-change gating for the deferred-stats protocol (1UP/Shanghai
+  // parity). Task 9 wires the add/remove player-sheet flow to flip this true
+  // (and populate the joined/left id sets below); for now it stays false so
+  // _updateStats always takes the full recordGame/Elo path.
+  // ignore: prefer_final_fields
+  bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
+
+  Map<String, double> _ratingsBefore = {};
+  Map<String, double> _ratingsAfter = {};
+
+  /// Guards [_onGameEnd] against double-fire — it's reachable both from
+  /// `_handleHoleEnd`'s gameOver branch and from `removePlayerForTest`
+  /// (and, from Task 9, a mid-game removal that ends the game). Reset to
+  /// false on the post-game 'undo' path since the game reopens and can
+  /// legitimately be finished again.
+  bool _gameEndFired = false;
 
   @visibleForTesting
   GolfEngine get engineForTest => engine;
@@ -174,8 +201,178 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     _announcer.announceGameEvent('Back');
   }
 
-  void _onGameEnd() {
-    // Task 7: ranking, stats persistence, post-game screen.
+  /// Seats with a non-zero placement (i.e. not skipped), winner-first —
+  /// shared by the game-end log and [_showPostGame]'s result ordering.
+  List<int> _orderByPlacement(List<int> placements) {
+    return [
+      for (var i = 0; i < players.length; i++) if (placements[i] != 0) i,
+    ]..sort((a, b) => placements[a].compareTo(placements[b]));
+  }
+
+  Future<void> _onGameEnd() async {
+    if (_gameEndFired) return;
+    _gameEndFired = true;
+    final placements = engine.placements();
+    _log.logGameEnd(
+      playerNames: players.map((p) => p.name).toList(),
+      finishedOrder: _orderByPlacement(placements),
+      gameFullyOver: true,
+    );
+    final winner = engine.winnerIndex;
+    await _fireWinnerCelebration(winner != null ? players[winner].name : '');
+    if (!mounted) return;
+    _showPostGame(placements);
+  }
+
+  Future<void> _fireWinnerCelebration(String winnerName) async {
+    _announcer.stop();
+    if (!mounted) return;
+    await VideoService.instance.showRandomFromFolder(context, 'winner');
+    if (!mounted) return;
+    _announcer.announceWinner(winnerName);
+  }
+
+  Future<void> _updateStats(List<int> placements) async {
+    if (_midGamePlayerChanges) {
+      // Roster changed — record only join/leave counters and write NO game
+      // entry, matching the other cockpits (audit 2026-07-06, F10).
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    final modeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      modeCounters[playerId] = {
+        'totalStrokes': engine.total(pi),
+        'holesPlayed': engine.holesCompleted(pi),
+        'aces': engine.aces[pi],
+        'bogeys': engine.bogeys[pi],
+        'firstDartHits': engine.firstDartHits[pi],
+        if (engine.bestHole[pi] != null) 'min:bestHole': engine.bestHole[pi]!,
+        if (engine.holesCompleted(pi) == widget.config.holes)
+          'min:bestRound${widget.config.holes}': engine.total(pi),
+        'totalDarts': engine.dartsThrown[pi],
+        'totalGames': 1,
+      };
+    }
+
+    // Reached only when the roster was unchanged (mid-game changes returned
+    // early above), so Elo / achievements / persistence always apply here.
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.golf,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+    );
+    final earnedFeats =
+        buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
+
+    StatsRecorder.recordGame(
+      gameMode: 'golf',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+      modeCounters: modeCounters,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      gameConfig: '${widget.config.holes} holes',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex: earnedFeats,
+    );
+
+    await PlayerStorage.savePlayers(savedPlayers);
+  }
+
+  void _showPostGame(List<int> placements) {
+    final order = _orderByPlacement(placements);
+
+    final results = <PlayerResult>[
+      for (final i in order)
+        PlayerResult(
+          name: players[i].name,
+          avatarPath: players[i].avatarPath,
+          placement: placements[i],
+          stats: {
+            'strokes': engine.total(i),
+            'vsPar': engine.vsPar(i),
+            'aces': engine.aces[i],
+            'bogeys': engine.bogeys[i],
+            'firstDartHits': engine.firstDartHits[i],
+            'holesPlayed': engine.holesCompleted(i),
+            if (engine.bestHole[i] != null) 'bestHole': engine.bestHole[i],
+          },
+        ),
+    ];
+
+    Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostGameScreen(
+          result: GameResult(
+            gameMode: 'golf',
+            results: results,
+            canUndo: engine.canUndo,
+            throwHistory: List<DartThrow>.from(throwHistory),
+          ),
+        ),
+      ),
+    ).then((action) async {
+      if (!mounted) return;
+      if (action == 'undo') {
+        // User wants to keep playing — undo the game-end and return to game.
+        // Same guard as _onUndo: a stack emptied by add/remove player must
+        // not rewind the screen-side history the engine cannot match.
+        if (!engine.canUndo) return;
+        setState(() {
+          engine.undo();
+          if (throwHistory.isNotEmpty) {
+            final lastThrow = throwHistory.removeLast();
+            _turnIdCounter = lastThrow.turnId;
+          }
+          // The game reopens and can be finished again — let _onGameEnd
+          // fire once more when it does.
+          _gameEndFired = false;
+        });
+        return;
+      }
+      // 'home' or back-button: persist stats now (deferred from _onGameEnd
+      // so Undo doesn't strand the user with stats they didn't confirm),
+      // then leave the game-screen entirely.
+      await _updateStats(placements);
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    });
   }
 
   // ---- card-state derivation ----
