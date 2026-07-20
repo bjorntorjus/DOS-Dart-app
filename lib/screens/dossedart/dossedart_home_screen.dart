@@ -24,12 +24,11 @@ import 'dossedart_x01_setup_screen.dart';
 enum _TileKind { live, fresh, soon }
 
 class _GridTile {
-  const _GridTile(this.kind, this.emoji, this.label, {this.mode, this.soonText});
+  const _GridTile(this.kind, this.emoji, this.label, {this.mode});
   final _TileKind kind;
   final String emoji;
   final String label;
   final GameMode? mode;
-  final String? soonText;
 }
 
 const _gridTiles = [
@@ -522,7 +521,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text(t.soonText ?? '', style: _vt(12, color: Colors.white54)),
+                Text('COMING SOON', style: _vt(12, color: Colors.white54)),
               ],
             ),
           ),
