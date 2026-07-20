@@ -182,5 +182,59 @@ void main() {
       expect(e.gameOver, isFalse);
       expect(e.holeNumber, 9);
     });
+
+    test('non-contiguous tie: playoff rotates 0 → 2, skipping seat 1', () {
+      final e = GolfEngine(playerCount: 3, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(2); // P0: 2/hole = 18
+        e.applyDart(1); // P1: 3/hole = 27
+        e.applyDart(2); // P2: 2/hole = 18
+      }
+      expect(e.inSuddenDeath, isTrue);
+      expect(e.playoffParticipants, [0, 2]);
+      expect(e.currentPlayerIndex, 0);
+
+      e.applyDart(3);              // P0 aces the playoff hole
+      expect(e.currentPlayerIndex, 2); // seat 1 never throws in the playoff
+      final r = e.applyDart(1);    // P2 pars → P0 wins outright
+
+      expect(r.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+      expect(e.wonBySuddenDeath, isTrue);
+      expect(e.placements(), [1, 3, 2]); // P1 keeps its regulation-tie 3rd
+    });
+
+    test('partial drop-out: high scorer narrows the field, target advances, '
+        'second hole resolves', () {
+      final e = GolfEngine(playerCount: 3, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(1); e.applyDart(1); e.applyDart(1); // all par, 27 each
+      }
+      expect(e.inSuddenDeath, isTrue);
+      expect(e.playoffParticipants, [0, 1, 2]);
+      expect(e.playoffTarget, 19);
+
+      e.applyDart(2);              // P0: 2
+      e.applyDart(2);              // P1: 2
+      final r = e.applyDart(1);    // P2: 3 → drops out
+
+      expect(r.playoffContinued, isTrue);
+      expect(e.inSuddenDeath, isTrue);
+      expect(e.playoffParticipants, [0, 1]);
+      expect(e.playoffTarget, 20);
+      expect(e.playoffStrokes, [null, null, null]);
+      expect(e.currentPlayerIndex, 0);
+
+      e.applyDart(3);              // P0: 1 (ace)
+      final r2 = e.applyDart(1);   // P1: 3 (par) → P0 wins outright
+
+      expect(r2.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+      expect(e.wonBySuddenDeath, isTrue);
+      expect(e.placements(), [1, 2, 2]);
+      expect(e.total(0), 27);
+      expect(e.total(1), 27);
+      expect(e.total(2), 27);
+    });
   });
 }
