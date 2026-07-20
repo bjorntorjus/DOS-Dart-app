@@ -116,4 +116,71 @@ void main() {
       expect(e.winnerIndex, isNull);
     });
   });
+
+  group('GolfEngine sudden death', () {
+    GolfEngine tied2() {
+      final e = GolfEngine(playerCount: 2, holes: 9);
+      for (var h = 0; h < 9; h++) { e.applyDart(1); e.applyDart(1); } // both 27
+      return e;
+    }
+
+    test('tie for 1st starts sudden death on 19', () {
+      final e = tied2();
+      expect(e.gameOver, isFalse);
+      expect(e.inSuddenDeath, isTrue);
+      expect(e.playoffTarget, 19);
+      expect(e.playoffParticipants, [0, 1]);
+    });
+
+    test('lowest playoff stroke wins; totals unchanged', () {
+      final e = tied2();
+      e.applyDart(3);              // P0: 1
+      final r = e.applyDart(1);    // P1: 3
+      expect(r.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+      expect(e.wonBySuddenDeath, isTrue);
+      expect(e.total(0), 27);      // playoff strokes excluded
+    });
+
+    test('still tied → next target 20, then Bull, then cycles to 19', () {
+      final e = tied2();
+      e.applyDart(1); e.applyDart(1);          // both 3 on 19
+      expect(e.inSuddenDeath, isTrue);
+      expect(e.playoffTarget, 20);
+      e.applyDart(1); e.applyDart(1);          // both 3 on 20
+      expect(e.playoffTarget, 25);             // Bull
+      e.applyDart(2); e.applyDart(2);          // both D-Bull (BIRDIE)
+      expect(e.playoffTarget, 19);             // cycles
+    });
+
+    test('3-way tie: playoff winner 1st, losers share 2nd, next player 4th', () {
+      final e = GolfEngine(playerCount: 4, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(1); e.applyDart(1); e.applyDart(1); // P0-P2: 27
+        e.applyDart(0); e.applyDart(1);                 // P3: 4/hole = 36
+      }
+      expect(e.playoffParticipants, [0, 1, 2]);
+      e.applyDart(3); e.applyDart(1); e.applyDart(1);   // P0 wins playoff
+      expect(e.placements(), [1, 2, 2, 4]);
+    });
+
+    test('lower-placement ties share without playoff', () {
+      final e = GolfEngine(playerCount: 3, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(3);                 // P0: 9
+        e.applyDart(1); e.applyDart(1); // P1+P2: 27
+      }
+      expect(e.gameOver, isTrue);       // unique leader — no sudden death
+      expect(e.placements(), [1, 2, 2]);
+    });
+
+    test('undo crosses the sudden-death start', () {
+      final e = tied2();
+      expect(e.inSuddenDeath, isTrue);
+      e.undo();                          // undo P1's last regulation dart
+      expect(e.inSuddenDeath, isFalse);
+      expect(e.gameOver, isFalse);
+      expect(e.holeNumber, 9);
+    });
+  });
 }

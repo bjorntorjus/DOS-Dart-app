@@ -71,9 +71,13 @@ class _GolfUndoEntry {
 ///
 /// Rotation mirrors Shanghai: every player finishes the current hole before
 /// anyone starts the next one; wrapping past the last seat advances the hole.
-/// Sudden death (tied regulation) and roster changes (addPlayer/removePlayer)
-/// are implemented in later tasks — the fields/methods below exist so the
-/// API compiles, but this engine only plays out regulation.
+///
+/// A tie for 1st after the final hole sends the tied leaders into sudden
+/// death: playoff holes on 19 → 20 → Bull(25) → cycling, same 3-dart/
+/// first-hit rules, strokes recorded in [playoffStrokes] only (never
+/// [total]/the scorecard). A unique lowest playoff stroke wins; ties carry
+/// on to the next target. Roster changes (addPlayer/removePlayer) are
+/// implemented in a later task — the stubs below exist so the API compiles.
 class GolfEngine {
   GolfEngine({required int playerCount, required this.holes})
       : scorecards = List.generate(
@@ -99,7 +103,7 @@ class GolfEngine {
   int? winnerIndex;
   bool wonBySuddenDeath = false;
 
-  // sudden death (Task 2)
+  // sudden death (tied leaders play on: 19 → 20 → Bull → cycling)
   bool inSuddenDeath = false;
   int playoffHole = 0; // 0-based playoff round
   int get playoffTarget => const [19, 20, 25][playoffHole % 3]; // 25 = Bull
@@ -134,27 +138,30 @@ class GolfEngine {
 
   int vsPar(int seat) => total(seat) - 3 * holesCompleted(seat);
 
-  /// 1-based placements, tie-shared; skipped seats score 0.
+  /// 1-based placements, tie-shared by total; skipped seats score 0. When
+  /// the game was decided by sudden death, the winner is forced to 1st and
+  /// the losing co-leaders (same total as the winner) share 2nd — sudden
+  /// death only resolves who takes 1st, not the rest of the field.
   List<int> placements() {
-    final active = [
-      for (var i = 0; i < playerCount; i++) if (!_skipped.contains(i)) i,
-    ];
-    final sorted = List.of(active)
-      ..sort((a, b) => total(a).compareTo(total(b)));
-    final result = List<int>.filled(playerCount, 0);
-    var place = 1;
-    for (var rank = 0; rank < sorted.length; rank++) {
-      if (rank > 0 && total(sorted[rank]) != total(sorted[rank - 1])) {
-        place = rank + 1;
-      }
-      result[sorted[rank]] = place;
+    final act = [for (var i = 0; i < playerCount; i++) if (!isSkipped(i)) i];
+    final out = List<int>.filled(playerCount, 0);
+    for (final i in act) {
+      out[i] = 1 + act.where((j) => total(j) < total(i)).length;
     }
-    return result;
+    if (wonBySuddenDeath && winnerIndex != null) {
+      for (final i in act) {
+        if (i != winnerIndex && total(i) == total(winnerIndex!)) out[i] = 2;
+      }
+      out[winnerIndex!] = 1;
+    }
+    return out;
   }
 
   // mutations
 
-  /// 0 = miss, 1 = S, 2 = D, 3 = T.
+  /// 0 = miss, 1 = S, 2 = D, 3 = T. Bull (target 25, sudden death only) has
+  /// no triple — the input layer must offer S/D only, and this is the
+  /// backstop.
   GolfDartResult applyDart(int multiplier) {
     if (gameOver) {
       return const GolfDartResult(
@@ -166,8 +173,14 @@ class GolfEngine {
         gameOver: true,
       );
     }
+    assert(
+      !(targetNumber == 25 && multiplier > 2),
+      'Bull has no triple',
+    );
 
     _undoStack.add(_GolfUndoEntry(this));
+
+    if (inSuddenDeath) return _applyPlayoffDart(multiplier);
 
     final seat = currentPlayerIndex;
     dartsThrown[seat]++;
@@ -182,7 +195,7 @@ class GolfEngine {
         wasHit: true,
         holeEnded: true,
         holeStrokes: strokes,
-        suddenDeathStarted: false,
+        suddenDeathStarted: inSuddenDeath,
         playoffContinued: false,
         gameOver: gameOver,
       );
@@ -197,7 +210,7 @@ class GolfEngine {
         wasHit: false,
         holeEnded: true,
         holeStrokes: strokes,
-        suddenDeathStarted: false,
+        suddenDeathStarted: inSuddenDeath,
         playoffContinued: false,
         gameOver: gameOver,
       );
@@ -209,6 +222,106 @@ class GolfEngine {
       holeStrokes: null,
       suddenDeathStarted: false,
       playoffContinued: false,
+      gameOver: false,
+    );
+  }
+
+  /// Plays one dart of a playoff hole for the current participant. Playoff
+  /// strokes are recorded in [playoffStrokes] only — regulation scorecards
+  /// and [total] are never touched here.
+  GolfDartResult _applyPlayoffDart(int multiplier) {
+    final seat = currentPlayerIndex;
+    final wasHit = multiplier > 0;
+
+    if (wasHit) {
+      final strokes = (4 - multiplier) + missesThisHole;
+      playoffStrokes[seat] = strokes;
+      return _advancePlayoffTurn(wasHit: true, strokes: strokes);
+    }
+
+    missesThisHole++;
+    if (missesThisHole >= 3) {
+      const strokes = 6;
+      playoffStrokes[seat] = strokes;
+      return _advancePlayoffTurn(wasHit: false, strokes: strokes);
+    }
+
+    return const GolfDartResult(
+      wasHit: false,
+      holeEnded: false,
+      holeStrokes: null,
+      suddenDeathStarted: false,
+      playoffContinued: false,
+      gameOver: false,
+    );
+  }
+
+  /// Moves to the next participant in seat order, or evaluates the playoff
+  /// hole once the last participant has thrown.
+  GolfDartResult _advancePlayoffTurn({
+    required bool wasHit,
+    required int strokes,
+  }) {
+    missesThisHole = 0;
+    final idx = playoffParticipants.indexOf(currentPlayerIndex);
+    if (idx == playoffParticipants.length - 1) {
+      return _evaluatePlayoffHole(wasHit: wasHit, strokes: strokes);
+    }
+    currentPlayerIndex = playoffParticipants[idx + 1];
+    return GolfDartResult(
+      wasHit: wasHit,
+      holeEnded: true,
+      holeStrokes: strokes,
+      suddenDeathStarted: false,
+      playoffContinued: false,
+      gameOver: false,
+    );
+  }
+
+  /// Every participant has thrown this playoff hole. A unique lowest stroke
+  /// wins outright; otherwise the tied-lowest carry on to the next target.
+  GolfDartResult _evaluatePlayoffHole({
+    required bool wasHit,
+    required int strokes,
+  }) {
+    var minStroke = playoffStrokes[playoffParticipants.first]!;
+    for (final p in playoffParticipants) {
+      final s = playoffStrokes[p]!;
+      if (s < minStroke) minStroke = s;
+    }
+    final lowest = [
+      for (final p in playoffParticipants) if (playoffStrokes[p] == minStroke) p,
+    ];
+
+    if (lowest.length == 1) {
+      gameOver = true;
+      winnerIndex = lowest.first;
+      wonBySuddenDeath = true;
+      return GolfDartResult(
+        wasHit: wasHit,
+        holeEnded: true,
+        holeStrokes: strokes,
+        suddenDeathStarted: false,
+        playoffContinued: false,
+        gameOver: true,
+      );
+    }
+
+    playoffParticipants
+      ..clear()
+      ..addAll(lowest);
+    playoffHole++;
+    for (var i = 0; i < playoffStrokes.length; i++) {
+      playoffStrokes[i] = null;
+    }
+    currentPlayerIndex = playoffParticipants.first;
+    missesThisHole = 0;
+    return GolfDartResult(
+      wasHit: wasHit,
+      holeEnded: true,
+      holeStrokes: strokes,
+      suddenDeathStarted: false,
+      playoffContinued: true,
       gameOver: false,
     );
   }
@@ -256,10 +369,24 @@ class GolfEngine {
       if (t < minTotal) minTotal = t;
     }
     final leaders = [for (final i in active) if (total(i) == minTotal) i];
-    assert(leaders.length == 1, 'Tied regulation end — sudden death is Task 2');
-    gameOver = true;
-    winnerIndex = leaders.first;
-    wonBySuddenDeath = false;
+    if (leaders.length == 1) {
+      gameOver = true;
+      winnerIndex = leaders.first;
+      wonBySuddenDeath = false;
+      return;
+    }
+
+    // Tied for 1st: only the leaders play on, starting on 19.
+    inSuddenDeath = true;
+    playoffHole = 0;
+    playoffParticipants
+      ..clear()
+      ..addAll(leaders);
+    for (var i = 0; i < playoffStrokes.length; i++) {
+      playoffStrokes[i] = null;
+    }
+    currentPlayerIndex = leaders.first;
+    missesThisHole = 0;
   }
 
   void undo() {
