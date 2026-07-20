@@ -99,6 +99,11 @@ List<RecordTile> careerRecords(SavedPlayer p) {
   if (oneUp != null && oneUp.get('highestTurn') > 0) {
     out.add(RecordTile(mode: 'oneUp', value: '${oneUp.get('highestTurn')}', label: 'best turn'));
   }
+  final golf = _firstMode(p, ['golf']);
+  if (golf != null && (golf.get('bestRound18') > 0 || golf.get('bestRound9') > 0)) {
+    final best = golf.get('bestRound18') > 0 ? golf.get('bestRound18') : golf.get('bestRound9');
+    out.add(RecordTile(mode: 'golf', value: '$best', label: 'best round'));
+  }
   return out;
 }
 

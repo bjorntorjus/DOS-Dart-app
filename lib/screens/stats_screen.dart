@@ -437,6 +437,8 @@ class _StatsScreenState extends State<StatsScreen>
         return _buildWildcardStats(ms);
       case 'oneUp':
         return _buildOneUpStats(ms);
+      case 'golf':
+        return _buildGolfStats(ms);
       default:
         return [];
     }
@@ -517,6 +519,33 @@ class _StatsScreenState extends State<StatsScreen>
         _StatItem('🎯', 'Last-dart saves', '${ms.get('lastDartSaves')}'),
         _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
         _StatItem('🏁', 'Rounds won', '${ms.get('roundsWon')}'),
+      ]),
+    ];
+  }
+
+  List<Widget> _buildGolfStats(ModeStats ms) {
+    final totalStrokes = ms.get('totalStrokes');
+    final holesPlayed = ms.get('holesPlayed');
+    final avgStrokes = holesPlayed > 0
+        ? (totalStrokes / holesPlayed).toStringAsFixed(1)
+        : '-';
+    final firstDartHits = ms.get('firstDartHits');
+    final firstDartRate = holesPlayed > 0
+        ? (firstDartHits / holesPlayed * 100).toStringAsFixed(0)
+        : '0';
+    final bestHole = ms.get('bestHole');
+    final bestRound9 = ms.get('bestRound9');
+    final bestRound18 = ms.get('bestRound18');
+
+    return [
+      _buildStatsGrid([
+        _StatItem('⛳', 'Aces', '${ms.get('aces')}'),
+        _StatItem('😬', 'Bogeys', '${ms.get('bogeys')}'),
+        _StatItem('📊', 'Avg strokes/hole', avgStrokes),
+        _StatItem('🏌️', 'Best hole', bestHole > 0 ? '$bestHole' : '-'),
+        _StatItem('9️⃣', 'Best 9', bestRound9 > 0 ? '$bestRound9' : '-'),
+        _StatItem('🔟', 'Best 18', bestRound18 > 0 ? '$bestRound18' : '-'),
+        _StatItem('🎯', 'First-dart rate', '$firstDartRate%'),
       ]),
     ];
   }

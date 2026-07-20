@@ -23,10 +23,12 @@ const _modeAccent = <String, Color>{
   'aroundTheClock': DossedartTokens.orange,
   'gotcha': DossedartTokens.red,
   // purple shared with halveIt — all 7 accent tokens are claimed; WILDCARD's
-  // own chaos color is the least-bad reuse. Palette expansion needed when
-  // Golf ships.
+  // own chaos color is the least-bad reuse.
   'wildcard': DossedartTokens.purple,
   'oneUp': DossedartTokens.lime,
+  // green shared with cricket — same "least-bad reuse" call as wildcard/purple
+  // above; Golf's own token still owed when the palette gets its next slot.
+  'golf': DossedartTokens.green,
 };
 
 /// Arcade statistics hub — 4 tabs: PROFILE / MODES / HEATMAP / HISTORY.
@@ -51,6 +53,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     ('gotcha', 'GOTCHA'),
     ('wildcard', 'WILDCARD'),
     ('oneUp', '1UP'),
+    ('golf', 'GOLF'),
   ];
 
   late final TabController _tabs = TabController(length: 4, vsync: this);
@@ -290,6 +293,15 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
           'eliminations ${ms.get('elimsDealt')}',
           'best turn ${ms.get('highestTurn')}',
           if (ms.get('roundsWon') > 0) '🏁 rounds won ${ms.get('roundsWon')}',
+        ];
+      case 'golf':
+        final avg = ms.get('holesPlayed') > 0
+            ? (ms.get('totalStrokes') / ms.get('holesPlayed')).toStringAsFixed(1)
+            : '–';
+        return [
+          '⛳ aces ${ms.get('aces')}',
+          'avg strokes/hole $avg',
+          if (ms.get('bestRound18') > 0) 'best 18 ${ms.get('bestRound18')}',
         ];
       default:
         return const [];
