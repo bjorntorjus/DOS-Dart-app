@@ -237,4 +237,48 @@ void main() {
       expect(e.total(2), 27);
     });
   });
+
+  group('GolfEngine roster', () {
+    test('added player joins at current hole with par backfill', () {
+      final e = GolfEngine(playerCount: 2, holes: 18);
+      for (var h = 0; h < 3; h++) { e.applyDart(1); e.applyDart(1); } // holes 1-3 done
+      e.addPlayer();
+      expect(e.playerCount, 3);
+      expect(e.scorecards[2].sublist(0, 3), [3, 3, 3]);
+      expect(e.total(2), 9);
+      expect(e.holesCompleted(2), 3);
+      expect(e.canUndo, isFalse);
+    });
+
+    test('removed player is skipped in rotation and never wins', () {
+      final e = GolfEngine(playerCount: 3, holes: 9);
+      e.applyDart(3); // P0 ace (best score so far)
+      e.removePlayer(0);
+      expect(e.isSkipped(0), isTrue);
+      expect(e.currentPlayerIndex, 1);
+      for (var h = 0; h < 9; h++) {
+        if (!e.gameOver) { e.applyDart(0); e.applyDart(0); e.applyDart(0); } // P1: 6s
+        if (!e.gameOver) { e.applyDart(1); }                                  // P2: pars
+      }
+      expect(e.gameOver, isTrue);
+      expect(e.winnerIndex, 2);           // NOT the removed ace-holder
+      expect(e.placements()[0], 0);       // excluded
+    });
+
+    test('removing down to one active seat ends the game', () {
+      final e = GolfEngine(playerCount: 2, holes: 18);
+      e.removePlayer(1);
+      expect(e.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+    });
+
+    test('removing a playoff participant resolves sudden death', () {
+      final e = GolfEngine(playerCount: 2, holes: 9);
+      for (var h = 0; h < 9; h++) { e.applyDart(1); e.applyDart(1); }
+      expect(e.inSuddenDeath, isTrue);
+      e.removePlayer(1);
+      expect(e.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+    });
+  });
 }

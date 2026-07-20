@@ -76,8 +76,9 @@ class _GolfUndoEntry {
 /// death: playoff holes on 19 → 20 → Bull(25) → cycling, same 3-dart/
 /// first-hit rules, strokes recorded in [playoffStrokes] only (never
 /// [total]/the scorecard). A unique lowest playoff stroke wins; ties carry
-/// on to the next target. Roster changes (addPlayer/removePlayer) are
-/// implemented in a later task — the stubs below exist so the API compiles.
+/// on to the next target. Roster changes (addPlayer/removePlayer) follow the
+/// Shanghai skip-set pattern: removed seats stay in every index-stable list
+/// but are excluded from rotation, wins, and placements.
 class GolfEngine {
   GolfEngine({required int playerCount, required this.holes})
       : scorecards = List.generate(
@@ -423,10 +424,18 @@ class GolfEngine {
 
   void clearUndoStack() => _undoStack.clear();
 
-  /// New seat joins with empty stats and an empty scorecard row. Full
-  /// mid-game join handling (rotation, sudden-death interaction) is Task 3.
+  /// New seat joins at the current hole: every earlier hole is backfilled as
+  /// par (3) on its scorecard so [total]/[vsPar] stay comparable, while its
+  /// stats start empty (it hasn't actually thrown those holes). During
+  /// sudden death every regulation hole is backfilled as par and the seat
+  /// does not join the playoff — it re-enters the field on the next game.
   void addPlayer() {
-    scorecards.add(List<int?>.filled(holes, null, growable: true));
+    final row = List<int?>.filled(holes, null, growable: true);
+    final backfillHoles = inSuddenDeath ? holes : currentHole;
+    for (var h = 0; h < backfillHoles; h++) {
+      row[h] = 3;
+    }
+    scorecards.add(row);
     aces.add(0);
     bogeys.add(0);
     firstDartHits.add(0);
@@ -436,10 +445,46 @@ class GolfEngine {
     _undoStack.clear();
   }
 
-  /// Marks seat [index] skipped. Full placement/rotation/sudden-death
-  /// interaction for a removed seat is Task 3.
+  /// Marks seat [index] skipped (index-stable — scorecard and stats are
+  /// kept, just excluded from rotation/wins/placements). If the current
+  /// thrower is removed, rotation advances immediately; dropping to one
+  /// active seat (regulation) or one remaining participant (sudden death)
+  /// ends the game with that seat as winner.
   void removePlayer(int index) {
+    if (_skipped.contains(index)) return;
     _skipped.add(index);
     _undoStack.clear();
+    if (gameOver) return;
+
+    if (inSuddenDeath) {
+      final wasCurrent = currentPlayerIndex == index;
+      final oldIdx = playoffParticipants.indexOf(index);
+      playoffParticipants.remove(index);
+      if (playoffParticipants.length == 1) {
+        gameOver = true;
+        winnerIndex = playoffParticipants.first;
+        wonBySuddenDeath = true;
+        return;
+      }
+      if (wasCurrent) {
+        missesThisHole = 0;
+        final nextIdx =
+            oldIdx >= playoffParticipants.length ? 0 : oldIdx;
+        currentPlayerIndex = playoffParticipants[nextIdx];
+      }
+      return;
+    }
+
+    if (activePlayerCount == 1) {
+      gameOver = true;
+      winnerIndex =
+          [for (var i = 0; i < playerCount; i++) if (!isSkipped(i)) i].first;
+      wonBySuddenDeath = false;
+      return;
+    }
+
+    if (currentPlayerIndex == index) {
+      _advanceToNextActive();
+    }
   }
 }
