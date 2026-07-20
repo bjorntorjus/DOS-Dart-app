@@ -219,8 +219,6 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       turnId: _turnIdCounter,
       roundNumber: roundNo,
     ));
-    _announcer.announceThrow(
-        multiplier == 0 ? 'miss' : '${target * multiplier}');
     setState(() {});
     if (result.holeEnded) {
       _turnIdCounter++;
@@ -249,7 +247,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     _showHoleResult(seat, strokes, darts, holeLabel);
 
     final phrase = switch (strokes) {
-      1 => 'Ace! Hole in one!',
+      1 => 'Hole in one!',
       6 => 'Triple bogey.',
       _ => '${golfTerm(strokes).toLowerCase()}!',
     };
@@ -266,10 +264,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
           soundFolders: const ['golf/sudden_death']);
       _showSuddenDeathOverlay();
     } else if (result.playoffContinued) {
-      _announcer.announceGolf('Still tied! Next hole: '
-          '${engine.targetNumber == 25 ? 'bull' : engine.targetNumber}.');
+      _announcer.announceGolf('Still tied!');
     }
-    _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+    final target = engine.inSuddenDeath
+        ? (engine.targetNumber == 25 ? 'bull' : '${engine.targetNumber}')
+        : 'hole ${engine.holeNumber}';
+    _announcer.announceNextPlayer(
+        '${players[engine.currentPlayerIndex].name}, $target');
     _logTurn();
   }
 

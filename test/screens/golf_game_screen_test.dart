@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,15 +27,33 @@ void main() {
   const ttsChannel = MethodChannel('flutter_tts');
   const batteryChannel =
       MethodChannel('dev.fluttercommunity.plus/battery/method');
+  final spoken = <String>[];
 
   setUp(() {
+    spoken.clear();
     SharedPreferences.setMockInitialValues({});
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(ttsChannel, (call) async {
+      if (call.method == 'speak') {
+        spoken.add(call.arguments as String);
+        // TtsService's queue only advances once flutter_tts reports
+        // speak.onComplete; simulate it so every queued announcement
+        // (not just the first) reaches this mock — same pattern as
+        // undo_back_tts_test.dart.
+        scheduleMicrotask(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .handlePlatformMessage(
+            'flutter_tts',
+            const StandardMethodCodec()
+                .encodeMethodCall(const MethodCall('speak.onComplete')),
+            (data) {},
+          );
+        });
+      }
       if (call.method == 'getVoices' || call.method == 'getLanguages') {
         return <dynamic>[];
       }
-      return null;
+      return 1;
     });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(batteryChannel, (call) async {
@@ -334,5 +354,49 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(engine.scorecards[1][0], 3);
     expect(engine.currentPlayerIndex, 2); // advanced to C
+  });
+
+  testWidgets(
+      'TTS diet: hole result speaks only the term, no per-dart callouts, '
+      'and the next-player handoff carries the target hole',
+      (tester) async {
+    // Spec rev 2026-07-20b (golf-design.md §6): announceThrow is dropped
+    // entirely (no dart-value callouts, misses are TTS-silent), the
+    // hole-result phrase is the golf term alone, and announceNextPlayer
+    // carries the upcoming target so players know what to throw at next.
+    // tts_enabled defaults to false in AppSettings, so it must be set
+    // explicitly for TTS output to reach the mocked channel.
+    SharedPreferences.setMockInitialValues({'tts_enabled': true});
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+
+    spoken.clear();
+    dyn.onDartHitForTest(0); // A misses — must stay TTS-silent
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(spoken, isEmpty,
+        reason: 'a miss must not produce any TTS utterance');
+
+    dyn.onDartHitForTest(1); // A single after 1 miss -> 4 strokes = BOGEY
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(spoken, contains('bogey!'),
+        reason: 'hole result must speak the bare term, no Ace!/points');
+    expect(spoken.any((s) => s == 'B, hole 1'), isTrue,
+        reason: 'next-player handoff must carry the still-open hole target');
+
+    spoken.clear();
+    dyn.onDartHitForTest(1); // B single, no misses -> 3 strokes = PAR, wraps
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(spoken, contains('par!'));
+    expect(spoken.any((s) => s == 'A, hole 2'), isTrue,
+        reason: 'once the round wraps, the target rides to the new hole');
   });
 }
