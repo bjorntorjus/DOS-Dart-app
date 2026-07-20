@@ -172,15 +172,25 @@ class GolfHero extends StatelessWidget {
                           _isBull ? 'BULL' : '$targetNumber',
                           style: TextStyle(
                             fontFamily: 'PressStart2P',
-                            fontSize: _isBull ? 56 : 84,
+                            // Oche-legibility fix (v2 layout round): the hole
+                            // number is the aim signal and must read from the
+                            // throw line — ~130px per HANDOVER.md `V2Hero`
+                            // (BULL scaled proportionally, matching the JSX
+                            // 86/130 ratio). The freed height comes out of
+                            // the screen's flex spacer, not this widget.
+                            fontSize: _isBull ? 86 : 130,
                             color: DossedartTokens.green,
-                            height: 0.95,
-                            letterSpacing: -2,
+                            height: 0.82,
+                            letterSpacing: _isBull ? 0 : -4,
                             shadows: [
                               Shadow(
                                 color: DossedartTokens.green
                                     .withValues(alpha: 0.75),
-                                blurRadius: 22,
+                                blurRadius: 30,
+                              ),
+                              const Shadow(
+                                color: Color.fromRGBO(0, 0, 0, 0.55),
+                                offset: Offset(5, 5),
                               ),
                             ],
                           ),

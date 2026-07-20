@@ -94,29 +94,34 @@ class GolfInputCells extends StatelessWidget {
                         color: DossedartTokens.green.withValues(alpha: 0.4)),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Text(
-                      '▼ TAP TO SCORE',
-                      style: TextStyle(
-                        fontFamily: 'PressStart2P',
-                        fontSize: 11,
-                        color: DossedartTokens.green,
-                        letterSpacing: 1.2,
-                        shadows: [
-                          Shadow(
-                            color: DossedartTokens.green.withValues(alpha: 0.6),
-                            blurRadius: 8,
-                          ),
-                        ],
+                // Wrap-proof (fix 2, cockpit v2 layout round): the pair must
+                // never break to two lines at narrow widths — scale the row
+                // down as a unit rather than letting it wrap.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '▼ TAP TO SCORE',
+                        style: TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 11,
+                          color: DossedartTokens.green,
+                          letterSpacing: 1.2,
+                          shadows: [
+                            Shadow(
+                              color:
+                                  DossedartTokens.green.withValues(alpha: 0.6),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
+                      const SizedBox(width: 8),
+                      Text(
                         '· THROW AT ${_isBull ? 'BULL' : targetNumber}',
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
                         style: const TextStyle(
                           fontFamily: 'VT323',
                           fontSize: 16,
@@ -124,8 +129,8 @@ class GolfInputCells extends StatelessWidget {
                           letterSpacing: 1,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               Padding(
