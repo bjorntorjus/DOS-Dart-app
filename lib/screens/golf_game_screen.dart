@@ -8,6 +8,7 @@ import '../models/game_mode.dart';
 import '../models/game_result.dart';
 import '../models/golf_engine.dart';
 import '../models/player.dart';
+import '../models/saved_player.dart';
 import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/elo_service.dart';
@@ -24,6 +25,7 @@ import '../utils/earned_feats_builder.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/golf/dossedart_golf_active_card.dart';
 import '../widgets/dossedart/golf/golf_input_cells.dart';
@@ -60,10 +62,11 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   final DateTime _gameStart = DateTime.now();
 
   // Roster-change gating for the deferred-stats protocol (1UP/Shanghai
-  // parity). Task 9 wires the add/remove player-sheet flow to flip this true
-  // (and populate the joined/left id sets below); for now it stays false so
-  // _updateStats always takes the full recordGame/Elo path.
-  // ignore: prefer_final_fields
+  // parity). Set unconditionally and FIRST by every roster-change path
+  // (_addSavedPlayerMidGame / _removePlayerMidGame, including the
+  // removePlayerForTest seam) so a skipped seat can never be misread as the
+  // winner by EloService/AchievementService/StatsRecorder (placement 0 vs.
+  // "best" ambiguity) — see _updateStats' short-circuit below.
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -83,6 +86,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   @visibleForTesting
   Set<int> get removedPlayerIndicesForTest => engine.skippedIndices;
+
+  /// Proves the mid-game stats gate got flipped (Task 9 review — a skipped
+  /// seat's placement 0 must never reach the full recordGame/Elo path via
+  /// EloService/AchievementService/StatsRecorder, since those read
+  /// placement 0 as "best"). Same convention as Wildcard/Gotcha's
+  /// `midGamePlayerChangesForTest`.
+  @visibleForTesting
+  bool get midGamePlayerChangesForTest => _midGamePlayerChanges;
 
   @visibleForTesting
   void onDartHitForTest(int multiplier) => _onDartHit(multiplier);
@@ -104,17 +115,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   int _overlayToken = 0;
   bool _overlaySuddenDeath = false;
 
-  /// Minimal roster-removal hook — the full add/remove player-sheet flow
-  /// (mid-game stats gating, join/leave tracking) lands in Task 9. For now
-  /// this just drives the engine's own removePlayer/game-over handling so
-  /// later tasks' tests have something real to call.
+  /// Test seam for the player-sheet's remove flow — skips the confirm
+  /// dialog, same convention as 1UP's `removePlayerForTest`.
   @visibleForTesting
-  void removePlayerForTest(int i) {
-    setState(() {
-      engine.removePlayer(i);
-      if (engine.gameOver) _onGameEnd();
-    });
-  }
+  void removePlayerForTest(int i) => _removePlayerMidGame(i);
 
   @override
   void initState() {
@@ -611,11 +615,73 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     );
   }
 
-  /// Player-sheet roster entry point. The shared [showDossedartCockpitMenu]
-  /// requires a callback here, but the full add/remove wiring (mid-game
-  /// stats gating, join/leave tracking, [showDossedartPlayerSheet] rows)
-  /// lands in Task 9 — kept as a named no-op until then.
-  void _openDossedartPlayerSheet() {}
+  /// Player-sheet roster entry point, wired into the cockpit menu's
+  /// player-overview hook (1UP parity). Score column shows the running
+  /// total plus vs-par so a removal decision can weigh who's actually
+  /// leading.
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == engine.currentPlayerIndex,
+        isRemoved: engine.isSkipped(i),
+        primary: '${engine.total(i)} (${vsParLabel(engine.vsPar(i))})',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: engine.gameOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Joins at hole ${engine.holeNumber} — earlier holes count as par.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
+      players.add(Player(
+        name: sp.name,
+        score: 0,
+        savedPlayerId: sp.id,
+        avatarPath: sp.avatarPath,
+      ));
+      engine.addPlayer();
+    });
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: [for (var i = 0; i < players.length; i++) engine.total(i)],
+    );
+  }
+
+  void _removePlayerMidGame(int playerIndex) {
+    final removedId = players[playerIndex].savedPlayerId;
+    setState(() {
+      _midGamePlayerChanges = true;
+      if (removedId != null) _leftMidGameIds.add(removedId);
+      engine.removePlayer(playerIndex);
+      if (engine.gameOver) _onGameEnd();
+    });
+    _log.logRoster(
+      action: 'REMOVE',
+      playerIndex: playerIndex,
+      playerName: players[playerIndex].name,
+      names: players.map((p) => p.name).toList(),
+      scores: [for (var i = 0; i < players.length; i++) engine.total(i)],
+    );
+  }
 
   void _openScoreSheet() {
     showGolfScoreSheet(
@@ -678,8 +744,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                             doneThisHole: engine.inSuddenDeath
                                 ? (!engine.playoffParticipants.contains(i) ||
                                     engine.playoffStrokes[i] != null)
-                                : engine.scorecards[i][engine.currentHole] !=
-                                    null,
+                                // Regulation ending outright (no sudden
+                                // death) leaves currentHole == holes, one
+                                // past the scorecard's valid indices — the
+                                // game being over already means every hole
+                                // is done, so short-circuit before indexing.
+                                : (engine.gameOver ||
+                                    engine.scorecards[i][engine.currentHole] !=
+                                        null),
                             accent: engine.inSuddenDeath &&
                                     !engine.playoffParticipants.contains(i)
                                 ? dossedartAccent(i).withValues(alpha: 0.35)
