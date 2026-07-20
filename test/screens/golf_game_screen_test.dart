@@ -155,6 +155,44 @@ void main() {
     expect(card.holeLabel, 'HOLE 2 · PAR 3');
   });
 
+  testWidgets(
+      'dart round-tagging: the hole-closing dart keeps the hole it closed, '
+      'not the incremented one',
+      (tester) async {
+    // Regression pin (final review, item 1): _onDartHit used to read
+    // engine.holeNumber AFTER applyDart. When the finishing seat is last in
+    // rotation, applyDart's _advanceToNextActive() already bumps
+    // currentHole, so B's hole-closing dart got mis-tagged with hole 2
+    // instead of the hole it actually closed out (1).
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+    dyn.onDartHitForTest(1); // A pars hole 1
+    await tester.pump();
+    dyn.onDartHitForTest(1); // B pars hole 1, wraps rotation to hole 2
+    await tester.pump();
+
+    final throwHistory = dyn.throwHistory as List<dynamic>;
+    expect(throwHistory.length, 2);
+    for (final t in throwHistory) {
+      expect((t as dynamic).roundNumber, 1,
+          reason: 'both hole-1 darts, including the hole-closing one for '
+              'the last seat in rotation, must keep roundNumber == 1');
+    }
+
+    dyn.onDartHitForTest(1); // A pars hole 2
+    await tester.pump();
+    expect((throwHistory.last as dynamic).roundNumber, 2);
+  });
+
   testWidgets('sudden death overlay appears on tie and auto-dismisses',
       (tester) async {
     await tester.pumpWidget(MaterialApp(

@@ -115,8 +115,9 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   int _overlayToken = 0;
   bool _overlaySuddenDeath = false;
 
-  /// Test seam for the player-sheet's remove flow — skips the confirm
-  /// dialog, same convention as 1UP's `removePlayerForTest`.
+  /// Test seam for the player-sheet's remove flow — drives the real removal
+  /// path (sets the mid-game-changes flag), same convention as 1UP's
+  /// `removePlayerForTest`.
   @visibleForTesting
   void removePlayerForTest(int i) => _removePlayerMidGame(i);
 
@@ -178,17 +179,45 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     // just-finished result. _liveHoleLabel (not _holeLabel) so a still-open
     // window from a previous hole can't poison this capture.
     final holeLabel = _liveHoleLabel;
+    // Same reasoning as holeLabel above — engine.holeNumber must be read
+    // BEFORE applyDart, or the hole-closing dart for the last seat in
+    // rotation gets tagged with the hole applyDart just advanced to (and the
+    // final regulation dart with holes+1, colliding with the playoff
+    // bucket). See one_up_game_screen.dart's roundNo capture for the fasit.
+    final roundNo = engine.holeNumber;
     final result = engine.applyDart(multiplier);
+
+    final label = multiplier == 0
+        ? 'miss'
+        : (multiplier == 3 ? 'T$target' : multiplier == 2 ? 'D$target' : 'S$target');
+    // Strokes only land on the scorecard when the hole ends, so this dart's
+    // contribution to the running total is 0 until then, then the whole
+    // hole's stroke count at once — mirrors scoreBefore/scoreAfter's meaning
+    // in the sibling cockpits (running score before/after this dart).
+    final strokesThisDart = result.holeEnded ? result.holeStrokes! : 0;
+    _log.logThrow(
+      roundNumber: roundNo,
+      playerIndex: seat,
+      label: label,
+      points: strokesThisDart,
+      scoreBefore: scoreBefore,
+      scoreAfter: scoreBefore + strokesThisDart,
+      dartNumber: dartNo,
+    );
+
     throwHistory.add(DartThrow(
       playerIndex: seat,
       segment: multiplier == 0 ? 0 : target,
       multiplier: multiplier,
+      // Placeholder dart-arithmetic for the shared DartThrow model — Golf
+      // scores strokes, not points, and never reads this field back; it's
+      // only here to satisfy the model's shape.
       points: multiplier == 0 ? 0 : target * multiplier,
       scoreBefore: scoreBefore,
       turnNumber: dartNo,
       scoreAtStartOfTurn: scoreBefore,
       turnId: _turnIdCounter,
-      roundNumber: engine.holeNumber,
+      roundNumber: roundNo,
     ));
     _announcer.announceThrow(
         multiplier == 0 ? 'miss' : '${target * multiplier}');
@@ -204,7 +233,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   }
 
   void _onMiss() {
-    if (engine.gameOver) return;
+    if (engine.gameOver || _overlaySuddenDeath) return;
     SoundService.instance.play('miss/miss');
     _onDartHit(0);
   }
@@ -547,10 +576,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     return engine.missesThisHole == 0 ? GolfCardPhase.teeOff : GolfCardPhase.midHole;
   }
 
-  // Result-window trio: all three are set together in _showHoleResult and
+  // Result-window quartet: all four are set together in _showHoleResult and
   // cleared together (by its 1s timer or by undo) — never partially, so the
   // card's build-time derivation can gate on _lastHoleStrokes alone and
-  // trust _lastHoleSeat/_lastHoleDarts are present too.
+  // trust _lastHoleSeat/_lastHoleDarts/_lastHoleLabel are present too.
   int? _lastHoleStrokes; // finished hole's stroke count, shown on the card
   int? _lastHoleSeat; // seat that finished the hole (identity for the card)
   int? _lastHoleDarts; // darts thrown that hole, for the dart-pip display

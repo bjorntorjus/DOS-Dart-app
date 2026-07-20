@@ -72,6 +72,24 @@ void main() {
       expect(e.vsPar(0), -18);
     });
 
+    // Cheap probe (final review, item 6): pins the 5-player rotation for
+    // spec §7 — every seat pars except one seat that aces every hole, so a
+    // unique leader ends the game outright (no sudden death needed).
+    test('5-player rotation: a lone ace-er wins outright, seat 1 tie-shares '
+        '2nd with the rest', () {
+      final e = GolfEngine(playerCount: 5, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(1); // P0 par
+        e.applyDart(1); // P1 par
+        e.applyDart(3); // P2 ace
+        e.applyDart(1); // P3 par
+        e.applyDart(1); // P4 par
+      }
+      expect(e.gameOver, isTrue);
+      expect(e.winnerIndex, 2);
+      expect(e.placements(), [2, 2, 1, 2, 2]);
+    });
+
     test('stats: aces, bogeys, first-dart hits, best hole', () {
       final e = GolfEngine(playerCount: 1, holes: 9);
       e.applyDart(3);               // ace, first-dart hit
@@ -358,6 +376,34 @@ void main() {
       expect(r.gameOver, isTrue);
       expect(e.winnerIndex, 0);
       expect(e.placements(), [1, 2, 2]); // added seat shares 2nd with the SD loser
+    });
+
+    // Final review, item 2: a par-backfilled addPlayer() during sudden
+    // death can compute a LOWER (better) total than the tied leaders, who
+    // are above par. The old demotion condition only caught seats EQUAL to
+    // the winner's total, so this seat kept its computed placement 1
+    // alongside the forced SD winner -> [1, 2, 1]. wonBySuddenDeath must
+    // always imply a unique placement 1.
+    test('SD winner stays the sole placement-1 even when a mid-SD '
+        'backfilled add-player computes a lower total', () {
+      final e = GolfEngine(playerCount: 2, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(0); e.applyDart(1); // P0 bogey (4 strokes)
+        e.applyDart(0); e.applyDart(1); // P1 bogey (4 strokes)
+      }
+      expect(e.total(0), 36);
+      expect(e.total(1), 36);
+      expect(e.inSuddenDeath, isTrue);
+
+      e.addPlayer(); // backfilled all-par: total 27 (< 36), never enters the SD
+      expect(e.total(2), 27);
+      expect(e.playoffParticipants, [0, 1]);
+
+      e.applyDart(3);              // P0 aces the playoff hole
+      final r = e.applyDart(1);    // P1 pars -> P0 wins outright
+      expect(r.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+      expect(e.placements(), [1, 2, 2]);
     });
   });
 }

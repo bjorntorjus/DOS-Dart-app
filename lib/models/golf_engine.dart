@@ -141,8 +141,13 @@ class GolfEngine {
 
   /// 1-based placements, tie-shared by total; skipped seats score 0. When
   /// the game was decided by sudden death, the winner is forced to 1st and
-  /// the losing co-leaders (same total as the winner) share 2nd — sudden
-  /// death only resolves who takes 1st, not the rest of the field.
+  /// every other seat at or below the winner's total (co-leaders it beat in
+  /// the playoff, or a seat with an even lower total that never entered the
+  /// playoff — e.g. a par-backfilled addPlayer() during SD) shares 2nd —
+  /// sudden death only resolves who takes 1st, not the rest of the field.
+  /// Using `<=` (not `==`) here is load-bearing: a strictly-lower total
+  /// would otherwise out-rank the forced winner and produce a duplicate
+  /// placement 1.
   List<int> placements() {
     final act = [for (var i = 0; i < playerCount; i++) if (!isSkipped(i)) i];
     final out = List<int>.filled(playerCount, 0);
@@ -151,7 +156,7 @@ class GolfEngine {
     }
     if (wonBySuddenDeath && winnerIndex != null) {
       for (final i in act) {
-        if (i != winnerIndex && total(i) == total(winnerIndex!)) out[i] = 2;
+        if (i != winnerIndex && total(i) <= total(winnerIndex!)) out[i] = 2;
       }
       out[winnerIndex!] = 1;
     }
