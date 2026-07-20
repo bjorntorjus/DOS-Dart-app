@@ -8,7 +8,8 @@ import 'dossedart_golf_active_card.dart' show golfTermColor;
 ///
 /// Normal target: single (`S<n>`, PAR), double (`D<n>`, BIRDIE), triple
 /// (`T<n>`, ACE). Bull (`targetNumber == 25`, sudden death only) drops the
-/// triple cell — `BULL` / `D-BULL` only.
+/// triple cell — `BULL` (PAR) / `D-BULL` (BIRDIE) only, using the same
+/// term vocabulary as the normal cells.
 class GolfInputCells extends StatelessWidget {
   const GolfInputCells({
     super.key,
@@ -28,8 +29,16 @@ class GolfInputCells extends StatelessWidget {
 
   List<_CellSpec> get _cells => _isBull
       ? [
-          _CellSpec(label: 'BULL', multiplier: 1, term: null, color: golfTermColor(3)),
-          _CellSpec(label: 'D-BULL', multiplier: 2, term: null, color: golfTermColor(2)),
+          _CellSpec(
+              label: 'BULL',
+              multiplier: 1,
+              term: golfTerm(3),
+              color: golfTermColor(3)),
+          _CellSpec(
+              label: 'D-BULL',
+              multiplier: 2,
+              term: golfTerm(2),
+              color: golfTermColor(2)),
         ]
       : [
           _CellSpec(
@@ -69,18 +78,16 @@ class GolfInputCells extends StatelessWidget {
                   ),
               ],
             ),
-            if (!_isBull) ...[
-              const SizedBox(height: 8),
-              const Text(
-                'MISS = +1 STROKE',
-                style: TextStyle(
-                  fontFamily: 'VT323',
-                  fontSize: 14,
-                  color: Colors.white54,
-                  letterSpacing: 1,
-                ),
+            const SizedBox(height: 8),
+            const Text(
+              'MISS = +1 STROKE',
+              style: TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 14,
+                color: Colors.white54,
+                letterSpacing: 1,
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -99,8 +106,8 @@ class _CellSpec {
   final String label;
   final int multiplier;
 
-  /// Golf term shown as the sub-label (PAR/BIRDIE/ACE). Null for the Bull
-  /// cells, which have no mapped term.
+  /// Golf term shown as the sub-label (PAR/BIRDIE/ACE), including for the
+  /// Bull cells (PAR/BIRDIE).
   final String? term;
   final Color color;
 }
