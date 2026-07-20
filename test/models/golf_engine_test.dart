@@ -280,5 +280,84 @@ void main() {
       expect(e.gameOver, isTrue);
       expect(e.winnerIndex, 0);
     });
+
+    test('removing the current thrower in regulation skips them and '
+        'resets misses', () {
+      final e = GolfEngine(playerCount: 3, holes: 9);
+      e.applyDart(1);                    // P0 pars hole 1 → P1 is current
+      expect(e.currentPlayerIndex, 1);
+      e.applyDart(0);                    // P1 misses once
+      expect(e.missesThisHole, 1);
+
+      e.removePlayer(1);
+      expect(e.isSkipped(1), isTrue);
+      expect(e.currentPlayerIndex, 2);
+      expect(e.missesThisHole, 0);        // reset for the new current thrower
+      expect(e.gameOver, isFalse);
+
+      final r = e.applyDart(1);          // P2 completes hole 1 normally
+      expect(r.holeEnded, isTrue);
+      expect(e.scorecards[2][0], 3);
+    });
+
+    test('removing the current thrower in sudden death remaps '
+        'playoffParticipants and rotation', () {
+      final e = GolfEngine(playerCount: 3, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(1); e.applyDart(1); e.applyDart(1); // all par → 27/27/27
+      }
+      expect(e.inSuddenDeath, isTrue);
+      expect(e.playoffParticipants, [0, 1, 2]);
+      expect(e.currentPlayerIndex, 0);
+
+      e.removePlayer(0);
+      expect(e.inSuddenDeath, isTrue);
+      expect(e.gameOver, isFalse);
+      expect(e.playoffParticipants, [1, 2]);
+      expect(e.currentPlayerIndex, 1);
+
+      e.applyDart(3);                    // P1: 1
+      final r = e.applyDart(1);          // P2: 3 → P1 wins outright
+      expect(r.gameOver, isTrue);
+      expect(e.winnerIndex, 1);
+      expect(e.wonBySuddenDeath, isTrue);
+    });
+
+    test('removing the last (current) playoff participant wraps rotation '
+        'to the first remaining seat', () {
+      final e = GolfEngine(playerCount: 3, holes: 9);
+      for (var h = 0; h < 9; h++) {
+        e.applyDart(1); e.applyDart(1); e.applyDart(1); // all par → 27/27/27
+      }
+      expect(e.playoffParticipants, [0, 1, 2]);
+
+      e.applyDart(3);                    // P0 throws → current becomes P1
+      expect(e.currentPlayerIndex, 1);
+      e.applyDart(3);                    // P1 throws → current becomes P2 (last)
+      expect(e.currentPlayerIndex, 2);
+
+      e.removePlayer(2);
+      expect(e.playoffParticipants, [0, 1]);
+      expect(e.currentPlayerIndex, 0);   // wraps to the first remaining seat
+      expect(e.gameOver, isFalse);
+    });
+
+    test('player added during sudden death shares placement by total '
+        '(spec: SD resolves 1st only)', () {
+      final e = GolfEngine(playerCount: 2, holes: 9);
+      for (var h = 0; h < 9; h++) { e.applyDart(1); e.applyDart(1); } // 27/27
+      expect(e.inSuddenDeath, isTrue);
+
+      e.addPlayer();
+      expect(e.playerCount, 3);
+      expect(e.total(2), 27);             // backfilled all-par
+      expect(e.playoffParticipants, [0, 1]); // added seat did not join the SD
+
+      e.applyDart(3);                    // P0: 1
+      final r = e.applyDart(1);          // P1: 3 → P0 wins outright
+      expect(r.gameOver, isTrue);
+      expect(e.winnerIndex, 0);
+      expect(e.placements(), [1, 2, 2]); // added seat shares 2nd with the SD loser
+    });
   });
 }
