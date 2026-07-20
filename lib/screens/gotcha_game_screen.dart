@@ -109,6 +109,13 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
+  // Miss-sound gating (ATC parity, cross-mode fix 2026-07-20): 'miss/miss'
+  // isn't a real asset — the folder holds meme sounds picked via
+  // playRandomMaybe — so the miss sound must be gated behind the meme
+  // settings exactly like ATC's _onMiss, not played unconditionally.
+  bool _memeEnabled = false;
+  bool _offensiveEnabled = false;
+
   @override
   void initState() {
     super.initState();
@@ -128,6 +135,12 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     _meme.init();
     AppSettings.getSoundEffectsEnabled()
         .then((v) => SoundService.instance.setEnabled(v));
+    AppSettings.getMemeEnabled().then((v) {
+      if (mounted) setState(() => _memeEnabled = v);
+    });
+    AppSettings.getMemeOffensive().then((v) {
+      if (mounted) setState(() => _offensiveEnabled = v);
+    });
     _announcer.init();
   }
 
@@ -222,7 +235,13 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   }
 
   void _onMiss() {
-    SoundService.instance.play('miss/miss');
+    if (_memeEnabled) {
+      final played = SoundService.instance.playRandomMaybe(
+        ['miss', if (_offensiveEnabled) 'miss/offensive'],
+        chance: _meme.frequencyChance,
+      );
+      if (played) _meme.markSoundPlayed();
+    }
     _onDartHit(0, 0);
   }
 

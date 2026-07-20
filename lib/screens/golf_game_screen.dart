@@ -61,6 +61,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   int _turnIdCounter = 0;
   final DateTime _gameStart = DateTime.now();
 
+  // Miss-sound gating (ATC parity, cross-mode fix 2026-07-20): 'miss/miss'
+  // isn't a real asset — the folder holds meme sounds picked via
+  // playRandomMaybe — so the miss sound must be gated behind the meme
+  // settings exactly like ATC's _onMiss, not played unconditionally.
+  bool _memeEnabled = false;
+  bool _offensiveEnabled = false;
+
   // Roster-change gating for the deferred-stats protocol (1UP/Shanghai
   // parity). Set unconditionally and FIRST by every roster-change path
   // (_addSavedPlayerMidGame / _removePlayerMidGame, including the
@@ -130,6 +137,12 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     _meme.init();
     AppSettings.getSoundEffectsEnabled()
         .then((v) => SoundService.instance.setEnabled(v));
+    AppSettings.getMemeEnabled().then((v) {
+      if (mounted) setState(() => _memeEnabled = v);
+    });
+    AppSettings.getMemeOffensive().then((v) {
+      if (mounted) setState(() => _offensiveEnabled = v);
+    });
     _log.logGameStart(
       gameMode: 'Golf',
       playerNames: players.map((p) => p.name).toList(),
@@ -232,7 +245,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   void _onMiss() {
     if (engine.gameOver || _overlaySuddenDeath) return;
-    SoundService.instance.play('miss/miss');
+    if (_memeEnabled) {
+      final played = SoundService.instance.playRandomMaybe(
+        ['miss', if (_offensiveEnabled) 'miss/offensive'],
+        chance: _meme.frequencyChance,
+      );
+      if (played) _meme.markSoundPlayed();
+    }
     _onDartHit(0);
   }
 

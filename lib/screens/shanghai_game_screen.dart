@@ -225,8 +225,17 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     throwHistory.add(dartThrow);
 
     // Play core sound (miss/nice) before meme so meme can mark and skip TTS.
+    // 'miss/miss' isn't a real asset (the folder holds meme sounds picked
+    // via playRandomMaybe) — gated behind the meme settings exactly like
+    // ATC's _onMiss, not played unconditionally (cross-mode fix 2026-07-20).
     if (type == HitType.miss) {
-      SoundService.instance.play('miss/miss');
+      if (_memeEnabled) {
+        final played = SoundService.instance.playRandomMaybe(
+          ['miss', if (_offensiveEnabled) 'miss/offensive'],
+          chance: _meme.frequencyChance,
+        );
+        if (played) _meme.markSoundPlayed();
+      }
     } else {
       SoundService.instance.play('nice/nice');
     }

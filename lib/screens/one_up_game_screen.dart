@@ -66,6 +66,13 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   int _turnIdCounter = 0;
   final DateTime _gameStart = DateTime.now();
 
+  // Miss-sound gating (ATC parity, cross-mode fix 2026-07-20): 'miss/miss'
+  // isn't a real asset — the folder holds meme sounds picked via
+  // playRandomMaybe — so the miss sound must be gated behind the meme
+  // settings exactly like ATC's _onMiss, not played unconditionally.
+  bool _memeEnabled = false;
+  bool _offensiveEnabled = false;
+
   // Roster-change gating for the deferred-stats protocol (Shanghai/Gotcha
   // parity). Flipped true by _addSavedPlayerMidGame/_removePlayerMidGame,
   // which also populate the joined/left id sets below; _updateStats reads
@@ -139,6 +146,12 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     _meme.init();
     AppSettings.getSoundEffectsEnabled()
         .then((v) => SoundService.instance.setEnabled(v));
+    AppSettings.getMemeEnabled().then((v) {
+      if (mounted) setState(() => _memeEnabled = v);
+    });
+    AppSettings.getMemeOffensive().then((v) {
+      if (mounted) setState(() => _offensiveEnabled = v);
+    });
     _log.logGameStart(
       gameMode: '1UP',
       playerNames: players.map((p) => p.name).toList(),
@@ -239,7 +252,13 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
 
   void _onMiss() {
     if (engine.gameOver || _overlay != null) return;
-    SoundService.instance.play('miss/miss');
+    if (_memeEnabled) {
+      final played = SoundService.instance.playRandomMaybe(
+        ['miss', if (_offensiveEnabled) 'miss/offensive'],
+        chance: _meme.frequencyChance,
+      );
+      if (played) _meme.markSoundPlayed();
+    }
     _onDartHit(0, 0);
   }
 
