@@ -7,8 +7,8 @@ import 'package:dart_scoring/theme/dossedart_tokens.dart';
 import 'package:dart_scoring/widgets/dossedart/arcade_frame.dart';
 
 /// Widget tests for the DOSSEDART home's "OR PICK A LEVEL" 3×3 grid: 5 live
-/// modes, three fresh tiles (Gotcha + WILDCARD + 1UP, each with a NEW ribbon),
-/// and 1 hardcoded coming-soon placeholder (Golf).
+/// modes and four fresh tiles (Gotcha + WILDCARD + 1UP + Golf, each with a
+/// NEW ribbon) — no coming-soon placeholders remain.
 void main() {
   setUpAll(() => ArcadeFrame.disableBeamForTest = true);
 
@@ -29,8 +29,8 @@ void main() {
 
     expect(find.text('GOTCHA'), findsOneWidget);
     expect(find.text('WILDCARD'), findsOneWidget);
-    expect(find.text('NEW'), findsNWidgets(3),
-        reason: 'NEW ribbon on Gotcha, WILDCARD and 1UP');
+    expect(find.text('NEW'), findsNWidgets(4),
+        reason: 'NEW ribbon on Gotcha, WILDCARD, 1UP and Golf');
     expect(find.text('1UP'), findsOneWidget);
     expect(find.text('GOLF'), findsOneWidget);
     expect(find.text('MORE SOON'), findsNothing);
@@ -90,31 +90,11 @@ void main() {
     }
   });
 
-  testWidgets('coming-soon tiles are not tappable', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
-    await tester.pumpAndSettle();
-
-    for (final e in ['⛳']) {
-      final tile = find.text(e);
-      expect(tile, findsOneWidget);
-      expect(
-        find.ancestor(of: tile, matching: find.byType(InkWell)),
-        findsNothing,
-        reason: 'coming-soon tile "$e" must not have a tap handler',
-      );
-      expect(
-        find.ancestor(of: tile, matching: find.byType(GestureDetector)),
-        findsNothing,
-        reason: 'coming-soon tile "$e" must not have a tap handler',
-      );
-    }
-  });
-
   testWidgets('live and new tiles are tappable', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
     await tester.pumpAndSettle();
 
-    for (final e in ['🎯', '🕐', '🔪', '✂️', '🐉', '💀', '🃏', '❤️']) {
+    for (final e in ['🎯', '🕐', '🔪', '✂️', '🐉', '💀', '🃏', '❤️', '⛳']) {
       final tile = find.text(e);
       expect(tile, findsOneWidget);
       expect(

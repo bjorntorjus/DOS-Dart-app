@@ -171,3 +171,8 @@ class OneUpConfig extends GameConfig {
     this.randomOrder = false,
   }) : super(GameMode.oneUp);
 }
+
+class GolfConfig extends GameConfig {
+  final int holes; // 9 or 18 (default 18)
+  const GolfConfig({this.holes = 18}) : super(GameMode.golf);
+}

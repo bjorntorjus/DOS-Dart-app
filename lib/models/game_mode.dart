@@ -8,6 +8,7 @@ enum GameMode {
   gotcha,
   wildcard,
   oneUp,
+  golf,
 }
 
 extension GameModeLabel on GameMode {
@@ -31,6 +32,8 @@ extension GameModeLabel on GameMode {
         return 'WILDCARD';
       case GameMode.oneUp:
         return '1UP';
+      case GameMode.golf:
+        return 'Golf';
     }
   }
 }
@@ -56,6 +59,8 @@ extension GameModeEmoji on GameMode {
         return '🃏';
       case GameMode.oneUp:
         return '❤️';
+      case GameMode.golf:
+        return '⛳';
     }
   }
 }

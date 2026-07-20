@@ -21,6 +21,7 @@ import 'shanghai_game_screen.dart';
 import 'gotcha_game_screen.dart';
 import 'wildcard_game_screen.dart';
 import 'one_up_game_screen.dart';
+import 'golf_game_screen.dart';
 import '../models/one_up_engine.dart';
 
 class PlayerSetupScreen extends StatefulWidget {
@@ -91,6 +92,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   int _oneUpLives = 3;
   OneUpVariant _oneUpVariant = OneUpVariant.beatTheLast;
   bool _oneUpShuffle = false;
+
+  // Golf options
+  int _golfHoles = 18;
 
   int get _minPlayers {
     switch (widget.gameMode) {
@@ -568,6 +572,11 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             variant: _oneUpVariant,
             randomOrder: _oneUpShuffle,
           ),
+        );
+      case GameMode.golf:
+        screen = GolfGameScreen(
+          players: players,
+          config: GolfConfig(holes: _golfHoles),
         );
     }
 
@@ -1099,6 +1108,26 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
             value: _oneUpShuffle,
             onChanged: (v) => setState(() => _oneUpShuffle = v),
             activeTrackColor: Theme.of(context).colorScheme.primary,
+          ),
+        ]);
+
+      case GameMode.golf:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Course'),
+            subtitle: Text('$_golfHoles holes'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 9, label: Text('9')),
+                ButtonSegment(value: 18, label: Text('18')),
+              ],
+              selected: {_golfHoles},
+              onSelectionChanged: (v) =>
+                  setState(() => _golfHoles = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
           ),
         ]);
     }
