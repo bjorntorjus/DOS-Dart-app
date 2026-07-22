@@ -1,3 +1,5 @@
+# ⛔ WITHDRAWN 2026-07-22 — replaced by `HANDOVER-to-design-2026-07-22-grammar-sheet.md` + per-mode one-pagers. Do not work from this document.
+
 # Cockpit overview grammar — cross-mode consistency round (2026-07-21)
 
 **To:** Claude design (DOSSEDART track)
