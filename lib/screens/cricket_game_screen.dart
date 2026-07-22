@@ -315,16 +315,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   void _onMiss() {
-    _missSoundPlayed = false;
-    if (_memeEnabled) {
-      _missSoundPlayed = SoundService.instance.playRandomMaybe([
-        'miss',
-        if (_offensiveEnabled) 'miss/offensive',
-      ], chance: _meme.frequencyChance);
-      if (_missSoundPlayed && _meme.frequency < 10) {
-        _meme.markSoundPlayed();
-      }
-    }
+    _missSoundPlayed = _meme.tryMissSound();
     _registerHit(0, 0);
   }
 

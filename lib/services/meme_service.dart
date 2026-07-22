@@ -41,6 +41,29 @@ class MemeService {
     _log.logMeme(event: 'markSoundPlayed', outcome: 'external sound played', soundPlayedThisTurn: true);
   }
 
+  /// Rolls the miss-meme dice, at most once per turn: once any sound has
+  /// played this turn the gate stays shut until [resetTurn]/[onTurnEnd]
+  /// (frequency 10 = "always" bypasses the gate, matching the classic ATC
+  /// semantics). Modes where missing is the common outcome (Golf, ATC)
+  /// otherwise fire a meme every few darts. Returns true when a meme sound
+  /// was queued — callers should then skip their own miss sound/TTS.
+  bool tryMissSound() {
+    if (!_enabled) return false;
+    if (_soundPlayedThisTurn && _frequency < 10) {
+      _log.logMeme(
+          event: 'tryMissSound',
+          outcome: 'skipped (soundPlayedThisTurn)',
+          soundPlayedThisTurn: true);
+      return false;
+    }
+    final played = _sound.playRandomMaybe(
+      ['miss', if (_memeOffensive) 'miss/offensive'],
+      chance: frequencyChance,
+    );
+    if (played && _frequency < 10) markSoundPlayed();
+    return played;
+  }
+
   /// Convert frequency (1-10) to a chance denominator for playRandomMaybe.
   /// 1=1/8, 3=1/5, 5=1/3 (default), 7=1/2, 10=always (1/1).
   int get frequencyChance {
