@@ -147,10 +147,12 @@ void main() {
     await tester.pumpWidget(host(card(avg: 60.0)));
     expect(find.text('60.0'), findsOneWidget);
 
-    // avg: null → placeholder "—"
-    await tester.pumpWidget(host(card(avg: null, hit: null)));
-    expect(find.byWidgetPredicate(
-        (w) => w is Text && w.data?.contains('—') == true),
-        findsWidgets);
+    // avg: null → placeholder "—". LAST is also nulled (the default fixture
+    // embeds its own em dash, which made this assertion pass regardless of
+    // AVG) and HIT% stays non-null so the bare "—" can only come from the
+    // AVG cell.
+    await tester.pumpWidget(host(card(last: null, lastSum: null, avg: null)));
+    expect(find.text('—'), findsOneWidget,
+        reason: 'exactly the AVG placeholder renders a bare em dash');
   });
 }

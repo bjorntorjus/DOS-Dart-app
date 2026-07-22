@@ -27,8 +27,7 @@ void main() {
       ];
 
   test('midTruncate keeps start and end around a single ellipsis', () {
-    expect(midTruncate('ALEXANDER THE BOSS BITCH', 16),
-        'ALEXANDER…BITCH'.replaceAll('…', '…'));
+    expect(midTruncate('ALEXANDER THE BOSS BITCH', 16), 'ALEXANDER…BITCH');
     expect(midTruncate('ALEXANDER THE BOSS BITCH', 16).length,
         lessThanOrEqualTo(16));
     expect(midTruncate('KARI', 16), 'KARI'); // short names untouched
