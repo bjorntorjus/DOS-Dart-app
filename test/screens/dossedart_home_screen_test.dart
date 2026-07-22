@@ -90,6 +90,21 @@ void main() {
     }
   });
 
+  testWidgets('home lays out without overflow at phone width (CI pixel_5)',
+      (tester) async {
+    // Regression (PR #11 CI, 2026-07-22): the "► OR PICK A LEVEL" header Row
+    // overflowed 57px on the right once the NEW-modes badge text grew — only
+    // visible below tablet width, so tablet QA never caught it.
+    tester.view.physicalSize = const Size(1080, 2340); // pixel_5
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
+    await tester.pumpAndSettle();
+    // Layout overflow reports as a FlutterError and fails the test on its own;
+    // nothing further to assert.
+  });
+
   testWidgets('live and new tiles are tappable', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: DossedartHomeScreen()));
     await tester.pumpAndSettle();

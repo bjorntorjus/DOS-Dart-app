@@ -399,8 +399,14 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
                   style:
                       _press(11, color: DossedartTokens.cyan, letterSpacing: 1)),
               const SizedBox(width: 10),
-              Text('NEW: GOTCHA 💀 · WILDCARD 🃏',
-                  style: _vt(14, color: DossedartTokens.yellow)),
+              // Flexible + ellipsis: below tablet width the badge truncates
+              // instead of overflowing the header Row.
+              Flexible(
+                child: Text('NEW: GOTCHA 💀 · WILDCARD 🃏',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _vt(14, color: DossedartTokens.yellow)),
+              ),
             ],
           ),
           const SizedBox(height: 12),
