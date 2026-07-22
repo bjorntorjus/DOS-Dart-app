@@ -38,6 +38,7 @@ import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../theme/dossedart_tokens.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+import '../utils/dossedart_player_accents.dart';
 
 enum _ThrowOutcome { continueTurn, finish, turnEndNoBust, bust }
 
@@ -1521,6 +1522,25 @@ class _GameScreenState extends State<GameScreen> {
         ? null
         : (activePointsSum / activeThrows.length) * 3;
 
+    // HIT% (approved 2026-07-22): share of this leg's darts that hit the
+    // board at all — misses (segment 0) drag it down. Same data window as AVG.
+    final hitPercent = activeThrows.isEmpty
+        ? null
+        : (activeThrows.where((t) => t.segment > 0).length /
+                activeThrows.length *
+                100)
+            .round();
+
+    final standings = [
+      for (var i = 0; i < players.length; i++)
+        X01Standing(
+          name: players[i].name,
+          accent: dossedartAccent(i),
+          remaining: players[i].score,
+          isActive: i == currentPlayerIndex,
+        ),
+    ];
+
     final title = 'X01 · ${widget.startingScore} · ${_outRuleLabel()}';
 
     return Scaffold(
@@ -1538,15 +1558,17 @@ class _GameScreenState extends State<GameScreen> {
               DossedartX01ActiveCard(
                 playerName: player.name,
                 avatarPath: player.avatarPath,
-                // One-colour logic (locked design rule): the active thrower
-                // is always cyan; chrome stays magenta.
-                accentColor: DossedartTokens.cyan,
+                // Grammar rule 3 (2026-07-22): the active thrower carries
+                // their own accent; locked-cyan is retired.
+                accentColor: dossedartAccent(currentPlayerIndex),
                 remaining: player.score,
                 currentDartIndex: dartsInTurn,
                 lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
                 lastTurnSum: lastLabel.isEmpty ? null : lastSum,
                 checkoutTip: tip.isEmpty ? null : tip,
                 avg: avg,
+                hitPercent: hitPercent,
+                standings: standings,
               ),
               // The whole field below the score is a MISS zone; the board sits
               // on top, so any tap off the board (corners, margins, the empty
