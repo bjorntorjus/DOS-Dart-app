@@ -50,6 +50,7 @@ class DossedartOverviewHeader extends StatelessWidget {
             children: [
               Text(
                 playerName,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'PressStart2P',
