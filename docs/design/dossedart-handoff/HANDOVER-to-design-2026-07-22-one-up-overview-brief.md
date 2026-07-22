@@ -57,3 +57,19 @@ SAFE mid-turn · CAN'T BEAT · active player on last life · 6 players in the ra
 
 Same bundle format: HTML artboard(s) + spec cards as fasit, JSX optional. Tokens only (player
 accents from the 5-accent cycle — grammar rule 7), English strings, no border-radius.
+
+---
+
+## Round outcome (2026-07-22) — APPROVED
+
+Bundle received same day (`one-up-overview/design_handoff_1up_overview/`, DOSSEDART (12).zip);
+**proposal A+ (status plate carries the state) approved** — identity (accent frame/glow) and
+state (plate) never share a channel. Decisions on review:
+
+- **HIT-suggestion PROPOSAL: APPROVED** (user sign-off) — `NEED n MORE ▶ T16 +`, lowest single
+  segment that beats the target. Implementation owns the algorithm.
+- Rule 7 honored throughout (correct purple, lime as brand only, 6th player cycles back to cyan).
+- Nit for implementation: the CAN'T BEAT plate's secondary text uses off-token `#ff8fa6` —
+  implement as `red` at reduced opacity. Flagged to design for future rounds.
+- **Order revised (user):** next rounds are **Cricket → Golf** (the most-played modes right now),
+  then Gotcha → Wildcard → Killer last.

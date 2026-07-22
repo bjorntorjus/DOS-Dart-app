@@ -18,6 +18,7 @@ class MemeService {
 
   final List<DartThrow> _turnThrows = [];
   bool _soundPlayedThisTurn = false;
+  bool _missRolledThisTurn = false;
 
   Future<void> init() async {
     _enabled = await AppSettings.getMemeEnabled();
@@ -41,21 +42,26 @@ class MemeService {
     _log.logMeme(event: 'markSoundPlayed', outcome: 'external sound played', soundPlayedThisTurn: true);
   }
 
-  /// Rolls the miss-meme dice, at most once per turn: once any sound has
-  /// played this turn the gate stays shut until [resetTurn]/[onTurnEnd]
-  /// (frequency 10 = "always" bypasses the gate, matching the classic ATC
-  /// semantics). Modes where missing is the common outcome (Golf, ATC)
-  /// otherwise fire a meme every few darts. Returns true when a meme sound
-  /// was queued — callers should then skip their own miss sound/TTS.
+  /// Rolls the miss-meme dice, at most ONCE per turn — win or lose the roll,
+  /// the turn's roll is spent (meme-damping 2026-07-22: per-miss rolls meant
+  /// a miss-heavy Golf/ATC turn fired a meme more often than not, and stacked
+  /// several in one turn). A sound played by any other meme path also keeps
+  /// the gate shut until [resetTurn]/[onTurnEnd]. Frequency 10 = "always"
+  /// bypasses both gates, matching the classic ATC semantics. Returns true
+  /// when a meme sound was queued — callers should then skip their own miss
+  /// sound/TTS.
   bool tryMissSound() {
     if (!_enabled) return false;
-    if (_soundPlayedThisTurn && _frequency < 10) {
+    if ((_soundPlayedThisTurn || _missRolledThisTurn) && _frequency < 10) {
       _log.logMeme(
           event: 'tryMissSound',
-          outcome: 'skipped (soundPlayedThisTurn)',
-          soundPlayedThisTurn: true);
+          outcome: _soundPlayedThisTurn
+              ? 'skipped (soundPlayedThisTurn)'
+              : 'skipped (missRolledThisTurn)',
+          soundPlayedThisTurn: _soundPlayedThisTurn);
       return false;
     }
+    _missRolledThisTurn = true;
     final played = _sound.playRandomMaybe(
       ['miss', if (_memeOffensive) 'miss/offensive'],
       chance: frequencyChance,
@@ -148,6 +154,7 @@ class MemeService {
     }
     _turnThrows.clear();
     _soundPlayedThisTurn = false;
+    _missRolledThisTurn = false;
     return triggered;
   }
 
@@ -162,5 +169,6 @@ class MemeService {
   void resetTurn() {
     _turnThrows.clear();
     _soundPlayedThisTurn = false;
+    _missRolledThisTurn = false;
   }
 }

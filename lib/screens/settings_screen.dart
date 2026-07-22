@@ -24,6 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Memes
   bool _memeEnabled = false;
+  int _memeFrequency = 5;
 
   // Debug
   LogMode _logMode = LogMode.full;
@@ -63,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ttsWinner = await AppSettings.getTtsWinner();
     final ttsGameEvents = await AppSettings.getTtsGameEvents();
     final memeEnabled = await AppSettings.getMemeEnabled();
+    final memeFrequency = await AppSettings.getMemeFrequency();
     final soundEffectsEnabled = await AppSettings.getSoundEffectsEnabled();
     final videoEventsEnabled = await AppSettings.getVideoEventsEnabled();
     final ttsVoice = await AppSettings.getTtsVoice();
@@ -89,6 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _ttsWinner = ttsWinner;
       _ttsGameEvents = ttsGameEvents;
       _memeEnabled = memeEnabled;
+      _memeFrequency = memeFrequency;
       _soundEffectsEnabled = soundEffectsEnabled;
       _videoEventsEnabled = videoEventsEnabled;
       _eloKNew = eloKNew;
@@ -453,16 +456,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       );
                     },
-                    child: SwitchListTile(
-                      title: const Text('Enable memes'),
-                      subtitle: const Text('Fun announcements during games'),
-                      value: _memeEnabled,
-                      onChanged: (v) {
-                        setState(() => _memeEnabled = v);
-                        AppSettings.setMemeEnabled(v);
-                      },
-                      activeTrackColor:
-                          Theme.of(context).colorScheme.primary,
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          title: const Text('Enable memes'),
+                          subtitle:
+                              const Text('Fun announcements during games'),
+                          value: _memeEnabled,
+                          onChanged: (v) {
+                            setState(() => _memeEnabled = v);
+                            AppSettings.setMemeEnabled(v);
+                          },
+                          activeTrackColor:
+                              Theme.of(context).colorScheme.primary,
+                        ),
+                        if (_memeEnabled)
+                          ListTile(
+                            title: const Text('Meme frequency'),
+                            subtitle: Slider(
+                              value: _memeFrequency.toDouble(),
+                              min: 1,
+                              max: 10,
+                              divisions: 9,
+                              label: _memeFrequency == 10
+                                  ? 'Always'
+                                  : '$_memeFrequency',
+                              onChanged: (v) {
+                                setState(() => _memeFrequency = v.round());
+                                AppSettings.setMemeFrequency(v.round());
+                              },
+                            ),
+                            trailing: Text(
+                              _memeFrequency == 10
+                                  ? 'Always'
+                                  : '$_memeFrequency/10',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),

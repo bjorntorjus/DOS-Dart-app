@@ -68,27 +68,51 @@ void main() {
       expect(m.tryMissSound(), isTrue);
     });
 
+    test('the dice roll happens at most once per turn even when it misses',
+        () {
+      // Meme-damping 2026-07-22: three misses in a turn used to mean three
+      // independent rolls (log showed 3 meme sounds inside one second).
+      final m = freshService(frequency: 1); // 1/8 chance — usually misses
+      m.tryMissSound(); // first roll of the turn, any outcome
+      for (var i = 0; i < 50; i++) {
+        expect(m.tryMissSound(), isFalse,
+            reason: 'no further rolls this turn after the first');
+      }
+      final m10 = freshService(frequency: 10);
+      m10.tryMissSound();
+      expect(m10.tryMissSound(), isTrue,
+          reason: 'frequency 10 ("always") bypasses the roll-once gate too');
+    });
+
+    test('onTurnEnd reopens the roll-once gate', () {
+      final m = freshService(frequency: 10);
+      m.setFrequency(1);
+      m.tryMissSound(); // consumes the turn's roll
+      m.onTurnEnd();
+      m.setFrequency(10); // always → deterministic
+      expect(m.tryMissSound(), isTrue);
+    });
+
     test('a successful roll closes the gate for the rest of the turn', () {
       final m = freshService(frequency: 5); // 1/3 chance per roll
-      // Roll until the dice hit once (bounded so a broken implementation
-      // fails the test instead of hanging).
+      // Each turn gets one roll — reset between attempts (bounded so a
+      // broken implementation fails the test instead of hanging).
       var played = false;
       for (var i = 0; i < 1000 && !played; i++) {
         played = m.tryMissSound();
+        if (!played) m.resetTurn();
       }
       expect(played, isTrue,
-          reason: '1/3 chance should hit within 1000 rolls');
+          reason: 'the per-turn roll should hit within 1000 turns');
       // From now on, every further miss this turn stays silent.
       for (var i = 0; i < 50; i++) {
         expect(m.tryMissSound(), isFalse);
       }
-      // Next turn: open again.
+      // Next turn: open again (dice may miss, but the roll is available —
+      // frequency 10 makes it deterministic).
       m.resetTurn();
-      var playedNextTurn = false;
-      for (var i = 0; i < 1000 && !playedNextTurn; i++) {
-        playedNextTurn = m.tryMissSound();
-      }
-      expect(playedNextTurn, isTrue);
+      m.setFrequency(10);
+      expect(m.tryMissSound(), isTrue);
     });
   });
 }
