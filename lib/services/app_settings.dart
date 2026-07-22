@@ -170,6 +170,7 @@ class AppSettings {
   static const String _memeRoundSoundsKey = 'meme_round_sounds';
   static const String _memeOffensiveKey = 'meme_offensive';
   static const String _memeFrequencyKey = 'meme_frequency';
+  static const String _videoFrequencyKey = 'video_frequency';
 
   static Future<bool> getMemeEnabled() async {
     final prefs = await SharedPreferences.getInstance();
@@ -230,6 +231,18 @@ class AppSettings {
   static Future<void> setMemeFrequency(int value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_memeFrequencyKey, value);
+  }
+
+  /// Video frequency: 1 (rare) to 10 (every event). Default 5 (1-in-4) —
+  /// video-damping 2026-07-22, the winner video used to play after every game.
+  static Future<int> getVideoFrequency() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_videoFrequencyKey) ?? 5;
+  }
+
+  static Future<void> setVideoFrequency(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_videoFrequencyKey, value);
   }
 
   // Sound effects

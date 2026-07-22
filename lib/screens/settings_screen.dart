@@ -4,6 +4,7 @@ import '../services/app_settings.dart';
 import '../services/elo_service.dart';
 import '../services/game_logger.dart';
 import '../services/tts_service.dart';
+import '../services/video_service.dart';
 import 'meme_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -35,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Sound & Video
   bool _soundEffectsEnabled = true;
   bool _videoEventsEnabled = true;
+  int _videoFrequency = 5;
 
   // TTS
   bool _ttsEnabled = false;
@@ -67,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final memeFrequency = await AppSettings.getMemeFrequency();
     final soundEffectsEnabled = await AppSettings.getSoundEffectsEnabled();
     final videoEventsEnabled = await AppSettings.getVideoEventsEnabled();
+    final videoFrequency = await AppSettings.getVideoFrequency();
     final ttsVoice = await AppSettings.getTtsVoice();
     final eloKNew = await AppSettings.getEloKNew();
     final eloKExp = await AppSettings.getEloKExp();
@@ -94,6 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _memeFrequency = memeFrequency;
       _soundEffectsEnabled = soundEffectsEnabled;
       _videoEventsEnabled = videoEventsEnabled;
+      _videoFrequency = videoFrequency;
       _eloKNew = eloKNew;
       _eloKExp = eloKExp;
       _eloThreshold = eloThreshold;
@@ -530,10 +534,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (v) {
                           setState(() => _videoEventsEnabled = v);
                           AppSettings.setVideoEventsEnabled(v);
+                          VideoService.instance.setEnabled(v);
                         },
                         activeTrackColor:
                             Theme.of(context).colorScheme.primary,
                       ),
+                      if (_videoEventsEnabled)
+                        ListTile(
+                          title: const Text('Video frequency'),
+                          subtitle: Slider(
+                            value: _videoFrequency.toDouble(),
+                            min: 1,
+                            max: 10,
+                            divisions: 9,
+                            label: _videoFrequency == 10
+                                ? 'Always'
+                                : '$_videoFrequency',
+                            onChanged: (v) {
+                              setState(() => _videoFrequency = v.round());
+                              AppSettings.setVideoFrequency(v.round());
+                              VideoService.instance.setFrequency(v.round());
+                            },
+                          ),
+                          trailing: Text(
+                            _videoFrequency == 10
+                                ? 'Always'
+                                : '$_videoFrequency/10',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
                     ],
                   ),
                 ),

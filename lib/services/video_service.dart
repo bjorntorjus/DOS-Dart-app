@@ -12,7 +12,11 @@ class VideoService {
   static final VideoService instance = VideoService._();
 
   bool _enabled = true;
-  final Random _random = Random();
+  int _frequency = 5;
+
+  /// Injectable for deterministic dice tests; production leaves the default.
+  @visibleForTesting
+  Random random = Random();
 
   /// F18: hard off-switch for tests. Checked at show-time so the async
   /// prefs re-read in init() cannot re-enable videos mid-test.
@@ -21,10 +25,39 @@ class VideoService {
 
   Future<void> init() async {
     _enabled = await AppSettings.getVideoEventsEnabled();
+    _frequency = await AppSettings.getVideoFrequency();
   }
 
   void setEnabled(bool value) {
     _enabled = value;
+  }
+
+  void setFrequency(int value) {
+    _frequency = value;
+  }
+
+  /// Frequency (1-10) → chance denominator, same scale as the meme dice:
+  /// 1=1/8, 5=1/4 (default), 8=1/2, 10=always.
+  static int frequencyToChance(int frequency) {
+    if (frequency >= 10) return 1;
+    if (frequency >= 8) return 2;
+    if (frequency >= 6) return 3;
+    if (frequency >= 4) return 4;
+    if (frequency >= 2) return 6;
+    return 8;
+  }
+
+  /// The decision seam for every video (video-damping 2026-07-22: all call
+  /// sites showed their video 100% of the time — the winner video played
+  /// after every single game). Rolls the GLOBAL frequency dice (bypassed at
+  /// frequency 10 = "always"), then any explicit per-call [chance] on top.
+  @visibleForTesting
+  bool shouldPlay({int chance = 1}) {
+    if (!_enabled) return false;
+    final globalChance = frequencyToChance(_frequency);
+    if (globalChance > 1 && random.nextInt(globalChance) != 0) return false;
+    if (chance > 1 && random.nextInt(chance) != 0) return false;
+    return true;
   }
 
   /// Show a specific [name].mp4 from assets/videos/ as an overlay.
@@ -51,8 +84,7 @@ class VideoService {
   /// Supports .mp4 and .gif files.
   Future<void> showRandomFromFolder(BuildContext context, String folder, {int chance = 1}) async {
     if (disableForTest) return;
-    if (!_enabled) return;
-    if (chance > 1 && _random.nextInt(chance) != 0) return;
+    if (!shouldPlay(chance: chance)) return;
 
     try {
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
@@ -66,7 +98,7 @@ class VideoService {
 
       if (files.isEmpty) return;
 
-      final picked = files[_random.nextInt(files.length)];
+      final picked = files[random.nextInt(files.length)];
       if (!context.mounted) return;
 
       await showDialog(
