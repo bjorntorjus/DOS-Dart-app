@@ -1,18 +1,46 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'data/achievement_catalog.dart';
 import 'screens/dossedart/dossedart_home_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/achievement_service.dart';
 import 'services/app_settings.dart';
 import 'services/elo_service.dart';
 import 'services/game_logger.dart';
+import 'services/player_storage.dart';
+import 'services/stats_migration.dart';
 import 'theme/classic_theme.dart';
 import 'theme/dossedart_theme.dart';
+import 'widgets/dossedart/achievement_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GameLogger.instance.init();
   await EloService.loadSettings();
   final useDossedartDesign = await AppSettings.getUseDossedartDesign();
+
+  // Achievements: register the catalog and silently retro-grant everything the
+  // existing stats already prove (no banners for past play — spec decision #3).
+  AchievementService.instance.registerCatalog(achievementCatalog);
+
+  // One-time cleanup of bust-merged X01 turn stats (the bogus >180 "highest
+  // turn" records). Runs once, before players are loaded for retro-granting.
+  await StatsMigration.runIfNeeded();
+
+  final savedPlayers = await PlayerStorage.loadPlayers();
+  var retroChanged = false;
+  for (final p in savedPlayers) {
+    // Revoke before retro-grant: the falsely granted ids are either
+    // event-based or outcome-gated, so retro-grant cannot re-add them.
+    if (AchievementService.instance.revokeFalseUnlocks(p)) {
+      retroChanged = true;
+    }
+    if (!p.achievementsRetroGranted) {
+      AchievementService.instance.retroGrantSilently(p);
+      retroChanged = true;
+    }
+  }
+  if (retroChanged) await PlayerStorage.savePlayers(savedPlayers);
 
   // Catch Flutter framework errors
   FlutterError.onError = (details) {
@@ -44,6 +72,8 @@ class DartScoringApp extends StatelessWidget {
       title: 'Dart Scorer',
       debugShowCheckedModeBanner: false,
       theme: useDossedartDesign ? buildDossedartTheme() : buildClassicTheme(),
+      builder: (context, child) =>
+          AchievementOverlayHost(child: child ?? const SizedBox.shrink()),
       home: useDossedartDesign
           ? const DossedartHomeScreen()
           : const HomeScreen(),

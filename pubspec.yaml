@@ -1,4 +1,4 @@
-name: dart_scoring
+﻿name: dart_scoring
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.0+15
+version: 1.17.0+42
 
 environment:
   sdk: ^3.11.1
@@ -49,6 +49,12 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+
+  # Used directly (not just transitively via path_provider) by
+  # test/services/sound_service_queue_test.dart to fake
+  # PathProviderPlatform.instance so AudioCache's temp-directory lookup
+  # resolves without a platform channel.
+  path_provider_platform_interface: ^2.1.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

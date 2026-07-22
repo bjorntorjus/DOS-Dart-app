@@ -59,13 +59,13 @@ class _DossedartSplitscoreSetupScreenState
           ]),
           const SizedBox(height: 14),
           ArcadeToggleRow(toggles: [
-            ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+            ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
           ]),
         ] else ...[
           const SizedBox(height: 14),
           ArcadeToggleRow(toggles: [
             ('BULL', _includeBull, (v) => setState(() => _includeBull = v)),
-            ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+            ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
           ]),
         ],
       ],
@@ -86,6 +86,7 @@ class _DossedartSplitscoreSetupScreenState
       MaterialPageRoute(
         builder: (_) => HalveItGameScreen(
           players: players,
+          useDossedartDesign: true,
           config: HalveItConfig(
             isRandom: _isRandom,
             roundCount: _roundCount,

@@ -190,6 +190,31 @@ void main() {
       expect(e.totalScores, [0, 0]);
     });
 
+    test('canUndo reflects the undo stack', () {
+      final e = ShanghaiGameEngine(playerCount: 2, targetEnd: 7);
+      expect(e.canUndo, isFalse);
+      e.recordThrow(HitType.single);
+      expect(e.canUndo, isTrue);
+      e.undo();
+      expect(e.canUndo, isFalse);
+    });
+
+    test('canUndo flips false after addPlayer clears the stack', () {
+      final e = ShanghaiGameEngine(playerCount: 2, targetEnd: 7);
+      e.recordThrow(HitType.single);
+      expect(e.canUndo, isTrue);
+      e.addPlayer();
+      expect(e.canUndo, isFalse);
+    });
+
+    test('canUndo flips false after removePlayer clears the stack', () {
+      final e = ShanghaiGameEngine(playerCount: 3, targetEnd: 7);
+      e.recordThrow(HitType.single);
+      expect(e.canUndo, isTrue);
+      e.removePlayer(2);
+      expect(e.canUndo, isFalse);
+    });
+
     test('addPlayer mid-game adds player with score 0', () {
       final e = ShanghaiGameEngine(playerCount: 2, targetEnd: 7);
       e.recordThrow(HitType.triple);

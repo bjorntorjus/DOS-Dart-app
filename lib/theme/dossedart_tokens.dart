@@ -9,6 +9,9 @@ class DossedartTokens {
   static const Color bg = Color(0xFF0A0014);
   static const Color surface = Color(0xFF1A0030);
 
+  /// Raised purple chip surface (avatar backgrounds) — one step above [surface].
+  static const Color surfaceRaised = Color(0xFF2A0050);
+
   // Accents
   static const Color magenta = Color(0xFFFF00AA);
   static const Color cyan = Color(0xFF00E5FF);
@@ -17,6 +20,16 @@ class DossedartTokens {
   static const Color red = Color(0xFFFF3050);
   static const Color purple = Color(0xFF7B3FFF);
   static const Color orange = Color(0xFFFF7A00);
+
+  /// 1UP / extra-life accent — mode brand only (approved 2026-07-16).
+  /// Never a player colour; red/green keep the danger/SAFE roles.
+  static const Color lime = Color(0xFFC6FF3C);
+
+  // Inactive content / non-active opponents (single phosphor tone, not a
+  // per-player colour) + podium placements.
+  static const Color phosphor = Color(0xFFD9D2C2);
+  static const Color silver = Color(0xFFC9D2DA);
+  static const Color bronze = Color(0xFFD08A4A);
 
   // Disabled state (used by primitives that can become unavailable)
   static const Color disabledFill = Color(0x1FFFFFFF);   // Colors.white12

@@ -8,7 +8,10 @@ void main() {
     ArcadeFrame.disableBeamForTest = true;
   });
   tearDown(() {
-    ArcadeFrame.disableBeamForTest = false;
+    // Reset to the new global baseline (set by test/flutter_test_config.dart),
+    // not the pre-F18 default, so we don't leak an active beam timer into
+    // later tests in this file's run.
+    ArcadeFrame.disableBeamForTest = true;
   });
 
   testWidgets('renders child without throwing', (tester) async {

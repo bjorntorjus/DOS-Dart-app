@@ -6,6 +6,7 @@ import '../services/player_storage.dart';
 import '../services/game_history_service.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/heatmap_board.dart';
+import '../utils/player_colors.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -19,6 +20,11 @@ class _StatsScreenState extends State<StatsScreen>
   List<SavedPlayer> _players = [];
   List<GameHistoryEntry> _history = [];
   bool _isLoading = true;
+
+  /// Players shown in lists and leaderboards. [_players] keeps the full
+  /// list so id lookups (H2H names, heatmap) still resolve archived players.
+  List<SavedPlayer> get _visiblePlayers =>
+      _players.where((p) => !p.archived).toList();
   late TabController _tabController;
   String? _heatmapPlayer1Id;
   String? _heatmapPlayer2Id;
@@ -107,7 +113,7 @@ class _StatsScreenState extends State<StatsScreen>
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _players.isEmpty
+          : _visiblePlayers.isEmpty
               ? const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -144,14 +150,15 @@ class _StatsScreenState extends State<StatsScreen>
   // ──────────────────────────────────────────
 
   Widget _buildPlayersTab() {
+    final visible = _visiblePlayers;
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _players.length,
-      itemBuilder: (context, index) => _buildPlayerCard(_players[index]),
+      itemCount: visible.length,
+      itemBuilder: (context, index) => _buildPlayerCard(visible[index], index),
     );
   }
 
-  Widget _buildPlayerCard(SavedPlayer p) {
+  Widget _buildPlayerCard(SavedPlayer p, int index) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -166,7 +173,7 @@ class _StatsScreenState extends State<StatsScreen>
                   avatarPath: p.avatarPath,
                   name: p.name,
                   radius: 22,
-                  backgroundColor: Colors.blue,
+                  backgroundColor: avatarColor(index),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -191,8 +198,8 @@ class _StatsScreenState extends State<StatsScreen>
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.red, size: 20),
+                  icon: Icon(Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error, size: 20),
                   onPressed: () => _deletePlayer(p),
                 ),
               ],
@@ -256,8 +263,9 @@ class _StatsScreenState extends State<StatsScreen>
                     size: const Size(double.infinity, 120),
                     painter: _RatingGraphPainter(
                       snapshots: p.ratingHistory,
-                      lineColor: Colors.blue,
+                      lineColor: Theme.of(context).colorScheme.primary,
                       textColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55),
+                      gridColor: Theme.of(context).colorScheme.outline.withAlpha(50),
                     ),
                   ),
                 ),
@@ -274,7 +282,7 @@ class _StatsScreenState extends State<StatsScreen>
   // ──────────────────────────────────────────
 
   Widget _buildModeTab(String modeKey, String modeLabel) {
-    final playersWithMode = _players
+    final playersWithMode = _visiblePlayers
         .where((p) => p.modeStats.containsKey(modeKey))
         .toList()
       ..sort((a, b) {
@@ -349,7 +357,7 @@ class _StatsScreenState extends State<StatsScreen>
                   avatarPath: p.avatarPath,
                   name: p.name,
                   radius: 20,
-                  backgroundColor: Colors.blue,
+                  backgroundColor: avatarColor(rank),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -382,7 +390,7 @@ class _StatsScreenState extends State<StatsScreen>
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: int.parse(winRate) >= 50
-                            ? Colors.green
+                            ? Theme.of(context).colorScheme.primary
                             : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
@@ -423,6 +431,14 @@ class _StatsScreenState extends State<StatsScreen>
         return _buildCricketStats(ms);
       case 'aroundTheClock':
         return _buildClockStats(ms);
+      case 'gotcha':
+        return _buildGotchaStats(ms);
+      case 'wildcard':
+        return _buildWildcardStats(ms);
+      case 'oneUp':
+        return _buildOneUpStats(ms);
+      case 'golf':
+        return _buildGolfStats(ms);
       default:
         return [];
     }
@@ -470,6 +486,70 @@ class _StatsScreenState extends State<StatsScreen>
     ];
   }
 
+  List<Widget> _buildGotchaStats(ModeStats ms) {
+    return [
+      _buildStatsGrid([
+        _StatItem('💀', 'Kills', '${ms.get('kills')}'),
+        _StatItem('🪦', 'Times killed', '${ms.get('timesKilled')}'),
+        _StatItem('💥', 'Busts', '${ms.get('busts')}'),
+        _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
+      ]),
+    ];
+  }
+
+  List<Widget> _buildWildcardStats(ModeStats ms) {
+    return [
+      _buildStatsGrid([
+        _StatItem('🃏', 'Jokers hit', '${ms.get('jokersHit')}'),
+        _StatItem('🎯', 'Window prizes', '${ms.get('windowPrizes')}'),
+        _StatItem('🏹', 'Points stolen', '${ms.get('pointsStolen')}'),
+        _StatItem('🌡️', 'Chaos peak', '${ms.get('chaosPeak')}'),
+        _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
+      ]),
+    ];
+  }
+
+  List<Widget> _buildOneUpStats(ModeStats ms) {
+    return [
+      _buildStatsGrid([
+        _StatItem('💀', 'Eliminations', '${ms.get('elimsDealt')}'),
+        _StatItem('❤️‍🩹', 'Lives lost', '${ms.get('livesLost')}'),
+        _StatItem('📈', 'Targets set', '${ms.get('targetsSet')}'),
+        _StatItem('⏳', 'Turns survived', '${ms.get('turnsSurvived')}'),
+        _StatItem('🎯', 'Last-dart saves', '${ms.get('lastDartSaves')}'),
+        _StatItem('⚡', 'Best turn', ms.get('highestTurn') > 0 ? '${ms.get('highestTurn')}' : '-'),
+        _StatItem('🏁', 'Rounds won', '${ms.get('roundsWon')}'),
+      ]),
+    ];
+  }
+
+  List<Widget> _buildGolfStats(ModeStats ms) {
+    final totalStrokes = ms.get('totalStrokes');
+    final holesPlayed = ms.get('holesPlayed');
+    final avgStrokes = holesPlayed > 0
+        ? (totalStrokes / holesPlayed).toStringAsFixed(1)
+        : '-';
+    final firstDartHits = ms.get('firstDartHits');
+    final firstDartRate = holesPlayed > 0
+        ? (firstDartHits / holesPlayed * 100).toStringAsFixed(0)
+        : '0';
+    final bestHole = ms.get('bestHole');
+    final bestRound9 = ms.get('bestRound9');
+    final bestRound18 = ms.get('bestRound18');
+
+    return [
+      _buildStatsGrid([
+        _StatItem('⛳', 'Aces', '${ms.get('aces')}'),
+        _StatItem('😬', 'Bogeys', '${ms.get('bogeys')}'),
+        _StatItem('📊', 'Avg strokes/hole', avgStrokes),
+        _StatItem('🏌️', 'Best hole', bestHole > 0 ? '$bestHole' : '-'),
+        _StatItem('9️⃣', 'Best 9', bestRound9 > 0 ? '$bestRound9' : '-'),
+        _StatItem('🔟', 'Best 18', bestRound18 > 0 ? '$bestRound18' : '-'),
+        _StatItem('🎯', 'First-dart rate', '$firstDartRate%'),
+      ]),
+    ];
+  }
+
   List<Widget> _buildKillerStats(ModeStats ms) {
     final kills = ms.get('kills');
     final shieldsGained = ms.get('shieldsGained');
@@ -494,9 +574,9 @@ class _StatsScreenState extends State<StatsScreen>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.red.withAlpha(25),
+              color: Theme.of(context).colorScheme.error.withAlpha(25),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.red.withAlpha(60)),
+              border: Border.all(color: Theme.of(context).colorScheme.error.withAlpha(60)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -506,7 +586,7 @@ class _StatsScreenState extends State<StatsScreen>
                 Text(
                   'Aggressive Player!',
                   style: TextStyle(
-                    color: Colors.red[300],
+                    color: Theme.of(context).colorScheme.error,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -808,7 +888,7 @@ class _StatsScreenState extends State<StatsScreen>
             items: [
               if (allowNone)
                 const DropdownMenuItem(value: null, child: Text('None')),
-              ..._players.map((p) => DropdownMenuItem(
+              ..._visiblePlayers.map((p) => DropdownMenuItem(
                     value: p.id,
                     child: Text(p.name, overflow: TextOverflow.ellipsis),
                   )),
@@ -1148,7 +1228,9 @@ class _StatsScreenState extends State<StatsScreen>
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.bold,
-        color: isUp ? Colors.green[400] : Colors.red[400],
+        color: isUp
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.error,
       ),
     );
   }
@@ -1179,8 +1261,14 @@ class _RatingGraphPainter extends CustomPainter {
   final List<RatingSnapshot> snapshots;
   final Color lineColor;
   final Color textColor;
+  final Color gridColor;
 
-  _RatingGraphPainter({required this.snapshots, required this.lineColor, required this.textColor});
+  _RatingGraphPainter({
+    required this.snapshots,
+    required this.lineColor,
+    required this.textColor,
+    required this.gridColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1205,7 +1293,7 @@ class _RatingGraphPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final gridPaint = Paint()
-      ..color = Colors.grey.withAlpha(50)
+      ..color = gridColor
       ..strokeWidth = 0.5;
 
     // Draw horizontal grid lines

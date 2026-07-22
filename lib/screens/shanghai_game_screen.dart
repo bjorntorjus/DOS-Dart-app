@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_result.dart';
@@ -8,6 +9,7 @@ import '../models/shanghai_engine.dart';
 import '../services/app_settings.dart';
 import '../services/battery_sampler.dart';
 import '../services/elo_service.dart';
+import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
@@ -18,17 +20,30 @@ import '../services/video_service.dart';
 import '../utils/player_colors.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
+import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
+import '../services/achievement_service.dart';
 import '../widgets/player_avatar.dart';
 import 'post_game_screen.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_active_strip.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 class ShanghaiGameScreen extends StatefulWidget {
   final List<Player> players;
   final ShanghaiConfig config;
+  final bool useDossedartDesign;
 
   const ShanghaiGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -45,18 +60,50 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   @visibleForTesting
   Future<void> onGameEndForTest() => _onGameEnd();
 
+  @visibleForTesting
+  void onHitForTest(HitType type) => _onHit(type);
+
+  @visibleForTesting
+  void onUndoForTest() => _onUndo();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) {
+    setState(() {
+      _midGamePlayerChanges = true;
+      final removedId = players[playerIndex].savedPlayerId;
+      if (removedId != null) _leftMidGameIds.add(removedId);
+      engine.removePlayer(playerIndex);
+    });
+  }
+
+  @visibleForTesting
+  Future<void> updateStatsForTest() => _updateStats(_rankPlayers());
+
+  @visibleForTesting
+  List<HitType> get turnHitsForTest => _turnHits;
+
   final GameLogger _log = GameLogger.instance;
 
   // Per-turn hit history for the dart-slot display.
   // Reset whenever a new turn starts. Length matches engine.dartNumber.
   final List<HitType> _turnHits = [];
 
+  // Per-dart history feeding the active strip's live turn label (same
+  // turnId-grouped pattern as the other DOSSEDART cockpits).
+  List<DartThrow> throwHistory = [];
+  int _turnIdCounter = 0;
+
   final MemeService _meme = MemeService();
+  final GameAnnouncer _announcer = GameAnnouncer();
+  bool _soundEnabled = true;
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
   bool _ttsEnabled = false;
 
   bool _midGamePlayerChanges = false;
+  final Set<String> _joinedMidGameIds = {};
+  final Set<String> _leftMidGameIds = {};
+  final DateTime _gameStart = DateTime.now();
 
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
@@ -74,16 +121,21 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       playerNames: players.map((p) => p.name).toList(),
       playerScores: List.filled(players.length, 0),
       config: {'targetEnd': widget.config.targetEnd},
+      build: kAppVersion,
     );
     BatterySampler.instance.start('Shanghai');
     _meme.init();
+    AppSettings.getSoundEffectsEnabled().then((v) {
+      if (mounted) setState(() => _soundEnabled = v);
+      SoundService.instance.setEnabled(v);
+    });
     AppSettings.getMemeEnabled().then((v) {
       if (mounted) setState(() => _memeEnabled = v);
     });
     AppSettings.getMemeOffensive().then((v) {
       if (mounted) setState(() => _offensiveEnabled = v);
     });
-    TtsService.instance.init().then((_) {
+    _announcer.init().then((_) {
       if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
     });
   }
@@ -127,6 +179,11 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     }
   }
 
+  /// In-progress turn's darts joined live (e.g. "S5 · S6 · MISS"); falls back
+  /// to the active player's previous turn between turns.
+  String? get _stripTurnLabel =>
+      throwHistory.recentTurnLabel(engine.currentPlayerIndex);
+
   void _onHit(HitType type) {
     if (engine.gameOver) return;
     final playerIdx = engine.currentPlayerIndex;
@@ -162,19 +219,21 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       scoreBefore: scoreBefore,
       turnNumber: dart,
       scoreAtStartOfTurn: wasTurnStart ? scoreBefore : (scoreBefore - 0),
+      turnId: _turnIdCounter,
       roundNumber: engine.currentRound,
     );
+    throwHistory.add(dartThrow);
 
     // Play core sound (miss/nice) before meme so meme can mark and skip TTS.
     if (type == HitType.miss) {
-      SoundService.instance.play('miss/miss');
+      _meme.tryMissSound();
     } else {
       SoundService.instance.play('nice/nice');
     }
 
     final memeTriggered = _meme.onThrow(dartThrow);
-    if (!memeTriggered && _ttsEnabled) {
-      TtsService.instance.speak(_spokenForHit(type, target));
+    if (!memeTriggered) {
+      _announcer.announceThrow(_spokenForHit(type, target));
     }
 
     // Did the engine just advance to the next turn?
@@ -182,6 +241,21 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     if (turnEnded) {
       _meme.onTurnEnd();
       _turnHits.clear();
+      _turnIdCounter++;
+      if (!engine.gameOver) {
+        _log.logTurnStart(
+          roundNumber: engine.currentRound,
+          playerIndex: engine.currentPlayerIndex,
+          playerName: players[engine.currentPlayerIndex].name,
+          score: engine.totalScores[engine.currentPlayerIndex],
+        );
+        _log.logStandings(
+          roundNumber: engine.currentRound,
+          names: players.map((p) => p.name).toList(),
+          scores: engine.totalScores,
+        );
+        _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+      }
     }
 
     if (engine.gameOver) {
@@ -197,22 +271,20 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       gameFullyOver: true,
     );
     BatterySampler.instance.stop();
-    await _fireWinnerCelebration();
+    await _fireWinnerCelebration(players[ranking.first].name);
+    if (!mounted) return;
+    // Preview rating deltas so they're visible on the result screen even
+    // though recording is deferred until the user leaves (audit F17).
+    await _prepareRatingPreview(ranking);
     if (!mounted) return;
     _showPostGame(ranking);
   }
 
-  Future<void> _fireWinnerCelebration() async {
-    if (engine.isInstantShanghai && _ttsEnabled) {
-      // High-priority announcement — stop any queued TTS so this lands first.
-      TtsService.instance.stop();
-      TtsService.instance.speak('INSTANT SHANGHAI!');
-    }
-    if (!mounted) return;
-    await VideoService.instance.showRandomFromFolder(context, 'winner');
-  }
-
-  Future<void> _updateStats(List<int> ranking) async {
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording stays
+  /// deferred until the user leaves the result screen.
+  Future<void> _prepareRatingPreview(List<int> ranking) async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -222,6 +294,23 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(ranking),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Placements from [ranking]; equal totals share a placement.
+  List<int> _buildPlacements(List<int> ranking) {
     final placements = List.filled(players.length, 0);
     for (int rank = 0; rank < ranking.length; rank++) {
       final idx = ranking[rank];
@@ -232,6 +321,43 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
         placements[idx] = rank + 1;
       }
     }
+    return placements;
+  }
+
+  Future<void> _fireWinnerCelebration(String winnerName) async {
+    _announcer.stop();
+    if (engine.isInstantShanghai) {
+      _announcer.announceGameEvent('Instant Shanghai!');
+    }
+    if (!mounted) return;
+    await VideoService.instance.showRandomFromFolder(context, 'winner');
+    if (!mounted) return;
+    _announcer.announceWinner(winnerName);
+  }
+
+  Future<void> _updateStats(List<int> ranking) async {
+    if (_midGamePlayerChanges) {
+      // Roster changed — record only join/leave counters and write NO game
+      // entry. Recording a full game here stored placement 0 for removed
+      // players (which sorts above 1st in history) and lost join/leave
+      // counters entirely (audit 2026-07-06, F10). Now matches the other
+      // five modes.
+      await StatsRecorder.recordMidGameChanges(
+        joinedIds: _joinedMidGameIds,
+        leftIds: _leftMidGameIds,
+      );
+      return;
+    }
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    final placements = _buildPlacements(ranking);
 
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -245,13 +371,13 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       };
     }
 
-    if (!_midGamePlayerChanges) {
-      EloService.updateRatings(
-        playerIds: players.map((p) => p.savedPlayerId).toList(),
-        placements: placements,
-        savedPlayers: savedPlayers,
-      );
-    }
+    // Reached only when the roster was unchanged (mid-game changes returned
+    // early above), so Elo / achievements / persistence always apply here.
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: placements,
+      savedPlayers: savedPlayers,
+    );
 
     _ratingsAfter = {};
     for (final p in players) {
@@ -259,6 +385,22 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
+
+    final events = <int, List<AchievementEvent>>{};
+    if (engine.isInstantShanghai && engine.winnerIndex != null) {
+      events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
+    }
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.shanghai,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: events,
+    );
+    final earnedFeats =
+        buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
 
     StatsRecorder.recordGame(
       gameMode: 'shanghai',
@@ -269,11 +411,13 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      gameConfig: 'Shanghai',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex: earnedFeats,
     );
 
-    if (!_midGamePlayerChanges) {
-      await PlayerStorage.savePlayers(savedPlayers);
-    }
+    await PlayerStorage.savePlayers(savedPlayers);
   }
 
   void _showPostGame(List<int> ranking) {
@@ -305,7 +449,19 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       if (!mounted) return;
       if (action == 'undo') {
         // User wants to keep playing — undo the game-end and return to game.
-        setState(() => engine.undo());
+        // Same guard as _onUndo: a stack emptied by add/remove player must
+        // not rewind the screen-side history the engine cannot match.
+        if (!engine.canUndo) return;
+        setState(() {
+          engine.undo();
+          if (throwHistory.isNotEmpty) {
+            final lastThrow = throwHistory.removeLast();
+            _turnIdCounter = lastThrow.turnId;
+          }
+          // Post-game undo used to leave _turnHits stale (e.g. 3 slots after
+          // an instant Shanghai) — rebuild it from the engine (F13).
+          _rebuildTurnHits();
+        });
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
@@ -329,13 +485,51 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     return indices;
   }
 
+  /// Rebuilds the in-progress turn's dart slots ([_turnHits]) from the engine
+  /// state and throwHistory. [_turnHits] is display-only state mirroring the
+  /// engine; deriving it after an undo avoids the desync from trying to pop it
+  /// (audit 2026-07-06, F13).
+  void _rebuildTurnHits() {
+    _turnHits.clear();
+    final n = engine.dartNumber; // darts already thrown in the current turn
+    if (n <= 0) return;
+    final mine = throwHistory
+        .where((t) => t.playerIndex == engine.currentPlayerIndex)
+        .toList();
+    final slice = mine.length <= n ? mine : mine.sublist(mine.length - n);
+    for (final t in slice) {
+      _turnHits.add(_hitTypeForThrow(t));
+    }
+  }
+
+  HitType _hitTypeForThrow(DartThrow t) {
+    if (t.segment == 0) return HitType.miss;
+    switch (t.multiplier) {
+      case 2:
+        return HitType.double_;
+      case 3:
+        return HitType.triple;
+      default:
+        return HitType.single;
+    }
+  }
+
   void _onUndo() {
     if (engine.gameOver) return;
+    // Add/remove player clears the engine's undo stack and engine.undo()
+    // silently no-ops when empty — rewinding the screen-side history then
+    // would desync the strip's turn grouping.
+    if (!engine.canUndo) return;
     setState(() {
       engine.undo();
-      if (_turnHits.isNotEmpty) {
-        _turnHits.removeLast();
+      if (throwHistory.isNotEmpty) {
+        final lastThrow = throwHistory.removeLast();
+        _turnIdCounter = lastThrow.turnId;
       }
+      // Derive the in-progress turn's slots from the engine rather than
+      // popping _turnHits — a turn-boundary undo (or post-game undo) can't be
+      // reconstructed by removeLast, which desynced the dart slots (F13).
+      _rebuildTurnHits();
     });
     _log.logUndo(
       playerIndex: engine.currentPlayerIndex,
@@ -344,6 +538,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       scoreRestored: engine.totalScores[engine.currentPlayerIndex],
       roundNumber: engine.currentRound,
     );
+    _announcer.announceGameEvent('Back');
   }
 
   void _confirmExit() {
@@ -369,6 +564,32 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == engine.currentPlayerIndex,
+        isRemoved: engine.isSkipped(i),
+        primary: '${engine.totalScores[i]}',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: engine.gameOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
     );
   }
 
@@ -400,6 +621,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     }
     setState(() {
       _midGamePlayerChanges = true;
+      _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
         score: avgScore,
@@ -408,6 +630,13 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ));
       engine.addPlayer(initialScore: avgScore);
     });
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: engine.totalScores,
+    );
   }
 
   void _removePlayerMidGame(int playerIndex) {
@@ -415,18 +644,22 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Rating will not be updated for this game.'),
+        content: const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
+              final removedId = players[playerIndex].savedPlayerId;
               setState(() {
                 _midGamePlayerChanges = true;
+                if (removedId != null) _leftMidGameIds.add(removedId);
                 final wasCurrent = engine.currentPlayerIndex == playerIndex;
                 engine.removePlayer(playerIndex);
                 if (wasCurrent) _turnHits.clear();
@@ -434,6 +667,16 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                   _onGameEnd();
                 }
               });
+              // removePlayer flags the index in the engine's skip set rather
+              // than splicing — players[playerIndex] is still the removed
+              // player after the mutation, so the name read below is safe.
+              _log.logRoster(
+                action: 'REMOVE',
+                playerIndex: playerIndex,
+                playerName: players[playerIndex].name,
+                names: players.map((p) => p.name).toList(),
+                scores: engine.totalScores,
+              );
             },
             child: const Text('Remove'),
           ),
@@ -495,6 +738,285 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — three chase cells (S/D/T of the round number)
+  // are both the input and the Shanghai tracker; a gold banner counts the n/3
+  // chase. Every tap feeds the same engine.recordThrow via _onHit.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: 'SHANGHAI · 1→${engine.targetEnd}',
+                onExit: _confirmExit,
+                trailing: 'RND ${engine.currentRound + 1}/${engine.targetEnd}',
+              ),
+              DossedartActiveStrip(
+                playerName: players[engine.currentPlayerIndex].name,
+                avatarPath: players[engine.currentPlayerIndex].avatarPath,
+                accentColor: DossedartTokens.cyan,
+                dartsInTurn: engine.dartNumber,
+                lastThrowLabel: _stripTurnLabel,
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('TOTAL',
+                        style: TextStyle(
+                            fontFamily: 'VT323',
+                            fontSize: 12,
+                            color: Colors.white54,
+                            letterSpacing: 2)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${engine.totalScores[engine.currentPlayerIndex]}',
+                      style: const TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 36,
+                        color: DossedartTokens.cyan,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _shanghaiStandings(),
+              _shanghaiBanner(),
+              Expanded(child: Center(child: _shanghaiChaseCells())),
+              _shanghaiRoundLadder(),
+              DossedartActionBar(
+                onUndo: _onUndo,
+                onMiss: () => _onHit(HitType.miss),
+                onMenu: () => showDossedartCockpitMenu(
+                  context,
+                  meme: _meme,
+                  onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+                  onPlayerOverview: _openDossedartPlayerSheet,
+                  onExit: _confirmExit,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shanghaiStandings() {
+    final order = [
+      for (int i = 0; i < players.length; i++)
+        if (!engine.isSkipped(i)) i
+    ]..sort((a, b) => engine.totalScores[b].compareTo(engine.totalScores[a]));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          for (int rank = 0; rank < order.length; rank++)
+            Expanded(child: _shanghaiStandChip(order[rank], rank == 0)),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiStandChip(int i, bool leader) {
+    final active = i == engine.currentPlayerIndex;
+    final c = leader
+        ? DossedartTokens.yellow
+        : active
+            ? DossedartTokens.cyan
+            : DossedartTokens.phosphor;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            players[i].name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, color: c),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${engine.totalScores[i]}',
+            style: TextStyle(
+                fontFamily: 'PressStart2P', fontSize: 13, color: c),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiBanner() {
+    final got = engine.currentTurnHits.length;
+    final oneAway = got == 2;
+    final target = engine.currentTarget;
+    const c = DossedartTokens.yellow;
+    final msg = oneAway
+        ? 'HIT T$target FOR INSTANT WIN!'
+        : 'S + D + T IN ONE TURN = INSTANT WIN';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: oneAway ? 0.16 : 0.06),
+        border: Border.all(color: c.withValues(alpha: oneAway ? 1 : 0.33), width: 2),
+        boxShadow: oneAway
+            ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 14)]
+            : null,
+      ),
+      child: Row(
+        children: [
+          const Text('⚡ SHANGHAI',
+              style: TextStyle(
+                  fontFamily: 'PressStart2P', fontSize: 9, color: c)),
+          Expanded(
+            child: Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontFamily: 'VT323', fontSize: 15, color: c, letterSpacing: 1),
+            ),
+          ),
+          Text('$got/3',
+              style: const TextStyle(
+                  fontFamily: 'PressStart2P', fontSize: 11, color: c)),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiChaseCells() {
+    final target = engine.currentTarget;
+    final hits = engine.currentTurnHits;
+    final oneAway = hits.length == 2;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          _shanghaiChaseCell('SINGLE', '$target', HitType.single,
+              hits.contains(HitType.single), oneAway),
+          _shanghaiChaseCell('DOUBLE', 'D$target', HitType.double_,
+              hits.contains(HitType.double_), oneAway),
+          _shanghaiChaseCell('TRIPLE', 'T$target', HitType.triple,
+              hits.contains(HitType.triple), oneAway),
+        ],
+      ),
+    );
+  }
+
+  Widget _shanghaiChaseCell(
+      String cap, String label, HitType type, bool hit, bool oneAway) {
+    final c = hit
+        ? DossedartTokens.green
+        : oneAway
+            ? DossedartTokens.yellow
+            : DossedartTokens.cyan;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: GestureDetector(
+          onTap: () => _onHit(type),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            decoration: BoxDecoration(
+              color: c.withValues(alpha: hit ? 0.18 : 0.07),
+              border: Border.all(color: c, width: hit ? 3 : 2),
+              boxShadow: [
+                BoxShadow(color: c.withValues(alpha: hit ? 0.45 : 0.2), blurRadius: hit ? 16 : 10),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(cap,
+                    style: TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: c,
+                        letterSpacing: 2)),
+                const SizedBox(height: 8),
+                Text(label,
+                    style: TextStyle(
+                        fontFamily: 'PressStart2P', fontSize: 26, color: c)),
+                const SizedBox(height: 8),
+                Text(hit ? '✓ HIT' : '—',
+                    style: TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 14,
+                        color: hit ? c : Colors.white38,
+                        letterSpacing: 1)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shanghaiRoundLadder() {
+    final cur = engine.currentTarget;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (int r = 1; r <= engine.targetEnd; r++)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: r == cur
+                      ? DossedartTokens.cyan.withValues(alpha: 0.16)
+                      : null,
+                  border: Border.all(
+                    color: r == cur
+                        ? DossedartTokens.cyan
+                        : r < cur
+                            ? DossedartTokens.green.withValues(alpha: 0.6)
+                            : DossedartTokens.phosphor.withValues(alpha: 0.3),
+                    width: r == cur ? 2 : 1,
+                  ),
+                ),
+                child: Text(
+                  r < cur ? '✓' : '$r',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 11,
+                    color: r == cur
+                        ? DossedartTokens.cyan
+                        : r < cur
+                            ? DossedartTokens.green
+                            : DossedartTokens.phosphor.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shanghai'),
@@ -511,6 +1033,11 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
               switch (value) {
                 case 'players':
                   if (!engine.gameOver) _openPlayerManagement();
+                  break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
                   break;
                 case 'tts':
                   await TtsService.instance.setEnabled(!_ttsEnabled);
@@ -545,10 +1072,20 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
               ),
               const PopupMenuDivider(),
               PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'tts',
                 child: Row(
                   children: [
-                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
                     const SizedBox(width: 12),
                     Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
                   ],
@@ -702,7 +1239,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                       : Theme.of(context).colorScheme.surfaceContainerLow,
               border: isCurrent
                   ? Border.all(
-                      color: Theme.of(context).colorScheme.tertiary, width: 1.5)
+                      color: Theme.of(context).colorScheme.tertiary, width: 2)
                   : null,
             ),
             child: Text(

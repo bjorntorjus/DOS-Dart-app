@@ -30,6 +30,14 @@ class ModeStats {
     if (value > current) counters[key] = value;
   }
 
+  /// Set a counter to the min of current and new value. A missing/zero counter
+  /// is treated as "unset" (0 can never be a legitimate min for the stats that
+  /// use this, e.g. a finish dart-count), so the first real value always wins.
+  void setMin(String key, int value) {
+    final current = counters[key] ?? 0;
+    if (current == 0 || value < current) counters[key] = value;
+  }
+
   /// Get a counter value, defaulting to 0
   int get(String key) => counters[key] ?? 0;
 
@@ -112,6 +120,15 @@ class SavedPlayer {
   Map<String, H2HRecord> headToHead;
   List<RatingSnapshot> ratingHistory;
 
+  Set<String> unlockedAchievementIds;
+  Map<String, DateTime> achievementUnlockedAt;
+  bool achievementsRetroGranted;
+  bool falseUnlocksRevoked;
+  bool archived;
+  int currentWinStreak;
+  int bestWinStreak;
+  int currentLossStreak;
+
   SavedPlayer({
     required this.id,
     required this.name,
@@ -128,9 +145,19 @@ class SavedPlayer {
     Map<String, ModeStats>? modeStats,
     Map<String, H2HRecord>? headToHead,
     List<RatingSnapshot>? ratingHistory,
+    Set<String>? unlockedAchievementIds,
+    Map<String, DateTime>? achievementUnlockedAt,
+    this.achievementsRetroGranted = false,
+    this.falseUnlocksRevoked = false,
+    this.archived = false,
+    this.currentWinStreak = 0,
+    this.bestWinStreak = 0,
+    this.currentLossStreak = 0,
   })  : modeStats = modeStats ?? {},
         headToHead = headToHead ?? {},
-        ratingHistory = ratingHistory ?? [];
+        ratingHistory = ratingHistory ?? [],
+        unlockedAchievementIds = unlockedAchievementIds ?? {},
+        achievementUnlockedAt = achievementUnlockedAt ?? {};
 
   double get averageTurnScore =>
       totalTurns > 0 ? totalTurnScore / totalTurns : 0;
@@ -155,6 +182,15 @@ class SavedPlayer {
         'headToHead': headToHead
             .map((key, value) => MapEntry(key, value.toJson())),
         'ratingHistory': ratingHistory.map((s) => s.toJson()).toList(),
+        'unlockedAchievementIds': unlockedAchievementIds.toList(),
+        'achievementUnlockedAt': achievementUnlockedAt
+            .map((k, v) => MapEntry(k, v.toIso8601String())),
+        'achievementsRetroGranted': achievementsRetroGranted,
+        'falseUnlocksRevoked': falseUnlocksRevoked,
+        'archived': archived,
+        'currentWinStreak': currentWinStreak,
+        'bestWinStreak': bestWinStreak,
+        'currentLossStreak': currentLossStreak,
       };
 
   factory SavedPlayer.fromJson(Map<String, dynamic> json) => SavedPlayer(
@@ -182,5 +218,22 @@ class SavedPlayer {
                 ?.map((e) => RatingSnapshot.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        unlockedAchievementIds:
+            (json['unlockedAchievementIds'] as List<dynamic>?)
+                    ?.map((e) => e as String)
+                    .toSet() ??
+                {},
+        achievementUnlockedAt:
+            (json['achievementUnlockedAt'] as Map<String, dynamic>?)?.map(
+                  (k, v) => MapEntry(k, DateTime.parse(v as String)),
+                ) ??
+                {},
+        achievementsRetroGranted:
+            json['achievementsRetroGranted'] as bool? ?? false,
+        falseUnlocksRevoked: json['falseUnlocksRevoked'] as bool? ?? false,
+        archived: json['archived'] as bool? ?? false,
+        currentWinStreak: json['currentWinStreak'] as int? ?? 0,
+        bestWinStreak: json['bestWinStreak'] as int? ?? 0,
+        currentLossStreak: json['currentLossStreak'] as int? ?? 0,
       );
 }

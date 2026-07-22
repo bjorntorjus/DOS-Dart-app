@@ -17,7 +17,7 @@ class ActivePlayerHighlight extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
     this.borderRadius = const BorderRadius.all(Radius.circular(12)),
-    this.borderWidth = 3,
+    this.borderWidth = 2,
   });
 
   @override

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/game_mode.dart';
 import '../models/saved_player.dart';
 import '../services/player_storage.dart';
@@ -31,9 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadTopPlayers() async {
     final players = await PlayerStorage.loadPlayers();
-    players.sort((a, b) => b.rating.compareTo(a.rating));
+    final visible = players.where((p) => !p.archived).toList()
+      ..sort((a, b) => b.rating.compareTo(a.rating));
     setState(() {
-      _topPlayers = players.take(3).toList();
+      _topPlayers = visible.take(3).toList();
     });
   }
 
@@ -58,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'v1.8.0',
+                  kAppVersion,
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -155,9 +157,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPodium() {
-    const goldColor = Color(0xFFFFD700);
-    const silverColor = Color(0xFFC0C0C0);
-    const bronzeColor = Color(0xFFCD7F32);
+    final goldColor = Theme.of(context).colorScheme.tertiary;
+    const silverColor = Color(0xFFC0C0C0); // podium silver — documented exception
+    final bronzeColor = Colors.brown[300]!;
 
     // Podium order: 2nd | 1st | 3rd
     final positions = <int>[]; // player indices in podium display order
@@ -302,14 +304,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _modeGrid(BuildContext context) {
     final modes = const [
-      (GameMode.cricket, '🎯'),
-      (GameMode.aroundTheClock, '🕐'),
-      (GameMode.killer, '💀'),
-      (GameMode.halveIt, '➗'),
-      (GameMode.shanghai, '🌃'),
+      GameMode.cricket,
+      GameMode.aroundTheClock,
+      GameMode.killer,
+      GameMode.halveIt,
+      GameMode.shanghai,
     ];
     final cells = <Widget>[
-      for (final (mode, emoji) in modes) _modeButton(context, mode, emoji),
+      for (final mode in modes) _modeButton(context, mode),
       _comingSoonCell(context),
     ];
     return Column(
@@ -332,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _modeButton(BuildContext context, GameMode mode, String emoji) {
+  Widget _modeButton(BuildContext context, GameMode mode) {
     return OutlinedButton(
       onPressed: () async {
         await Navigator.push(
@@ -352,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 26)),
+          Text(mode.emoji, style: const TextStyle(fontSize: 26)),
           const SizedBox(height: 6),
           Text(
             mode.label,

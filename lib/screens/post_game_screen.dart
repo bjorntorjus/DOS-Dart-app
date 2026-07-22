@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/game_result.dart';
+import '../stats/mode_progression.dart';
+import '../widgets/dossedart/progression_chart.dart';
 import '../widgets/player_avatar.dart';
+
+/// Golf's vs-par display: 'E' at even, '+n' over, 'n' (with the leading '-'
+/// already in the int's string form) under.
+String vsParText(dynamic v) => v == null || v == 0 ? 'E' : (v > 0 ? '+$v' : '$v');
 
 class PostGameScreen extends StatelessWidget {
   final GameResult result;
@@ -13,6 +19,15 @@ class PostGameScreen extends StatelessWidget {
     final sorted = List<PlayerResult>.from(result.results)
       ..sort((a, b) => a.placement.compareTo(b.placement));
     final winner = sorted.first;
+
+    // Optional per-round progression chart (SCORE PER ROUND) — only when the
+    // mode opted in (`throwHistory`/`progressionMode` both set, WILDCARD as
+    // of 2026-07-09). `result.results`' own (unsorted) order is index-aligned
+    // with each DartThrow's `playerIndex`, unlike `sorted` above.
+    final progression = result.throwHistory != null &&
+            result.progressionMode != null
+        ? progressionForMode(result.progressionMode!, result.throwHistory!)
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -82,16 +97,44 @@ class PostGameScreen extends StatelessWidget {
               ),
             ),
 
-          // Rankings
+          // Rankings, plus the per-round progression chart (mode opt-in
+          // only) as a trailing list item — kept inside the same scrollable
+          // region as the placements (rather than a fixed sibling below
+          // Expanded) so the chart's own ~250px doesn't blow the Column's
+          // budget and push "Finish Game" off small screens.
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: sorted.length,
+              itemCount: sorted.length + (progression != null ? 1 : 0),
               itemBuilder: (context, index) {
-                final pr = sorted[index];
-                return _PlayerResultTile(
-                  result: pr,
-                  gameMode: result.gameMode,
+                if (index < sorted.length) {
+                  return _PlayerResultTile(
+                    result: sorted[index],
+                    gameMode: result.gameMode,
+                  );
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'SCORE PER ROUND',
+                        style: TextStyle(
+                          color: cs.tertiary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ProgressionChart(
+                        progression: progression!,
+                        throws: result.throwHistory!,
+                        playerNames: result.results.map((p) => p.name).toList(),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -104,12 +147,13 @@ class PostGameScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop('undo'),
-                        child: const Text('↶ Back'),
+                    if (result.canUndo)
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop('undo'),
+                          child: const Text('↶ Back'),
+                        ),
                       ),
-                    ),
                     if (result.canContinue) ...[
                       const SizedBox(width: 12),
                       Expanded(
@@ -249,6 +293,36 @@ class _PlayerResultTile extends StatelessWidget {
       case 'halveIt':
         if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['halved'] != null) entries.add('Halved: ${stats['halved']}');
+      case 'gotcha':
+        if (stats['kills'] != null) entries.add('Kills: ${stats['kills']}');
+        if (stats['timesKilled'] != null) entries.add('Killed: ${stats['timesKilled']}');
+        if (stats['busts'] != null) entries.add('Busts: ${stats['busts']}');
+        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
+        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
+      case 'oneUp':
+        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
+        if (stats['targetsSet'] != null) entries.add('Targets: ${stats['targetsSet']}');
+        if (stats['livesLost'] != null) entries.add('Lives lost: ${stats['livesLost']}');
+        if (stats['turnsSurvived'] != null) entries.add('Turns: ${stats['turnsSurvived']}');
+        if (stats['lastDartSaves'] != null && stats['lastDartSaves'] != 0) {
+          entries.add('Last-dart saves: ${stats['lastDartSaves']}');
+        }
+        if (stats['roundsWon'] != null && stats['roundsWon'] != 0) entries.add('Rounds won: ${stats['roundsWon']}');
+      case 'golf':
+        if (stats['strokes'] != null) {
+          entries.add('Strokes: ${stats['strokes']} (${vsParText(stats['vsPar'])})');
+        }
+        if ((stats['aces'] ?? 0) != 0) entries.add('Aces: ${stats['aces']}');
+        if ((stats['bogeys'] ?? 0) != 0) entries.add('Bogeys: ${stats['bogeys']}');
+        if (stats['bestHole'] != null) entries.add('Best hole: ${stats['bestHole']}');
+      case 'wildcard':
+        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
+        if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');
+        if (stats['windowPrizes'] != null) entries.add('Prizes: ${stats['windowPrizes']}');
+        // Only when ROBIN HOOD fired
+        if (stats['pointsStolen'] != null && stats['pointsStolen'] != 0) entries.add('Stolen: ${stats['pointsStolen']}');
+        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
+        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
     }
 
     if (entries.isEmpty) return const SizedBox.shrink();

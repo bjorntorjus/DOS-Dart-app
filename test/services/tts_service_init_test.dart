@@ -72,4 +72,67 @@ void main() {
     expect(svc.isInitialized, isTrue);
     expect(svc.enabled, isFalse);
   });
+
+  // F16b (audit 2026-07-06 round 4): every game screen calls GameAnnouncer's
+  // init() (which awaits TtsService.init() internally) AND, separately, its
+  // own race-free `TtsService.instance.init().then(...)` read in the same
+  // initState. Both calls land while the very first one is still awaiting
+  // AppSettings.getTtsEnabled(). The old guard (`if (_initialized) return;`
+  // set synchronously) let the second, concurrent caller's Future resolve
+  // before `_enabled` was actually populated, so the screen's `.then()`
+  // callback captured the stale pre-init value instead of the real one.
+  test('concurrent init() callers all observe the loaded value, not a stale one',
+      () async {
+    SharedPreferences.setMockInitialValues({'tts_enabled': true});
+    final svc = TtsService.instance;
+
+    bool? observedByFirst;
+    bool? observedBySecond;
+    // Mirrors a screen's initState: GameAnnouncer.init() awaiting
+    // TtsService.init() internally, immediately followed by a second,
+    // independent init() call from the screen's own TTS-enabled read.
+    svc.init().then((_) => observedByFirst = svc.enabled);
+    svc.init().then((_) => observedBySecond = svc.enabled);
+
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(observedByFirst, isTrue);
+    expect(observedBySecond, isTrue,
+        reason: 'a second concurrent init() caller must await the same '
+            'in-flight initialization, not resolve early with a stale value');
+  });
+
+  // Round-4 audit finding: init() cached `_initializing` even when _doInit()
+  // threw, so a single transient failure (e.g. platform channel hiccup)
+  // permanently broke TTS for the rest of the session — every later init()
+  // caller (including GameAnnouncer.init(), which every screen awaits first)
+  // replayed the same rejected future, and SoundService/VideoService init
+  // never ran.
+  test('a failed init() clears the cache so a later init() can retry',
+      () async {
+    final svc = TtsService.instance;
+    var setLanguageCalls = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(ttsChannel, (call) async {
+      if (call.method == 'setLanguage') {
+        setLanguageCalls++;
+        if (setLanguageCalls == 1) {
+          throw PlatformException(
+              code: 'error', message: 'simulated one-shot init failure');
+        }
+      }
+      if (call.method == 'getVoices' || call.method == 'getLanguages') {
+        return <dynamic>[];
+      }
+      return null;
+    });
+
+    await expectLater(svc.init(), throwsA(anything));
+    expect(svc.isInitialized, isFalse,
+        reason: 'the failed attempt must not be marked initialized');
+
+    // The next caller must retry _doInit() rather than replaying the
+    // cached rejection.
+    await svc.init();
+    expect(svc.isInitialized, isTrue);
+  });
 }

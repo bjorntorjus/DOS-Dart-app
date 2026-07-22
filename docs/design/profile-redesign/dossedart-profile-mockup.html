@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Profil (utvidet) · mockup-forslag</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;600;700;800;900&family=Archivo:wght@900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#0a0014; --surface:#1a0030; --yellow:#FFD200; --magenta:#FF00AA;
+    --cyan:#00E5FF; --green:#3DFF8E; --red:#FF3050; --orange:#FF7A00;
+    --phosphor:#D9D2C2; --silver:#c9d2da; --bronze:#d08a4a; --purple:#7B3FFF;
+  }
+  body{ margin:0; background:#f0eee9; font-family:'Inter',system-ui,sans-serif; color:#2a251f; }
+  .intro{ max-width:1000px; margin:28px auto 6px; padding:0 28px; }
+  .intro .kick{ font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2.5px; color:#c96442; text-transform:uppercase; font-weight:600; margin-bottom:8px; }
+  .intro h1{ font-family:'Archivo',sans-serif; font-size:38px; line-height:1.05; letter-spacing:-1px; margin:0 0 10px; font-weight:900; }
+  .intro p{ font-size:15px; line-height:1.55; color:#5a544a; max-width:860px; margin:0; }
+  .intro b{ color:#2a251f; }
+  .stage{ display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; max-width:1200px; margin:24px auto 60px; padding:0 28px; }
+
+  /* ── arcade frame ── */
+  .frame{ width:440px; background:var(--bg); color:#fff; font-family:'Press Start 2P',monospace;
+          position:relative; overflow:hidden; flex-shrink:0; box-shadow:0 18px 50px rgba(0,0,0,.35); }
+  .frame::before{ content:''; position:absolute; inset:0; z-index:5; pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.30) 3px,rgba(0,0,0,0) 4px); }
+  .frame::after{ content:''; position:absolute; inset:0; z-index:4; pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.6) 100%); }
+  .pad{ padding:0 16px; }
+
+  .topbar{ display:flex; align-items:center; gap:12px; padding:12px 16px; background:#000;
+    border-bottom:2px solid var(--magenta); position:relative; z-index:6; }
+  .topbar .back{ font-family:'VT323',monospace; font-size:18px; color:var(--cyan); letter-spacing:2; }
+  .topbar .title{ flex:1; text-align:center; font-size:12px; color:var(--yellow); letter-spacing:2; text-shadow:0 0 6px #FFD20088; }
+
+  .tabs{ display:flex; background:#000; position:relative; z-index:6; }
+  .tabs div{ flex:1; text-align:center; padding:11px 0; font-size:9px; letter-spacing:1; color:var(--phosphor);
+    border-bottom:1px solid #FF00AA66; }
+  .tabs div.on{ color:var(--cyan); border-bottom:3px solid var(--cyan); }
+
+  .sect{ display:flex; align-items:center; gap:10px; margin:20px 16px 11px; position:relative; z-index:6; }
+  .sect span{ font-size:10px; letter-spacing:2; }
+  .sect .line{ flex:1; height:1px; }
+  .sect .cap{ font-family:'VT323',monospace; font-size:14px; color:rgba(255,255,255,.5); letter-spacing:1; }
+
+  .card{ position:relative; z-index:6; }
+  .av{ border-radius:50%; background:var(--surface); display:flex; align-items:flex-end; justify-content:center; overflow:hidden; flex-shrink:0; }
+  .name{ font-family:'Inter',sans-serif; font-weight:800; }
+  .mono{ font-family:'VT323',monospace; }
+
+  /* hero */
+  .hero{ margin:14px 16px 0; padding:14px; background:var(--surface); border:2px solid var(--magenta); display:flex; gap:14px; align-items:center; }
+  .ring{ width:64px; height:64px; flex-shrink:0; position:relative; }
+
+  /* form pips */
+  .form{ display:flex; gap:7px; }
+  .pip{ flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; padding:9px 0; border:1px solid; }
+  .pip .res{ font-size:11px; }
+  .pip .d{ font-family:'VT323',monospace; font-size:13px; }
+
+  /* stat tiles */
+  .tiles{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tile{ border:1px solid #FF00AA40; padding:12px 13px; background:rgba(255,255,255,.02); }
+  .tile .k{ font-family:'VT323',monospace; font-size:14px; color:rgba(255,255,255,.55); letter-spacing:1; }
+  .tile .v{ font-size:16px; margin-top:7px; }
+  .tile .s{ font-family:'VT323',monospace; font-size:13px; color:rgba(255,255,255,.45); margin-top:5px; }
+
+  /* records */
+  .recs{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .rec{ border:1px solid; padding:11px 12px; display:flex; flex-direction:column; gap:6px; }
+  .rec .tag{ font-size:8px; letter-spacing:1; align-self:flex-start; padding:2px 5px; }
+  .rec .big{ font-size:18px; }
+  .rec .lbl{ font-family:'VT323',monospace; font-size:14px; color:rgba(255,255,255,.55); letter-spacing:1; }
+
+  /* per-mode */
+  .mode{ border:1px solid #D9D2C233; padding:11px 12px; margin-bottom:8px; }
+  .mode .hdr{ display:flex; align-items:center; gap:8px; }
+  .mode .nm{ flex:1; font-family:'Inter',sans-serif; font-weight:700; font-size:13px; }
+  .mode .pct{ font-size:12px; color:var(--cyan); }
+  .bar{ height:6px; background:rgba(255,255,255,.08); margin:9px 0 8px; }
+  .bar i{ display:block; height:100%; background:var(--green); }
+  .mode .row{ display:flex; gap:16px; }
+  .mode .row div{ font-family:'VT323',monospace; font-size:14px; color:rgba(255,255,255,.6); letter-spacing:1; }
+  .mode .row b{ color:#fff; font-weight:400; }
+
+  /* h2h */
+  .h2h{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid rgba(255,0,170,.12); }
+  .h2h .nm{ flex:1; font-family:'Inter',sans-serif; font-weight:600; font-size:13px; }
+  .h2h .rec{ font-family:'VT323',monospace; font-size:15px; }
+
+  /* prestasjoner */
+  .medals{ display:flex; gap:9px; flex-wrap:wrap; }
+  .hex{ width:42px; height:42px; display:flex; align-items:center; justify-content:center; }
+
+  /* graph */
+  svg{ display:block; }
+
+  /* spec card */
+  .spec{ width:600px; background:#fffdf6; border:1.5px solid rgba(0,0,0,.14); padding:28px 30px; box-sizing:border-box; }
+  .spec .kick{ font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px; color:#c96442; text-transform:uppercase; font-weight:600; margin-bottom:6px; }
+  .spec h2{ font-family:'Archivo',sans-serif; font-size:24px; font-weight:900; letter-spacing:-.5px; margin:0 0 14px; color:#2a251f; }
+  .spec h3{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; margin:18px 0 8px; color:#2a251f; }
+  .spec .r{ display:flex; gap:10px; padding:7px 0; border-bottom:1px solid rgba(0,0,0,.07); font-size:13px; }
+  .spec .r .z{ flex:1; font-weight:600; color:#2a251f; }
+  .spec .r .v{ font-family:'JetBrains Mono',monospace; font-size:12px; color:#5a544a; }
+  .spec .note{ padding:12px 14px; background:#f4f0e8; border:1px solid rgba(0,0,0,.08); font-size:12.5px; line-height:1.5; color:#5a544a; margin-top:14px; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Forslag · profil-redesign · runde 1</div>
+  <h1>Spillerprofilen — fra hero til full historie.</h1>
+  <p>I dag stopper PROFIL ved hero + rating-graf + winrate per modus + H2H + prestasjoner. Dette forslaget legger til <b>fire nye seksjoner</b> du ba om — <b>Form (siste resultater)</b>, <b>Rekorder</b>, <b>Streaks &amp; rating-topp</b> og <b>per-modus dybde</b> — alt bygget på data vi allerede lagrer. Reager på layout/rekkefølge/innhold, så skriver jeg spec + implementeringsplan.</p>
+</div>
+
+<div class="stage">
+
+  <!-- ════════ ARTBOARD ════════ -->
+  <div class="frame">
+    <div class="topbar">
+      <div class="back">◀ TILBAKE</div>
+      <div class="title">PROFIL</div>
+      <div style="width:74px"></div>
+    </div>
+    <div class="tabs"><div class="on">PROFIL</div><div>MODUS</div><div>HEATMAP</div><div>HISTORIKK</div></div>
+
+    <!-- player selector -->
+    <div style="display:flex; gap:14px; padding:14px 16px 0; position:relative; z-index:6;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+        <div class="av" style="width:44px;height:44px;border:3px solid var(--cyan);box-shadow:0 0 10px #00E5FF44;">
+          <svg width="35" height="35" viewBox="0 0 24 24" style="margin-bottom:-1px"><circle cx="12" cy="9" r="4.4" fill="var(--cyan)"/><path d="M3.5 22c0-5 3.8-8 8.5-8s8.5 3 8.5 8z" fill="var(--cyan)"/></svg>
+        </div>
+        <div class="mono" style="font-size:11px;color:var(--cyan)">Bjørn</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;opacity:.6;">
+        <div class="av" style="width:44px;height:44px;border:1px solid var(--phosphor);">
+          <svg width="35" height="35" viewBox="0 0 24 24" style="margin-bottom:-1px"><circle cx="12" cy="9" r="4.4" fill="var(--phosphor)"/><path d="M3.5 22c0-5 3.8-8 8.5-8s8.5 3 8.5 8z" fill="var(--phosphor)"/></svg>
+        </div>
+        <div class="mono" style="font-size:11px;color:var(--phosphor)">Amund</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;opacity:.6;">
+        <div class="av" style="width:44px;height:44px;border:1px solid var(--phosphor);">
+          <svg width="35" height="35" viewBox="0 0 24 24" style="margin-bottom:-1px"><circle cx="12" cy="9" r="4.4" fill="var(--phosphor)"/><path d="M3.5 22c0-5 3.8-8 8.5-8s8.5 3 8.5 8z" fill="var(--phosphor)"/></svg>
+        </div>
+        <div class="mono" style="font-size:11px;color:var(--phosphor)">Stian</div>
+      </div>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero card">
+      <div class="av" style="width:64px;height:64px;border:3px solid var(--cyan);box-shadow:0 0 12px #00E5FF55;">
+        <svg width="52" height="52" viewBox="0 0 24 24" style="margin-bottom:-1px"><circle cx="12" cy="9" r="4.4" fill="var(--cyan)"/><path d="M3.5 22c0-5 3.8-8 8.5-8s8.5 3 8.5 8z" fill="var(--cyan)"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="name" style="font-size:20px">Bjørn</div>
+        <div style="font-size:11px;color:var(--cyan);margin-top:5px">ELO 1342</div>
+        <div style="display:flex;gap:12px;margin-top:7px">
+          <div style="font-size:9px;color:var(--silver)">RANK #2/6</div>
+          <div class="mono" style="font-size:13px;color:rgba(255,255,255,.45)">· 87 kamper · siden mai '26</div>
+        </div>
+      </div>
+      <div class="ring">
+        <svg width="64" height="64"><circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/><circle cx="32" cy="32" r="28" fill="none" stroke="var(--green)" stroke-width="6" stroke-dasharray="176" stroke-dashoffset="70" transform="rotate(-90 32 32)"/></svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div class="name" style="font-size:13px">60%</div>
+          <div class="mono" style="font-size:10px;color:var(--phosphor)">52-35</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FORM -->
+    <div class="sect"><span style="color:var(--green);text-shadow:0 0 6px #3DFF8E66">FORM</span><div class="line" style="background:#3DFF8E33"></div><div class="cap">siste 8 kamper</div></div>
+    <div class="pad card">
+      <div class="form">
+        <div class="pip" style="border-color:#3DFF8E80;background:#3DFF8E12"><div class="res" style="color:var(--green)">W</div><div class="d" style="color:var(--green)">+12</div></div>
+        <div class="pip" style="border-color:#3DFF8E80;background:#3DFF8E12"><div class="res" style="color:var(--green)">W</div><div class="d" style="color:var(--green)">+9</div></div>
+        <div class="pip" style="border-color:#FF305080;background:#FF305012"><div class="res" style="color:var(--red)">L</div><div class="d" style="color:var(--red)">-7</div></div>
+        <div class="pip" style="border-color:#3DFF8E80;background:#3DFF8E12"><div class="res" style="color:var(--green)">W</div><div class="d" style="color:var(--green)">+6</div></div>
+        <div class="pip" style="border-color:#3DFF8E80;background:#3DFF8E12"><div class="res" style="color:var(--green)">W</div><div class="d" style="color:var(--green)">+11</div></div>
+        <div class="pip" style="border-color:#FFD20080;background:#FFD20012"><div class="res" style="color:var(--yellow)">U</div><div class="d" style="color:var(--yellow)">0</div></div>
+        <div class="pip" style="border-color:#FF305080;background:#FF305012"><div class="res" style="color:var(--red)">L</div><div class="d" style="color:var(--red)">-5</div></div>
+        <div class="pip" style="border-color:#3DFF8E80;background:#3DFF8E12"><div class="res" style="color:var(--green)">W</div><div class="d" style="color:var(--green)">+8</div></div>
+      </div>
+    </div>
+
+    <!-- STREAKS & RATING -->
+    <div class="sect"><span style="color:var(--orange);text-shadow:0 0 6px #FF7A0066">STREAKS &amp; TOPP</span><div class="line" style="background:#FF7A0033"></div></div>
+    <div class="pad card">
+      <div class="tiles">
+        <div class="tile"><div class="k">NÅ PÅ RAD</div><div class="v" style="color:var(--orange)">🔥 3 seire</div><div class="s">siden forrige tap</div></div>
+        <div class="tile"><div class="k">BESTE STREAK</div><div class="v" style="color:var(--green)">7 seire</div><div class="s">personlig rekord</div></div>
+        <div class="tile"><div class="k">RATING-TOPP</div><div class="v" style="color:var(--yellow)">1361</div><div class="s">nå 1342</div></div>
+        <div class="tile"><div class="k">BESTE RANK</div><div class="v" style="color:var(--silver)">#1</div><div class="s">nå #2</div></div>
+      </div>
+    </div>
+
+    <!-- RATING GRAF -->
+    <div class="sect"><span style="color:var(--cyan);text-shadow:0 0 6px #00E5FF66">RATING-HISTORIKK</span><div class="line" style="background:#00E5FF33"></div></div>
+    <div class="pad card">
+      <div style="border:1px solid #FF00AA33;padding:8px">
+        <svg width="392" height="120" viewBox="0 0 392 120">
+          <line x1="0" y1="20" x2="392" y2="20" stroke="rgba(255,0,170,.12)"/>
+          <line x1="0" y1="60" x2="392" y2="60" stroke="rgba(255,0,170,.12)"/>
+          <line x1="0" y1="100" x2="392" y2="100" stroke="rgba(255,0,170,.12)"/>
+          <polyline points="0,95 56,80 112,84 168,55 224,40 280,58 336,30 392,38" fill="none" stroke="var(--cyan)" stroke-width="2" style="filter:drop-shadow(0 0 4px #00E5FFaa)"/>
+          <circle cx="168" cy="55" r="4" fill="var(--green)"/><text x="168" y="46" font-family="'Press Start 2P'" font-size="9" fill="var(--green)" text-anchor="middle">▲#1</text>
+          <circle cx="280" cy="58" r="4" fill="var(--red)"/><text x="280" y="78" font-family="'Press Start 2P'" font-size="9" fill="var(--red)" text-anchor="middle">▼#2</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- REKORDER -->
+    <div class="sect"><span style="color:var(--yellow);text-shadow:0 0 6px #FFD20066">REKORDER</span><div class="line" style="background:#FFD20033"></div><div class="cap">personlige bests</div></div>
+    <div class="pad card">
+      <div class="recs">
+        <div class="rec" style="border-color:#FFD20055;background:#FFD2000a"><div class="tag" style="background:var(--yellow);color:var(--bg)">X01</div><div class="big" style="color:var(--yellow)">180</div><div class="lbl">høyeste runde</div></div>
+        <div class="rec" style="border-color:#00E5FF55;background:#00E5FF0a"><div class="tag" style="background:var(--cyan);color:var(--bg)">X01</div><div class="big">121</div><div class="lbl">beste checkout</div></div>
+        <div class="rec" style="border-color:#3DFF8E40;background:#3DFF8E0a"><div class="tag" style="background:var(--green);color:var(--bg)">CRICKET</div><div class="big">201</div><div class="lbl">beste poeng</div></div>
+        <div class="rec" style="border-color:#FF7A0040;background:#FF7A000a"><div class="tag" style="background:var(--orange);color:var(--bg)">CLOCK</div><div class="big">92%</div><div class="lbl">treff-rate</div></div>
+        <div class="rec" style="border-color:#FF00AA40;background:#FF00AA0a"><div class="tag" style="background:var(--magenta);color:#fff">KILLER</div><div class="big">37</div><div class="lbl">kills totalt</div></div>
+        <div class="rec" style="border-color:#7B3FFF40;background:#7B3FFF0a"><div class="tag" style="background:var(--purple);color:#fff">SPLIT</div><div class="big">96</div><div class="lbl">største halvering (auch)</div></div>
+      </div>
+    </div>
+
+    <!-- PER MODUS (utvidet) -->
+    <div class="sect"><span style="color:var(--magenta);text-shadow:0 0 6px #FF00AA66">PER MODUS</span><div class="line" style="background:#FF00AA33"></div><div class="cap">dybde</div></div>
+    <div class="pad card">
+      <div class="mode">
+        <div class="hdr"><div class="nm">X01</div><div class="pct">68% · 34/50</div></div>
+        <div class="bar"><i style="width:68%"></i></div>
+        <div class="row"><div>snitt <b>58.4</b></div><div>best <b>180</b></div><div>100+ <b>12</b></div><div>checkout <b>121</b></div></div>
+      </div>
+      <div class="mode">
+        <div class="hdr"><div class="nm">CRICKET</div><div class="pct">55% · 11/20</div></div>
+        <div class="bar"><i style="width:55%"></i></div>
+        <div class="row"><div>MPR <b>4.1</b></div><div>best poeng <b>201</b></div><div>lukket <b>312</b></div></div>
+      </div>
+      <div class="mode">
+        <div class="hdr"><div class="nm">SHANGHAI</div><div class="pct">50% · 4/8</div></div>
+        <div class="bar"><i style="width:50%"></i></div>
+        <div class="row"><div>best score <b>142</b></div><div>shanghais <b>1</b></div></div>
+      </div>
+    </div>
+
+    <!-- HEAD TO HEAD -->
+    <div class="sect"><span style="color:var(--cyan)">HEAD-TO-HEAD</span><div class="line" style="background:#00E5FF33"></div></div>
+    <div class="pad card" style="padding-bottom:6px">
+      <div class="h2h"><div class="nm">Amund</div><div class="rec"><span style="color:var(--green)">14</span> – <span style="color:var(--red)">9</span></div></div>
+      <div class="h2h"><div class="nm">Stian</div><div class="rec"><span style="color:var(--green)">8</span> – <span style="color:var(--red)">11</span> <span style="color:var(--red);font-size:11px">· nemesis</span></div></div>
+      <div class="h2h" style="border-bottom:none"><div class="nm">Bartosz</div><div class="rec"><span style="color:var(--green)">6</span> – <span style="color:var(--red)">3</span></div></div>
+    </div>
+
+    <!-- PRESTASJONER -->
+    <div class="sect"><span style="color:var(--yellow)">PRESTASJONER</span><div class="line" style="background:#FFD20033"></div><div class="cap">23 / 60</div></div>
+    <div class="pad card" style="padding-bottom:18px">
+      <div class="medals">
+        <div class="hex"><svg width="42" height="42" viewBox="0 0 100 100" style="filter:drop-shadow(0 0 4px #FFD20088)"><polygon points="50,5 91,28 91,72 50,95 9,72 9,28" fill="#FFD20022" stroke="var(--yellow)" stroke-width="6"/></svg></div>
+        <div class="hex"><svg width="42" height="42" viewBox="0 0 100 100" style="filter:drop-shadow(0 0 4px #c9d2da88)"><polygon points="50,5 91,28 91,72 50,95 9,72 9,28" fill="#c9d2da22" stroke="var(--silver)" stroke-width="6"/></svg></div>
+        <div class="hex"><svg width="42" height="42" viewBox="0 0 100 100" style="filter:drop-shadow(0 0 4px #d08a4a88)"><polygon points="50,5 91,28 91,72 50,95 9,72 9,28" fill="#d08a4a22" stroke="var(--bronze)" stroke-width="6"/></svg></div>
+        <div class="hex"><svg width="42" height="42" viewBox="0 0 100 100" style="filter:drop-shadow(0 0 4px #FFD20088)"><polygon points="50,5 91,28 91,72 50,95 9,72 9,28" fill="#FFD20022" stroke="var(--yellow)" stroke-width="6"/></svg></div>
+        <div class="hex" style="display:flex;align-items:center;justify-content:center"><span class="mono" style="font-size:15px;color:var(--cyan)">VIS ALLE ›</span></div>
+      </div>
+    </div>
+
+    <div style="height:18px"></div>
+  </div>
+
+  <!-- ════════ SPEC CARD ════════ -->
+  <div class="spec">
+    <div class="kick">Implementasjon · profil-redesign</div>
+    <h2>Fire nye seksjoner — null ny tracking</h2>
+
+    <h3>Nye seksjoner (rekkefølge)</h3>
+    <div class="r"><div class="z">FORM · siste 8</div><div class="v">GameHistory (siste N, din ΔELO)</div></div>
+    <div class="r"><div class="z">Streaks &amp; rating-topp</div><div class="v">currentWinStreak · bestWinStreak · max(ratingHistory)</div></div>
+    <div class="r"><div class="z">Rekorder / PB</div><div class="v">modeStats.counters (best per modus)</div></div>
+    <div class="r"><div class="z">Per modus (utvidet)</div><div class="v">modeStats: winrate-bar + snitt/best/nøkkeltall</div></div>
+
+    <h3>Beholdes fra dagens profil</h3>
+    <div class="r"><div class="z">Hero (+ kamper, medlem siden)</div><div class="v">rating · rank · winRate · createdAt</div></div>
+    <div class="r"><div class="z">Rating-graf m/ rank-markører</div><div class="v">ratingHistory + deriveRankHistory</div></div>
+    <div class="r"><div class="z">Head-to-head (+ «nemesis»)</div><div class="v">headToHead (verste W/L = nemesis)</div></div>
+    <div class="r"><div class="z">Prestasjoner</div><div class="v">unlockedAchievementIds (uendret)</div></div>
+
+    <div class="note"><b>Datakilder finnes allerede.</b> Alt over leses fra <code>SavedPlayer</code> (streaks, ratingHistory, modeStats.counters, headToHead) + <code>GameHistoryService</code> (form). Ingen ny lagring kreves — kun ny presentasjon i PROFIL-fanen.</div>
+    <div class="note" style="background:#fbe9d8;border-color:rgba(201,100,66,.35);color:#5a442f"><b>Åpne valg å reagere på:</b> (1) rekkefølge — er FORM riktig øverst? (2) skal «MODUS»-fanen utvides separat, eller holder per-modus-seksjonen her? (3) PB-er: vis topp 6, eller alle med en «vis alle»? (4) «nemesis»-merkingen — for spicy eller gøy?</div>
+  </div>
+
+</div>
+</body>
+</html>

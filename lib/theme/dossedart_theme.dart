@@ -151,11 +151,11 @@ ThemeData buildDossedartTheme() {
         return DossedartTokens.surface;
       }),
     ),
-    sliderTheme: const SliderThemeData(
+    sliderTheme: SliderThemeData(
       activeTrackColor: DossedartTokens.magenta,
       inactiveTrackColor: DossedartTokens.surface,
       thumbColor: DossedartTokens.cyan,
-      overlayColor: Color(0x33FF00AA),
+      overlayColor: DossedartTokens.magenta.withValues(alpha: 0.2),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: DossedartTokens.magenta,

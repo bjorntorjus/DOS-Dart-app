@@ -76,12 +76,14 @@ class GameLogger {
     required List<String> playerNames,
     required List<int> playerScores,
     Map<String, dynamic>? config,
+    String? build,
   }) {
     if (!isGeneralAllowed) return;
     _gameIndex++;
     _write('');
     _write('=' * 60);
-    _write('GAME #$_gameIndex: $gameMode | ${DateTime.now().toIso8601String()}');
+    final buildStamp = build != null ? ' | BUILD $build' : '';
+    _write('GAME #$_gameIndex: $gameMode | ${DateTime.now().toIso8601String()}$buildStamp');
     final players = <String>[];
     for (int i = 0; i < playerNames.length; i++) {
       players.add('P$i:${playerNames[i]}(score=${playerScores[i]})');
@@ -91,6 +93,14 @@ class GameLogger {
       _write('Config: $config');
     }
     _write('=' * 60);
+  }
+
+  /// Marks a user-initiated quit (the "Quit" button in the exit-confirm
+  /// dialog), so a log review can tell an early abort apart from a normal
+  /// [logGameEnd] — round-3 QA found no marker at all for quit-exits.
+  void logExit({required String gameMode}) {
+    if (!isGeneralAllowed) return;
+    _write('EXIT $gameMode (user quit)');
   }
 
   void logGameEnd({
@@ -206,6 +216,44 @@ class GameLogger {
     _write('POSTGAME action=$action$det');
   }
 
+  // ─── Standings / roster ─────────────────────────────────────
+
+  /// Pure, testable STANDINGS line body, e.g. "Aa:69  Aaa:76". Zips
+  /// [names] and [scores] to the shorter of the two lengths.
+  static String formatStandings(List<String> names, List<int> scores) {
+    final count = names.length < scores.length ? names.length : scores.length;
+    final pairs = <String>[];
+    for (int i = 0; i < count; i++) {
+      pairs.add('${names[i]}:${scores[i]}');
+    }
+    return pairs.join('  ');
+  }
+
+  /// A standings snapshot — score for every player at a point in a game.
+  /// [roundNumber] is omitted from the line when null.
+  void logStandings({
+    int? roundNumber,
+    required List<String> names,
+    required List<int> scores,
+  }) {
+    if (!isGeneralAllowed) return;
+    final round = roundNumber != null ? 'R$roundNumber ' : '';
+    _write('${round}STANDINGS ${formatStandings(names, scores)}');
+  }
+
+  /// A player was added to or removed from an in-progress game.
+  /// [action] is 'ADD' or 'REMOVE'.
+  void logRoster({
+    required String action,
+    required int playerIndex,
+    required String playerName,
+    required List<String> names,
+    required List<int> scores,
+  }) {
+    if (!isGeneralAllowed) return;
+    _write('ROSTER $action P$playerIndex($playerName) → ${formatStandings(names, scores)}');
+  }
+
   // ─── Undo ───────────────────────────────────────────────────
 
   void logUndo({
@@ -253,6 +301,30 @@ class GameLogger {
     if (!isGeneralAllowed) return;
     final q = queueLength != null ? ' queue=$queueLength' : '';
     _write('TTS $event$q');
+  }
+
+  // ─── WILDCARD diagnostics ───────────────────────────────────
+
+  /// A turn-modifier was rolled (or force-set) for the player about to
+  /// throw — style-matched to [logThrow]/[logAdvance]'s `P<i>` convention.
+  void logModifier({required String name, required int playerIndex}) {
+    if (!isGeneralAllowed) return;
+    _write('MODIFIER $name for P$playerIndex');
+  }
+
+  /// An instant event resolved. [detail] is the engine's raw (index-based)
+  /// detail string — kept unmapped here so the log stays useful even when
+  /// the screen-side name substitution changes.
+  void logEvent({required String name, required String detail}) {
+    if (!isGeneralAllowed) return;
+    _write('EVENT $name $detail');
+  }
+
+  /// A bull-choice dialog resolved with the given signed meter [delta]
+  /// (e.g. +3 or -1).
+  void logBullChoice({required int delta}) {
+    if (!isGeneralAllowed) return;
+    _write('BULL_CHOICE ${delta >= 0 ? '+' : ''}$delta');
   }
 
   // ─── Errors ─────────────────────────────────────────────────

@@ -42,10 +42,46 @@ class GameAnnouncer {
     _tts.callWhenIdle(() => _sound.playRandom(['win'], fallback: 'win'));
   }
 
+  /// Gotcha kill: speak the pre-built [phrase] (caller composes the
+  /// halving/hardcore-aware wording), then layer the kill sound when TTS is
+  /// idle. assets/sounds/gotcha/kill/ ships no recordings in v1 (spec §9) —
+  /// playRandom is a silent no-op until files are added + declared in pubspec.
+  void announceKill(String phrase) {
+    if (_gameEvents) _tts.speak(phrase);
+    _tts.callWhenIdle(() => _sound.playRandom(['gotcha/kill']));
+  }
+
+  /// 1UP moment (target beaten / life lost / last life / elimination / big
+  /// target). [soundFolders] ships no recordings in v1 — assets/sounds/
+  /// one_up/... is UNDECLARED in pubspec.yaml on purpose, so playRandom is a
+  /// silent no-op until files are added + declared, same as [announceKill].
+  void announceOneUp(String phrase, {List<String> soundFolders = const []}) {
+    if (_gameEvents) _tts.speak(phrase);
+    if (soundFolders.isNotEmpty) {
+      _tts.callWhenIdle(() => _sound.playRandom(soundFolders));
+    }
+  }
+
+  /// Golf moment (hole result term / sudden death / ace).
+  void announceGolf(String phrase, {List<String> soundFolders = const []}) {
+    if (_gameEvents) _tts.speak(phrase);
+    if (soundFolders.isNotEmpty) {
+      _tts.callWhenIdle(() => _sound.playRandom(soundFolders));
+    }
+  }
+
   void announceGameEvent(String event) {
     if (_gameEvents) _tts.speak(event);
     if (event == 'Bust') _tts.callWhenIdle(() => _sound.play('bust'));
     if (event == 'Out') _tts.callWhenIdle(() => _sound.play('checkout'));
+  }
+
+  /// WILDCARD moment text (modifier announcement, joker reveal, instant
+  /// event, CUT!/REWIND) — a plain speak, mirroring [announceGameEvent]'s
+  /// TTS path without its 'Bust'/'Out' sound side effects, which chaos copy
+  /// should never trigger.
+  void announceChaos(String text) {
+    if (_gameEvents) _tts.speak(text);
   }
 
   void stop() {

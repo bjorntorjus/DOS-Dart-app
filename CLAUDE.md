@@ -51,10 +51,15 @@ Mørkt tema, M3 (`useMaterial3: true`). Paletten er låst til fire roller — al
 Bruk alltid `Theme.of(context).colorScheme.<role>` — ikke `Colors.amber` / `Colors.orange` / hex literals.
 
 **Unntak (kun disse):**
-- `lib/utils/player_colors.dart` — avatar-farger, separat palett
+- `lib/utils/player_colors.dart` — avatar-farger (begge spor)
 - `lib/widgets/heatmap_board.dart` — data-viz gradient
+- `lib/widgets/dart_board.dart` — fysisk dartbrett-palett (rød `#E53935` tilsvarer tilfeldigvis error-rollen; ikke «fiks» det)
+- `lib/widgets/dossedart/x01/dossedart_x01_dartboard.dart` — neon twilight dartbrett, tunet til nær-naboer av magenta/cyan
 - D-knapper i score-input (`Colors.orange[800]` i halve_it/atc) — funksjonell input-semantikk for double
-- Bronze (`Colors.brown[300]`) for 3.-plass — ikke i role-palette, kun en literal
+- Podium-metaller (klassisk): gull = `tertiary`, sølv = `#C0C0C0`, bronse = `Colors.brown[300]`
+- CRT-effekter i `arcade_frame.dart` (svart scanline/vignette) og hvit-alpha-tekst-rampe i `game_detail_screen.dart` — rene svart/hvit-lag, ikke palett-farger
+
+**DOSSEDART-sporet:** arkade-redesignet er et eget design-spor og bruker kun `DossedartTokens` (`lib/theme/dossedart_tokens.dart`) — aldri rå hex, aldri `colorScheme`. Full spec: samme dokument, seksjon «DOSSEDART / Arcade track».
 
 Full spec: `docs/superpowers/specs/2026-04-30-color-design-system.md`.
 

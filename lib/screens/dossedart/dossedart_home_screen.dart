@@ -1,17 +1,50 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import '../../app_version.dart';
 import '../../models/game_mode.dart';
 import '../../models/saved_player.dart';
 import '../../services/player_storage.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
 import '../settings_screen.dart';
-import '../stats_screen.dart';
+import 'dossedart_stats_screen.dart';
 import 'dossedart_atc_setup_screen.dart';
 import 'dossedart_cricket_setup_screen.dart';
+import 'dossedart_golf_setup_screen.dart';
+import 'dossedart_gotcha_setup_screen.dart';
 import 'dossedart_killer_setup_screen.dart';
+import 'dossedart_one_up_setup_screen.dart';
 import 'dossedart_shanghai_setup_screen.dart';
 import 'dossedart_splitscore_setup_screen.dart';
+import 'dossedart_wildcard_setup_screen.dart';
 import 'dossedart_x01_setup_screen.dart';
+
+/// A single tile in the "OR PICK A LEVEL" 3×3 grid.
+enum _TileKind { live, fresh, soon }
+
+class _GridTile {
+  const _GridTile(this.kind, this.emoji, this.label, {this.mode});
+  final _TileKind kind;
+  final String emoji;
+  final String label;
+  final GameMode? mode;
+}
+
+const _gridTiles = [
+  _GridTile(_TileKind.live, '🎯', 'Cricket', mode: GameMode.cricket),
+  _GridTile(_TileKind.live, '🕐', 'Around the Clock', mode: GameMode.aroundTheClock),
+  _GridTile(_TileKind.live, '🔪', 'Killer', mode: GameMode.killer),
+  _GridTile(_TileKind.live, '✂️', 'Splitscore', mode: GameMode.halveIt),
+  _GridTile(_TileKind.live, '🐉', 'Shanghai', mode: GameMode.shanghai),
+  _GridTile(_TileKind.fresh, '💀', 'Gotcha', mode: GameMode.gotcha),
+  // Hardcoded placeholders until the modes exist — no dead enum values.
+  // '1UP', not 'Legs': locked terminology decision (collides with X01
+  // legs/sets otherwise).
+  _GridTile(_TileKind.fresh, '❤️', '1UP', mode: GameMode.oneUp),
+  _GridTile(_TileKind.fresh, '⛳', 'Golf', mode: GameMode.golf),
+  _GridTile(_TileKind.fresh, '🃏', 'Wildcard', mode: GameMode.wildcard),
+];
 
 /// DOSSEDART arcade home screen — leaderboard variant B (tight list).
 class DossedartHomeScreen extends StatefulWidget {
@@ -38,9 +71,10 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
   Future<void> _loadTopPlayers() async {
     final players = await PlayerStorage.loadPlayers();
-    players.sort((a, b) => b.rating.compareTo(a.rating));
+    final visible = players.where((p) => !p.archived).toList()
+      ..sort((a, b) => b.rating.compareTo(a.rating));
     setState(() {
-      _topPlayers = players.take(3).toList();
+      _topPlayers = visible.take(3).toList();
     });
   }
 
@@ -125,7 +159,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             style: _vt(16, color: Colors.white, letterSpacing: 2),
           ),
           Text(
-            'v1.8.0',
+            kAppVersion,
             style: _vt(13, color: Colors.white38, letterSpacing: 2),
           ),
         ],
@@ -139,9 +173,9 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Color(0x66FF00AA), width: 1),
+          bottom: BorderSide(color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 1),
         ),
       ),
       child: Column(
@@ -164,9 +198,9 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
           // Column header
           Container(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Color(0x4DFF00AA), width: 1),
+                bottom: BorderSide(color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 1),
               ),
             ),
             child: Row(
@@ -189,7 +223,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
                       style: _vt(12, color: Colors.white60, letterSpacing: 2)),
                 ),
                 SizedBox(
-                  width: 58,
+                  width: 72,
                   child: Text('RATING',
                       textAlign: TextAlign.right,
                       style: _vt(12, color: Colors.white60, letterSpacing: 1.5)),
@@ -245,7 +279,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
         vertical: hero ? 14 : 10,
       ),
       decoration: BoxDecoration(
-        color: hero ? const Color(0x14FFD200) : Colors.transparent,
+        color: hero ? DossedartTokens.yellow.withValues(alpha: 0.08) : Colors.transparent,
         border: Border.all(
           color: hero ? DossedartTokens.yellow : Colors.transparent,
           width: 2,
@@ -277,7 +311,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             ),
           ),
           SizedBox(
-            width: 58,
+            width: 72,
             child: Text(
               player.rating.toStringAsFixed(0),
               textAlign: TextAlign.right,
@@ -354,35 +388,37 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
 
   // ─── Modes Block ───────────────────────────────────────────────────────────
   Widget _buildModesBlock() {
-    final modes = const [
-      (GameMode.cricket, 'Cricket', '🎯'),
-      (GameMode.aroundTheClock, 'Around the Clock', '🕐'),
-      (GameMode.killer, 'Killer', '🔪'),
-      (GameMode.halveIt, 'Halve It', '✂️'),
-      (GameMode.shanghai, 'Shanghai', '🐉'),
-    ];
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('► OR PICK A LEVEL',
-              style: _press(11, color: DossedartTokens.cyan, letterSpacing: 1)),
+          Row(
+            children: [
+              Text('► OR PICK A LEVEL',
+                  style:
+                      _press(11, color: DossedartTokens.cyan, letterSpacing: 1)),
+              const SizedBox(width: 10),
+              // Flexible + ellipsis: below tablet width the badge truncates
+              // instead of overflowing the header Row.
+              Flexible(
+                child: Text('NEW: GOTCHA 💀 · WILDCARD 🃏',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _vt(14, color: DossedartTokens.yellow)),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          for (var i = 0; i < modes.length; i += 2)
+          for (var i = 0; i < _gridTiles.length; i += 3)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  Expanded(child: _modeCell(modes[i].$1, modes[i].$2, modes[i].$3)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: i + 1 < modes.length
-                        ? _modeCell(modes[i + 1].$1, modes[i + 1].$2,
-                            modes[i + 1].$3)
-                        : _comingSoonCell(),
-                  ),
+                  for (var k = 0; k < 3; k++) ...[
+                    if (k > 0) const SizedBox(width: 8),
+                    Expanded(child: _gridCell(_gridTiles[i + k])),
+                  ],
                 ],
               ),
             ),
@@ -391,50 +427,112 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
     );
   }
 
-  Widget _modeCell(GameMode mode, String label, String emoji) {
-    return InkWell(
-      onTap: () => _startGame(mode),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-        decoration: BoxDecoration(
-          color: DossedartTokens.surface,
-          border: Border.all(color: DossedartTokens.cyan, width: 2),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(height: 8),
-            Text(
-              label.toUpperCase(),
-              style: _press(10, color: Colors.white, letterSpacing: 1),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+  // Standard tile chrome shared by live modes and fresh (NEW-ribbon) modes —
+  // QA decision 2026-07-09: fresh tiles must look identical to live ones,
+  // the yellow NEW ribbon is the only differentiator.
+  Widget _tileContainer(_GridTile t) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: DossedartTokens.surface,
+        border: Border.all(color: DossedartTokens.phosphor, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: DossedartTokens.phosphor.withValues(alpha: 0.2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(t.emoji, style: const TextStyle(fontSize: 28)),
+          const SizedBox(height: 6),
+          Text(
+            t.label.toUpperCase(),
+            style: _press(9, color: Colors.white),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _comingSoonCell() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border.all(
-            color: DossedartTokens.magenta.withValues(alpha: 0.4), width: 2),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('✨', style: TextStyle(fontSize: 32)),
-          const SizedBox(height: 8),
-          Text('?? COMING ??',
-              style: _vt(15, color: Colors.white54, letterSpacing: 2)),
-        ],
-      ),
-    );
+  Widget _gridCell(_GridTile t) {
+    switch (t.kind) {
+      case _TileKind.live:
+        return InkWell(
+          onTap: () => _startGame(t.mode!),
+          child: _tileContainer(t),
+        );
+      case _TileKind.fresh:
+        return InkWell(
+          onTap: () => _startGame(t.mode!),
+          child: Stack(
+            clipBehavior: Clip.none,
+            // Passthrough keeps the Expanded cell's tight width on the tile
+            // Container — default StackFit.loose let it shrink-wrap to its
+            // label text (~1/3 width, QA regression 2026-07-08).
+            fit: StackFit.passthrough,
+            children: [
+              _tileContainer(t),
+              Positioned(
+                top: -9,
+                right: -6,
+                child: Transform.rotate(
+                  angle: 5 * math.pi / 180,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 3, horizontal: 7),
+                    decoration: BoxDecoration(
+                      color: DossedartTokens.yellow,
+                      boxShadow: [
+                        BoxShadow(
+                          color: DossedartTokens.yellow.withValues(alpha: 0.8),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'NEW',
+                      style: _press(8, color: DossedartTokens.bg),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      case _TileKind.soon:
+        return Opacity(
+          opacity: 0.55,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: DossedartTokens.magenta.withValues(alpha: 0.33),
+                  width: 2),
+            ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(t.emoji,
+                    style: TextStyle(fontSize: t.emoji == '✨' ? 24 : 28)),
+                const SizedBox(height: 6),
+                Text(
+                  t.label.toUpperCase(),
+                  style: _vt(12, color: Colors.white54),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text('COMING SOON', style: _vt(12, color: Colors.white54)),
+              ],
+            ),
+          ),
+        );
+    }
   }
 
   // ─── Cabinet Footer ────────────────────────────────────────────────────────
@@ -457,7 +555,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
               onTap: () async {
                 await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const StatsScreen()),
+                  MaterialPageRoute(builder: (_) => const DossedartStatsScreen()),
                 );
                 _loadTopPlayers();
               },
@@ -561,6 +659,14 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
         screen = const DossedartSplitscoreSetupScreen();
       case GameMode.shanghai:
         screen = const DossedartShanghaiSetupScreen();
+      case GameMode.gotcha:
+        screen = const DossedartGotchaSetupScreen();
+      case GameMode.wildcard:
+        screen = const DossedartWildcardSetupScreen();
+      case GameMode.oneUp:
+        screen = const DossedartOneUpSetupScreen();
+      case GameMode.golf:
+        screen = const DossedartGolfSetupScreen();
     }
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _loadTopPlayers();

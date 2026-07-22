@@ -7,6 +7,12 @@ import '../widgets/dart_board.dart';
 import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
 import '../models/saved_player.dart';
+import '../models/achievement_event.dart';
+import '../models/earned_feat.dart';
+import '../models/game_mode.dart';
+import '../services/achievement_service.dart';
+import '../utils/earned_feats_builder.dart';
+import '../utils/x01_achievement_feats.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
@@ -16,19 +22,22 @@ import '../services/sound_service.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/game_detail_stats.dart';
 import '../widgets/player_avatar.dart';
 import '../models/game_result.dart';
 import '../services/game_logger.dart';
+import '../app_version.dart';
 import 'post_game_screen.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../services/battery_sampler.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/x01/dossedart_x01_active_card.dart';
-import '../widgets/dossedart/x01/dossedart_x01_action_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
-import '../widgets/dossedart/x01/dossedart_x01_topbar.dart';
-import 'dossedart/x01/dossedart_player_overview_screen.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 enum _ThrowOutcome { continueTurn, finish, turnEndNoBust, bust }
 
@@ -67,6 +76,7 @@ class _GameScreenState extends State<GameScreen> {
   final MemeService _meme = MemeService();
   final GameLogger _log = GameLogger.instance;
   List<int> finishedPlayers = [];
+  final DateTime _gameStart = DateTime.now();
   bool _gameFullyOver = false;
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
@@ -96,15 +106,31 @@ class _GameScreenState extends State<GameScreen> {
   int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
 
   @visibleForTesting
-  void removePlayerForTest(int playerIndex) {
-    setState(() {
-      _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
-      if (!finishedPlayers.contains(playerIndex)) {
-        finishedPlayers.add(playerIndex);
-      }
-    });
-  }
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int get currentPlayerIndexForTest => currentPlayerIndex;
+
+  /// Busts derived from history — undo pops the throw, so this is always
+  /// consistent (a counter would survive undo and corrupt SURGEON).
+  int _bustCountFor(int playerIndex) =>
+      throwHistory.where((t) => t.playerIndex == playerIndex && t.isBust).length;
+
+  @visibleForTesting
+  int bustCountForTest(int playerIndex) => _bustCountFor(playerIndex);
+
+  @visibleForTesting
+  Future<void> onDartHitForTest(int segment, int multiplier) =>
+      _onDartHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
+
+  @visibleForTesting
+  int get throwCountForTest => throwHistory.length;
 
   /// Fast-forwards a player's score to [score] for testing.
   /// Only updates state — does NOT trigger game-end detection.
@@ -123,8 +149,8 @@ class _GameScreenState extends State<GameScreen> {
 
   /// Fires the post-game path as if [playerIndex] just checked out.
   /// Mirrors the finish branch inside `_onDartHit` / `_resolveRound`:
-  /// sets the player as winner, marks the game fully over, and calls
-  /// `_showPostGame()`.
+  /// sets the player as winner, marks the game fully over, previews rating
+  /// deltas and calls `_showPostGame()` (recording defers to leave).
   @visibleForTesting
   void triggerCheckoutForTest(int playerIndex) {
     setState(() {
@@ -134,11 +160,12 @@ class _GameScreenState extends State<GameScreen> {
       winnerIndex = playerIndex;
       _gameFullyOver = true;
     });
-    _showPostGame();
+    _prepareRatingPreview().then((_) => _showPostGame());
   }
 
   final ScrollController _scoreboardController = ScrollController();
   bool _soundEnabled = true;
+  bool _memeEnabled = false;
   bool _ttsEnabled = false;
   bool _offensiveEnabled = false;
   bool _missSoundPlayed = false;
@@ -152,6 +179,18 @@ class _GameScreenState extends State<GameScreen> {
   final List<_PendingCheckout> _pendingCheckouts = [];
   List<int> _suddenDeathPlayers = [];
   bool _inSuddenDeath = false;
+  bool _hadSuddenDeath = false;
+
+  /// throwHistory length when the (first) sudden death began. Throws from
+  /// that index on are tiebreak throws: they decide placement but must never
+  /// feed stats — an SD turn of 180 is not a real 180, and the parked score
+  /// of 999 is not a real checkout (audit 2026-07-06, F4).
+  int? _suddenDeathThrowStart;
+
+  /// The throws that count toward stats: everything before sudden death.
+  List<DartThrow> get _statThrows => _suddenDeathThrowStart == null
+      ? throwHistory
+      : throwHistory.sublist(0, _suddenDeathThrowStart!);
 
   // No-bust mode state (only populated when widget.noBust == true)
   List<int> _totalDartsPerPlayer = [];
@@ -172,15 +211,23 @@ class _GameScreenState extends State<GameScreen> {
       playerNames: players.map((p) => p.name).toList(),
       playerScores: players.map((p) => p.score).toList(),
       config: {'handicap': widget.handicap, 'masterOut': widget.masterOut, 'noBust': widget.noBust},
+      build: kAppVersion,
     );
     BatterySampler.instance.start('X01');
     AppSettings.getSoundEffectsEnabled().then((v) {
-      setState(() => _soundEnabled = v);
+      if (mounted) setState(() => _soundEnabled = v);
       SoundService.instance.setEnabled(v);
+    });
+    AppSettings.getMemeEnabled().then((v) {
+      if (mounted) setState(() => _memeEnabled = v);
       _meme.setEnabled(v);
     });
-    AppSettings.getTtsEnabled().then((v) => setState(() => _ttsEnabled = v));
-    AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
+    TtsService.instance.init().then((_) {
+      if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
+    });
+    AppSettings.getMemeOffensive().then((v) {
+      if (mounted) setState(() => _offensiveEnabled = v);
+    });
   }
 
   @override
@@ -214,6 +261,7 @@ class _GameScreenState extends State<GameScreen> {
     // Standard X01 (existing logic, expressed via outcomes)
     if (newScore < 0) return _ThrowOutcome.bust;
     if (newScore == 0 && needsSpecialOut && !isValidOut) return _ThrowOutcome.bust;
+    // Score 1 cannot be checked out with double-out (min D1=2) or master-out.
     if (newScore == 1 && needsSpecialOut) return _ThrowOutcome.bust;
     if (newScore == 0) return _ThrowOutcome.finish;
     return _ThrowOutcome.continueTurn;
@@ -292,24 +340,9 @@ class _GameScreenState extends State<GameScreen> {
     final scoreBefore = player.score;
     final newScore = player.score - points;
 
-    bool isBust = false;
-
-    final needsSpecialOut = widget.masterOut != 'none';
-    final isValidOut = widget.masterOut == 'double'
-        ? multiplier == 2
-        : widget.masterOut == 'master'
-            ? multiplier >= 2
-            : true;
-
-    if (newScore < 0) {
-      isBust = true;
-    } else if (newScore == 0 && needsSpecialOut && !isValidOut) {
-      isBust = true;
-    } else if (newScore == 1 && needsSpecialOut) {
-      // Score 1 is impossible to check out with double-out (min D1=2)
-      // or master-out (min D1=2 or T1=3)
-      isBust = true;
-    }
+    // Single source of truth for outcome classification — no-bust mode never
+    // produces a bust (overshoot is a legal turn end there).
+    final isBust = _classifyThrow(newScore, multiplier) == _ThrowOutcome.bust;
 
     final dartThrow = DartThrow(
       playerIndex: currentPlayerIndex,
@@ -321,6 +354,7 @@ class _GameScreenState extends State<GameScreen> {
       scoreAtStartOfTurn: scoreAtStartOfTurn,
       turnId: _turnIdCounter,
       roundNumber: _roundNumber,
+      isBust: isBust,
     );
 
     // Pre-roll video dice and track per-dart events
@@ -453,7 +487,7 @@ class _GameScreenState extends State<GameScreen> {
           _log.logBust(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: player.name, throwLabel: dartThrow.label, scoreReset: scoreAtStartOfTurn);
           _announcer.announceGameEvent('Bust');
           // Play random bust sound only if video won't play
-          if (_soundEnabled && !bustShowVideo) {
+          if (_memeEnabled && !bustShowVideo) {
             _meme.markSoundPlayed();
             SoundService.instance.playRandomMaybe([
               'x01/negative/out',
@@ -557,6 +591,46 @@ class _GameScreenState extends State<GameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stats behind — the double-record fix from the
+  /// 2026-07-06 audit (F2).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Placements from finishedPlayers order; unfinished players share last.
+  List<int> _buildPlacements() {
+    return List.generate(players.length, (i) {
+      final idx = finishedPlayers.indexOf(i);
+      if (idx >= 0) return idx + 1;
+      return finishedPlayers.length + 1;
+    });
+  }
+
   Future<void> _updateStats() async {
     if (_midGamePlayerChanges) {
       // Rating and stats skipped, but still record mid-game join/leave counters
@@ -584,75 +658,34 @@ class _GameScreenState extends State<GameScreen> {
       sp.gamesPlayed++;
       if (_winnerIndexExcludingRemoved() == pi) sp.gamesWon++;
 
-      // Calculate turn scores for this player
-      final playerThrows =
-          throwHistory.where((t) => t.playerIndex == pi).toList();
-
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-
-      for (final t in playerThrows) {
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            sp.totalTurns++;
-            sp.totalTurnScore += currentTurnScore;
-            if (currentTurnScore > sp.highestTurnScore) {
-              sp.highestTurnScore = currentTurnScore;
-            }
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-      }
-      // Save last turn
-      if (currentTurnStart != null) {
-        sp.totalTurns++;
-        sp.totalTurnScore += currentTurnScore;
-        if (currentTurnScore > sp.highestTurnScore) {
-          sp.highestTurnScore = currentTurnScore;
-        }
+      // Per-turn point totals, grouped by turnId and excluding busted turns.
+      // (Grouping by scoreAtStartOfTurn would merge a busted turn into the
+      // next one at the same score and inflate totals past the 180 max —
+      // see x01TurnTotals.) Sudden-death throws never count (_statThrows).
+      final turnTotals = x01TurnTotals(_statThrows, playerIndex: pi);
+      sp.totalTurns += turnTotals.length;
+      sp.totalTurnScore += turnTotals.fold<int>(0, (s, t) => s + t);
+      for (final t in turnTotals) {
+        if (t > sp.highestTurnScore) sp.highestTurnScore = t;
       }
     }
 
     // Build placements from finishedPlayers order
-    final placements = List.generate(players.length, (i) {
-      final idx = finishedPlayers.indexOf(i);
-      if (idx >= 0) return idx + 1;
-      return finishedPlayers.length + 1; // Unfinished players get last
-    });
+    final placements = _buildPlacements();
     // Build per-player mode counters
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
-      final playerThrows = throwHistory.where((t) => t.playerIndex == pi).toList();
+      final playerThrows = _statThrows.where((t) => t.playerIndex == pi).toList();
 
       int totalDarts = playerThrows.length;
       int doublesHit = 0;
       int triplesHit = 0;
       int bullsHit = 0, misses = 0;
-      int totalTurnScoreMode = 0, totalTurnsMode = 0, highestTurnMode = 0;
-      int turnsOver100 = 0;
       final segmentHits = <String, int>{};
 
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-
       for (final t in playerThrows) {
-        // Turn tracking
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            totalTurnsMode++;
-            totalTurnScoreMode += currentTurnScore;
-            if (currentTurnScore > highestTurnMode) highestTurnMode = currentTurnScore;
-            if (currentTurnScore >= 100) turnsOver100++;
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-
         // Per-segment hit tracking for heatmap
         final segKey = 'seg_${t.segment}';
         segmentHits[segKey] = (segmentHits[segKey] ?? 0) + 1;
@@ -671,13 +704,13 @@ class _GameScreenState extends State<GameScreen> {
           else if (t.multiplier == 3) { triplesHit++; }
         }
       }
-      // Save last turn
-      if (currentTurnStart != null) {
-        totalTurnsMode++;
-        totalTurnScoreMode += currentTurnScore;
-        if (currentTurnScore > highestTurnMode) highestTurnMode = currentTurnScore;
-        if (currentTurnScore >= 100) turnsOver100++;
-      }
+
+      // Turn-based stats: grouped by turnId, busted turns excluded.
+      final turnTotals = x01TurnTotals(_statThrows, playerIndex: pi);
+      final totalTurnsMode = turnTotals.length;
+      final totalTurnScoreMode = turnTotals.fold<int>(0, (s, t) => s + t);
+      final highestTurnMode = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
+      final turnsOver100 = turnTotals.where((t) => t >= 100).length;
 
       // Checkout dart (if player finished)
       int bestCheckout = 0;
@@ -715,6 +748,8 @@ class _GameScreenState extends State<GameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final earnedFeats = _awardMilestones(savedPlayers, placements);
+
     StatsRecorder.recordGame(
       gameMode: 'x01',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -724,9 +759,58 @@ class _GameScreenState extends State<GameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      gameConfig: _gameConfigLabel,
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(_statThrows),
+      earnedFeatsByIndex: earnedFeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
+  }
+
+  /// Evaluate game-end milestone achievements for each saved player, emitting
+  /// banners for new unlocks. Runs before [PlayerStorage.savePlayers] persists
+  /// the mutated unlock sets.
+  /// Evaluates game-end achievements and returns the per-player earned feats
+  /// (✦ in-game events + ★ new unlocks) for capture on the game-history entry.
+  Map<int, List<EarnedFeat>> _awardMilestones(
+      List<SavedPlayer> savedPlayers, List<int> placements) {
+    // Reconstruct single-game feats per player from their throws → events.
+    final events = <int, List<AchievementEvent>>{};
+    final counters = <int, Map<String, int>>{};
+    for (int i = 0; i < players.length; i++) {
+      final feats =
+          X01Feats.analyze(_statThrows.where((t) => t.playerIndex == i));
+      final evs = <AchievementEvent>[
+        if (feats.hit180) AchievementEvent.score180,
+        if (feats.bullFinish) AchievementEvent.bullFinish,
+        if (feats.maxTreblesInTurn >= 3) AchievementEvent.threeTreblesTurn,
+        if (feats.maxBullsInTurn >= 3) AchievementEvent.threeBullsTurn,
+      ];
+      if (evs.isNotEmpty) events[i] = evs;
+      counters[i] = {'bustCount': _bustCountFor(i)};
+    }
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.x01,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: events,
+      countersByIndex: counters,
+    );
+    return buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
+  }
+
+  /// Banner label for the game-history entry, e.g. "501 · Double-Out".
+  String get _gameConfigLabel {
+    final outLabel = widget.masterOut == 'double'
+        ? 'Double-Out'
+        : widget.masterOut == 'master'
+            ? 'Master-Out'
+            : 'Free-Out';
+    return '${widget.startingScore} · $outLabel${widget.noBust ? ' · No-Bust' : ''}';
   }
 
   void _advancePlayer() {
@@ -750,6 +834,7 @@ class _GameScreenState extends State<GameScreen> {
     scoreAtStartOfTurn = players[currentPlayerIndex].score;
     _log.logAdvance(roundNumber: _roundNumber, fromIndex: fromIndex, toIndex: currentPlayerIndex, toName: players[currentPlayerIndex].name, toScore: scoreAtStartOfTurn);
     _log.logTurnStart(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: players[currentPlayerIndex].name, score: scoreAtStartOfTurn, checkoutHint: _checkoutFor(scoreAtStartOfTurn).isNotEmpty ? _checkoutFor(scoreAtStartOfTurn) : null);
+    _log.logStandings(roundNumber: _roundNumber, names: players.map((p) => p.name).toList(), scores: players.map((p) => p.score).toList());
     _announcer.announceNextPlayer(players[currentPlayerIndex].name);
     if (!_inSuddenDeath) {
       _announcer.announceScore('${players[currentPlayerIndex].score} remaining');
@@ -824,7 +909,7 @@ class _GameScreenState extends State<GameScreen> {
         await VideoService.instance.showRandomFromFolder(context, 'winner');
         if (!mounted) return;
         _announcer.announceWinner(winner.name);
-        _updateStats().then((_) => _showPostGame());
+        _prepareRatingPreview().then((_) => _showPostGame());
       } else {
         _showPostGame();
       }
@@ -848,7 +933,7 @@ class _GameScreenState extends State<GameScreen> {
           if (activePlayers.length == 1) finishedPlayers.add(activePlayers.first);
           _gameFullyOver = true;
         });
-        _updateStats().then((_) => _showPostGame());
+        _prepareRatingPreview().then((_) => _showPostGame());
         return;
       }
       // Start new round
@@ -919,7 +1004,7 @@ class _GameScreenState extends State<GameScreen> {
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
       _announcer.announceWinner(winner.name);
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     } else {
       _showPostGame();
     }
@@ -929,6 +1014,8 @@ class _GameScreenState extends State<GameScreen> {
     _log.log('SUDDEN_DEATH starting for ${tiedPlayers.map((i) => 'P$i(${players[i].name})').join(', ')}');
     setState(() {
       _inSuddenDeath = true;
+      _hadSuddenDeath = true;
+      _suddenDeathThrowStart ??= throwHistory.length;
       _suddenDeathPlayers = tiedPlayers;
       _playersCompletedThisRound = {};
       _roundNumber++;
@@ -1017,7 +1104,7 @@ class _GameScreenState extends State<GameScreen> {
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
       _announcer.announceWinner(winner.name);
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     } else {
       _showPostGame();
     }
@@ -1062,16 +1149,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _onMiss() {
-    _missSoundPlayed = false;
-    if (_soundEnabled) {
-      _missSoundPlayed = SoundService.instance.playRandomMaybe([
-        'miss',
-        if (_offensiveEnabled) 'miss/offensive',
-      ], chance: _meme.frequencyChance);
-      if (_missSoundPlayed && _meme.frequency < 10) {
-        _meme.markSoundPlayed();
-      }
-    }
+    _missSoundPlayed = _meme.tryMissSound();
     _onDartHit(0, 0);
   }
 
@@ -1102,26 +1180,23 @@ class _GameScreenState extends State<GameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
-  /// Returns the label for the player's previously COMPLETED turn (the
-  /// 3 darts before the current in-progress turn). Empty if there are
-  /// fewer than 3 completed darts.
-  String _previousTurnLabel(int playerIndex) {
-    final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
-    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
-    final completedCount = all.length - inTurn;
-    if (completedCount < 3) return '';
-    final lastThree = all.sublist(completedCount - 3, completedCount);
-    return lastThree
-        .map((t) {
-          if (t.segment == 0) return 'MISS';
-          final prefix = t.multiplier == 2 ? 'D' : t.multiplier == 3 ? 'T' : 'S';
-          return '$prefix${t.segment}';
-        })
-        .join(' · ');
-  }
+  /// Label for the player's most recent turn — an in-progress turn counts as
+  /// most recent, so the row updates live per dart. Falls back to the last
+  /// completed turn between the player's turns.
+  /// Empty string (not null) when the player has no throws — the call site
+  /// maps '' → null for the strip props.
+  String _recentTurnLabel(int playerIndex) =>
+      throwHistory.recentTurnLabel(playerIndex) ?? '';
 
   void _undo() {
     if (throwHistory.isEmpty) return;
+    // Sudden death cannot be rewound: undoing the tied checkout restores only
+    // one of the tied players and strands the rest at the parked 999 score
+    // (audit 2026-07-06, F4).
+    if (_inSuddenDeath) {
+      _log.log('UNDO blocked during sudden death');
+      return;
+    }
     _announcer.announceGameEvent('Back');
 
     setState(() {
@@ -1141,9 +1216,12 @@ class _GameScreenState extends State<GameScreen> {
 
       final lastThrow = throwHistory.removeLast();
       _log.logUndo(playerIndex: lastThrow.playerIndex, playerName: players[lastThrow.playerIndex].name, throwLabel: lastThrow.label, scoreRestored: lastThrow.scoreBefore, roundNumber: lastThrow.roundNumber);
-      // If the undone throw was a checkout, remove from finished list and pending
-      if (lastThrow.scoreBefore - lastThrow.points == 0 ||
-          finishedPlayers.contains(lastThrow.playerIndex)) {
+      // If the undone throw was a checkout, remove from finished list and
+      // pending. A removed player's membership in finishedPlayers encodes the
+      // removal, not a finish — never resurrect them (audit 2026-07-06, F9).
+      if ((lastThrow.scoreBefore - lastThrow.points == 0 ||
+              finishedPlayers.contains(lastThrow.playerIndex)) &&
+          !_removedPlayerIndices.contains(lastThrow.playerIndex)) {
         finishedPlayers.remove(lastThrow.playerIndex);
         _pendingCheckouts.removeWhere((c) => c.playerIndex == lastThrow.playerIndex);
         _gameFullyOver = false;
@@ -1161,6 +1239,9 @@ class _GameScreenState extends State<GameScreen> {
 
       // Rebuild round state from throw history
       _rebuildRoundState();
+      if (_removedPlayerIndices.contains(currentPlayerIndex)) {
+        _advancePlayer();
+      }
       _log.logState({'afterUndo': true, 'round': _roundNumber, 'currentPlayer': currentPlayerIndex, 'dartsInTurn': dartsInTurn, 'completedThisRound': _playersCompletedThisRound, 'finishedBefore': _finishedBeforeRound, 'finishedPlayers': finishedPlayers});
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
@@ -1197,10 +1278,11 @@ class _GameScreenState extends State<GameScreen> {
       final throws = entry.value;
       final lastThrow = throws.last;
       final isCheckout = lastThrow.scoreBefore - lastThrow.points == 0;
-      final isBust = lastThrow.scoreBefore == lastThrow.scoreAtStartOfTurn &&
-          throws.length < 3 &&
-          !isCheckout &&
-          lastThrow != throwHistory.last; // Don't count incomplete current turn
+      // Use the stored isBust flag (set by _classifyThrow at throw-time) rather
+      // than re-deriving from score state. The guard `!= throwHistory.last`
+      // prevents counting the current player's still-in-progress turn as done.
+      final isBust =
+          lastThrow.isBust && lastThrow != throwHistory.last;
       final isThirdDart = lastThrow.turnNumber == 2;
 
       if (isCheckout || isBust || isThirdDart) {
@@ -1237,31 +1319,14 @@ class _GameScreenState extends State<GameScreen> {
     for (int rank = 0; rank < ranking.length; rank++) {
       final i = ranking[rank];
       final p = players[i];
-      final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
+      final playerThrows = _statThrows.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
 
-      int highestTurn = 0;
-      double totalTurnScore = 0;
-      int turnCount = 0;
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-      for (final t in playerThrows) {
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-            totalTurnScore += currentTurnScore;
-            turnCount++;
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-      }
-      if (currentTurnStart != null) {
-        if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-        totalTurnScore += currentTurnScore;
-        turnCount++;
-      }
+      // Turn-based stats: grouped by turnId, busted turns excluded.
+      final turnTotals = x01TurnTotals(playerThrows, playerIndex: i);
+      final highestTurn = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
+      final turnCount = turnTotals.length;
+      final totalTurnScore = turnTotals.fold<int>(0, (s, t) => s + t);
 
       int? checkout;
       if (finishedPlayers.contains(i) && playerThrows.isNotEmpty) {
@@ -1314,36 +1379,25 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   GameResult _buildGameResult() {
+    // Players removed mid-game must not appear on the result screen at all —
+    // and never as the winner. Placement is computed from the finish order with
+    // removed players filtered out, so a removed player who happened to land
+    // first in [finishedPlayers] can no longer take 1st place.
+    final rankedFinished =
+        finishedPlayers.where((i) => !_removedPlayerIndices.contains(i)).toList();
+
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
+      if (_removedPlayerIndices.contains(i)) continue;
       final p = players[i];
-      final playerThrows = throwHistory.where((t) => t.playerIndex == i).toList();
+      final playerThrows = _statThrows.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
 
-      // Compute per-player turn scores
-      int highestTurn = 0;
-      double totalTurnScore = 0;
-      int turnCount = 0;
-      int currentTurnScore = 0;
-      int? currentTurnStart;
-
-      for (final t in playerThrows) {
-        if (currentTurnStart != t.scoreAtStartOfTurn) {
-          if (currentTurnStart != null) {
-            if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-            totalTurnScore += currentTurnScore;
-            turnCount++;
-          }
-          currentTurnStart = t.scoreAtStartOfTurn;
-          currentTurnScore = 0;
-        }
-        currentTurnScore += t.points;
-      }
-      if (currentTurnStart != null) {
-        if (currentTurnScore > highestTurn) highestTurn = currentTurnScore;
-        totalTurnScore += currentTurnScore;
-        turnCount++;
-      }
+      // Turn-based stats: grouped by turnId, busted turns excluded.
+      final turnTotals = x01TurnTotals(playerThrows, playerIndex: i);
+      final highestTurn = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
+      final turnCount = turnTotals.length;
+      final totalTurnScore = turnTotals.fold<int>(0, (s, t) => s + t);
 
       // Checkout score (score at start of checkout turn = what they closed from)
       int? checkout;
@@ -1353,11 +1407,11 @@ class _GameScreenState extends State<GameScreen> {
 
       // Determine placement
       int placement;
-      final finishIdx = finishedPlayers.indexOf(i);
+      final finishIdx = rankedFinished.indexOf(i);
       if (finishIdx >= 0) {
         placement = finishIdx + 1;
       } else {
-        placement = finishedPlayers.length + 1;
+        placement = rankedFinished.length + 1;
       }
 
       results.add(PlayerResult(
@@ -1382,7 +1436,10 @@ class _GameScreenState extends State<GameScreen> {
     return GameResult(
       gameMode: 'x01',
       results: results,
-      canContinue: !_gameFullyOver && activePlayers.length > 1 && players.length > 2,
+      canContinue: !_gameFullyOver &&
+          activePlayers.length > 1 &&
+          players.length - _removedPlayerIndices.length > 2,
+      canUndo: !_hadSuddenDeath,
       statsSkipped: _midGamePlayerChanges,
     );
   }
@@ -1417,14 +1474,14 @@ class _GameScreenState extends State<GameScreen> {
       _announcer.announceScore('${players[currentPlayerIndex].score} remaining');
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
     } else {
-      // New Game — save stats if not already saved
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
       _log.logPostGame(action: 'newGame');
       _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: _gameFullyOver);
       BatterySampler.instance.stop();
-      if (!_gameFullyOver) {
-        _gameFullyOver = true;
-        await _updateStats();
-      }
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
@@ -1448,11 +1505,21 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildDossedartCockpit(BuildContext context) {
     final player = players[currentPlayerIndex];
-    final lastLabel = _previousTurnLabel(currentPlayerIndex);
+    final lastLabel = _recentTurnLabel(currentPlayerIndex);
     final tip = _checkoutFor(player.score);
 
-    // Last-turn sum (sum of the three throws ending the previous turn).
-    final lastSum = _sumOfLastThreeBeforeCurrentTurn(currentPlayerIndex);
+    // Sum of the most recent turn (in-progress turn included — updates live).
+    final lastSum = _recentTurnSum(currentPlayerIndex);
+
+    // 3-dart match average for the active player (null when no darts yet).
+    final activeThrows = throwHistory
+        .where((t) => t.playerIndex == currentPlayerIndex)
+        .toList();
+    final activePointsSum =
+        activeThrows.fold<int>(0, (acc, t) => acc + t.segment * t.multiplier);
+    final avg = activeThrows.isEmpty
+        ? null
+        : (activePointsSum / activeThrows.length) * 3;
 
     final title = 'X01 · ${widget.startingScore} · ${_outRuleLabel()}';
 
@@ -1460,63 +1527,81 @@ class _GameScreenState extends State<GameScreen> {
       backgroundColor: DossedartTokens.bg,
       body: DossedartCrtFrame(
         child: SafeArea(
-          child: Stack(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  DossedartX01TopBar(
-                    title: title,
-                    legIndex: 1,
-                    legCount: 1,
-                    roundNumber: _roundNumber + 1,
-                    onExit: _confirmExit,
-                  ),
-                  DossedartX01ActiveCard(
-                    playerName: player.name,
-                    avatarPath: player.avatarPath,
-                    accentColor: DossedartTokens.magenta,
-                    remaining: player.score,
-                    currentDartIndex: dartsInTurn,
-                    lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
-                    lastTurnSum: lastSum,
-                    checkoutTip: tip.isEmpty ? null : tip,
-                  ),
-                ],
+              DossedartTopBar(
+                title: title,
+                onExit: _confirmExit,
+                trailing: 'RND ${_roundNumber + 1}',
               ),
-              // Dartboard — fixed position, never shifts with active card height
-              Positioned(
-                left: 14, right: 14, bottom: 74,
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: DossedartTokens.magenta, width: 3),
-                      boxShadow: [
-                        BoxShadow(color: DossedartTokens.magenta.withValues(alpha: 0.4), blurRadius: 14),
-                      ],
+              DossedartX01ActiveCard(
+                playerName: player.name,
+                avatarPath: player.avatarPath,
+                // One-colour logic (locked design rule): the active thrower
+                // is always cyan; chrome stays magenta.
+                accentColor: DossedartTokens.cyan,
+                remaining: player.score,
+                currentDartIndex: dartsInTurn,
+                lastTurnLabel: lastLabel.isEmpty ? null : lastLabel,
+                lastTurnSum: lastLabel.isEmpty ? null : lastSum,
+                checkoutTip: tip.isEmpty ? null : tip,
+                avg: avg,
+              ),
+              // The whole field below the score is a MISS zone; the board sits
+              // on top, so any tap off the board (corners, margins, the empty
+              // space around it) registers as a miss.
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _onMiss,
+                      ),
                     ),
-                    child: DossedartX01Dartboard(
-                      onTap: (zone) {
-                        final (seg, mult) = zone.toSegmentMultiplier();
-                        if (seg == 0) {
-                          _onMiss();
-                        } else {
-                          _onDartHit(seg, mult);
-                        }
-                      },
+                    // Bottom-anchored so active-card height changes eat the
+                    // gap ABOVE the board — tap targets never move between
+                    // darts.
+                    Positioned(
+                      left: 14,
+                      right: 14,
+                      bottom: 24,
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            // Spec (x01-cockpit-final): no frame, glow only —
+                            // 0 0 70px magenta @ 0x3a ≈ alpha 0.23.
+                            boxShadow: [
+                              BoxShadow(
+                                color: DossedartTokens.magenta
+                                    .withValues(alpha: 0.23),
+                                blurRadius: 70,
+                              ),
+                            ],
+                          ),
+                          child: DossedartX01Dartboard(
+                            onTap: (zone) {
+                              final (seg, mult) = zone.toSegmentMultiplier();
+                              if (seg == 0) {
+                                _onMiss();
+                              } else {
+                                _onDartHit(seg, mult);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-              Positioned(
-                left: 0, right: 0, bottom: 0,
-                child: DossedartX01ActionBar(
-                  onUndo: _undo,
-                  onMiss: _onMiss,
-                  onMenu: () => _showDossedartMenu(context),
-                ),
+              DossedartActionBar(
+                onUndo: _undo,
+                onMiss: _onMiss,
+                onMenu: () => _showDossedartMenu(context),
               ),
             ],
           ),
@@ -1533,89 +1618,46 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  int _sumOfLastThreeBeforeCurrentTurn(int playerIndex) {
-    final all = throwHistory.where((t) => t.playerIndex == playerIndex).toList();
-    // Exclude darts in the current in-progress turn only for the active player.
-    final inTurn = playerIndex == currentPlayerIndex ? dartsInTurn : 0;
-    final completedCount = all.length - inTurn;
-    if (completedCount < 3) return 0;
-    final lastThree = all.sublist(completedCount - 3, completedCount);
-    return lastThree.fold(0, (acc, t) => acc + t.segment * t.multiplier);
-  }
+  /// Sum of the player's most recent turn (same turnId grouping as
+  /// [_recentTurnLabel] — includes the in-progress turn).
+  int _recentTurnSum(int playerIndex) =>
+      throwHistory.recentTurnSum(playerIndex);
 
-  void _showDossedartMenu(BuildContext outerContext) {
-    showModalBottomSheet(
-      context: outerContext,
-      backgroundColor: DossedartTokens.surface,
-      builder: (sheetCtx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.scoreboard, color: DossedartTokens.cyan),
-                title: const Text(
-                  'PLAYER OVERVIEW',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P', fontSize: 11, color: Colors.white, letterSpacing: 1.5,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _openPlayerOverview();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.exit_to_app, color: DossedartTokens.red),
-                title: const Text(
-                  'EXIT MATCH',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P', fontSize: 11, color: Colors.white, letterSpacing: 1.5,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _confirmExit();
-                },
-              ),
-            ],
-          ),
-        );
-      },
+  Future<void> _showDossedartMenu(BuildContext outerContext) {
+    return showDossedartCockpitMenu(
+      outerContext,
+      meme: _meme,
+      onSoundChanged: (v) => setState(() => _soundEnabled = v),
+      onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+      onPlayerOverview: _openPlayerOverview,
+      onExit: _confirmExit,
     );
   }
 
   void _openPlayerOverview() {
-    final rows = <PlayerOverviewRow>[];
+    final rows = <DossedartStandingRow>[];
     for (int i = 0; i < players.length; i++) {
       final p = players[i];
-      final pThrows = throwHistory.where((t) => t.playerIndex == i).toList();
-      final hits = pThrows.where((t) => t.segment != 0).length;
-      final total = pThrows.length;
-      final hitPct = total == 0 ? 0 : (hits * 100 / total).round();
-      final missPct = 100 - hitPct;
-      final pointsSum = pThrows.fold<int>(0, (acc, t) => acc + t.segment * t.multiplier);
-      final avg = total == 0 ? 0.0 : (pointsSum / total) * 3;
-      final lastLabel = _previousTurnLabel(i);
-      final lastSum = _sumOfLastThreeBeforeCurrentTurn(i);
-      rows.add(PlayerOverviewRow(
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
         name: p.name,
         avatarPath: p.avatarPath,
-        remaining: p.score,
-        lastTurnLabel: lastLabel.isEmpty ? '— · — · —' : lastLabel,
-        lastTurnSum: lastSum,
-        avg: avg,
-        hitPct: hitPct,
-        missPct: missPct,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: '${p.score}',
       ));
     }
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DossedartPlayerOverviewScreen(
-        title: 'CAST · X01 ${widget.startingScore}',
-        roundNumber: _roundNumber + 1,
-        rows: rows,
-      ),
-    ));
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: _gameFullyOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
   }
 
   Widget _buildClassicScaffold(BuildContext context) {
@@ -1632,7 +1674,7 @@ class _GameScreenState extends State<GameScreen> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             tooltip: 'More',
-            onSelected: (value) {
+            onSelected: (value) async {
               switch (value) {
                 case 'players':
                   if (!_gameFullyOver) _openPlayerManagement();
@@ -1640,16 +1682,24 @@ class _GameScreenState extends State<GameScreen> {
                 case 'sound':
                   setState(() => _soundEnabled = !_soundEnabled);
                   SoundService.instance.setEnabled(_soundEnabled);
-                  _meme.setEnabled(_soundEnabled);
                   AppSettings.setSoundEffectsEnabled(_soundEnabled);
-                  AppSettings.setMemeEnabled(_soundEnabled);
                   break;
                 case 'tts':
-                  setState(() => _ttsEnabled = !_ttsEnabled);
-                  TtsService.instance.setEnabled(_ttsEnabled);
+                  await TtsService.instance.setEnabled(!_ttsEnabled);
+                  setState(() => _ttsEnabled = TtsService.instance.enabled);
                   break;
-                case 'sound_settings':
-                  _showSoundSettingsDialog();
+                case 'meme':
+                  setState(() => _memeEnabled = !_memeEnabled);
+                  AppSettings.setMemeEnabled(_memeEnabled);
+                  _meme.setEnabled(_memeEnabled);
+                  break;
+                case 'meme_freq':
+                  _showMemeFrequencyDialog();
+                  break;
+                case 'offensive':
+                  setState(() => _offensiveEnabled = !_offensiveEnabled);
+                  AppSettings.setMemeOffensive(_offensiveEnabled);
+                  _meme.setOffensive(_offensiveEnabled);
                   break;
               }
             },
@@ -1670,8 +1720,7 @@ class _GameScreenState extends State<GameScreen> {
                 value: 'sound',
                 child: Row(
                   children: [
-                    Text(_soundEnabled ? '🤡' : '🤐',
-                        style: const TextStyle(fontSize: 20)),
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
                     const SizedBox(width: 12),
                     Text(_soundEnabled ? 'Sound on' : 'Sound off'),
                   ],
@@ -1687,17 +1736,43 @@ class _GameScreenState extends State<GameScreen> {
                   ],
                 ),
               ),
-              if (_soundEnabled)
+              PopupMenuItem(
+                value: 'meme',
+                child: Row(
+                  children: [
+                    Text(_memeEnabled ? '🤡' : '🤐',
+                        style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Text(_memeEnabled ? 'Memes on' : 'Memes off'),
+                  ],
+                ),
+              ),
+              if (_memeEnabled) ...[
                 const PopupMenuItem(
-                  value: 'sound_settings',
+                  value: 'meme_freq',
                   child: Row(
                     children: [
                       Icon(Icons.tune),
                       SizedBox(width: 12),
-                      Text('Sound settings'),
+                      Text('Meme frequency'),
                     ],
                   ),
                 ),
+                PopupMenuItem(
+                  value: 'offensive',
+                  child: Row(
+                    children: [
+                      Icon(_offensiveEnabled
+                          ? Icons.whatshot
+                          : Icons.whatshot_outlined),
+                      const SizedBox(width: 12),
+                      Text(_offensiveEnabled
+                          ? 'Offensive on'
+                          : 'Offensive off'),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ],
@@ -1935,7 +2010,7 @@ class _GameScreenState extends State<GameScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     borderRadius: BorderRadius.circular(8),
                     child: SizedBox(
-                      height: _playerCardHeight - 18, // subtract 2*(vertical padding 6 + border 3)
+                      height: _playerCardHeight - 18, // subtract 2*(vertical padding 6 + border 2)
                       child: Container(
                         color: isWinner ? Theme.of(context).colorScheme.primary.withAlpha(25) : null,
                         child: Row(
@@ -2007,33 +2082,16 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  void _showSoundSettingsDialog() {
+  void _showMemeFrequencyDialog() {
     int currentFreq = _meme.frequency;
-    bool currentOffensive = _offensiveEnabled;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Sound settings'),
+          title: const Text('Meme frequency'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Offensive sounds'),
-                  Switch(
-                    value: currentOffensive,
-                    onChanged: (v) => setDialogState(() => currentOffensive = v),
-                    activeTrackColor: Theme.of(ctx).colorScheme.primary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Meme frequency'),
-              ),
               Slider(
                 value: currentFreq.toDouble(),
                 min: 1,
@@ -2048,7 +2106,9 @@ class _GameScreenState extends State<GameScreen> {
                             : currentFreq <= 8
                                 ? 'Often'
                                 : 'Always',
-                onChanged: (v) => setDialogState(() => currentFreq = v.round()),
+                onChanged: (v) {
+                  setDialogState(() => currentFreq = v.round());
+                },
               ),
               Text(
                 currentFreq == 1
@@ -2071,9 +2131,6 @@ class _GameScreenState extends State<GameScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                setState(() => _offensiveEnabled = currentOffensive);
-                AppSettings.setMemeOffensive(currentOffensive);
-                _meme.setOffensive(currentOffensive);
                 _meme.setFrequency(currentFreq);
                 AppSettings.setMemeFrequency(currentFreq);
                 Navigator.of(ctx).pop();
@@ -2127,6 +2184,48 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      finishedPlayers.remove(playerIndex);
+      // Mark as finished so they're skipped in rotation
+      if (!finishedPlayers.contains(playerIndex)) {
+        finishedPlayers.add(playerIndex);
+      }
+      // If removed player was current, advance
+      if (playerIndex == currentPlayerIndex) {
+        dartsInTurn = 0;
+        _meme.resetTurn();
+        _advancePlayer();
+      }
+      // If only 1 (or 0) active players remain, end the game
+      final remaining = List.generate(players.length, (i) => i)
+          .where((i) => !finishedPlayers.contains(i))
+          .toList();
+      if (remaining.length <= 1) {
+        winnerIndex ??= remaining.isNotEmpty
+            ? remaining.first
+            : _winnerIndexExcludingRemoved() ?? (finishedPlayers.isNotEmpty ? finishedPlayers.first : 0);
+        _gameFullyOver = true;
+      }
+    });
+    _log.logRoster(
+        action: 'REMOVE',
+        playerIndex: playerIndex,
+        playerName: removed.name,
+        names: players.map((p) => p.name).toList(),
+        scores: players.map((p) => p.score).toList());
+    if (_gameFullyOver) {
+      _prepareRatingPreview().then((_) => _showPostGame());
+    }
+  }
+
   void _removePlayerMidGame(int playerIndex) {
     showDialog(
       context: context,
@@ -2145,38 +2244,7 @@ class _GameScreenState extends State<GameScreen> {
                 foregroundColor: Theme.of(ctx).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                finishedPlayers.remove(playerIndex);
-                // Mark as finished so they're skipped in rotation
-                if (!finishedPlayers.contains(playerIndex)) {
-                  finishedPlayers.add(playerIndex);
-                }
-                // If removed player was current, advance
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _meme.resetTurn();
-                  _advancePlayer();
-                }
-                // If only 1 (or 0) active players remain, end the game
-                final remaining = List.generate(players.length, (i) => i)
-                    .where((i) => !finishedPlayers.contains(i))
-                    .toList();
-                if (remaining.length <= 1) {
-                  winnerIndex ??= remaining.isNotEmpty
-                      ? remaining.first
-                      : _winnerIndexExcludingRemoved() ?? (finishedPlayers.isNotEmpty ? finishedPlayers.first : 0);
-                  _gameFullyOver = true;
-                }
-              });
-              if (_gameFullyOver) {
-                _updateStats().then((_) => _showPostGame());
-              }
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),
@@ -2243,3 +2311,4 @@ class _FinishEntry {
     required this.turnId,
   });
 }
+

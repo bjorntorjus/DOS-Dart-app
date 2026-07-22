@@ -40,7 +40,7 @@ class _DossedartShanghaiSetupScreenState
         ),
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
-          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+          ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );
@@ -59,6 +59,7 @@ class _DossedartShanghaiSetupScreenState
       MaterialPageRoute(
         builder: (_) => ShanghaiGameScreen(
           players: players,
+          useDossedartDesign: true,
           config: ShanghaiConfig(targetEnd: _targetEnd),
         ),
       ),

@@ -10,6 +10,7 @@ void main() {
     String? lastTurn = 'T20 · S20 · S20',
     int? lastTurnSum = 80,
     String? checkoutTip,
+    double? avg,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -22,6 +23,7 @@ void main() {
           lastTurnLabel: lastTurn,
           lastTurnSum: lastTurnSum,
           checkoutTip: checkoutTip,
+          avg: avg,
         ),
       ),
     );
@@ -69,5 +71,96 @@ void main() {
     await tester.pumpWidget(harness(name: 'BJORN TORJUS'));
     final text = tester.widget<Text>(find.text('BJORN TORJUS'));
     expect(text.style!.fontSize, 12);
+  });
+
+  testWidgets('uses solid surface background (no gradient)', (tester) async {
+    await tester.pumpWidget(harness());
+    // Outer card is the first Container in the widget tree with a magenta
+    // border. Look it up via the BoxDecoration and assert: solid color set,
+    // no gradient.
+    final container = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byType(DossedartX01ActiveCard),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final deco = container.decoration as BoxDecoration;
+    expect(deco.gradient, isNull,
+        reason: 'active card should use a solid bg, not a gradient');
+    expect(deco.color, isNotNull,
+        reason: 'active card should set a solid background color');
+  });
+
+  testWidgets('shows AVG when avg is non-null', (tester) async {
+    await tester.pumpWidget(harness(avg: 52.8));
+    expect(find.text('AVG'), findsOneWidget);
+    expect(find.text('52.8'), findsOneWidget);
+  });
+
+  testWidgets('formats AVG to 1 decimal', (tester) async {
+    await tester.pumpWidget(harness(avg: 60));
+    expect(find.text('60.0'), findsOneWidget);
+  });
+
+  testWidgets('drops AVG decimal at >=100 so it fits the column',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(lastTurn: null, lastTurnSum: null, avg: null),
+    );
+    final placeholderHeight =
+        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+
+    await tester.pumpWidget(harness(avg: 180.0));
+    expect(find.text('180'), findsOneWidget);
+    expect(find.text('180.0'), findsNothing);
+    expect(
+      tester.getSize(find.byType(DossedartX01ActiveCard)).height,
+      placeholderHeight,
+    );
+  });
+
+  testWidgets('drops AVG decimal when rounding pushes it to 100',
+      (tester) async {
+    // 99.95 < 100 but toStringAsFixed(1) rounds it to '100.0' (5 chars),
+    // which is exactly the overflow the formatter exists to prevent.
+    await tester.pumpWidget(harness(avg: 99.95));
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('100.0'), findsNothing);
+  });
+
+  testWidgets('shows AVG placeholder value when avg is null', (tester) async {
+    await tester.pumpWidget(harness(avg: null));
+    expect(find.text('AVG'), findsOneWidget);
+    expect(find.text('–'), findsOneWidget);
+  });
+
+  testWidgets('renders AVG/LAST placeholders when no data yet',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(lastTurn: null, lastTurnSum: null, avg: null),
+    );
+    expect(find.text('AVG'), findsOneWidget);
+    expect(find.text('LAST'), findsOneWidget);
+    expect(find.text('— · — · —'), findsOneWidget);
+    expect(find.text('–'), findsOneWidget); // AVG placeholder value
+  });
+
+  testWidgets('card height is identical with and without LAST/AVG data',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(lastTurn: null, lastTurnSum: null, avg: null),
+    );
+    final heightA =
+        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+
+    await tester.pumpWidget(
+      harness(lastTurn: 'T20 · S20 · S20', lastTurnSum: 100, avg: 55.0),
+    );
+    final heightB =
+        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+
+    expect(heightA, heightB);
   });
 }

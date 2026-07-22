@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'game_mode.dart';
 import 'halve_it_round.dart';
+import 'one_up_engine.dart';
 
 sealed class GameConfig {
   final GameMode mode;
@@ -142,4 +143,36 @@ class ShanghaiConfig extends GameConfig {
   final int targetEnd; // 7, 9, or 20 — sequence is 1..targetEnd inclusive
   const ShanghaiConfig({this.targetEnd = 7})
       : super(GameMode.shanghai);
+}
+
+class GotchaConfig extends GameConfig {
+  final int targetScore; // 101 / 201 / 301 / 501 — must be hit exactly
+
+  /// true = kill resets to 0 (v1); false = kill halves
+  final bool hardcore;
+  const GotchaConfig({this.targetScore = 301, this.hardcore = false})
+      : super(GameMode.gotcha);
+}
+
+class WildcardConfig extends GameConfig {
+  final int rounds;
+  final int startingChaos;
+  const WildcardConfig({this.rounds = 10, this.startingChaos = 5})
+      : super(GameMode.wildcard);
+}
+
+class OneUpConfig extends GameConfig {
+  final int lives; // 1 / 3 / 5 (default 3)
+  final OneUpVariant variant; // beatTheLast (default) / survivor
+  final bool randomOrder; // shuffle alive rotation every round
+  const OneUpConfig({
+    this.lives = 3,
+    this.variant = OneUpVariant.beatTheLast,
+    this.randomOrder = false,
+  }) : super(GameMode.oneUp);
+}
+
+class GolfConfig extends GameConfig {
+  final int holes; // 9 or 18 (default 18)
+  const GolfConfig({this.holes = 18}) : super(GameMode.golf);
 }

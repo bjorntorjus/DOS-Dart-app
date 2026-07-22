@@ -1,5 +1,7 @@
 import '../models/saved_player.dart';
 import '../models/game_history.dart';
+import '../models/dart_throw.dart';
+import '../models/earned_feat.dart';
 import '../services/game_history_service.dart';
 import '../services/player_storage.dart';
 
@@ -19,11 +21,18 @@ class StatsRecorder {
     Map<String, Map<String, int>>? modeCounters,
     Map<String, double>? ratingsBefore,
     Map<String, double>? ratingsAfter,
+    String? gameConfig,
+    int? durationSeconds,
+    List<DartThrow>? throwHistory,
+    Map<int, List<EarnedFeat>>? earnedFeatsByIndex,
   }) {
     final now = DateTime.now();
 
-    // Find the best placement (lowest number = winner)
+    // Find the best placement (lowest number = winner).
+    // A shared best placement is a draw — nobody gets win credit.
     final bestPlacement = placements.reduce((a, b) => a < b ? a : b);
+    final bestIsShared =
+        placements.where((p) => p == bestPlacement).length > 1;
 
     for (int i = 0; i < playerIds.length; i++) {
       final playerId = playerIds[i];
@@ -35,8 +44,24 @@ class StatsRecorder {
       // Per-mode stats
       final mode = sp.modeStats.putIfAbsent(gameMode, () => ModeStats());
       mode.played++;
-      if (placements[i] == bestPlacement) {
+      if (placements[i] == bestPlacement && !bestIsShared) {
         mode.won++;
+      }
+
+      // Win/loss streaks (cross-mode). Sole best = win; shared best = draw
+      // (breaks both streaks); everything else = loss.
+      if (placements[i] == bestPlacement && !bestIsShared) {
+        sp.currentWinStreak++;
+        if (sp.currentWinStreak > sp.bestWinStreak) {
+          sp.bestWinStreak = sp.currentWinStreak;
+        }
+        sp.currentLossStreak = 0;
+      } else if (placements[i] == bestPlacement) {
+        sp.currentWinStreak = 0;
+        sp.currentLossStreak = 0;
+      } else {
+        sp.currentLossStreak++;
+        sp.currentWinStreak = 0;
       }
 
       // Merge mode-specific counters
@@ -45,6 +70,8 @@ class StatsRecorder {
         for (final entry in counters.entries) {
           if (entry.key.startsWith('max:')) {
             mode.setMax(entry.key.substring(4), entry.value);
+          } else if (entry.key.startsWith('min:')) {
+            mode.setMin(entry.key.substring(4), entry.value);
           } else {
             mode.inc(entry.key, entry.value);
           }
@@ -91,6 +118,7 @@ class StatsRecorder {
         stats: Map<String, int>.from(stats),
         ratingBefore: rb,
         ratingAfter: ra,
+        earnedFeats: earnedFeatsByIndex?[i],
       );
     });
 
@@ -99,6 +127,9 @@ class StatsRecorder {
       gameMode: gameMode,
       date: now,
       players: historyPlayers,
+      gameConfig: gameConfig,
+      durationSeconds: durationSeconds,
+      throwHistory: throwHistory,
     );
 
     GameHistoryService.record(entry);

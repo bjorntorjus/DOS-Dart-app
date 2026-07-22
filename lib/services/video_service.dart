@@ -14,6 +14,11 @@ class VideoService {
   bool _enabled = true;
   final Random _random = Random();
 
+  /// F18: hard off-switch for tests. Checked at show-time so the async
+  /// prefs re-read in init() cannot re-enable videos mid-test.
+  @visibleForTesting
+  static bool disableForTest = false;
+
   Future<void> init() async {
     _enabled = await AppSettings.getVideoEventsEnabled();
   }
@@ -25,6 +30,7 @@ class VideoService {
   /// Show a specific [name].mp4 from assets/videos/ as an overlay.
   /// Does nothing if disabled or the asset file doesn't exist.
   Future<void> showVideo(BuildContext context, String name) async {
+    if (disableForTest) return;
     if (!_enabled) return;
     final path = 'assets/videos/$name.mp4';
     try {
@@ -44,6 +50,7 @@ class VideoService {
   /// Only plays with a 1-in-[chance] probability (default: always).
   /// Supports .mp4 and .gif files.
   Future<void> showRandomFromFolder(BuildContext context, String folder, {int chance = 1}) async {
+    if (disableForTest) return;
     if (!_enabled) return;
     if (chance > 1 && _random.nextInt(chance) != 0) return;
 

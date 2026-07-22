@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
+import '../models/cricket_engine.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
@@ -17,18 +19,32 @@ import '../services/video_service.dart';
 import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
+import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
+import '../services/achievement_service.dart';
+import '../utils/cricket_achievement_feats.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 import '../services/battery_sampler.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_active_strip.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 class CricketGameScreen extends StatefulWidget {
   final List<Player> players;
   final CricketConfig config;
+  final bool useDossedartDesign;
 
   const CricketGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -40,21 +56,27 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
   late List<Player> players;
   late List<int> targets;
-  late List<Map<int, int>> marks;
-  late List<int> scores;
-  int currentPlayerIndex = 0;
-  int dartsInTurn = 0;
+  late CricketEngine engine;
+  int _turnIdCounter = 0;
   List<DartThrow> throwHistory = [];
-  int? winnerIndex;
   String? lastThrowLabel;
-  List<int> finishedPlayers = [];
   bool _gameFullyOver = false;
-  bool _statsRecorded = false;
 
-  final List<_CricketUndoData> _undoStack = [];
+  // Delegating views onto the engine — all rules state (marks, scores,
+  // rotation, darts-in-turn, finished/removed players, winner) lives in the
+  // engine. These keep the ~1800 lines of UI code reading by the same names.
+  List<Map<int, int>> get marks => engine.marks;
+  List<int> get scores => engine.scores;
+  int get currentPlayerIndex => engine.currentPlayerIndex;
+  int get dartsInTurn => engine.dartsInTurn;
+  List<int> get finishedPlayers => engine.finishedPlayers;
+  int? get winnerIndex => engine.winnerIndexExcludingSkipped();
+  Set<int> get _removedPlayerIndices => engine.skippedIndices;
+
   final GameAnnouncer _announcer = GameAnnouncer();
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
+  bool _soundEnabled = true;
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
   bool _ttsEnabled = false;
@@ -68,17 +90,25 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     super.initState();
     players = widget.players;
     targets = widget.config.generateTargets();
-    marks = List.generate(
-        players.length, (_) => {for (final t in targets) t: 0});
-    scores = List.filled(players.length, 0, growable: true);
+    engine = CricketEngine(
+      targets: targets,
+      isCutthroat: widget.config.isCutthroat,
+      playerCount: players.length,
+    );
     for (final p in players) {
       p.score = 0;
     }
     _announcer.init();
     _meme.init();
+    AppSettings.getSoundEffectsEnabled().then((v) {
+      if (mounted) setState(() => _soundEnabled = v);
+      SoundService.instance.setEnabled(v);
+    });
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
-    _ttsEnabled = TtsService.instance.enabled;
+    TtsService.instance.init().then((_) {
+      if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
+    });
     _log.logGameStart(
       gameMode: widget.config.isCutthroat ? 'Cricket (Cutthroat)' : 'Cricket',
       playerNames: players.map((p) => p.name).toList(),
@@ -87,6 +117,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         'targets': targets.map((t) => t == 25 ? 'Bull' : '$t').toList(),
         if (widget.config.isCutthroat) 'cutthroat': true,
       },
+      build: kAppVersion,
     );
     BatterySampler.instance.start('Cricket');
   }
@@ -104,77 +135,29 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return (turnsForCurrentPlayer ~/ 3) + 1;
   }
 
-  bool _isClosed(int target, int playerIndex) =>
-      (marks[playerIndex][target] ?? 0) >= 3;
-
-  bool _isClosedByAll(int target) {
-    for (int i = 0; i < players.length; i++) {
-      if (!_isClosed(target, i)) return false;
-    }
-    return true;
-  }
-
-  bool _allClosedByPlayer(int playerIndex) =>
-      targets.every((t) => _isClosed(t, playerIndex));
-
-  void _checkWinner() {
-    for (int i = 0; i < players.length; i++) {
-      if (finishedPlayers.contains(i)) continue;
-      if (_allClosedByPlayer(i)) {
-        bool canFinish = true;
-        for (int j = 0; j < players.length; j++) {
-          if (j == i || finishedPlayers.contains(j)) continue;
-          if (widget.config.isCutthroat) {
-            // Cutthroat: must have lowest (or tied) score to finish
-            if (scores[j] < scores[i]) { canFinish = false; break; }
-          } else {
-            // Standard: must have highest (or tied) score to finish
-            if (scores[j] > scores[i]) { canFinish = false; break; }
-          }
-        }
-        if (canFinish) {
-          finishedPlayers.add(i);
-          final activePlayers = List.generate(players.length, (idx) => idx)
-              .where((idx) => !finishedPlayers.contains(idx))
-              .toList();
-          if (activePlayers.length <= 1) {
-            if (activePlayers.length == 1) finishedPlayers.add(activePlayers.first);
-            winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
-            _gameFullyOver = true;
-          } else {
-            winnerIndex = _winnerIndexExcludingRemoved() ?? finishedPlayers.first;
-          }
-          return;
-        }
-      }
-    }
-  }
-
   Future<void> _registerHit(int segment, int multiplier) async {
     if (finishedPlayers.contains(currentPlayerIndex)) return;
 
     final points = segment * multiplier;
     final roundNum = _roundNumber;
-    final scoreBefore = scores[currentPlayerIndex];
-
-    _undoStack.add(_CricketUndoData(
-      playerIndex: currentPlayerIndex,
-      dartsInTurn: dartsInTurn,
-      marksBefore: {
-        for (final t in targets) t: marks[currentPlayerIndex][t] ?? 0
-      },
-      scoresBefore: List.from(scores),
-      finishedPlayersBefore: List.from(finishedPlayers),
-    ));
+    // Capture the pre-hit state the log/label/announcer lines need — the engine
+    // advances the current player internally on a turn end, so these must be
+    // read before applyHit.
+    final playerIdxBefore = engine.currentPlayerIndex;
+    final scoreBefore = engine.scores[playerIdxBefore];
+    final isTargetSegment = segment > 0 && targets.contains(segment);
+    final marksBeforeSeg =
+        isTargetSegment ? (engine.marks[playerIdxBefore][segment] ?? 0) : 0;
 
     final dartThrow = DartThrow(
-      playerIndex: currentPlayerIndex,
+      playerIndex: playerIdxBefore,
       segment: segment,
       multiplier: multiplier,
       points: points,
-      scoreBefore: scores[currentPlayerIndex],
-      turnNumber: dartsInTurn,
-      scoreAtStartOfTurn: scores[currentPlayerIndex],
+      scoreBefore: scoreBefore,
+      turnNumber: engine.dartsInTurn,
+      scoreAtStartOfTurn: scoreBefore,
+      turnId: _turnIdCounter,
     );
 
     // Pre-roll video dice and track per-dart events
@@ -192,58 +175,37 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       _consecutiveMisses = 0;
     }
 
-    bool isTurnEnd = false;
+    late final CricketHitResult result;
 
     setState(() {
       throwHistory.add(dartThrow);
 
+      // All scoring / overflow / cutthroat / mark bookkeeping happens in the
+      // engine. applyHit also pushes its own undo snapshot, runs the winner
+      // check, and (on a non-finishing turn end) advances the current player.
+      result = engine.applyHit(segment, multiplier);
+
       String? extraInfo;
 
-      if (segment > 0 && targets.contains(segment)) {
-        final currentMarks = marks[currentPlayerIndex][segment] ?? 0;
-        final marksToAdd = multiplier == 0 ? 0 : multiplier;
-        final newMarks = currentMarks + marksToAdd;
-        final marksForClose = 3 - currentMarks;
-        final closingMarks =
-            marksToAdd.clamp(0, marksForClose.clamp(0, marksToAdd));
-        final overflowMarks = marksToAdd - closingMarks;
-
-        marks[currentPlayerIndex][segment] = newMarks;
-
-        if (overflowMarks > 0) {
-          bool allOthersClosed = true;
-          for (int j = 0; j < players.length; j++) {
-            if (j != currentPlayerIndex && !_isClosed(segment, j)) {
-              allOthersClosed = false;
-              break;
-            }
-          }
-          if (!allOthersClosed) {
-            final pts = segment * overflowMarks;
-            if (widget.config.isCutthroat) {
-              // Cutthroat: give points to opponents who haven't closed
-              for (int j = 0; j < players.length; j++) {
-                if (j != currentPlayerIndex && !_isClosed(segment, j) && !finishedPlayers.contains(j)) {
-                  scores[j] += pts;
-                  players[j].score = scores[j];
-                }
-              }
-              extraInfo = 'cutthroat ${pts}pts to opponents marks=$newMarks';
-            } else {
-              scores[currentPlayerIndex] += pts;
-              players[currentPlayerIndex].score = scores[currentPlayerIndex];
-              extraInfo = 'scoring ${pts}pts marks=$newMarks';
-            }
-          } else {
-            extraInfo = newMarks >= 3 ? 'closed ${segment == 25 ? "Bull" : "T$segment"} marks=$newMarks' : 'marks=$newMarks';
-          }
+      if (isTargetSegment) {
+        final newMarks = engine.marks[playerIdxBefore][segment] ?? 0;
+        final overflow =
+            CricketEngine.computeOverflow(marksBeforeSeg, multiplier);
+        final scoredOverflow = overflow > 0 && !engine.isClosedByAll(segment);
+        if (scoredOverflow) {
+          final pts = segment * overflow;
+          extraInfo = widget.config.isCutthroat
+              ? 'cutthroat ${pts}pts to opponents marks=$newMarks'
+              : 'scoring ${pts}pts marks=$newMarks';
         } else {
-          extraInfo = newMarks >= 3 ? 'closed ${segment == 25 ? "Bull" : "T$segment"} marks=$newMarks' : 'marks=$newMarks';
+          extraInfo = newMarks >= 3
+              ? 'closed ${segment == 25 ? "Bull" : "T$segment"} marks=$newMarks'
+              : 'marks=$newMarks';
         }
 
         final markStr = newMarks >= 3 ? '(Closed!)' : '($newMarks/3)';
         lastThrowLabel = '${dartThrow.label} $markStr';
-        if (currentMarks < 3 && newMarks >= 3) {
+        if (result.closedTarget) {
           _announcer.announceGameEvent('Closed');
         } else {
           _announcer.announceThrow(dartThrow.spokenLabel);
@@ -252,58 +214,90 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         lastThrowLabel = segment == 0 ? 'Miss' : dartThrow.label;
         extraInfo = segment == 0 ? 'miss' : 'non-target';
         if (!(segment == 0 && _missSoundPlayed)) {
-          _announcer.announceThrow(segment == 0 ? 'Miss' : dartThrow.spokenLabel);
+          _announcer
+              .announceThrow(segment == 0 ? 'Miss' : dartThrow.spokenLabel);
         }
       }
 
       _log.logThrow(
         roundNumber: roundNum,
-        playerIndex: currentPlayerIndex,
+        playerIndex: playerIdxBefore,
         label: dartThrow.label,
-        points: scores[currentPlayerIndex] - scoreBefore,
+        points: engine.scores[playerIdxBefore] - scoreBefore,
         scoreBefore: scoreBefore,
-        scoreAfter: scores[currentPlayerIndex],
-        dartNumber: dartsInTurn,
+        scoreAfter: engine.scores[playerIdxBefore],
+        dartNumber: dartThrow.turnNumber,
         extra: extraInfo,
       );
 
       _meme.onThrow(dartThrow);
-      dartsInTurn++;
 
-      final wasFinished = finishedPlayers.length;
-      _checkWinner();
-      final playerJustFinished = finishedPlayers.length > wasFinished;
-
-      if (playerJustFinished) {
-        isTurnEnd = true;
-        final finishedIdx = finishedPlayers.last;
+      if (result.playerFinished) {
+        final finishedIdx = engine.finishedPlayers.last;
         _log.logFinish(
           roundNumber: roundNum,
           playerIndex: finishedIdx,
           playerName: players[finishedIdx].name,
-          details: 'score=${scores[finishedIdx]} placement=#${finishedPlayers.length}',
+          details:
+              'score=${engine.scores[finishedIdx]} placement=#${engine.finishedPlayers.length}',
         );
-        if (!_gameFullyOver) {
+        if (!engine.gameOver) {
           // Intermediate finish — announce immediately; no winner video coming
           _announcer.announceWinner(players[finishedIdx].name);
         }
         if (_pendingVideoEvent != null && videoRoll) _meme.markSoundPlayed();
         _meme.onTurnEnd();
-      } else if (dartsInTurn >= 3) {
-        isTurnEnd = true;
-        final turnTotal = scores[currentPlayerIndex] - _scoreAtStartOfTurn;
+      } else if (result.turnEnded) {
+        // Turn ended by throwing three darts — the engine already advanced to
+        // the next active player.
+        final turnTotal = engine.scores[playerIdxBefore] - _scoreAtStartOfTurn;
         if (turnTotal >= 120) _pendingVideoEvent ??= 'high_round';
         if (_pendingVideoEvent != null && videoRoll) _meme.markSoundPlayed();
         _meme.onTurnEnd();
-        _advancePlayer();
+      }
+
+      if (result.turnEnded) {
+        // Mirror the old _advancePlayer's turnId bump so the next turn's darts
+        // group under a fresh id (regression: cricket_turn_id_test).
+        _turnIdCounter++;
+      }
+
+      if (engine.gameOver) _gameFullyOver = true;
+
+      // Announce / log the newly active player only when the turn ended by
+      // advancing — not on a finish (which keeps the finisher current for the
+      // post-game screen) and not once the game is over.
+      if (result.turnEnded && !result.playerFinished && !engine.gameOver) {
+        _log.logAdvance(
+          roundNumber: _roundNumber,
+          fromIndex: playerIdxBefore,
+          toIndex: engine.currentPlayerIndex,
+          toName: players[engine.currentPlayerIndex].name,
+          toScore: engine.scores[engine.currentPlayerIndex],
+          reason: 'turn complete',
+        );
+        _log.logTurnStart(
+          roundNumber: _roundNumber,
+          playerIndex: engine.currentPlayerIndex,
+          playerName: players[engine.currentPlayerIndex].name,
+          score: engine.scores[engine.currentPlayerIndex],
+        );
+        _log.logStandings(
+          roundNumber: _roundNumber,
+          names: players.map((p) => p.name).toList(),
+          scores: engine.scores,
+        );
+        _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+        _scoreAtStartOfTurn = engine.scores[engine.currentPlayerIndex];
       }
     });
 
     // Show video at turn end only
-    if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
-      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+    if (result.turnEnded && _pendingVideoEvent != null && videoRoll) {
+      await VideoService.instance
+          .showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
     }
-    if (isTurnEnd) _pendingVideoEvent = null;
+    if (result.turnEnded) _pendingVideoEvent = null;
     if (!mounted) return;
 
     if (_gameFullyOver && finishedPlayers.isNotEmpty) {
@@ -321,63 +315,57 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   void _onMiss() {
-    _missSoundPlayed = false;
-    if (_memeEnabled) {
-      _missSoundPlayed = SoundService.instance.playRandomMaybe([
-        'miss',
-        if (_offensiveEnabled) 'miss/offensive',
-      ], chance: _meme.frequencyChance);
-      if (_missSoundPlayed && _meme.frequency < 10) {
-        _meme.markSoundPlayed();
-      }
-    }
+    _missSoundPlayed = _meme.tryMissSound();
     _registerHit(0, 0);
   }
 
-  void _advancePlayer() {
-    final fromIndex = currentPlayerIndex;
-    dartsInTurn = 0;
+  /// Advances the engine's current seat to the next active (not finished, not
+  /// removed) player. Used only by the post-game "continue" flow — after an
+  /// intermediate finish the engine leaves the finisher current so the screen
+  /// can show them, so resuming play needs an explicit advance. The engine
+  /// exposes no public advance, so this walks its public rotation state.
+  void _advanceToNextActivePlayer() {
+    final start = engine.currentPlayerIndex;
+    var idx = start;
     do {
-      currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-    } while (finishedPlayers.contains(currentPlayerIndex));
+      idx = (idx + 1) % engine.playerCount;
+      if (idx == start) break;
+    } while (engine.finishedPlayers.contains(idx) || engine.isSkipped(idx));
+    engine.currentPlayerIndex = idx;
+    engine.dartsInTurn = 0;
+    _turnIdCounter++;
+    _scoreAtStartOfTurn = engine.scores[idx];
     _log.logAdvance(
       roundNumber: _roundNumber,
-      fromIndex: fromIndex,
-      toIndex: currentPlayerIndex,
-      toName: players[currentPlayerIndex].name,
-      toScore: scores[currentPlayerIndex],
-      reason: 'turn complete',
+      fromIndex: start,
+      toIndex: idx,
+      toName: players[idx].name,
+      toScore: engine.scores[idx],
+      reason: 'continue',
     );
-    _announcer.announceNextPlayer(players[currentPlayerIndex].name);
-    _scoreAtStartOfTurn = scores[currentPlayerIndex];
+    _announcer.announceNextPlayer(players[idx].name);
   }
 
   void _undo() {
-    if (throwHistory.isEmpty || _undoStack.isEmpty) return;
+    // Roster changes clear the engine's undo stack (a snapshot never outlives
+    // an add/remove), so a removed player can never be resurrected and the
+    // restored current seat is always a valid active player — the old manual
+    // re-assertions (F9) are gone with the parallel state.
+    if (throwHistory.isEmpty || !engine.canUndo) return;
     final lastThrow = throwHistory.last;
     _announcer.announceGameEvent('Back');
     setState(() {
+      engine.undo();
       throwHistory.removeLast();
-      final data = _undoStack.removeLast();
-      finishedPlayers = List.from(data.finishedPlayersBefore);
+      _turnIdCounter = lastThrow.turnId;
       _gameFullyOver = false;
-      currentPlayerIndex = data.playerIndex;
-      dartsInTurn = data.dartsInTurn;
-      for (final t in targets) {
-        marks[data.playerIndex][t] = data.marksBefore[t] ?? 0;
-      }
-      for (int i = 0; i < scores.length; i++) {
-        scores[i] = data.scoresBefore[i];
-        players[i].score = scores[i];
-      }
-      winnerIndex = _winnerIndexExcludingRemoved();
       lastThrowLabel = null;
     });
     _log.logUndo(
       playerIndex: lastThrow.playerIndex,
       playerName: players[lastThrow.playerIndex].name,
       throwLabel: lastThrow.label,
-      scoreRestored: scores[lastThrow.playerIndex],
+      scoreRestored: engine.scores[lastThrow.playerIndex],
       roundNumber: _roundNumber,
     );
   }
@@ -386,19 +374,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
-  final Set<int> _removedPlayerIndices = {};
-
-  /// First player in [finishedPlayers] who has not been removed mid-game.
-  /// Used for winner picking — a removed player must never be declared winner
-  /// even if their index happens to appear first in [finishedPlayers].
-  int? _winnerIndexExcludingRemoved() {
-    for (final i in finishedPlayers) {
-      if (!_removedPlayerIndices.contains(i)) return i;
-    }
-    return null;
-  }
 
   @visibleForTesting
   List<int> get finishedPlayersForTest => finishedPlayers;
@@ -410,18 +388,29 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   int? get winnerIndexForTest => winnerIndex;
 
   @visibleForTesting
-  int? computeWinnerForTest() => _winnerIndexExcludingRemoved();
+  int? computeWinnerForTest() => engine.winnerIndexExcludingSkipped();
 
   @visibleForTesting
-  void removePlayerForTest(int playerIndex) {
-    setState(() {
-      _midGamePlayerChanges = true;
-      _removedPlayerIndices.add(playerIndex);
-      if (!finishedPlayers.contains(playerIndex)) {
-        finishedPlayers.add(playerIndex);
-      }
-    });
-  }
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
+  Future<void> registerHitForTest(int segment, int multiplier) =>
+      _registerHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int get currentPlayerIndexForTest => currentPlayerIndex;
+
+  @visibleForTesting
+  int get scoreAtStartOfTurnForTest => _scoreAtStartOfTurn;
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   /// Computes final placements for all players.
   /// Finished players keep their finish order.
@@ -429,11 +418,17 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   /// then closed targets (desc), then total marks (desc). Ties share a rank.
   List<int> _computeExitPlacements() {
     final result = List<int>.filled(players.length, 0);
-    for (int i = 0; i < finishedPlayers.length; i++) {
-      result[finishedPlayers[i]] = i + 1;
+    // Removed players forfeited — exclude them from the finish ranking so a
+    // removed player who landed first in [finishedPlayers] cannot push the real
+    // finishers down a place (or take 1st themselves).
+    final rankedFinished =
+        finishedPlayers.where((p) => !_removedPlayerIndices.contains(p)).toList();
+    for (int i = 0; i < rankedFinished.length; i++) {
+      result[rankedFinished[i]] = i + 1;
     }
     final remaining = List.generate(players.length, (i) => i)
-        .where((i) => !finishedPlayers.contains(i))
+        .where((i) =>
+            !finishedPlayers.contains(i) && !_removedPlayerIndices.contains(i))
         .toList();
     if (remaining.isEmpty) return result;
 
@@ -442,23 +437,23 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           ? scores[a].compareTo(scores[b])
           : scores[b].compareTo(scores[a]);
       if (scoreComp != 0) return scoreComp;
-      final closedA = targets.where((t) => _isClosed(t, a)).length;
-      final closedB = targets.where((t) => _isClosed(t, b)).length;
+      final closedA = targets.where((t) => engine.isClosed(t, a)).length;
+      final closedB = targets.where((t) => engine.isClosed(t, b)).length;
       if (closedB != closedA) return closedB.compareTo(closedA);
       final marksA = targets.fold(0, (s, t) => s + (marks[a][t] ?? 0));
       final marksB = targets.fold(0, (s, t) => s + (marks[b][t] ?? 0));
       return marksB.compareTo(marksA);
     });
 
-    final base = finishedPlayers.length + 1;
+    final base = rankedFinished.length + 1;
     int place = base;
     for (int i = 0; i < remaining.length; i++) {
       if (i > 0) {
         final prev = remaining[i - 1];
         final curr = remaining[i];
         final sameScore = scores[prev] == scores[curr];
-        final prevClosed = targets.where((t) => _isClosed(t, prev)).length;
-        final currClosed = targets.where((t) => _isClosed(t, curr)).length;
+        final prevClosed = targets.where((t) => engine.isClosed(t, prev)).length;
+        final currClosed = targets.where((t) => engine.isClosed(t, curr)).length;
         final prevMarks = targets.fold(0, (s, t) => s + (marks[prev][t] ?? 0));
         final currMarks = targets.fold(0, (s, t) => s + (marks[curr][t] ?? 0));
         if (!sameScore || prevClosed != currClosed || prevMarks != currMarks) {
@@ -468,6 +463,38 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       result[remaining[i]] = place;
     }
     return result;
+  }
+
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stale or duplicate stats behind — the fix for the
+  /// 2026-07-06 audit's F3 (the old _statsRecorded flag was never reset by
+  /// undo, so a replayed ending was silently dropped).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _computeExitPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
   }
 
   Future<void> _updateStats() async {
@@ -486,13 +513,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
     final placements = _computeExitPlacements();
+    // A shared first place (possible when the game ends early and remaining
+    // players tie on score) is a draw — nobody gets win credit.
+    final firstIsShared = placements.where((p) => p == 1).length > 1;
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
       if (idx < 0) continue;
       savedPlayers[idx].gamesPlayed++;
-      if (placements[pi] == 1) {
+      if (placements[pi] == 1 && !firstIsShared) {
         savedPlayers[idx].gamesWon++;
       }
     }
@@ -544,6 +574,24 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
+    final achEvents = <int, List<AchievementEvent>>{};
+    final targetSet = targets.toSet();
+    for (int i = 0; i < players.length; i++) {
+      if (cricketMaxMarksInTurn(
+              throwHistory, targetSet, i, players.length) >=
+          9) {
+        achEvents[i] = [AchievementEvent.nineMarkTurn];
+      }
+    }
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.cricket,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
+    );
     StatsRecorder.recordGame(
       gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -553,6 +601,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      gameConfig: widget.config.isCutthroat ? 'Cricket · Cutthroat' : 'Cricket',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex:
+          buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
     );
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -561,6 +614,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final placements = _computeExitPlacements();
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
+      // Players removed mid-game must not appear on the result screen at all —
+      // and never as the winner.
+      if (_removedPlayerIndices.contains(i)) continue;
       final closedCount = targets.where((t) => marks[i][t]! >= 3).length;
       results.add(PlayerResult(
         name: players[i].name,
@@ -593,10 +649,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       gameFullyOver: _gameFullyOver,
     );
     BatterySampler.instance.stop();
-    // Compute stats before showing post-game so rating changes are visible (mirrors X01 behaviour)
-    if (_gameFullyOver && !_statsRecorded) {
-      _statsRecorded = true;
-      await _updateStats();
+    // Preview rating deltas so they're visible on the result screen; actual
+    // recording is deferred until the user leaves (defer-until-leave).
+    if (_gameFullyOver) {
+      await _prepareRatingPreview();
     }
     if (!mounted) return;
     final result = await Navigator.push<String>(
@@ -611,17 +667,15 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     } else if (result == 'continue') {
       _log.logPostGame(action: 'continue', details: 'game continues with remaining players');
       setState(() {
-        winnerIndex = null;
-        _advancePlayer();
+        _advanceToNextActivePlayer();
       });
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
-      if (!_statsRecorded) {
-        // Game not fully over — user exiting early; record stats now
-        _statsRecorded = true;
-        _gameFullyOver = true;
-        await _updateStats();
-      }
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
@@ -635,8 +689,368 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return last3.map((t) => t.shortLabel).join(' · ');
   }
 
+  /// In-progress turn's darts joined live (e.g. "S5 · S6 · MISS"); falls back
+  /// to the active player's previous turn between turns. Per-dart suffixes
+  /// (mark glyphs) are dropped — they do not fit the joined 3-dart row.
+  String? get _stripTurnLabel =>
+      throwHistory.recentTurnLabel(currentPlayerIndex);
+
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — input model A: the scoreboard IS the input.
+  // The active player's column expands into tappable S/D/T cells; opponents
+  // render read-only phosphor glyphs. A target is dead only when ALL have
+  // closed it (isClosedByAll). No new game logic — every cell feeds the same
+  // _registerHit(segment, multiplier) the classic screen uses.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    final title =
+        'CRICKET · ${widget.config.isCutthroat ? 'CUTTHROAT' : 'STANDARD'}';
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: title,
+                onExit: _confirmExit,
+                trailing: 'RND $_roundNumber',
+              ),
+              DossedartActiveStrip(
+                playerName: players[currentPlayerIndex].name,
+                avatarPath: players[currentPlayerIndex].avatarPath,
+                accentColor: DossedartTokens.cyan,
+                dartsInTurn: dartsInTurn,
+                lastThrowLabel: _stripTurnLabel,
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'POINTS',
+                      style: TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 12,
+                        color: Colors.white54,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${scores[currentPlayerIndex]}',
+                      style: const TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 36,
+                        color: DossedartTokens.cyan,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: _dossedartMatrix()),
+              DossedartActionBar(
+                onUndo: _undo,
+                onMiss: _onMiss,
+                onMenu: () => _showDossedartMenu(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartMatrix() {
+    final magenta55 = DossedartTokens.magenta.withValues(alpha: 0.33);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: magenta55, width: 2),
+        ),
+        child: Column(
+          children: [
+            _dossedartMatrixHeader(),
+            for (int ti = 0; ti < targets.length; ti++)
+              Expanded(
+                child:
+                    _dossedartMatrixRow(targets[ti], ti == targets.length - 1),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartMatrixHeader() {
+    final magenta = DossedartTokens.magenta;
+    return Container(
+      decoration: BoxDecoration(
+        color: magenta.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(color: magenta.withValues(alpha: 0.33), width: 2),
+        ),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 56,
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Center(
+                  child: Text(
+                    'TGT',
+                    style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 9,
+                      color: Colors.white54,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            for (int pi = 0; pi < players.length; pi++)
+              Expanded(
+                flex: pi == currentPlayerIndex ? 27 : 10,
+                child: _dossedartPlayerHeader(pi),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartPlayerHeader(int pi) {
+    final active = pi == currentPlayerIndex;
+    final c = active ? DossedartTokens.cyan : DossedartTokens.phosphor;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: active ? c.withValues(alpha: 0.11) : Colors.transparent,
+        border: Border(
+          left: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.2), width: 1),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            players[pi].name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: c),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '${scores[pi]}',
+            style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: active ? 18 : 14,
+              color: c,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dossedartMatrixRow(int target, bool isLast) {
+    final closedByAll = engine.isClosedByAll(target);
+    final isBull = target == 25;
+    final label = isBull ? 'BULL' : '$target';
+    final magenta = DossedartTokens.magenta;
+    return Opacity(
+      opacity: closedByAll ? 0.3 : 1,
+      child: Container(
+        decoration: BoxDecoration(
+          border: isLast
+              ? null
+              : Border(
+                  bottom: BorderSide(
+                      color: magenta.withValues(alpha: 0.13), width: 1),
+                ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 56,
+              child: Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: isBull ? 11 : 18,
+                    color:
+                        closedByAll ? Colors.white38 : DossedartTokens.yellow,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+            ),
+            for (int pi = 0; pi < players.length; pi++)
+              Expanded(
+                flex: pi == currentPlayerIndex ? 27 : 10,
+                child: pi == currentPlayerIndex
+                    ? _dossedartActiveCell(target, closedByAll)
+                    : _dossedartGlyphCell(marks[pi][target] ?? 0),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dossedartActiveCell(int target, bool closedByAll) {
+    const c = DossedartTokens.cyan;
+    final magenta = DossedartTokens.magenta;
+    if (closedByAll) {
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+                color: magenta.withValues(alpha: 0.2), width: 1),
+          ),
+        ),
+        alignment: Alignment.center,
+        child: const Text(
+          '⊗',
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 22,
+            color: DossedartTokens.phosphor,
+          ),
+        ),
+      );
+    }
+    final own = marks[currentPlayerIndex][target] ?? 0;
+    final isBull = target == 25;
+    final List<(String, int)> subs = isBull
+        ? const [('BULL', 1), ('D-BULL', 2)]
+        : [('$target', 1), ('D$target', 2), ('T$target', 3)];
+    return Container(
+      color: c.withValues(alpha: 0.07),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 30,
+            child: Center(
+              child: Text(
+                _dossedartGlyphText(own),
+                style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 16,
+                  color: own >= 3 ? DossedartTokens.green : c,
+                ),
+              ),
+            ),
+          ),
+          for (final (label, mult) in subs)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => _registerHit(target, mult),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.05),
+                    border: Border(
+                      left: BorderSide(
+                          color: c.withValues(alpha: 0.33), width: 1),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 13,
+                        color: c,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dossedartGlyphCell(int n) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.13), width: 1),
+        ),
+      ),
+      alignment: Alignment.center,
+      child: _dossedartGlyph(n, DossedartTokens.phosphor),
+    );
+  }
+
+  Widget _dossedartGlyph(int n, Color color) {
+    if (n <= 0) {
+      return Text(
+        '·',
+        style: TextStyle(
+          fontFamily: 'VT323',
+          fontSize: 22,
+          color: Colors.white.withValues(alpha: 0.18),
+        ),
+      );
+    }
+    if (n >= 3) {
+      return const Text(
+        '⊗',
+        style: TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 26,
+          color: DossedartTokens.green,
+        ),
+      );
+    }
+    return Text(
+      n == 1 ? '/' : 'X',
+      style: TextStyle(
+        fontFamily: 'PressStart2P',
+        fontSize: 26,
+        color: color,
+      ),
+    );
+  }
+
+  String _dossedartGlyphText(int n) {
+    if (n <= 0) return '·';
+    if (n >= 3) return '⊗';
+    return n == 1 ? '/' : 'X';
+  }
+
+  Future<void> _showDossedartMenu(BuildContext outerContext) {
+    return showDossedartCockpitMenu(
+      outerContext,
+      meme: _meme,
+      onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+      onPlayerOverview: _openDossedartPlayerSheet,
+      onExit: _confirmExit,
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     final isGameActive = !finishedPlayers.contains(currentPlayerIndex);
     const targetLabelWidth = 44.0;
 
@@ -655,6 +1069,11 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               switch (value) {
                 case 'players':
                   if (!_gameFullyOver) _openPlayerManagement();
+                  break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
                   break;
                 case 'tts':
                   await TtsService.instance.setEnabled(!_ttsEnabled);
@@ -689,10 +1108,20 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               ),
               const PopupMenuDivider(),
               PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'tts',
                 child: Row(
                   children: [
-                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
                     const SizedBox(width: 12),
                     Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
                   ],
@@ -778,7 +1207,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: lastThrowLabel!.contains('Closed')
-                              ? Colors.green
+                              ? Theme.of(context).colorScheme.primary
                               : Colors.white,
                         ),
                       ),
@@ -894,9 +1323,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: targets.map((target) {
-                  final closedByAll = _isClosedByAll(target);
+                  final closedByAll = engine.isClosedByAll(target);
                   final isBull = target == 25;
-                  final maxMarks = isBull ? 2 : 3;
+                  // Every target — Bull included — closes at 3 marks (see
+                  // _isClosed / marksForClose). The progress bar used 2 for
+                  // Bull, so it read full at 2 of 3 (audit 2026-07-06, F12).
+                  const maxMarks = 3;
 
                   return Expanded(
                     child: Container(
@@ -931,8 +1363,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           ...List.generate(players.length, (pi) {
                             final isCurrent = pi == currentPlayerIndex;
                             final m = marks[pi][target] ?? 0;
-                            final closed = _isClosed(target, pi);
-                            final color = closed ? Colors.green : Theme.of(context).colorScheme.primary;
+                            final color = Theme.of(context).colorScheme.primary;
                             final fillFraction = (m.clamp(0, maxMarks) / maxMarks.toDouble());
 
                             // Active player: mark buttons
@@ -1015,7 +1446,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
                           letterSpacing: 1.5)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
-                    side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4), width: 1.5),
+                    side: BorderSide(color: Theme.of(context).colorScheme.outline, width: 1),
                   ),
                 ),
               ),
@@ -1057,7 +1488,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.outline,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Theme.of(context).colorScheme.outline, width: 0.5),
+            border: Border.all(color: Theme.of(context).colorScheme.outline, width: 1),
           ),
         ),
         if (fillFraction > 0)
@@ -1094,7 +1525,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Widget _markButton(int target, int multiplier, int currentMarks) {
     final isBull = target == 25;
     final isFilled = currentMarks >= multiplier;
-    final isDead = _isClosedByAll(target);
+    final isDead = engine.isClosedByAll(target);
     final cs = Theme.of(context).colorScheme;
     final label = switch (multiplier) {
       2 => isBull ? 'DBull' : 'D$target',
@@ -1191,6 +1622,32 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     );
   }
 
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: '${scores[i]}',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: _gameFullyOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
   void _openPlayerManagement() {
     showMidGamePlayerSheet(
       context: context,
@@ -1206,6 +1663,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Active = not in finishedPlayers. Removed players are always also in
+    // finishedPlayers, so this single check excludes them too — matching the
+    // pre-engine averaging exactly.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !finishedPlayers.contains(i))
         .toList();
@@ -1237,9 +1697,61 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      marks.add(newMarks);
-      scores.add(avgPoints);
+      // The engine grows its marks/scores lists (seeded with the table
+      // averages) and resets its undo history — an undo snapshot taken before
+      // the add has the old list lengths and would RangeError (audit
+      // 2026-07-06, F8).
+      engine.addPlayer(initialScore: avgPoints, initialMarks: newMarks);
     });
+    _log.logRoster(
+        action: 'ADD',
+        playerIndex: players.length - 1,
+        playerName: sp.name,
+        names: players.map((p) => p.name).toList(),
+        scores: engine.scores);
+  }
+
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      // The engine marks the seat skipped+finished, advances off it when it is
+      // current, ends the game when ≤1 active player remains (F7), and clears
+      // its undo history — all the rules state the screen used to touch here.
+      final wasCurrent = engine.currentPlayerIndex == playerIndex;
+      engine.removePlayer(playerIndex);
+      if (wasCurrent) {
+        _turnIdCounter++;
+        if (!engine.gameOver) {
+          // Restore the old _advancePlayer tail (log + announce + turn-start
+          // refresh) that ran whenever the removed player was current — the
+          // engine rewire dropped these, leaving a stale _scoreAtStartOfTurn
+          // that skewed the next player's turnTotal (audit R5 final review).
+          _log.logAdvance(
+            roundNumber: _roundNumber,
+            fromIndex: playerIndex,
+            toIndex: engine.currentPlayerIndex,
+            toName: players[engine.currentPlayerIndex].name,
+            toScore: engine.scores[engine.currentPlayerIndex],
+            reason: 'turn complete',
+          );
+          _announcer.announceNextPlayer(players[engine.currentPlayerIndex].name);
+          _scoreAtStartOfTurn = engine.scores[engine.currentPlayerIndex];
+        }
+      }
+      if (engine.gameOver) _gameFullyOver = true;
+    });
+    _log.logRoster(
+        action: 'REMOVE',
+        playerIndex: playerIndex,
+        playerName: removed.name,
+        names: players.map((p) => p.name).toList(),
+        scores: engine.scores);
+    if (_gameFullyOver) _showPostGame();
   }
 
   void _removePlayerMidGame(int playerIndex) {
@@ -1247,31 +1759,19 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Rating will not be updated for this game.'),
+        content: const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Theme.of(ctx).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                if (!finishedPlayers.contains(playerIndex)) {
-                  finishedPlayers.add(playerIndex);
-                }
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _advancePlayer();
-                }
-              });
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),
@@ -1305,20 +1805,4 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       ),
     );
   }
-}
-
-class _CricketUndoData {
-  final int playerIndex;
-  final int dartsInTurn;
-  final Map<int, int> marksBefore;
-  final List<int> scoresBefore;
-  final List<int> finishedPlayersBefore;
-
-  _CricketUndoData({
-    required this.playerIndex,
-    required this.dartsInTurn,
-    required this.marksBefore,
-    required this.scoresBefore,
-    required this.finishedPlayersBefore,
-  });
 }

@@ -1,8 +1,8 @@
 # Color & Design System (M3 — Round 2)
 
-**Status:** Draft for review
+**Status:** Adopted (rev 2026-07-07 — two-track model)
 **Date:** 2026-04-30
-**Branch:** `feature/material3-migration`
+**Branch:** `fix/dossedart-x01-cockpit-fixes`
 
 ## Goal
 
@@ -94,6 +94,50 @@ Five tiers in dark mode (M3 default). Pick by *elevation intent*, not by ad-hoc 
 - On the avatar's name when avatars are not visible (e.g., compact player list)
 
 Avatar colors **never** appear on backgrounds, borders, or buttons. Active state and finished state are conveyed by the role palette (primary border, orange "out" label) — not by manipulating the avatar color.
+
+## DOSSEDART / Arcade track
+
+The DOSSEDART redesign is a second, deliberate design track that lives beside
+the classic four-role palette (decision 2026-07-06). It never uses
+`colorScheme` roles; every color comes from `lib/theme/dossedart_tokens.dart`:
+
+| Token | Hex | Use |
+| --- | --- | --- |
+| `bg` | `#0A0014` | app background |
+| `surface` | `#1A0030` | cards, sheets |
+| `surfaceRaised` | `#2A0050` | avatar chips, raised fills |
+| `magenta` | `#FF00AA` | chrome, dividers, brand accent |
+| `cyan` | `#00E5FF` | active player, focus |
+| `yellow` | `#FFD200` | hero/highlight tints |
+| `green` | `#3DFF8E` | positive |
+| `red` | `#FF3050` | negative, destructive |
+| `purple` | `#7B3FFF` | secondary accent |
+| `orange` | `#FF7A00` | warm accent (start CTA gradient) |
+| `lime` | `#C6FF3C` | 1UP / extra-life accent — mode brand only (approved 2026-07-16; ships with 1UP). Never a player colour; red/green keep danger/SAFE roles |
+| `phosphor` | `#D9D2C2` | body text |
+| `silver` / `bronze` | `#C9D2DA` / `#D08A4A` | podium metals |
+| `disabledFill/Border/Fg` | white @ 12/24/38% | disabled states |
+
+Border widths: `borderThin` 1, `border` 2, `borderActive` 3, `borderTakeover` 5.
+Dividers: major chrome = full `magenta` at 2px; subtle row dividers =
+`magenta` at 40% alpha, 1px.
+Alpha variants are expressed as `token.withValues(alpha: …)`, never as a new
+raw hex of the same hue.
+
+## Documented exceptions
+
+- `lib/utils/player_colors.dart` — avatar palette (both tracks).
+- `lib/widgets/heatmap_board.dart` — data-viz gradient.
+- `lib/widgets/dart_board.dart` — physical bristle-board palette (its red
+  `#E53935` coincidentally equals the error role; do not "fix" it).
+- `lib/widgets/dossedart/x01/dossedart_x01_dartboard.dart` — neon twilight
+  board palette, deliberately tuned near-neighbors of magenta/cyan.
+- D-buttons `Colors.orange[800]` in halve_it/atc score input.
+- Podium metals (classic): gold = `tertiary`, silver = `#C0C0C0`,
+  bronze = `Colors.brown[300]`.
+- CRT effects in `arcade_frame.dart` (black scanline/vignette) and the
+  white-alpha text ramp in `game_detail_screen.dart` — pure black/white
+  effect layers, not palette colors.
 
 ## State signaling
 

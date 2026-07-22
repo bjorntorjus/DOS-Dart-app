@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Home podium v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0014;
+    --surface: #1a0030;
+    --magenta: #FF00AA;
+    --cyan: #00E5FF;
+    --yellow: #FFD200;
+  }
+  body { margin: 0; background: #1a1714; font-family: 'Inter', system-ui, sans-serif; padding: 28px; color: #e5e0d8; }
+  .intro { max-width: 1300px; margin: 0 auto 24px; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 28px; margin: 0 0 8px; font-weight: 900; letter-spacing: -0.5px; }
+  .intro p { font-size: 13px; line-height: 1.55; color: #b8b0a0; max-width: 1000px; margin: 0 0 6px; }
+  .intro b { color: #e5e0d8; }
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .artboard-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #b8b0a0; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+
+  .frame {
+    width: 411px; min-height: 720px;
+    background: var(--bg);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    font-family: 'VT323', monospace;
+    border-radius: 12px;
+    border: 2px solid #2a2422;
+  }
+  /* Subtle scanlines */
+  .frame::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.30) 3px, rgba(0,0,0,0) 4px);
+    pointer-events: none; z-index: 2;
+  }
+
+  .header {
+    border-bottom: 2px solid var(--magenta);
+    background: black; padding: 16px 24px;
+    text-align: center;
+    position: relative; z-index: 4;
+  }
+  .header .coin { font-family: 'VT323', monospace; font-size: 15px; color: var(--cyan); letter-spacing: 4px; }
+  .header .logo {
+    font-family: 'Press Start 2P', monospace; font-size: 28px; color: var(--yellow);
+    letter-spacing: 1px; line-height: 1.3; margin: 10px 0;
+    text-shadow: 0 0 10px var(--yellow), 3px 3px 0 var(--magenta);
+  }
+  .header .credit { font-family: 'VT323', monospace; font-size: 14px; color: white; letter-spacing: 2px; }
+  .header .ver { font-family: 'VT323', monospace; font-size: 12px; color: rgba(255,255,255,0.38); letter-spacing: 2px; }
+
+  /* ─── Tight list (current) ─── */
+  .list-block { padding: 16px 20px; border-bottom: 1px solid rgba(255,0,170,0.4); position: relative; z-index: 4; }
+  .list-title { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--cyan); letter-spacing: 1.5px; text-align: center; margin-bottom: 12px; }
+  .list-header { display: flex; padding: 0 8px 6px; border-bottom: 1px solid rgba(255,0,170,0.3); font-family: 'VT323', monospace; font-size: 12px; color: rgba(255,255,255,0.6); letter-spacing: 1.5px; }
+  .list-header .h-rank { width: 34px; text-align: center; }
+  .list-header .h-handle { width: 56px; }
+  .list-header .h-name { flex: 1; }
+  .list-header .h-rating { width: 58px; text-align: right; }
+  .list-header .h-win { width: 44px; text-align: right; }
+  .list-row { display: flex; align-items: center; padding: 10px 8px; }
+  .list-row.hero { padding: 14px 8px; margin-bottom: 8px; background: rgba(255,210,0,0.08); border: 2px solid var(--yellow); }
+  .list-row .rank { width: 34px; text-align: center; font-size: 18px; }
+  .list-row.hero .rank { font-size: 24px; }
+  .list-row .handle { width: 56px; font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--yellow); letter-spacing: 1px; }
+  .list-row.hero .handle { font-size: 14px; }
+  .list-row .pname { flex: 1; font-family: 'VT323', monospace; font-size: 18px; color: white; letter-spacing: 1px; }
+  .list-row.hero .pname { font-size: 22px; }
+  .list-row .rating { width: 58px; text-align: right; font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--yellow); }
+  /* The bug: hero rating overflows when 4-digit. We force a wrap to show it. */
+  .list-row.hero .rating { font-size: 14px; word-break: break-all; line-height: 1.1; }
+  .list-row .win { width: 44px; text-align: right; font-family: 'VT323', monospace; font-size: 16px; color: rgba(255,255,255,0.6); }
+  .list-row.hero .win { font-size: 18px; }
+  .list-row.r2 .handle { color: var(--cyan); }
+  .list-row.r2 .rating { color: var(--cyan); }
+  .list-row.r3 .handle { color: var(--magenta); }
+  .list-row.r3 .rating { color: var(--magenta); }
+
+  /* ─── Podium (proposed) ─── */
+  .podium-block { padding: 18px 20px 16px; border-bottom: 1px solid rgba(255,0,170,0.4); position: relative; z-index: 4; }
+  .podium-title { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--cyan); letter-spacing: 1.5px; text-align: center; margin-bottom: 18px; }
+  .podium { display: flex; justify-content: center; align-items: flex-end; gap: 10px; }
+  .pcol { display: flex; flex-direction: column; align-items: center; flex: 1 1 0; min-width: 0; }
+  .pavatar {
+    width: 56px; height: 56px;
+    background: #2a0050; display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
+    border: 3px solid var(--cyan);
+    box-shadow: 0 0 10px rgba(0,229,255,0.4);
+  }
+  .pcol.p1 .pavatar { width: 72px; height: 72px; border-color: var(--yellow); box-shadow: 0 0 14px rgba(255,210,0,0.5); }
+  .pcol.p2 .pavatar { border-color: var(--cyan); box-shadow: 0 0 10px rgba(0,229,255,0.4); }
+  .pcol.p3 .pavatar { border-color: var(--magenta); box-shadow: 0 0 10px rgba(255,0,170,0.4); }
+  .pavatar svg { width: 36px; height: 36px; opacity: 0.85; fill: white; }
+  .pcol.p1 .pavatar svg { width: 48px; height: 48px; }
+  .pname {
+    font-family: 'Press Start 2P', monospace; font-size: 10px;
+    letter-spacing: 1px; color: white; margin-bottom: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+    text-align: center;
+  }
+  .pcol.p1 .pname { font-size: 12px; color: var(--yellow); text-shadow: 0 0 6px rgba(255,210,0,0.6); }
+  .pcol.p2 .pname { color: var(--cyan); }
+  .pcol.p3 .pname { color: var(--magenta); }
+  .prating {
+    font-family: 'VT323', monospace; font-size: 16px;
+    color: rgba(255,255,255,0.75); letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .pcol.p1 .prating { font-size: 20px; color: white; }
+  .pbar {
+    width: 100%; max-width: 90px;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 8px;
+    font-family: 'Press Start 2P', monospace; font-size: 22px;
+    border-top-left-radius: 4px; border-top-right-radius: 4px;
+  }
+  .pcol.p1 .pbar { height: 90px; background: rgba(255,210,0,0.15); border: 2px solid var(--yellow); color: var(--yellow); text-shadow: 0 0 8px rgba(255,210,0,0.7); font-size: 28px; }
+  .pcol.p2 .pbar { height: 65px; background: rgba(0,229,255,0.12); border: 2px solid var(--cyan); color: var(--cyan); }
+  .pcol.p3 .pbar { height: 50px; background: rgba(255,0,170,0.12); border: 2px solid var(--magenta); color: var(--magenta); }
+  .podium-more { text-align: center; font-family: 'VT323', monospace; font-size: 14px; color: rgba(255,255,255,0.55); letter-spacing: 2px; margin-top: 12px; }
+
+  /* X01 block (kept identical) */
+  .play-block { padding: 16px 20px 8px; position: relative; z-index: 4; }
+  .play-label { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--cyan); letter-spacing: 1px; }
+  .play-row { display: flex; gap: 8px; margin-top: 12px; }
+  .play-card { flex: 1; background: var(--surface); border: 3px solid var(--magenta); padding: 14px 8px; text-align: center; }
+  .play-card.hero { border-color: var(--yellow); }
+  .play-card .emoji { font-size: 24px; }
+  .play-card .score { font-family: 'Press Start 2P', monospace; font-size: 18px; color: var(--magenta); margin-top: 6px; letter-spacing: 1px; }
+  .play-card.hero .score { color: var(--yellow); }
+  .play-card .tag { font-family: 'VT323', monospace; font-size: 13px; color: rgba(255,255,255,0.7); letter-spacing: 1px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #ff9c75; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">Proposal · 2026-05-22 · home podium</div>
+  <h1>Hjem — pall i stedet for tight list</h1>
+  <p>To endringer i én mockup:</p>
+  <ul style="font-size: 13px; line-height: 1.55; color: #b8b0a0;">
+    <li><b>Pall 1-2-3</b> erstatter "HIGH SCORES"-listen. Layout: 2 | 1 | 3 (1.-plass i midten, høyest, gul). Avatar over navn, rating under, "bar"-høyde signaliserer plassering.</li>
+    <li><b>Bug fixet:</b> i dagens liste (venstre artboard) wrapper rating-tallet til 2 linjer på hero-raden når den er 4-sifret (font 14 + width 58 + PressStart2P er for bredt). Pall-varianten har egne kolonner som puster — ingen wrap.</li>
+  </ul>
+  <p>Farger: <b>1. = gul</b> (hero, samme som i dag), <b>2. = cyan</b>, <b>3. = magenta</b>. Holder seg innenfor DOSSEDART-paletten.</p>
+</div>
+
+<div class="stage">
+  <!-- LEFT: current tight list with bug -->
+  <div>
+    <div class="artboard-label">I dag — tight list, hero rating wrapper</div>
+    <div class="frame">
+      <div class="header">
+        <div class="coin">★ ★ ★  INSERT COIN  ★ ★ ★</div>
+        <div class="logo">DOSSE<br>DART</div>
+        <div class="credit">©2026 DOSSE GAMES INC.</div>
+        <div class="ver">v1.8.0</div>
+      </div>
+      <div class="list-block">
+        <div class="list-title">━━━━ ★ HIGH SCORES ★ ━━━━</div>
+        <div class="list-header">
+          <div class="h-rank">#</div>
+          <div class="h-handle">HANDLE</div>
+          <div class="h-name">PLAYER</div>
+          <div class="h-rating">RATING</div>
+          <div class="h-win">WIN%</div>
+        </div>
+        <div class="list-row hero" style="margin-top: 6px;">
+          <div class="rank">🥇</div>
+          <div class="handle">BJO</div>
+          <div class="pname">BJØRN T.</div>
+          <div class="rating">1247</div>
+          <div class="win">68%</div>
+        </div>
+        <div class="list-row r2">
+          <div class="rank">🥈</div>
+          <div class="handle">MIA</div>
+          <div class="pname">MIA</div>
+          <div class="rating">1180</div>
+          <div class="win">61%</div>
+        </div>
+        <div class="list-row r3">
+          <div class="rank">🥉</div>
+          <div class="handle">JOH</div>
+          <div class="pname">JOHN</div>
+          <div class="rating">1095</div>
+          <div class="win">52%</div>
+        </div>
+        <div class="podium-more">▼ MORE ▼</div>
+      </div>
+      <div class="play-block">
+        <div class="play-label">► PLAYER 1 SELECT</div>
+        <div class="play-row">
+          <div class="play-card"><div class="emoji">🥉</div><div class="score">301</div><div class="tag">SHORT</div></div>
+          <div class="play-card hero"><div class="emoji">🍻</div><div class="score">501</div><div class="tag">CLASSIC</div></div>
+          <div class="play-card"><div class="emoji">🏆</div><div class="score">701</div><div class="tag">LONG</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: proposed podium -->
+  <div>
+    <div class="artboard-label">Forslag — pall 1-2-3</div>
+    <div class="frame">
+      <div class="header">
+        <div class="coin">★ ★ ★  INSERT COIN  ★ ★ ★</div>
+        <div class="logo">DOSSE<br>DART</div>
+        <div class="credit">©2026 DOSSE GAMES INC.</div>
+        <div class="ver">v1.8.0</div>
+      </div>
+      <div class="podium-block">
+        <div class="podium-title">━━ ★ HIGH SCORES ★ ━━</div>
+        <div class="podium">
+          <!-- 2nd place left -->
+          <div class="pcol p2">
+            <div class="pavatar">
+              <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+            </div>
+            <div class="pname">MIA</div>
+            <div class="prating">1180</div>
+            <div class="pbar">2</div>
+          </div>
+          <!-- 1st place middle -->
+          <div class="pcol p1">
+            <div class="pavatar">
+              <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+            </div>
+            <div class="pname">BJØRN T.</div>
+            <div class="prating">1247</div>
+            <div class="pbar">1</div>
+          </div>
+          <!-- 3rd place right -->
+          <div class="pcol p3">
+            <div class="pavatar">
+              <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+            </div>
+            <div class="pname">JOHN</div>
+            <div class="prating">1095</div>
+            <div class="pbar">3</div>
+          </div>
+        </div>
+      </div>
+      <div class="play-block">
+        <div class="play-label">► PLAYER 1 SELECT</div>
+        <div class="play-row">
+          <div class="play-card"><div class="emoji">🥉</div><div class="score">301</div><div class="tag">SHORT</div></div>
+          <div class="play-card hero"><div class="emoji">🍻</div><div class="score">501</div><div class="tag">CLASSIC</div></div>
+          <div class="play-card"><div class="emoji">🏆</div><div class="score">701</div><div class="tag">LONG</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

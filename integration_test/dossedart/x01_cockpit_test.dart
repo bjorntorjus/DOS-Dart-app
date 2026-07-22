@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:dart_scoring/screens/dossedart/x01/dossedart_player_overview_screen.dart';
+import 'package:dart_scoring/widgets/dossedart/dossedart_player_sheet.dart';
 import 'package:dart_scoring/screens/game_screen.dart';
 import 'package:dart_scoring/widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 
@@ -40,11 +40,12 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 10));
     expect(find.text('PLAYER OVERVIEW'), findsOneWidget);
 
-    // Tap PLAYER OVERVIEW → Overview screen appears with both players.
+    // Tap PLAYER OVERVIEW → unified player sheet opens over the dimmed
+    // cockpit, listing both players (names also remain in the cockpit behind).
     await tester.tap(find.text('PLAYER OVERVIEW'));
     await tester.pumpAndSettle(const Duration(seconds: 10));
-    expect(find.byType(DossedartPlayerOverviewScreen), findsOneWidget);
-    expect(find.text('MIA'), findsOneWidget);
-    expect(find.text('JON'), findsOneWidget);
+    expect(find.byType(DossedartPlayerSheet), findsOneWidget);
+    expect(find.text('MIA'), findsWidgets);
+    expect(find.text('JON'), findsWidgets);
   });
 }

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Player Overview v2 (arcade scoreboard)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0014;
+    --surface: #1a0030;
+    --magenta: #FF00AA;
+    --cyan: #00E5FF;
+    --yellow: #FFD200;
+    --green: #3DFF8E;
+    --red: #FF3050;
+    --orange: #FF7A00;
+  }
+  body { margin: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; padding: 28px; }
+  .intro { max-width: 1100px; margin: 0 auto 24px; color: #2a251f; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 32px; line-height: 1.05; letter-spacing: -1px; margin: 0 0 8px; font-weight: 900; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #c96442; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro p { font-size: 14px; line-height: 1.55; color: #5a544a; max-width: 900px; margin: 0 0 6px; }
+  .intro ul { font-size: 13px; line-height: 1.55; color: #5a544a; max-width: 900px; padding-left: 22px; }
+  .intro b { color: #2a251f; }
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .artboard-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #5a544a; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+  .frame {
+    width: 411px; height: 731px;
+    background: var(--bg);
+    color: white;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    font-family: 'VT323', monospace;
+  }
+  .frame::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(0,0,0,0.3) 3px, transparent 4px);
+    pointer-events: none; z-index: 2;
+  }
+  .frame::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%);
+    pointer-events: none; z-index: 3;
+  }
+
+  /* TopBar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 2px solid var(--magenta);
+    background: black;
+    position: relative; z-index: 4;
+  }
+  .back { font-family: 'VT323', monospace; font-size: 18px; color: var(--cyan); letter-spacing: 2px; }
+  .title {
+    font-family: 'Press Start 2P', monospace; font-size: 11px;
+    color: var(--yellow); letter-spacing: 2px;
+    text-shadow: 0 0 6px rgba(255,210,0,0.6);
+    animation: blink 2.4s steps(2, end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0.5; } }
+  .round { font-family: 'VT323', monospace; font-size: 14px; color: rgba(255,255,255,0.55); letter-spacing: 2px; }
+
+  /* Banner — "►SCOREBOARD◄" style arcade marquee */
+  .marquee {
+    text-align: center; padding: 10px 0;
+    font-family: 'Press Start 2P', monospace; font-size: 12px;
+    color: var(--magenta); letter-spacing: 4px;
+    text-shadow: 0 0 8px rgba(255,0,170,0.6);
+    border-bottom: 1px dashed rgba(255,0,170,0.4);
+    background: rgba(0,0,0,0.4);
+    position: relative; z-index: 4;
+  }
+
+  /* Header row (column labels) */
+  .col-header {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 8px;
+    padding: 8px 18px 6px;
+    font-family: 'Press Start 2P', monospace; font-size: 8px;
+    color: var(--cyan); letter-spacing: 1.5px;
+    text-shadow: 0 0 4px rgba(0,229,255,0.5);
+    border-bottom: 1px solid rgba(0,229,255,0.3);
+    position: relative; z-index: 4;
+  }
+  .col-header .rank-h { text-align: left; }
+  .col-header .name-h { text-align: left; }
+  .col-header .rem-h { text-align: right; }
+
+  /* List */
+  .list {
+    padding: 6px 14px 14px;
+    position: relative; z-index: 4;
+  }
+
+  /* Player row — flat arcade scoreboard row */
+  .row {
+    padding: 12px 4px 14px;
+    border-bottom: 1px dashed rgba(255,255,255,0.18);
+  }
+  .row:last-child { border-bottom: none; }
+
+  .row-line1 {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .rank {
+    font-family: 'Press Start 2P', monospace; font-size: 16px;
+    color: var(--yellow); letter-spacing: 1px;
+    text-shadow: 0 0 6px rgba(255,210,0,0.5);
+  }
+  .name {
+    font-family: 'Press Start 2P', monospace; font-size: 16px;
+    color: white; letter-spacing: 2px;
+  }
+  .remaining {
+    font-family: 'Press Start 2P', monospace; font-size: 28px;
+    color: var(--magenta); letter-spacing: 1px; line-height: 1;
+    text-shadow: 0 0 10px rgba(255,0,170,0.7);
+    text-align: right;
+  }
+
+  .row-line2 {
+    margin-top: 8px;
+    padding-left: 36px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: 'VT323', monospace; font-size: 16px;
+    color: rgba(255,255,255,0.75); letter-spacing: 1.5px;
+  }
+  .stats-mini { color: rgba(255,255,255,0.55); }
+  .stats-mini b { color: var(--cyan); font-weight: normal; }
+
+  /* Last throws row — full width, dominant */
+  .row-last {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(255,210,0,0.08);
+    border: 1.5px solid rgba(255,210,0,0.35);
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: 'VT323', monospace; font-size: 22px; letter-spacing: 2px;
+    color: var(--yellow);
+    text-shadow: 0 0 6px rgba(255,210,0,0.4);
+  }
+  .row-last .label {
+    font-family: 'Press Start 2P', monospace; font-size: 8px;
+    color: rgba(255,210,0,0.65); letter-spacing: 1px;
+  }
+  .row-last .sum {
+    font-family: 'Press Start 2P', monospace; font-size: 12px;
+    color: var(--yellow);
+  }
+  .row-last .throws { flex: 1; text-align: center; }
+
+  /* Bottom marquee */
+  .footer-marquee {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    text-align: center; padding: 8px 0;
+    border-top: 1px dashed rgba(0,229,255,0.4);
+    background: black;
+    font-family: 'Press Start 2P', monospace; font-size: 9px;
+    color: var(--cyan); letter-spacing: 3px;
+    text-shadow: 0 0 6px rgba(0,229,255,0.5);
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="kick">Proposal v3 · 2026-05-20</div>
+  <h1>Player Overview V2 — arcade high-score-style</h1>
+  <p>Pac-Man / Donkey Kong-vibe. Endringer fra V1:</p>
+  <ul>
+    <li><b>Ingen ACTIVE-tag</b> — alle spillere ses likt</li>
+    <li><b>Last 3 throws fyller hele bunnraden</b> — dominant, gul fremhevet</li>
+    <li><b>Rank-numre</b> i monospace pixel-font</li>
+    <li><b>Søyleoverskrifter</b> (RANK · PLAYER · REMAINING) som klassisk leaderboard</li>
+    <li>Marquee top + bottom (arkade-flair)</li>
+    <li>Stripped color noise — én magenta accent for remaining-tall, gul for last-tur</li>
+  </ul>
+</div>
+
+<div class="stage">
+  <div>
+    <div class="artboard-label">Player Overview V2 (3 players)</div>
+    <div class="frame">
+      <div class="topbar">
+        <div class="back">◀ BACK</div>
+        <div class="title">CAST · X01 501</div>
+        <div class="round">RND 7</div>
+      </div>
+
+      <div class="marquee">► SCOREBOARD ◄</div>
+
+      <div class="col-header">
+        <span class="rank-h">#</span>
+        <span class="name-h">PLAYER</span>
+        <span class="rem-h">REMAIN</span>
+      </div>
+
+      <div class="list">
+        <!-- Player 1 -->
+        <div class="row">
+          <div class="row-line1">
+            <span class="rank">01</span>
+            <span class="name">MIA</span>
+            <span class="remaining">170</span>
+          </div>
+          <div class="row-line2">
+            <span class="stats-mini">AVG <b>31.3</b> · HIT <b>87%</b></span>
+          </div>
+          <div class="row-last">
+            <span class="label">LAST</span>
+            <span class="throws">T20 · S20 · S20</span>
+            <span class="sum">80</span>
+          </div>
+        </div>
+
+        <!-- Player 2 -->
+        <div class="row">
+          <div class="row-line1">
+            <span class="rank">02</span>
+            <span class="name">JON</span>
+            <span class="remaining">268</span>
+          </div>
+          <div class="row-line2">
+            <span class="stats-mini">AVG <b>24.7</b> · HIT <b>82%</b></span>
+          </div>
+          <div class="row-last">
+            <span class="label">LAST</span>
+            <span class="throws">S5 · S20 · S1</span>
+            <span class="sum">26</span>
+          </div>
+        </div>
+
+        <!-- Player 3 -->
+        <div class="row">
+          <div class="row-line1">
+            <span class="rank">03</span>
+            <span class="name">BEA</span>
+            <span class="remaining">421</span>
+          </div>
+          <div class="row-line2">
+            <span class="stats-mini">AVG <b>19.8</b> · HIT <b>76%</b></span>
+          </div>
+          <div class="row-last">
+            <span class="label">LAST</span>
+            <span class="throws">S20 · MISS · S5</span>
+            <span class="sum">25</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-marquee">★ ★ ★ INSERT DART TO CONTINUE ★ ★ ★</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

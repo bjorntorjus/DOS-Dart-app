@@ -3,7 +3,7 @@
          TODO: bundle .ttf files in assets/fonts/ so the app works offline. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="dart_scoring"
+        android:label="DOSSEDART"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

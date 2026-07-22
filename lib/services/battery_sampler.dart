@@ -16,9 +16,14 @@ class BatterySampler {
   Timer? _timer;
   bool _failed = false;
 
+  /// F18: prevents the 30s periodic timer from blocking pumpAndSettle.
+  @visibleForTesting
+  static bool disableForTest = false;
+
   bool get isRunning => _timer != null;
 
   void start(String gameMode) {
+    if (disableForTest) return;
     if (_timer != null) return;
     _failed = false;
     _sampleNow();

@@ -20,19 +20,68 @@ import '../models/game_result.dart';
 import 'post_game_screen.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
+import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
+import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
 import '../services/battery_sampler.dart';
+import '../theme/dossedart_tokens.dart';
+import '../app_version.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
 
 enum KillerPhase { assignment, playing }
+
+/// Tints owned/claimed wedges on top of the shared TWILIGHT dartboard, using
+/// the board's own geometry constants. Ownership is shown purely by colour:
+/// your number cyan, enemies red, eliminated/claimed a dark veil.
+class _KillerBoardOverlayPainter extends CustomPainter {
+  final Map<int, Color> tints; // segment number → fill colour
+  _KillerBoardOverlayPainter({required this.tints});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2;
+    final c = Offset(r, r);
+    const slice = pi * 2 / 20;
+    tints.forEach((number, color) {
+      final idx = kSegmentOrder.indexOf(number);
+      if (idx < 0) return;
+      final start = -slice / 2 + idx * slice - pi / 2;
+      final rIn = r * kBullR;
+      final rOut = r * kDoubleR;
+      final path = Path()
+        ..moveTo(c.dx + cos(start) * rIn, c.dy + sin(start) * rIn)
+        ..lineTo(c.dx + cos(start) * rOut, c.dy + sin(start) * rOut)
+        ..arcTo(Rect.fromCircle(center: c, radius: rOut), start, slice, false)
+        ..lineTo(c.dx + cos(start + slice) * rIn, c.dy + sin(start + slice) * rIn)
+        ..arcTo(Rect.fromCircle(center: c, radius: rIn), start + slice, -slice,
+            false)
+        ..close();
+      canvas.drawPath(path, Paint()..color = color);
+    });
+  }
+
+  @override
+  bool shouldRepaint(_KillerBoardOverlayPainter oldDelegate) => true;
+}
 
 class KillerGameScreen extends StatefulWidget {
   final List<Player> players;
   final KillerConfig config;
+  final bool useDossedartDesign;
 
   const KillerGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -58,6 +107,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   final GameAnnouncer _announcer = GameAnnouncer();
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
+  bool _soundEnabled = true;
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
   bool _ttsEnabled = false;
@@ -67,9 +117,52 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
+
+  /// Kills the current player has racked up in the in-progress turn, and the
+  /// best single-turn kill count per player index (for KILLING SPREE).
+  int _killsThisTurn = 0;
+  final Map<int, int> _maxKillsInTurn = {};
+
+  @visibleForTesting
+  int get killsThisTurnForTest => _killsThisTurn;
+
+  @visibleForTesting
+  Map<int, int> get maxKillsInTurnForTest => _maxKillsInTurn;
+
+  @visibleForTesting
+  Future<void> onDartHitForTest(int segment, int multiplier) =>
+      _onDartHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
+
+  @visibleForTesting
+  Set<int> get removedPlayerIndicesForTest => _removedPlayerIndices;
+
+  @visibleForTesting
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int? get winnerIndexForTest => winnerIndex;
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
+  @visibleForTesting
+  List<int> get livesForTest => lives;
+
+  void _commitKillsThisTurn() {
+    final cur = _maxKillsInTurn[currentPlayerIndex] ?? 0;
+    if (_killsThisTurn > cur) _maxKillsInTurn[currentPlayerIndex] = _killsThisTurn;
+    _killsThisTurn = 0;
+  }
 
   // Assignment phase tracking
   int assignmentPlayerIndex = 0;
@@ -101,6 +194,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           'shields': widget.config.shields,
           'multiplyHits': widget.config.multiplyHits,
         },
+        build: kAppVersion,
       );
       BatterySampler.instance.start('Killer');
       if (!widget.config.throwToPick) {
@@ -110,9 +204,15 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         _log.log('Phase: assignment (throw to pick)');
       }
     });
+    AppSettings.getSoundEffectsEnabled().then((v) {
+      if (mounted) setState(() => _soundEnabled = v);
+      SoundService.instance.setEnabled(v);
+    });
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
-    _ttsEnabled = TtsService.instance.enabled;
+    TtsService.instance.init().then((_) {
+      if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
+    });
   }
 
   @override
@@ -192,6 +292,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isEliminatedBefore: List.from(isEliminated),
       shieldsBefore: List.from(shields),
       roundNumber: _roundNumber,
+      killsThisTurnBefore: _killsThisTurn,
+      maxKillsInTurnBefore: Map.of(_maxKillsInTurn),
     ));
 
     final dartThrow = DartThrow(
@@ -273,9 +375,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         extra: extraLog,
       );
 
-      // Log elimination as a finish event
+      // Log elimination as a finish event + tally kills for the active player.
       for (int i = 0; i < players.length; i++) {
         if (isEliminated[i] && !_undoStack.last.isEliminatedBefore[i]) {
+          if (i != currentPlayerIndex) _killsThisTurn++;
           _log.logFinish(
             roundNumber: _roundNumber,
             playerIndex: i,
@@ -288,8 +391,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       _meme.onThrow(dartThrow);
       dartsInTurn++;
       if (winnerIndex != null) {
+        _commitKillsThisTurn();
         _meme.onTurnEnd();
       } else if (dartsInTurn >= 3) {
+        _commitKillsThisTurn();
         _meme.onTurnEnd();
         _advancePlayer();
       }
@@ -305,7 +410,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       _announcer.announceWinner(players[winnerIndex!].name);
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     }
   }
 
@@ -425,8 +530,12 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   void _advancePlayer() {
     final fromIndex = currentPlayerIndex;
     dartsInTurn = 0;
+    final startIndex = currentPlayerIndex;
     do {
       currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      // Safety: prevent infinite loop when every player is eliminated/removed
+      // (audit 2026-07-06, F7).
+      if (currentPlayerIndex == startIndex) break;
     } while (isEliminated[currentPlayerIndex] && winnerIndex == null);
     // Increment round when we wrap back to or past the first alive player
     if (currentPlayerIndex <= fromIndex) {
@@ -441,21 +550,26 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         toScore: lives[currentPlayerIndex],
         reason: 'turn complete',
       );
+      // Killer has no running "score" — lives is the closest analogue, so
+      // the numbers logged here (and in the STANDINGS line below) are lives
+      // remaining, not points.
+      _log.logTurnStart(
+        roundNumber: _roundNumber,
+        playerIndex: currentPlayerIndex,
+        playerName: players[currentPlayerIndex].name,
+        score: lives[currentPlayerIndex],
+      );
+      _log.logStandings(
+        roundNumber: _roundNumber,
+        names: players.map((p) => p.name).toList(),
+        scores: lives,
+      );
       _announcer.announceNextPlayer(players[currentPlayerIndex].name);
     }
   }
 
   void _onMiss() {
-    _missSoundPlayed = false;
-    if (_memeEnabled) {
-      _missSoundPlayed = SoundService.instance.playRandomMaybe([
-        'miss',
-        if (_offensiveEnabled) 'miss/offensive',
-      ], chance: _meme.frequencyChance);
-      if (_missSoundPlayed && _meme.frequency < 10) {
-        _meme.markSoundPlayed();
-      }
-    }
+    _missSoundPlayed = _meme.tryMissSound();
     _onDartHit(0, 0);
   }
 
@@ -497,6 +611,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isKiller = data.isKillerBefore;
       isEliminated = data.isEliminatedBefore;
       shields = data.shieldsBefore;
+      _killsThisTurn = data.killsThisTurnBefore;
+      _maxKillsInTurn
+        ..clear()
+        ..addAll(data.maxKillsInTurnBefore);
       _roundNumber = data.roundNumber;
       winnerIndex = null;
       lastThrowLabel = null;
@@ -509,6 +627,56 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       scoreRestored: data.livesBefore[data.playerIndex],
       roundNumber: data.roundNumber,
     );
+  }
+
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stats behind — the double-record fix from the
+  /// 2026-07-06 audit (F2).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp =
+          savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp =
+          savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Rank: winner 1st, others by remaining lives (more = better).
+  List<int> _buildPlacements() {
+    final placements = List.filled(players.length, 0);
+    placements[winnerIndex!] = 1;
+    final nonWinners = List.generate(players.length, (i) => i)
+      ..removeWhere((i) => i == winnerIndex);
+    nonWinners.sort((a, b) => lives[b].compareTo(lives[a]));
+    int rank = 2;
+    for (int i = 0; i < nonWinners.length; i++) {
+      if (i > 0 && lives[nonWinners[i]] < lives[nonWinners[i - 1]]) {
+        rank = i + 2;
+      }
+      placements[nonWinners[i]] = rank;
+    }
+    return placements;
   }
 
   Future<void> _updateStats() async {
@@ -541,18 +709,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     }
 
     // Rank: winner 1st, others by remaining lives (more = better)
-    final placements = List.filled(players.length, 0);
-    placements[winnerIndex!] = 1;
-    final nonWinners = List.generate(players.length, (i) => i)
-      ..removeWhere((i) => i == winnerIndex);
-    nonWinners.sort((a, b) => lives[b].compareTo(lives[a]));
-    int rank = 2;
-    for (int i = 0; i < nonWinners.length; i++) {
-      if (i > 0 && lives[nonWinners[i]] < lives[nonWinners[i - 1]]) {
-        rank = i + 2;
-      }
-      placements[nonWinners[i]] = rank;
-    }
+    final placements = _buildPlacements();
     // Compute per-player killer stats from undo stack and game state
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -632,6 +789,22 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final achEvents = <int, List<AchievementEvent>>{};
+    for (int i = 0; i < players.length; i++) {
+      if ((_maxKillsInTurn[i] ?? 0) >= 3) {
+        achEvents[i] = [AchievementEvent.multiKill];
+      }
+    }
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.killer,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
+    );
+
     StatsRecorder.recordGame(
       gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -641,6 +814,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      gameConfig: 'Killer · ${widget.config.lives} lives',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex:
+          buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -662,8 +840,33 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     );
     BatterySampler.instance.stop();
 
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+          builder: (_) => PostGameScreen(result: _buildGameResult())),
+    );
+    if (!mounted) return;
+    if (result == 'undo') {
+      _log.logPostGame(action: 'undo', details: 'user chose undo from post-game');
+      _undo();
+    } else {
+      _log.logPostGame(action: 'exit', details: 'user exited to home');
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
+      await _updateStats();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
+  GameResult _buildGameResult() {
+    // Players removed mid-game must not appear on the result screen at all —
+    // and never as the winner. (winnerIndex is already removed-safe: removed
+    // players are flagged eliminated, so they never end up the last one alive.)
     final results = <PlayerResult>[];
     for (int i = 0; i < players.length; i++) {
+      if (_removedPlayerIndices.contains(i)) continue;
       results.add(PlayerResult(
         name: players[i].name,
         avatarPath: players[i].avatarPath,
@@ -677,25 +880,315 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             : null,
       ));
     }
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(
-          builder: (_) => PostGameScreen(
-                result: GameResult(gameMode: 'killer', results: results),
-              )),
-    );
-    if (!mounted) return;
-    if (result == 'undo') {
-      _log.logPostGame(action: 'undo', details: 'user chose undo from post-game');
-      _undo();
-    } else {
-      _log.logPostGame(action: 'exit', details: 'user exited to home');
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    return GameResult(gameMode: 'killer', results: results);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — reuses the TWILIGHT dartboard for both phases.
+  // Ownership is shown purely by wedge colour (you=cyan, enemies=red) plus a
+  // thin status-key strip; the assignment phase dims claimed numbers. Every tap
+  // feeds the same _onDartHit / _onMiss as the classic screen.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: phase == KillerPhase.assignment
+              ? _killerAssignmentView(context)
+              : _killerPlayingView(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _killerBoard(Map<int, Color> tints) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            // Spec (x01-cockpit-final): no frame, glow only —
+            // 0 0 70px magenta @ 0x3a ≈ alpha 0.23.
+            boxShadow: [
+              BoxShadow(
+                color: DossedartTokens.magenta.withValues(alpha: 0.23),
+                blurRadius: 70,
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              DossedartX01Dartboard(
+                onTap: (zone) {
+                  final (seg, mult) = zone.toSegmentMultiplier();
+                  if (seg == 0) {
+                    _onMiss();
+                  } else {
+                    _onDartHit(seg, mult);
+                  }
+                },
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _KillerBoardOverlayPainter(tints: tints),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  DossedartActionBar _killerActionBar(BuildContext context) {
+    return DossedartActionBar(
+      onUndo: _undo,
+      onMiss: _onMiss,
+      onMenu: () => showDossedartCockpitMenu(
+        context,
+        meme: _meme,
+        onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+        onPlayerOverview: _openDossedartPlayerSheet,
+        onExit: _confirmExit,
+      ),
+    );
+  }
+
+  Widget _killerPlayingView(BuildContext context) {
+    final cfg = widget.config;
+    final title = 'KILLER · ${cfg.lives} LIVES${cfg.shields ? ' · SHIELDS' : ''}';
+    final tints = <int, Color>{};
+    for (int i = 0; i < players.length; i++) {
+      final n = assignedNumbers[i];
+      if (n < 1) continue;
+      if (isEliminated[i]) {
+        tints[n] = Colors.black.withValues(alpha: 0.55);
+      } else if (i == currentPlayerIndex) {
+        tints[n] = DossedartTokens.cyan.withValues(alpha: 0.38);
+      } else {
+        tints[n] = DossedartTokens.red.withValues(alpha: 0.32);
+      }
+    }
+    return Column(
+      children: [
+        DossedartTopBar(
+          title: title,
+          onExit: _confirmExit,
+          trailing: 'RND $_roundNumber',
+        ),
+        _killerStatusKey(),
+        Expanded(child: _killerBoard(tints)),
+        _killerActionBar(context),
+      ],
+    );
+  }
+
+  Widget _killerStatusKey() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.5), width: 2),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [for (int i = 0; i < players.length; i++) _killerKeyRow(i)],
+      ),
+    );
+  }
+
+  Widget _killerKeyRow(int i) {
+    final active = i == currentPlayerIndex;
+    final elim = isEliminated[i];
+    final c = elim
+        ? DossedartTokens.phosphor.withValues(alpha: 0.45)
+        : active
+            ? DossedartTokens.cyan
+            : DossedartTokens.red;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: active ? c.withValues(alpha: 0.12) : Colors.transparent,
+        border: Border.all(
+            color: c.withValues(alpha: active ? 1 : 0.4), width: active ? 2 : 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(border: Border.all(color: c, width: 2)),
+            child: Text(
+              assignedNumbers[i] > 0 ? '${assignedNumbers[i]}' : '—',
+              style: TextStyle(
+                  fontFamily: 'PressStart2P', fontSize: 11, color: c),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              players[i].name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: c,
+                decoration: elim ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+          if (isKiller[i] && !elim)
+            _killerTag('ARMED', DossedartTokens.orange),
+          if (shields[i] > 0 && !elim)
+            _killerTag('SH ${shields[i]}', DossedartTokens.green),
+          const SizedBox(width: 8),
+          Text(
+            elim ? 'OUT' : '♥ ${lives[i]}',
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 16,
+              color: elim ? c : DossedartTokens.red,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _killerTag(String label, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(border: Border.all(color: color, width: 1)),
+      child: Text(
+        label,
+        style: TextStyle(
+            fontFamily: 'PressStart2P', fontSize: 8, color: color),
+      ),
+    );
+  }
+
+  Widget _killerAssignmentView(BuildContext context) {
+    final tints = <int, Color>{};
+    for (final n in assignedNumbers) {
+      if (n > 0) tints[n] = Colors.black.withValues(alpha: 0.5);
+    }
+    return Column(
+      children: [
+        DossedartTopBar(
+          title: 'KILLER · ASSIGNMENT',
+          onExit: _confirmExit,
+          trailing: 'PLAYER ${assignmentPlayerIndex + 1}/${players.length}',
+        ),
+        _killerAssignmentPrompt(),
+        Expanded(child: _killerBoard(tints)),
+        _killerRoster(),
+        _killerActionBar(context),
+      ],
+    );
+  }
+
+  Widget _killerAssignmentPrompt() {
+    final claimer = players[assignmentPlayerIndex];
+    const c = DossedartTokens.cyan;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c.withValues(alpha: 0.12), Colors.transparent],
+        ),
+        border: const Border(bottom: BorderSide(color: c, width: 3)),
+      ),
+      child: Row(
+        children: [
+          DossedartPlayerAvatar(
+              size: 48, borderColor: c, avatarPath: claimer.avatarPath),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              '▶ ${claimer.name.toUpperCase()} — THROW TO PICK YOUR NUMBER',
+              style: const TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 11,
+                color: c,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _killerRoster() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          for (int i = 0; i < players.length; i++) _killerRosterChip(i)
+        ],
+      ),
+    );
+  }
+
+  Widget _killerRosterChip(int i) {
+    final claimed = assignedNumbers[i] > 0;
+    final isCurrent = i == assignmentPlayerIndex;
+    final c = claimed
+        ? DossedartTokens.green
+        : isCurrent
+            ? DossedartTokens.cyan
+            : DossedartTokens.phosphor.withValues(alpha: 0.5);
+    final status = claimed
+        ? '${assignedNumbers[i]} ✓'
+        : isCurrent
+            ? 'PICKING…'
+            : 'WAITING';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: c, width: isCurrent ? 2 : 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            players[i].name,
+            style: TextStyle(
+                fontWeight: FontWeight.w700, fontSize: 12, color: c),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            status,
+            style: TextStyle(
+                fontFamily: 'VT323', fontSize: 14, color: c, letterSpacing: 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(phase == KillerPhase.assignment
@@ -715,6 +1208,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                   if (phase == KillerPhase.playing && winnerIndex == null) {
                     _openPlayerManagement();
                   }
+                  break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
                   break;
                 case 'tts':
                   await TtsService.instance.setEnabled(!_ttsEnabled);
@@ -750,10 +1248,20 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                 ),
               if (phase == KillerPhase.playing) const PopupMenuDivider(),
               PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'tts',
                 child: Row(
                   children: [
-                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
                     const SizedBox(width: 12),
                     Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
                   ],
@@ -832,7 +1340,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                             color: lastThrowLabel!.contains('KILLER')
                                 ? Theme.of(context).colorScheme.tertiary
                                 : lastThrowLabel!.contains('shield')
-                                    ? Colors.blue
+                                    ? Theme.of(context).colorScheme.tertiary
                                     : lastThrowLabel!.contains('Eliminated') ||
                                             lastThrowLabel!.contains('Lost') ||
                                             lastThrowLabel!.contains('Suicide')
@@ -1160,10 +1668,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                               return Padding(
                                 padding: EdgeInsets.only(
                                     right: i < shields[index] - 1 ? 3 : 0),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.shield,
                                   size: 22,
-                                  color: Colors.blue,
+                                  color: Theme.of(context).colorScheme.tertiary,
                                 ),
                               );
                             }),
@@ -1182,7 +1690,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                                     : Icons.favorite_border,
                                 size: 22,
                                 color: hasLife
-                                    ? Colors.red
+                                    ? Theme.of(context).colorScheme.error
                                     : Theme.of(context).colorScheme.surfaceContainer,
                               ),
                             );
@@ -1260,6 +1768,32 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     );
   }
 
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: isEliminated[i] ? 'OUT' : '${lives[i]} ♥',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: winnerIndex != null,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
   void _openPlayerManagement() {
     showMidGamePlayerSheet(
       context: context,
@@ -1312,7 +1846,60 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isKiller.add(false); // must qualify
       isEliminated.add(false);
       shields.add(0);
+      // Undo snapshots taken before the add hold whole lists of the old
+      // length — restoring one would shrink state below players.length and
+      // crash. Roster changes reset undo history (audit 2026-07-06, F8).
+      _undoStack.clear();
     });
+    // scores here are lives, not points.
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: lives,
+    );
+  }
+
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      // Mark as eliminated so rotation skips
+      isEliminated[playerIndex] = true;
+      // Undo snapshots predate the removal and would resurrect the player
+      // wholesale — roster changes reset undo history (audit 2026-07-06,
+      // F8/F9).
+      _undoStack.clear();
+      // Logged here (post-mutation, pre-advance) rather than after setState:
+      // removing the current player calls _advancePlayer() below, which logs
+      // its own TURN/STANDINGS pair immediately — logging ROSTER first keeps
+      // the log file in causal order (removal, then the resulting advance).
+      // scores here are lives, not points.
+      _log.logRoster(
+        action: 'REMOVE',
+        playerIndex: playerIndex,
+        playerName: removed.name,
+        names: players.map((p) => p.name).toList(),
+        scores: lives,
+      );
+      // Removing the second-to-last alive player must end the game
+      // (audit 2026-07-06, F7 — removal never checked for a winner).
+      _checkForWinner();
+      if (playerIndex == currentPlayerIndex && winnerIndex == null) {
+        dartsInTurn = 0;
+        _advancePlayer();
+      }
+    });
+    if (winnerIndex != null) {
+      _announcer.announceWinner(players[winnerIndex!].name);
+      _prepareRatingPreview().then((_) => _showPostGame());
+    }
   }
 
   void _removePlayerMidGame(int playerIndex) {
@@ -1320,7 +1907,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Rating will not be updated for this game.'),
+        content: const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1332,20 +1919,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
                 foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                // Mark as eliminated so rotation skips
-                isEliminated[playerIndex] = true;
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _advancePlayer();
-                }
-              });
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),
@@ -1389,6 +1963,8 @@ class _KillerUndoData {
   final List<bool> isEliminatedBefore;
   final List<int> shieldsBefore;
   final int roundNumber;
+  final int killsThisTurnBefore;
+  final Map<int, int> maxKillsInTurnBefore;
 
   _KillerUndoData({
     required this.playerIndex,
@@ -1398,5 +1974,7 @@ class _KillerUndoData {
     required this.isEliminatedBefore,
     required this.shieldsBefore,
     required this.roundNumber,
+    required this.killsThisTurnBefore,
+    required this.maxKillsInTurnBefore,
   });
 }

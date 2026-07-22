@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../app_version.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
@@ -18,18 +19,31 @@ import '../services/video_service.dart';
 import '../models/game_result.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/dossedart/dossedart_player_sheet.dart';
+import '../models/achievement_event.dart';
+import '../models/game_mode.dart';
+import '../utils/earned_feats_builder.dart';
+import '../services/achievement_service.dart';
 import '../models/saved_player.dart';
 import 'post_game_screen.dart';
 import '../services/battery_sampler.dart';
+import '../theme/dossedart_tokens.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/dossedart_top_bar.dart';
+import '../widgets/dossedart/dossedart_action_bar.dart';
+import '../widgets/dossedart/dossedart_active_strip.dart';
+import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 
 class HalveItGameScreen extends StatefulWidget {
   final List<Player> players;
   final HalveItConfig config;
+  final bool useDossedartDesign;
 
   const HalveItGameScreen({
     super.key,
     required this.players,
     required this.config,
+    this.useDossedartDesign = false,
   });
 
   @override
@@ -44,8 +58,42 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   int currentRoundIndex = 0;
   int currentPlayerIndex = 0;
   int dartsInTurn = 0;
+  int _turnIdCounter = 0;
   int turnPoints = 0; // points accumulated this turn
   bool turnHasHit = false; // whether any dart hit the target this turn
+
+  /// Players who landed a last-dart hit after the first two missed, saving
+  /// themselves from a halving this game (CLUTCH SAVE).
+  final Set<int> _clutchSavers = {};
+
+  @visibleForTesting
+  Set<int> get clutchSaversForTest => _clutchSavers;
+
+  @visibleForTesting
+  Future<void> onDartHitForTest(int segment, int multiplier) =>
+      _onDartHit(segment, multiplier);
+
+  @visibleForTesting
+  void undoForTest() => _undo();
+
+  @visibleForTesting
+  Set<int> get removedPlayerIndicesForTest => _removedPlayerIndices;
+
+  @visibleForTesting
+  GameResult buildGameResultForTest() => _buildGameResult();
+
+  @visibleForTesting
+  void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
+
+  @visibleForTesting
+  int get currentPlayerIndexForTest => currentPlayerIndex;
+
+  @visibleForTesting
+  int get currentRoundIndexForTest => currentRoundIndex;
+
+  @visibleForTesting
+  List<int> get totalScoresForTest => totalScores;
+
   List<DartThrow> throwHistory = [];
   bool gameOver = false;
   String? lastThrowLabel;
@@ -56,6 +104,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   final GameLogger _log = GameLogger.instance;
   final MemeService _meme = MemeService();
   final ScrollController _scoreboardController = ScrollController();
+  bool _soundEnabled = true;
   bool _memeEnabled = false;
   bool _offensiveEnabled = false;
   bool _ttsEnabled = false;
@@ -69,6 +118,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   Map<String, double> _ratingsAfter = {};
 
   bool _midGamePlayerChanges = false;
+  final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
@@ -86,9 +136,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     }
     _announcer.init();
     _meme.init();
+    AppSettings.getSoundEffectsEnabled().then((v) {
+      if (mounted) setState(() => _soundEnabled = v);
+      SoundService.instance.setEnabled(v);
+    });
     AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getMemeOffensive().then((v) => setState(() => _offensiveEnabled = v));
-    _ttsEnabled = TtsService.instance.enabled;
+    TtsService.instance.init().then((_) {
+      if (mounted) setState(() => _ttsEnabled = TtsService.instance.enabled);
+    });
     _log.logGameStart(
       gameMode: 'Splitscore',
       playerNames: players.map((p) => p.name).toList(),
@@ -97,6 +153,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         'rounds': rounds.map((r) => r.label).toList(),
         'isRandom': widget.config.isRandom,
       },
+      build: kAppVersion,
     );
     BatterySampler.instance.start('HalveIt');
   }
@@ -136,6 +193,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       scoreBefore: totalScores[currentPlayerIndex],
       turnNumber: dartsInTurn,
       scoreAtStartOfTurn: totalScores[currentPlayerIndex],
+      turnId: _turnIdCounter,
     );
 
     // Save undo data
@@ -152,6 +210,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       turnHasHit: turnHasHit,
       totalScoreBefore: totalScores[currentPlayerIndex],
       roundScoreBefore: roundScores[currentRoundIndex][currentPlayerIndex],
+      clutchSaversBefore: Set.of(_clutchSavers),
     ));
 
     // Pre-roll video dice before setState
@@ -176,6 +235,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       throwHistory.add(dartThrow);
 
       if (hit) {
+        if (dartsInTurn == 2 && !turnHasHit) {
+          _clutchSavers.add(currentPlayerIndex); // first two missed, 3rd saves it
+        }
         turnPoints += points;
         turnHasHit = true;
         lastThrowLabel = '${dartThrow.label} ✓ (+$points)';
@@ -225,7 +287,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     if (gameOver) {
       await VideoService.instance.showRandomFromFolder(context, 'winner');
       if (!mounted) return;
-      _updateStats().then((_) => _showPostGame());
+      _prepareRatingPreview().then((_) => _showPostGame());
     }
   }
 
@@ -250,6 +312,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
     // Next player or next round
     dartsInTurn = 0;
+    _turnIdCounter++;
     turnPoints = 0;
     turnHasHit = false;
 
@@ -286,21 +349,23 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       toScore: totalScores[currentPlayerIndex],
       reason: currentPlayerIndex == 0 ? 'new round ${currentRoundIndex + 1}' : null,
     );
+    _log.logTurnStart(
+      roundNumber: currentRoundIndex + 1,
+      playerIndex: currentPlayerIndex,
+      playerName: players[currentPlayerIndex].name,
+      score: totalScores[currentPlayerIndex],
+    );
+    _log.logStandings(
+      roundNumber: currentRoundIndex + 1,
+      names: players.map((p) => p.name).toList(),
+      scores: totalScores,
+    );
     _announcer.announceNextPlayer(players[currentPlayerIndex].name);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
   }
 
   void _onMiss() {
-    _missSoundPlayed = false;
-    if (_memeEnabled) {
-      _missSoundPlayed = SoundService.instance.playRandomMaybe([
-        'miss',
-        if (_offensiveEnabled) 'miss/offensive',
-      ], chance: _meme.frequencyChance);
-      if (_missSoundPlayed && _meme.frequency < 10) {
-        _meme.markSoundPlayed();
-      }
-    }
+    _missSoundPlayed = _meme.tryMissSound();
     _onDartHit(0, 0);
   }
 
@@ -312,20 +377,33 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
+  /// In-progress turn's darts joined live (e.g. "S5 \u00b7 S6 \u00b7 MISS"); falls back
+  /// to the active player's previous turn between turns. Per-dart suffixes
+  /// ("\u2713 (+points)") are dropped \u2014 they do not fit the joined 3-dart row.
+  String? get _stripTurnLabel =>
+      throwHistory.recentTurnLabel(currentPlayerIndex);
+
   void _undo() {
     if (throwHistory.isEmpty || _undoStack.isEmpty) return;
     final undoneThrow = throwHistory.last;
+    // A removed player's throws are frozen: undoing one would make them the
+    // current thrower again (audit 2026-07-06, F9).
+    if (_removedPlayerIndices.contains(undoneThrow.playerIndex)) return;
     final undoData = _undoStack.last;
     _announcer.announceGameEvent('Back');
 
     setState(() {
       throwHistory.removeLast();
+      _turnIdCounter = undoneThrow.turnId;
       final data = _undoStack.removeLast();
       currentRoundIndex = data.roundIndex;
       currentPlayerIndex = data.playerIndex;
       dartsInTurn = data.dartsInTurn;
       turnPoints = data.turnPoints;
       turnHasHit = data.turnHasHit;
+      _clutchSavers
+        ..clear()
+        ..addAll(data.clutchSaversBefore);
       totalScores[data.playerIndex] = data.totalScoreBefore;
       roundScores[data.roundIndex][data.playerIndex] = data.roundScoreBefore;
       players[data.playerIndex].score = data.totalScoreBefore;
@@ -353,6 +431,52 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     await _updateStatsInternal();
   }
 
+  /// Computes the rating deltas this finish WILL produce so the result screen
+  /// can show them, without persisting anything. Actual recording is deferred
+  /// until the user leaves the result screen (see [_showPostGame]) so that
+  /// "↶ Back" never leaves stats behind — the double-record fix from the
+  /// 2026-07-06 audit (F2).
+  Future<void> _prepareRatingPreview() async {
+    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    _ratingsBefore = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    EloService.updateRatings(
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      placements: _buildPlacements(),
+      savedPlayers: savedPlayers,
+    );
+
+    _ratingsAfter = {};
+    for (final p in players) {
+      if (p.savedPlayerId == null) continue;
+      final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
+    }
+    // savedPlayers are discarded unpersisted — this was display-only.
+  }
+
+  /// Rank by total score (higher = better placement); equal scores tie.
+  List<int> _buildPlacements() {
+    final sorted = List.generate(players.length, (i) => i)
+      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+    final placements = List.filled(players.length, 0);
+    for (int rank = 0; rank < sorted.length; rank++) {
+      if (rank > 0 && totalScores[sorted[rank]] == totalScores[sorted[rank - 1]]) {
+        placements[sorted[rank]] = placements[sorted[rank - 1]]; // tie
+      } else {
+        placements[sorted[rank]] = rank + 1;
+      }
+    }
+    return placements;
+  }
+
   Future<void> _updateStatsInternal() async {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
@@ -373,6 +497,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         winnerIdx = i;
       }
     }
+    // A shared best score is a draw — nobody gets win credit.
+    final tieForBest =
+        totalScores.where((s) => s == bestScore).length > 1;
 
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
@@ -381,7 +508,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       if (idx < 0) continue;
       final sp = savedPlayers[idx];
       sp.gamesPlayed++;
-      if (pi == winnerIdx) sp.gamesWon++;
+      if (pi == winnerIdx && !tieForBest) sp.gamesWon++;
 
       // Turn stats: each round is a "turn"
       for (int ri = 0; ri < rounds.length; ri++) {
@@ -397,16 +524,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       }
     }
     // Rank by total score (higher = better placement)
-    final sorted = List.generate(players.length, (i) => i)
-      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
-    final placements = List.filled(players.length, 0);
-    for (int rank = 0; rank < sorted.length; rank++) {
-      if (rank > 0 && totalScores[sorted[rank]] == totalScores[sorted[rank - 1]]) {
-        placements[sorted[rank]] = placements[sorted[rank - 1]]; // tie
-      } else {
-        placements[sorted[rank]] = rank + 1;
-      }
-    }
+    final placements = _buildPlacements();
     // Compute per-player Halve It stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -468,6 +586,19 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
+    final achEvents = <int, List<AchievementEvent>>{
+      for (final i in _clutchSavers) i: [AchievementEvent.clutchSave],
+    };
+    final unlocks = AchievementService.instance.awardGameEnd(
+      mode: GameMode.halveIt,
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      savedPlayers: savedPlayers,
+      placements: placements,
+      ratingsBefore: _ratingsBefore,
+      ratingsAfter: _ratingsAfter,
+      eventsByIndex: achEvents,
+    );
+
     StatsRecorder.recordGame(
       gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -477,6 +608,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       modeCounters: modeCounters,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      gameConfig: 'Splitscore',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      earnedFeatsByIndex:
+          buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -493,6 +629,35 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       gameFullyOver: true,
     );
     BatterySampler.instance.stop();
+
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+          builder: (_) => PostGameScreen(result: _buildGameResult())),
+    );
+    if (!mounted) return;
+    if (result == 'undo') {
+      _log.logPostGame(action: 'undo');
+      _undo();
+    } else {
+      _log.logPostGame(action: 'exit');
+      // Leaving the game — record stats now. Recording is deferred to this
+      // point (not done when the game ended) so a post-game Undo never
+      // strands persisted stats; see _prepareRatingPreview.
+      await _updateStats();
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
+  GameResult _buildGameResult() {
+    // Players removed mid-game must not appear on the result screen at all —
+    // and never as the winner. Rank only the remaining players by total score
+    // (higher = better) so a removed leader cannot take 1st place.
+    final indexed = List.generate(players.length, (i) => i)
+        .where((i) => !_removedPlayerIndices.contains(i))
+        .toList()
+      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
 
     final results = <PlayerResult>[];
     for (int rank = 0; rank < indexed.length; rank++) {
@@ -511,24 +676,440 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         ratingAfter: players[i].savedPlayerId != null ? _ratingsAfter[players[i].savedPlayerId!] : null,
       ));
     }
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => PostGameScreen(
-        result: GameResult(gameMode: 'halveIt', results: results),
-      )),
-    );
-    if (!mounted) return;
-    if (result == 'undo') {
-      _log.logPostGame(action: 'undo');
-      _undo();
-    } else {
-      _log.logPostGame(action: 'exit');
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    return GameResult(gameMode: 'halveIt', results: results);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
+    return _buildClassicScaffold(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // DOSSEDART arcade cockpit — scorecard hero + red jeopardy bar + adaptive
+  // input (S/D/T cells for number/bull rounds, a 1–20 keypad for double/triple
+  // rounds). Every tap feeds the same _onDartHit; halving stays in _finishTurn.
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDossedartCockpit(BuildContext context) {
+    return Scaffold(
+      backgroundColor: DossedartTokens.bg,
+      body: DossedartCrtFrame(
+        child: SafeArea(
+          child: Column(
+            children: [
+              DossedartTopBar(
+                title: 'SPLITSCORE',
+                onExit: _confirmExit,
+                trailing: 'RND ${currentRoundIndex + 1}/${rounds.length}',
+              ),
+              DossedartActiveStrip(
+                playerName: players[currentPlayerIndex].name,
+                avatarPath: players[currentPlayerIndex].avatarPath,
+                accentColor: DossedartTokens.cyan,
+                dartsInTurn: dartsInTurn,
+                lastThrowLabel: _stripTurnLabel,
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('TARGET',
+                        style: TextStyle(
+                            fontFamily: 'VT323',
+                            fontSize: 12,
+                            color: Colors.white54,
+                            letterSpacing: 2)),
+                    const SizedBox(height: 4),
+                    Text(
+                      rounds[currentRoundIndex].label.toUpperCase(),
+                      style: const TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 20,
+                        color: DossedartTokens.yellow,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _splitJeopardyBar(),
+              // The scorecard shrink-wraps to its content (the inner Column
+              // is mainAxisSize.min with a Flexible scroll wrapper); Align
+              // pins it to the top of the flexible share so freed space sits
+              // between the card and the input area instead of as empty
+              // bordered space inside the card. Input + action bar stay
+              // anchored at the bottom.
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: _splitScorecard(),
+                ),
+              ),
+              _splitInput(),
+              DossedartActionBar(
+                onUndo: _undo,
+                onMiss: _onMiss,
+                onMenu: () => showDossedartCockpitMenu(
+                  context,
+                  meme: _meme,
+                  onTtsChanged: (v) => setState(() => _ttsEnabled = v),
+                  onPlayerOverview: _openDossedartPlayerSheet,
+                  onExit: _confirmExit,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _splitJeopardyBar() {
+    final round = rounds[currentRoundIndex];
+    final total = totalScores[currentPlayerIndex];
+    final safe = turnHasHit;
+    final c = safe ? DossedartTokens.green : DossedartTokens.red;
+    final text = safe
+        ? '✓ SECURED · +$turnPoints THIS ROUND'
+        : '⚠ HIT ${round.label.toUpperCase()} OR HALVE · $total → ${total ~/ 2}';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.10),
+        border: Border.all(color: c, width: 2),
+        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.35), blurRadius: 12)],
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 10,
+          color: c,
+          letterSpacing: 1,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _splitScorecard() {
+    final magenta55 = DossedartTokens.magenta.withValues(alpha: 0.33);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        decoration: BoxDecoration(border: Border.all(color: magenta55, width: 2)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    // Inside the scroll view so the card can shrink below the
+                    // header height without overflowing on short screens; on
+                    // the tablet target nothing scrolls, so it stays pinned.
+                    _splitScoreHeader(),
+                    for (int ri = 0; ri < rounds.length; ri++)
+                      _splitScoreRow(ri),
+                    _splitSumRow(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _splitScoreHeader() {
+    final magenta = DossedartTokens.magenta;
+    return Container(
+      decoration: BoxDecoration(
+        color: magenta.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(color: magenta.withValues(alpha: 0.33), width: 2),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 70,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Text('ROUND',
+                    style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 10,
+                        color: Colors.white54,
+                        letterSpacing: 1)),
+              ),
+            ),
+          ),
+          for (int pi = 0; pi < players.length; pi++)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                color: pi == currentPlayerIndex
+                    ? DossedartTokens.cyan.withValues(alpha: 0.11)
+                    : null,
+                child: Text(
+                  players[pi].name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: pi == currentPlayerIndex
+                        ? DossedartTokens.cyan
+                        : DossedartTokens.phosphor,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Future rounds stay a surprise in random mode.
+  String _roundLabelFor(int ri) {
+    if (widget.config.isRandom && ri > currentRoundIndex) return '?';
+    return rounds[ri].label.toUpperCase();
+  }
+
+  Widget _splitScoreRow(int ri) {
+    final magenta = DossedartTokens.magenta;
+    final isCurrent = ri == currentRoundIndex;
+    return Container(
+      decoration: BoxDecoration(
+        color: isCurrent ? DossedartTokens.cyan.withValues(alpha: 0.06) : null,
+        border: Border(
+          bottom: BorderSide(color: magenta.withValues(alpha: 0.13), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+              child: Text(
+                _roundLabelFor(ri),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 11,
+                  color: isCurrent
+                      ? DossedartTokens.yellow
+                      : Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+          ),
+          for (int pi = 0; pi < players.length; pi++)
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 2),
+                color: pi == currentPlayerIndex
+                    ? DossedartTokens.cyan.withValues(alpha: 0.06)
+                    : null,
+                child: Center(child: _splitCellText(roundScores[ri][pi])),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitCellText(int? v) {
+    if (v == null) {
+      return Text('·',
+          style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 20,
+              color: Colors.white.withValues(alpha: 0.18)));
+    }
+    if (v < 0) {
+      return Text('-${-v} ✗',
+          style: const TextStyle(
+              fontFamily: 'VT323', fontSize: 20, color: DossedartTokens.red));
+    }
+    return Text('$v',
+        style: const TextStyle(
+            fontFamily: 'VT323', fontSize: 22, color: Colors.white));
+  }
+
+  Widget _splitSumRow() {
+    int leader = 0;
+    for (int i = 1; i < players.length; i++) {
+      if (totalScores[i] > totalScores[leader]) leader = i;
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: DossedartTokens.magenta.withValues(alpha: 0.08),
+        border: Border(
+          top: BorderSide(
+              color: DossedartTokens.magenta.withValues(alpha: 0.33), width: 2),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 70,
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 13),
+              child: Center(
+                child: Text('SUM',
+                    style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 11,
+                        color: Colors.white70)),
+              ),
+            ),
+          ),
+          for (int pi = 0; pi < players.length; pi++)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: Text(
+                    '${totalScores[pi]}',
+                    style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 16,
+                      color: pi == leader
+                          ? DossedartTokens.yellow
+                          : pi == currentPlayerIndex
+                              ? DossedartTokens.cyan
+                              : DossedartTokens.phosphor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitInput() {
+    final round = rounds[currentRoundIndex];
+    switch (round.type) {
+      case HalveItRoundType.number:
+        final n = round.targetNumber!;
+        return _splitCellRow([('$n', n, 1), ('D$n', n, 2), ('T$n', n, 3)]);
+      case HalveItRoundType.bull:
+        return _splitCellRow([('BULL', 25, 1), ('D-BULL', 25, 2)]);
+      case HalveItRoundType.anyDouble:
+        return _splitKeypad(2, includeDBull: true);
+      case HalveItRoundType.anyTriple:
+        return _splitKeypad(3, includeDBull: false);
+    }
+  }
+
+  Widget _splitCellRow(List<(String, int, int)> subs) {
+    const c = DossedartTokens.cyan;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: [
+          for (final (label, seg, mult) in subs)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () => _onDartHit(seg, mult),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.07),
+                      border: Border.all(color: c, width: 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 16,
+                          color: c,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _splitKeypad(int mult, {required bool includeDBull}) {
+    final prefix = mult == 2 ? 'D' : 'T';
+    Widget row(List<int> nums) => Row(
+          children: [
+            for (final k in nums) ...[
+              Expanded(child: _splitKeypadBtn('$prefix$k', k, mult)),
+              if (k != nums.last) const SizedBox(width: 8),
+            ],
+          ],
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          row([1, 2, 3, 4, 5]),
+          const SizedBox(height: 8),
+          row([6, 7, 8, 9, 10]),
+          const SizedBox(height: 8),
+          row([11, 12, 13, 14, 15]),
+          const SizedBox(height: 8),
+          row([16, 17, 18, 19, 20]),
+          if (includeDBull) ...[
+            const SizedBox(height: 8),
+            _splitKeypadBtn('D-BULL', 25, 2),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _splitKeypadBtn(String label, int segment, int mult) {
+    const c = DossedartTokens.cyan;
+    return GestureDetector(
+      onTap: () => _onDartHit(segment, mult),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: c.withValues(alpha: 0.07),
+          border: Border.all(color: c, width: 1),
+        ),
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 15,
+              color: c,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicScaffold(BuildContext context) {
     final currentPlayer = players[currentPlayerIndex];
     final currentRound = rounds[currentRoundIndex];
 
@@ -548,6 +1129,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               switch (value) {
                 case 'players':
                   if (!gameOver) _openPlayerManagement();
+                  break;
+                case 'sound':
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  SoundService.instance.setEnabled(_soundEnabled);
+                  AppSettings.setSoundEffectsEnabled(_soundEnabled);
                   break;
                 case 'tts':
                   await TtsService.instance.setEnabled(!_ttsEnabled);
@@ -582,10 +1168,20 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               ),
               const PopupMenuDivider(),
               PopupMenuItem(
+                value: 'sound',
+                child: Row(
+                  children: [
+                    Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off),
+                    const SizedBox(width: 12),
+                    Text(_soundEnabled ? 'Sound on' : 'Sound off'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'tts',
                 child: Row(
                   children: [
-                    Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
+                    Icon(_ttsEnabled ? Icons.mic : Icons.mic_off),
                     const SizedBox(width: 12),
                     Text(_ttsEnabled ? 'TTS on' : 'TTS off'),
                   ],
@@ -727,7 +1323,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                             ? Theme.of(context).colorScheme.primary.withAlpha(30)
                             : Theme.of(context).colorScheme.surfaceContainerLow,
                     border: isCurrent
-                        ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 1.5)
+                        ? Border.all(color: Theme.of(context).colorScheme.tertiary, width: 2)
                         : null,
                   ),
                   child: Text(
@@ -759,7 +1355,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: lastThrowLabel != null && lastThrowLabel!.contains('✓')
-                      ? Colors.green
+                      ? Theme.of(context).colorScheme.primary
                       : Colors.white,
                 ),
               ),
@@ -913,14 +1509,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               'D$i', () => _onDartHit(i, 2), Colors.orange[800]!));
         }
         buttons.add(_compactButton(
-            'D-Bull', () => _onDartHit(25, 2), Colors.red[800]!));
+            'D-Bull', () => _onDartHit(25, 2), Colors.orange[800]!));
         return _compactButtonGrid(buttons, includeMiss: true);
 
       case HalveItRoundType.anyTriple:
         final buttons = <Widget>[];
         for (int i = 1; i <= 20; i++) {
           buttons.add(_compactButton(
-              'T$i', () => _onDartHit(i, 3), Colors.red[800]!));
+              'T$i', () => _onDartHit(i, 3),
+              Theme.of(context).colorScheme.onSurfaceVariant));
         }
         return _compactButtonGrid(buttons, includeMiss: true);
 
@@ -1133,6 +1730,32 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
+  void _openDossedartPlayerSheet() {
+    final rows = <DossedartStandingRow>[];
+    for (int i = 0; i < players.length; i++) {
+      final p = players[i];
+      rows.add(DossedartStandingRow(
+        playerIndex: i,
+        name: p.name,
+        avatarPath: p.avatarPath,
+        isActive: i == currentPlayerIndex,
+        isRemoved: _removedPlayerIndices.contains(i),
+        primary: '${totalScores[i]}',
+      ));
+    }
+    showDossedartPlayerSheet(
+      context,
+      rows: rows,
+      gameOver: gameOver,
+      excludeSavedIds:
+          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      addInfoText:
+          'Rating is skipped for this game once you add or remove a player.',
+      onAdd: _addSavedPlayerMidGame,
+      onRemove: _removePlayerMidGame,
+    );
+  }
+
   void _openPlayerManagement() {
     showMidGamePlayerSheet(
       context: context,
@@ -1172,6 +1795,49 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         roundScores[ri].add(null);
       }
     });
+    _log.logRoster(
+      action: 'ADD',
+      playerIndex: players.length - 1,
+      playerName: sp.name,
+      names: players.map((p) => p.name).toList(),
+      scores: totalScores,
+    );
+  }
+
+  /// Production removal logic, shared by the confirm dialog and tests.
+  void _performRemovePlayer(int playerIndex) {
+    final removed = players[playerIndex];
+    setState(() {
+      _midGamePlayerChanges = true;
+      _removedPlayerIndices.add(playerIndex);
+      if (removed.savedPlayerId != null) {
+        _leftMidGameIds.add(removed.savedPlayerId!);
+      }
+      if (playerIndex == currentPlayerIndex) {
+        // The removed player's half-played turn must not leak to the next
+        // player (audit 2026-07-06, F6).
+        dartsInTurn = 0;
+        _turnIdCounter++;
+        turnPoints = 0;
+        turnHasHit = false;
+        _advanceAfterRemoval();
+      }
+      // If only 1 (or 0) active players remain, end the game.
+      final remaining = List.generate(players.length, (i) => i)
+          .where((i) => !_removedPlayerIndices.contains(i))
+          .toList();
+      if (remaining.length <= 1) gameOver = true;
+    });
+    _log.logRoster(
+      action: 'REMOVE',
+      playerIndex: playerIndex,
+      playerName: removed.name,
+      names: players.map((p) => p.name).toList(),
+      scores: totalScores,
+    );
+    if (gameOver) {
+      _prepareRatingPreview().then((_) => _showPostGame());
+    }
   }
 
   void _removePlayerMidGame(int playerIndex) {
@@ -1179,7 +1845,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Rating will not be updated for this game.'),
+        content: const Text('Statistics will not be recorded for this game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1191,18 +1857,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 foregroundColor: Theme.of(context).colorScheme.onError),
             onPressed: () {
               Navigator.pop(ctx);
-              final removed = players[playerIndex];
-              setState(() {
-                _midGamePlayerChanges = true;
-                _removedPlayerIndices.add(playerIndex);
-                if (removed.savedPlayerId != null) {
-                  _leftMidGameIds.add(removed.savedPlayerId!);
-                }
-                if (playerIndex == currentPlayerIndex) {
-                  dartsInTurn = 0;
-                  _advanceToNextActive();
-                }
-              });
+              _performRemovePlayer(playerIndex);
             },
             child: const Text('Remove'),
           ),
@@ -1211,12 +1866,34 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
-  void _advanceToNextActive() {
-    final start = currentPlayerIndex;
-    do {
-      currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-      if (currentPlayerIndex == start) break;
-    } while (_removedPlayerIndices.contains(currentPlayerIndex));
+  /// Advances past a removed current player with the same round rules as
+  /// [_finishTurn]: reaching the end of the rotation moves to the next round
+  /// (or ends the game) — a modulo-wrap would replay the current round and
+  /// double-count earlier players' turns (audit 2026-07-06, F6).
+  void _advanceAfterRemoval() {
+    int next = currentPlayerIndex + 1;
+    while (next < players.length && _removedPlayerIndices.contains(next)) {
+      next++;
+    }
+    if (next < players.length) {
+      currentPlayerIndex = next;
+      return;
+    }
+    // End of round
+    if (currentRoundIndex == rounds.length - 1) {
+      gameOver = true;
+      return;
+    }
+    currentRoundIndex++;
+    int first = 0;
+    while (first < players.length && _removedPlayerIndices.contains(first)) {
+      first++;
+    }
+    if (first >= players.length) {
+      gameOver = true;
+    } else {
+      currentPlayerIndex = first;
+    }
   }
 
   void _confirmExit() {
@@ -1254,6 +1931,7 @@ class _HalveItUndoData {
   final bool turnHasHit;
   final int totalScoreBefore;
   final int? roundScoreBefore;
+  final Set<int> clutchSaversBefore;
 
   _HalveItUndoData({
     required this.roundIndex,
@@ -1263,5 +1941,6 @@ class _HalveItUndoData {
     required this.turnHasHit,
     required this.totalScoreBefore,
     required this.roundScoreBefore,
+    required this.clutchSaversBefore,
   });
 }

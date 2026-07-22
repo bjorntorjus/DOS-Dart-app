@@ -5,6 +5,10 @@ enum GameMode {
   killer,
   halveIt,
   shanghai,
+  gotcha,
+  wildcard,
+  oneUp,
+  golf,
 }
 
 extension GameModeLabel on GameMode {
@@ -22,6 +26,41 @@ extension GameModeLabel on GameMode {
         return 'Splitscore';
       case GameMode.shanghai:
         return 'Shanghai';
+      case GameMode.gotcha:
+        return 'Gotcha';
+      case GameMode.wildcard:
+        return 'WILDCARD';
+      case GameMode.oneUp:
+        return '1UP';
+      case GameMode.golf:
+        return 'Golf';
+    }
+  }
+}
+
+extension GameModeEmoji on GameMode {
+  String get emoji {
+    switch (this) {
+      case GameMode.x01:
+        return '💯';
+      case GameMode.cricket:
+        return '🎯';
+      case GameMode.aroundTheClock:
+        return '🕐';
+      case GameMode.killer:
+        return '🔪';
+      case GameMode.halveIt:
+        return '✂️';
+      case GameMode.shanghai:
+        return '🐉';
+      case GameMode.gotcha:
+        return '💀';
+      case GameMode.wildcard:
+        return '🃏';
+      case GameMode.oneUp:
+        return '❤️';
+      case GameMode.golf:
+        return '⛳';
     }
   }
 }

@@ -12,10 +12,29 @@ class TtsService {
 
   final FlutterTts _tts = FlutterTts();
   bool _initialized = false;
+  // Caches the in-flight initialization so concurrent callers (e.g. a game
+  // screen's own TTS-enabled read racing GameAnnouncer.init(), which awaits
+  // this same init() internally) all await the *same* completed load instead
+  // of a second caller's guard tripping early and returning before _enabled
+  // is actually populated (F16b, audit 2026-07-06 round 4).
+  Future<void>? _initializing;
   bool _enabled = false;
   bool _speaking = false;
+  // The utterance currently handed to the plugin — tracked purely so the
+  // completion handler below can log which line just finished (flutter_tts'
+  // completion callback carries no text of its own).
+  String? _currentUtterance;
   final Queue<String> _queue = Queue<String>();
   final List<VoidCallback> _idleCallbacks = [];
+
+  // Cap on PENDING (not-yet-speaking) utterances. A 2026-07-09 WILDCARD game
+  // log showed the queue hitting 73 pending entries under rapid scoring —
+  // announcements ended up minutes behind the live game. Capping means the
+  // spoken audio stays close to real time; older, now-stale announcements
+  // are dropped rather than eventually spoken out of context. The utterance
+  // currently being spoken (already handed to the plugin, no longer in
+  // [_queue]) is never touched.
+  static const int _maxPendingQueue = 3;
 
   bool get enabled => _enabled;
 
@@ -23,18 +42,32 @@ class TtsService {
   bool get isInitialized => _initialized;
 
   @visibleForTesting
+  List<String> get pendingQueueForTesting => List<String>.unmodifiable(_queue);
+
+  @visibleForTesting
   void resetForTesting() {
     _initialized = false;
+    _initializing = null;
     _enabled = false;
     _speaking = false;
+    _currentUtterance = null;
     _queue.clear();
     _idleCallbacks.clear();
   }
 
-  Future<void> init() async {
-    if (_initialized) return;
-    _initialized = true;
+  Future<void> init() {
+    if (_initialized) return Future.value();
+    return _initializing ??= _doInit().catchError((Object e, StackTrace st) {
+      // One-shot failure — don't cache a rejected future forever, or every
+      // later caller (including GameAnnouncer.init(), which awaits this
+      // first and blocks SoundService/VideoService init behind it) gets the
+      // same rejection for the rest of the session. Let the next call retry.
+      _initializing = null;
+      Error.throwWithStackTrace(e, st);
+    });
+  }
 
+  Future<void> _doInit() async {
     _enabled = await AppSettings.getTtsEnabled();
     final language = await AppSettings.getTtsLanguage();
     final voiceName = await AppSettings.getTtsVoice();
@@ -54,6 +87,10 @@ class TtsService {
     }
 
     _tts.setCompletionHandler(() {
+      // "TTS done" is the completion counterpart to speak()'s own "TTS
+      // speak" log line — a field log otherwise only shows what was
+      // enqueued, never whether it was actually spoken aloud.
+      GameLogger.instance.logTts(event: 'done "$_currentUtterance"');
       _speaking = false;
       _playNext();
       // Fire idle callbacks once the queue has drained
@@ -76,12 +113,24 @@ class TtsService {
       _speaking = false;
       _playNext();
     });
+
+    _initialized = true;
   }
 
   Future<void> speak(String text) async {
     if (!_enabled) return;
     GameLogger.instance.logTts(event: 'speak "$text"', queueLength: _queue.length);
     _queue.add(text);
+    // Drop the OLDEST pending utterance(s) once the cap is exceeded. The
+    // active (currently-speaking) utterance is never in [_queue] — it was
+    // already removed by [_playNext] — so this can never cancel in-flight
+    // speech, only stale backlog.
+    while (_queue.length > _maxPendingQueue) {
+      final dropped = _queue.removeFirst();
+      GameLogger.instance.logTts(
+          event: 'queue cap ($_maxPendingQueue) hit — dropping oldest pending "$dropped"',
+          queueLength: _queue.length);
+    }
     if (!_speaking) {
       _playNext();
     }
@@ -91,6 +140,7 @@ class TtsService {
     if (_queue.isEmpty) return;
     _speaking = true;
     final text = _queue.removeFirst();
+    _currentUtterance = text;
     _tts.speak(text);
   }
 

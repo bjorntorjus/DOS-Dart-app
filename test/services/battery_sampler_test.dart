@@ -2,6 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dart_scoring/services/battery_sampler.dart';
 
 void main() {
+  // This file tests start()/isRunning behavior directly, so it must opt out
+  // of the F18 global test-config flag (which disables start() everywhere
+  // else to prevent the 30s periodic timer from blocking pumpAndSettle).
+  setUp(() {
+    BatterySampler.disableForTest = false;
+  });
+  tearDown(() {
+    BatterySampler.instance.stop();
+    BatterySampler.disableForTest = true;
+  });
+
   test('start sets running, stop clears it', () {
     final sampler = BatterySampler.instance;
     expect(sampler.isRunning, isFalse);

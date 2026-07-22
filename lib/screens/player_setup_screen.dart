@@ -18,6 +18,11 @@ import 'halve_it_game_screen.dart';
 import 'cricket_game_screen.dart';
 import 'killer_game_screen.dart';
 import 'shanghai_game_screen.dart';
+import 'gotcha_game_screen.dart';
+import 'wildcard_game_screen.dart';
+import 'one_up_game_screen.dart';
+import 'golf_game_screen.dart';
+import '../models/one_up_engine.dart';
 
 class PlayerSetupScreen extends StatefulWidget {
   final GameMode gameMode;
@@ -75,6 +80,22 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   // Shanghai options
   int _shanghaiTargetEnd = 7;
 
+  // Gotcha options
+  int _gotchaTarget = 301;
+  bool _gotchaHardcore = false;
+
+  // Wildcard options
+  int _wildcardRounds = 10;
+  int _wildcardChaos = 5;
+
+  // 1UP options
+  int _oneUpLives = 3;
+  OneUpVariant _oneUpVariant = OneUpVariant.beatTheLast;
+  bool _oneUpShuffle = false;
+
+  // Golf options
+  int _golfHoles = 18;
+
   int get _minPlayers {
     switch (widget.gameMode) {
       case GameMode.killer:
@@ -118,8 +139,12 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
+          // _savedPlayers stays unfiltered (it is persisted wholesale via
+          // savePlayers); archived players are only hidden from the picker.
           final available = _savedPlayers
-              .where((sp) => !_selectedPlayers.any((sel) => sel.id == sp.id))
+              .where((sp) =>
+                  !sp.archived &&
+                  !_selectedPlayers.any((sel) => sel.id == sp.id))
               .toList();
 
           return DraggableScrollableSheet(
@@ -151,14 +176,15 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                 ),
                 const Divider(height: 1),
                 if (available.isEmpty)
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Padding(
-                        padding: EdgeInsets.all(32),
+                        padding: const EdgeInsets.all(32),
                         child: Text(
                           'All players have been added.\nCreate a new player if needed.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(
+                              color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                         ),
                       ),
                     ),
@@ -183,8 +209,8 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                             'Avg: ${sp.averageTurnScore.toStringAsFixed(1)}',
                           ),
                           trailing: IconButton(
-                            icon: const Icon(Icons.add_circle,
-                                color: Colors.green, size: 28),
+                            icon: Icon(Icons.add_circle,
+                                color: Theme.of(ctx).colorScheme.primary, size: 28),
                             onPressed: () {
                               setState(() => _selectedPlayers.add(sp));
                               setSheetState(() {}); // refresh sheet to remove added player
@@ -416,7 +442,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(label,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
@@ -522,6 +550,34 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
           players: players,
           config: ShanghaiConfig(targetEnd: _shanghaiTargetEnd),
         );
+      case GameMode.gotcha:
+        screen = GotchaGameScreen(
+          players: players,
+          config: GotchaConfig(
+              targetScore: _gotchaTarget, hardcore: _gotchaHardcore),
+        );
+      case GameMode.wildcard:
+        screen = WildcardGameScreen(
+          players: players,
+          config: WildcardConfig(
+            rounds: _wildcardRounds,
+            startingChaos: _wildcardChaos,
+          ),
+        );
+      case GameMode.oneUp:
+        screen = OneUpGameScreen(
+          players: players,
+          config: OneUpConfig(
+            lives: _oneUpLives,
+            variant: _oneUpVariant,
+            randomOrder: _oneUpShuffle,
+          ),
+        );
+      case GameMode.golf:
+        screen = GolfGameScreen(
+          players: players,
+          config: GolfConfig(holes: _golfHoles),
+        );
     }
 
     Navigator.pushReplacement(
@@ -553,7 +609,9 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: Row(
                     children: [
-                      const Icon(Icons.shuffle, size: 18, color: Colors.grey),
+                      Icon(Icons.shuffle,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text('Randomize player order',
@@ -931,6 +989,141 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
               selected: {_shanghaiTargetEnd},
               onSelectionChanged: (v) =>
                   setState(() => _shanghaiTargetEnd = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ]);
+
+      case GameMode.gotcha:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Target score'),
+            subtitle: Text('Must be hit exactly: $_gotchaTarget'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 101, label: Text('101')),
+                ButtonSegment(value: 201, label: Text('201')),
+                ButtonSegment(value: 301, label: Text('301')),
+                ButtonSegment(value: 501, label: Text('501')),
+              ],
+              selected: {_gotchaTarget},
+              onSelectionChanged: (v) =>
+                  setState(() => _gotchaTarget = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text('Hardcore'),
+            subtitle: const Text('Gotcha resets to 0 instead of halving'),
+            value: _gotchaHardcore,
+            onChanged: (v) => setState(() => _gotchaHardcore = v),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
+          ),
+        ]);
+
+      case GameMode.wildcard:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Rounds'),
+            subtitle: Text('$_wildcardRounds rounds'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 5, label: Text('5')),
+                ButtonSegment(value: 10, label: Text('10')),
+                ButtonSegment(value: 15, label: Text('15')),
+              ],
+              selected: {_wildcardRounds},
+              onSelectionChanged: (v) =>
+                  setState(() => _wildcardRounds = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          ListTile(
+            title: const Text('Starting chaos'),
+            subtitle: Text('Chaos level: $_wildcardChaos'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 2, label: Text('Mild')),
+                ButtonSegment(value: 5, label: Text('Spicy')),
+                ButtonSegment(value: 8, label: Text('Chaos')),
+              ],
+              selected: {_wildcardChaos},
+              onSelectionChanged: (v) =>
+                  setState(() => _wildcardChaos = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ]);
+
+      case GameMode.oneUp:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Lives'),
+            subtitle: Text('$_oneUpLives lives per player'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 1, label: Text('1')),
+                ButtonSegment(value: 3, label: Text('3')),
+                ButtonSegment(value: 5, label: Text('5')),
+              ],
+              selected: {_oneUpLives},
+              onSelectionChanged: (v) =>
+                  setState(() => _oneUpLives = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          ListTile(
+            title: const Text('Variant'),
+            subtitle: Text(_oneUpVariant == OneUpVariant.survivor
+                ? 'Round survival — last one standing wins the round'
+                : 'Beat the last thrown score'),
+            trailing: SegmentedButton<OneUpVariant>(
+              segments: const [
+                ButtonSegment(
+                    value: OneUpVariant.beatTheLast, label: Text('Last')),
+                ButtonSegment(
+                    value: OneUpVariant.survivor, label: Text('Survivor')),
+              ],
+              selected: {_oneUpVariant},
+              onSelectionChanged: (v) =>
+                  setState(() => _oneUpVariant = v.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text('Shuffle every round'),
+            subtitle: const Text('Randomize the throwing order each round'),
+            value: _oneUpShuffle,
+            onChanged: (v) => setState(() => _oneUpShuffle = v),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
+          ),
+        ]);
+
+      case GameMode.golf:
+        return _optionsCard([
+          ListTile(
+            title: const Text('Course'),
+            subtitle: Text('$_golfHoles holes'),
+            trailing: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 9, label: Text('9')),
+                ButtonSegment(value: 18, label: Text('18')),
+              ],
+              selected: {_golfHoles},
+              onSelectionChanged: (v) =>
+                  setState(() => _golfHoles = v.first),
               style: const ButtonStyle(
                 visualDensity: VisualDensity.compact,
               ),

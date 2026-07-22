@@ -61,7 +61,7 @@ class _DossedartCricketSetupScreenState
         const SizedBox(height: 14),
         ArcadeToggleRow(toggles: [
           ('BULL', _includeBull, (v) => setState(() => _includeBull = v)),
-          ('RANDOM ORDER', randomOrder, onRandomOrderChanged),
+          ('RANDOM PLAYER ORDER', randomOrder, onRandomOrderChanged),
         ]),
       ],
     );
@@ -82,6 +82,7 @@ class _DossedartCricketSetupScreenState
       MaterialPageRoute(
         builder: (_) => CricketGameScreen(
           players: players,
+          useDossedartDesign: true,
           config: CricketConfig(
             isRandom: _isRandom,
             targetCount: _targetCount,
