@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -115,5 +114,43 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(host(card(tip: null)));
     expect(find.text('— — —'), findsOneWidget);
+  });
+
+  testWidgets('max state renders all content: remaining, last row, checkout, hit%',
+      (tester) async {
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(host(card()));
+    expect(find.text('141'), findsWidgets); // REMAINING (header + standings)
+    expect(find.text('T20 · 20 · —  = 80'), findsOneWidget); // LAST row
+    expect(find.text('▶ T20 T19 D12'), findsOneWidget); // checkout
+    expect(find.text('61%'), findsOneWidget); // HIT%
+  });
+
+  testWidgets('avg formatting boundaries',
+      (tester) async {
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // avg: 180.0 → "180.0" (5 chars > 4) → formatted as "180"
+    await tester.pumpWidget(host(card(avg: 180.0)));
+    expect(find.text('180'), findsOneWidget);
+
+    // avg: 99.95 → "100.0" (5 chars > 4) → formatted as "100"
+    await tester.pumpWidget(host(card(avg: 99.95)));
+    expect(find.text('100'), findsOneWidget);
+
+    // avg: 60.0 → "60.0" (4 chars, not > 4) → formatted as "60.0"
+    await tester.pumpWidget(host(card(avg: 60.0)));
+    expect(find.text('60.0'), findsOneWidget);
+
+    // avg: null → placeholder "—"
+    await tester.pumpWidget(host(card(avg: null, hit: null)));
+    expect(find.byWidgetPredicate(
+        (w) => w is Text && w.data?.contains('—') == true),
+        findsWidgets);
   });
 }
