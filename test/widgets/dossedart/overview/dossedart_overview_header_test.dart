@@ -53,4 +53,19 @@ void main() {
     )));
     expect(find.byKey(const Key('primary')), findsOneWidget);
   });
+
+  testWidgets('besideName slot renders next to the name', (tester) async {
+    await tester.pumpWidget(host(DossedartOverviewHeader(
+      playerName: 'KARI',
+      avatarPath: null,
+      accent: DossedartTokens.magenta,
+      dartsThrown: 1,
+      besideName: const Text('♥♥', key: Key('hearts')),
+    )));
+    expect(find.byKey(const Key('hearts')), findsOneWidget);
+    // Name and slot share a row: the slot's left edge is right of the name's.
+    final nameRight = tester.getTopRight(find.text('KARI')).dx;
+    final slotLeft = tester.getTopLeft(find.byKey(const Key('hearts'))).dx;
+    expect(slotLeft, greaterThan(nameRight));
+  });
 }

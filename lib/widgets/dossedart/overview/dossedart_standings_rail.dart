@@ -14,9 +14,11 @@ class DossedartRailEntry {
   const DossedartRailEntry({
     required this.name,
     required this.accent,
-    required this.value,
+    this.value = '',
     this.isActive = false,
     this.isLeader = false,
+    this.trailing,
+    this.dimmed = false,
   });
 
   final String name;
@@ -24,6 +26,8 @@ class DossedartRailEntry {
   final String value;
   final bool isActive;
   final bool isLeader;
+  final Widget? trailing;
+  final bool dimmed;
 }
 
 /// The shared standings column (grammar rule: standings are mandatory) —
@@ -37,11 +41,13 @@ class DossedartStandingsRail extends StatelessWidget {
     required this.entries,
     required this.bottomLabel,
     required this.bottomValue,
+    this.bottomDim = false,
   });
 
   final List<DossedartRailEntry> entries;
   final String bottomLabel;
   final String bottomValue;
+  final bool bottomDim;
 
   static const double width = 300;
 
@@ -85,13 +91,18 @@ class DossedartStandingsRail extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'PressStart2P',
                     fontSize: 13,
-                    color: DossedartTokens.yellow,
-                    shadows: [
-                      Shadow(
-                        color: DossedartTokens.yellow.withValues(alpha: 0.53),
-                        blurRadius: 8,
-                      ),
-                    ],
+                    color: bottomDim
+                        ? Colors.white.withValues(alpha: 0.3)
+                        : DossedartTokens.yellow,
+                    shadows: bottomDim
+                        ? null
+                        : [
+                            Shadow(
+                              color: DossedartTokens.yellow
+                                  .withValues(alpha: 0.53),
+                              blurRadius: 8,
+                            ),
+                          ],
                   ),
                 ),
               ],
@@ -138,12 +149,15 @@ class _RailRow extends StatelessWidget {
                   fontSize: 7,
                   color: e.isLeader
                       ? DossedartTokens.yellow
-                      : Colors.white.withValues(alpha: 0.35),
+                      : Colors.white.withValues(alpha: e.dimmed ? 0.18 : 0.35),
                 ),
               ),
             ),
             const SizedBox(width: 7),
-            Container(width: 7, height: 7, color: e.accent),
+            Opacity(
+              opacity: e.dimmed ? 0.3 : 1,
+              child: Container(width: 7, height: 7, color: e.accent),
+            ),
             const SizedBox(width: 7),
             Flexible(
               child: Text(
@@ -154,24 +168,29 @@ class _RailRow extends StatelessWidget {
                   fontFamily: 'PressStart2P',
                   fontSize: 8,
                   letterSpacing: 0.5,
-                  color: e.isActive
-                      ? Colors.white
-                      : Colors.white.withValues(alpha: 0.8),
+                  color: e.dimmed
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : (e.isActive
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.8)),
                 ),
               ),
             ),
             if (e.isLeader) const Text('👑', style: TextStyle(fontSize: 10)),
             const Spacer(),
-            Text(
-              e.value,
-              style: TextStyle(
-                fontFamily: 'VT323',
-                fontSize: 18,
-                height: 1,
-                color: e.accent,
-                shadows: [Shadow(color: e.accent.withValues(alpha: 0.33), blurRadius: 6)],
+            if (e.trailing != null)
+              e.trailing!
+            else if (e.value.isNotEmpty)
+              Text(
+                e.value,
+                style: TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 18,
+                  height: 1,
+                  color: e.accent,
+                  shadows: [Shadow(color: e.accent.withValues(alpha: 0.33), blurRadius: 6)],
+                ),
               ),
-            ),
           ],
         ),
       ),

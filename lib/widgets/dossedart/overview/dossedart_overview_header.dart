@@ -15,6 +15,7 @@ class DossedartOverviewHeader extends StatelessWidget {
     required this.accent,
     required this.dartsThrown,
     this.trailing,
+    this.besideName,
   });
 
   final String playerName;
@@ -22,6 +23,7 @@ class DossedartOverviewHeader extends StatelessWidget {
   final Color accent;
   final int dartsThrown; // 0..3
   final Widget? trailing;
+  final Widget? besideName;
 
   double _nameFontSize() {
     final len = playerName.length;
@@ -48,16 +50,26 @@ class DossedartOverviewHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                playerName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: nameSize,
-                  color: Colors.white,
-                  letterSpacing: nameSize >= 15 ? 2 : 1.5,
-                ),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      playerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: nameSize,
+                        color: Colors.white,
+                        letterSpacing: nameSize >= 15 ? 2 : 1.5,
+                      ),
+                    ),
+                  ),
+                  if (besideName != null) ...[
+                    const SizedBox(width: 12),
+                    besideName!,
+                  ],
+                ],
               ),
               const SizedBox(height: 8),
               Row(

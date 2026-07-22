@@ -56,4 +56,34 @@ void main() {
     expect(find.text('TO WIN'), findsOneWidget);
     expect(find.text('▲ 81'), findsOneWidget);
   });
+
+  testWidgets('trailing widget replaces the value text', (tester) async {
+    await tester.pumpWidget(host(DossedartStandingsRail(
+      entries: [
+        DossedartRailEntry(
+            name: 'Mia',
+            accent: DossedartTokens.orange,
+            trailing: const Text('ROUND OUT', key: Key('tag'))),
+      ],
+      bottomLabel: 'TARGET',
+      bottomValue: '—',
+      bottomDim: true,
+    )));
+    expect(find.byKey(const Key('tag')), findsOneWidget);
+    expect(find.text(''), findsNothing); // no empty value Text rendered
+  });
+
+  testWidgets('dimmed entry lowers rank/dot/name opacity', (tester) async {
+    await tester.pumpWidget(host(DossedartStandingsRail(
+      entries: [
+        DossedartRailEntry(
+            name: 'Per', accent: DossedartTokens.green, value: '3', dimmed: true),
+      ],
+      bottomLabel: 'TARGET',
+      bottomValue: 'BY TOR',
+    )));
+    final nameText = tester.widget<Text>(find.text('PER'));
+    expect((nameText.style?.color?.a ?? 1.0), lessThan(0.5),
+        reason: 'dimmed row renders the name at low alpha');
+  });
 }
