@@ -39,6 +39,8 @@ class OneUpStatusPlate extends StatelessWidget {
             survivor
                 ? '▸ YOUR 3-DART TOTAL IS THE ROUND TARGET'
                 : '▸ YOUR 3-DART TOTAL SETS THE BAR',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontFamily: 'VT323',
               fontSize: 18,
@@ -104,6 +106,8 @@ class OneUpStatusPlate extends StatelessWidget {
         inner = [
           Text(
             'NEED $need MORE',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'PressStart2P',
               fontSize: 12,
@@ -130,20 +134,24 @@ class OneUpStatusPlate extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 7),
-                Text(
-                  hitSuggestion!,
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 12,
-                    color: DossedartTokens.green,
-                    letterSpacing: 1,
-                    height: 1,
-                    shadows: [
-                      Shadow(
-                          color:
-                              DossedartTokens.green.withValues(alpha: 0.4),
-                          blurRadius: 8),
-                    ],
+                Flexible(
+                  child: Text(
+                    hitSuggestion!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 12,
+                      color: DossedartTokens.green,
+                      letterSpacing: 1,
+                      height: 1,
+                      shadows: [
+                        Shadow(
+                            color:
+                                DossedartTokens.green.withValues(alpha: 0.4),
+                            blurRadius: 8),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -151,6 +159,8 @@ class OneUpStatusPlate extends StatelessWidget {
           else
             Text(
               '· $left DART${left != 1 ? 'S' : ''} LEFT',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'VT323',
                 fontSize: 16,
@@ -169,7 +179,7 @@ class OneUpStatusPlate extends StatelessWidget {
         children: [
           for (var i = 0; i < inner.length; i++) ...[
             if (i > 0) const SizedBox(width: 10),
-            inner[i],
+            Flexible(child: inner[i]),
           ],
         ],
       ),
