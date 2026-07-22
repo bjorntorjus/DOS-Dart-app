@@ -48,3 +48,18 @@ hole 18 with a wash (6 strokes) · first dart of hole 1.
 ## Format
 
 Same bundle format: HTML artboard(s) + spec cards as fasit, JSX optional.
+
+---
+
+## Round outcome (2026-07-22) — APPROVED
+
+Bundle received same day (`golf-overview/design_handoff_golf_overview/`, DOSSEDART (13).zip);
+**v3 (KISS) approved** — an evolution of the QA-passed cockpit v2 (hero · leaderboard · strip ·
+console stand), refined through two user iterations. Zone budget stated to the pixel; identity
+(accent) and state (plate) separated per the 1UP precedent; palette fully clean. Decisions:
+
+- **PROPOSAL 1 (✗ MISS as fourth console cell): APPROVED, with the ActionBar's ✗ MISS kept as a
+  duplicate** — the cross-mode ActionBar-consistency rule wins over a cleaner cockpit.
+- **PROPOSAL 2 (hole number 120px, down from QA's ~130): APPROVED conditionally** — verify oche
+  legibility in the next tablet pass; the 244px hero fits a bump back to 130 if needed.
+- Development starts with the X01 round (template) in parallel with the Cricket design round.
