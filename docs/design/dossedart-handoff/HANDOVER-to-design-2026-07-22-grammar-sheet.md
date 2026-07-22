@@ -37,13 +37,18 @@ where X01 itself adopts from the newer cockpits instead (rules 3 and 6 below).
 4. **One header** (X01's): avatar 56 px + name (X01's length→size curve: 18/15/12/10) +
    three 9 px dart pips + `DART n/3`. One avatar treatment for all five modes — today we ship
    photo / initials / 3-letter handle / none; pick one (photo w/ silhouette fallback is what X01
-   ships).
+   ships). *Decided in the X01 round (2026-07-22):* `DART n/3` counts the dart being thrown —
+   `DART 1/3` before the first dart — replacing the app's current darts-thrown count.
 5. **One card frame** (X01's): `surface` fill, 3 px accent border, 14 px accent glow,
    margins 14/12/14/10, padding 14/12/14/12. No gradients, no per-mode margin sets.
 6. **Size hierarchy: one primary number per card** — the mode's oche-legible value (X01's
    REMAINING at 60 px is the reference) — plus at most two secondary fields and one helper strip.
    If a mode wants more, it goes in the standings element or the player sheet.
-7. **Standings are mandatory:** every mode shows all opponents at a glance inside the zone — one
+7. **Player accents come from the 5-accent cycle** — cyan `#00E5FF`, magenta `#FF00AA`, green
+   `#3DFF8E`, purple `#7B3FFF`, orange `#FF7A00` — in artboard demo data too. Yellow
+   (leader/labels), red (danger) and lime (1UP brand) are never player accents. (Added after the
+   X01 round: its demo data used lime/yellow players and an off-token purple `#B15CFF`.)
+8. **Standings are mandatory:** every mode shows all opponents at a glance inside the zone — one
    shared compact pattern (Wildcard's standings strip is the proven shape), fed mode-specific
    data. Per-mode flavour on top (climb-bar ticks, danger skulls) is fine.
 

@@ -49,3 +49,22 @@ First dart of the game (no AVG/LAST/checkout — all placeholders) · longest na
 
 Same bundle format as previous handoffs: HTML artboard(s) + spec cards as fasit, JSX optional.
 Tokens only, English strings, no border-radius.
+
+---
+
+## Round outcome (2026-07-22) — APPROVED
+
+Bundle received same day (`x01-overview/design_handoff_x01_overview/`, DOSSEDART (11).zip);
+**proposal B (standings rail on the right) approved** — it is the reference skeleton for rounds
+2–5. Decisions on review:
+
+- **HIT% PROPOSAL: APPROVED** (user sign-off). Definition, simpler than the artboard's
+  suggestion: share of this leg's darts that hit the board at all — misses drag it down.
+  Implementation owns the computation.
+- **`DART n/3` = the dart being thrown** (`DART 1/3` before the first dart) — promoted to
+  grammar rule 4 for all five modes.
+- Name-curve thresholds: implementation keeps the shipped 6/10/16 breakpoints (spec card pins
+  sizes 18/15/12/10, not thresholds).
+- **Flag to design (does not block X01):** demo data used lime and yellow as player accents and
+  purple `#B15CFF` — see grammar rule 7 (new) for the real 5-accent cycle. Spec-card *rules*
+  were correct; only the sample players were off.
