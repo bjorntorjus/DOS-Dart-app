@@ -1533,12 +1533,13 @@ class _GameScreenState extends State<GameScreen> {
 
     final standings = [
       for (var i = 0; i < players.length; i++)
-        X01Standing(
-          name: players[i].name,
-          accent: dossedartAccent(i),
-          remaining: players[i].score,
-          isActive: i == currentPlayerIndex,
-        ),
+        if (!_removedPlayerIndices.contains(i))
+          X01Standing(
+            name: players[i].name,
+            accent: dossedartAccent(i),
+            remaining: players[i].score,
+            isActive: i == currentPlayerIndex,
+          ),
     ];
 
     final title = 'X01 · ${widget.startingScore} · ${_outRuleLabel()}';

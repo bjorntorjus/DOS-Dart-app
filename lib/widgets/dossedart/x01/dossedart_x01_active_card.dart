@@ -65,7 +65,7 @@ class DossedartX01ActiveCard extends StatelessWidget {
     final active = sorted.firstWhere((s) => s.isActive, orElse: () => sorted.first);
     final delta = active.remaining - lead;
     final toWin = delta == 0
-        ? (uniqueLeader && active.remaining == lead ? 'YOU LEAD' : 'TIED')
+        ? (uniqueLeader ? 'YOU LEAD' : 'TIED')
         : '▲ $delta';
 
     return Container(
