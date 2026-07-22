@@ -1,8 +1,28 @@
 import 'package:flutter/material.dart';
 import '../../../theme/dossedart_tokens.dart';
-import '../dossedart_player_avatar.dart';
+import '../overview/dossedart_overview_header.dart';
+import '../overview/dossedart_standings_rail.dart';
 
-/// Active player card shown in the DOSSEDART X01 cockpit.
+/// One row of X01 standings data; the card sorts and ranks internally.
+class X01Standing {
+  const X01Standing({
+    required this.name,
+    required this.accent,
+    required this.remaining,
+    this.isActive = false,
+  });
+
+  final String name;
+  final Color accent;
+  final int remaining;
+  final bool isActive;
+}
+
+/// X01 overview card — rail-B fasit (design_handoff_x01_overview,
+/// approved 2026-07-22). Fixed 250px card in a 272px zone (margins 12/10):
+/// grammar header + REMAINING 60px · left column LAST / AVG+HIT% / CHECKOUT
+/// (always rendered, dim 0.34 when empty) · 300px standings rail with the
+/// TO WIN delta. This card is the template the other cockpits restyle onto.
 class DossedartX01ActiveCard extends StatelessWidget {
   const DossedartX01ActiveCard({
     super.key,
@@ -14,41 +34,43 @@ class DossedartX01ActiveCard extends StatelessWidget {
     required this.lastTurnLabel,
     required this.lastTurnSum,
     required this.checkoutTip,
+    required this.standings,
     this.avg,
+    this.hitPercent,
   });
 
   final String playerName;
   final String? avatarPath;
   final Color accentColor;
   final int remaining;
-  final int currentDartIndex; // 0..3
-  final String? lastTurnLabel; // e.g., 'T20 · S20 · S20' (null = no previous turn)
+  final int currentDartIndex; // darts thrown this turn, 0..3
+  final String? lastTurnLabel;
   final int? lastTurnSum;
   final String? checkoutTip;
   final double? avg;
+  final int? hitPercent; // 0-100; share of this leg's darts on the board
+  final List<X01Standing> standings;
 
-  /// Formats the turn average for the narrow AVG column: at most 4 chars.
-  /// If the 1-decimal form is longer ('180.0', or '100.0' from 99.95
-  /// rounding up), drop the decimal so the PressStart2P text stays within
-  /// the column instead of painting over the adjacent LAST label.
   static String _formatAvg(double avg) {
     final s = avg.toStringAsFixed(1);
-    return s.length > 4 ? avg.toStringAsFixed(0) : s; // 99.95 -> '100'
-  }
-
-  double _nameFontSize() {
-    final len = playerName.length;
-    if (len <= 6) return 18;
-    if (len <= 10) return 15;
-    if (len <= 16) return 12;
-    return 10;
+    return s.length > 4 ? avg.toStringAsFixed(0) : s;
   }
 
   @override
   Widget build(BuildContext context) {
-    final nameSize = _nameFontSize();
+    final sorted = [...standings]..sort((a, b) => a.remaining.compareTo(b.remaining));
+    final lead = sorted.first.remaining;
+    final uniqueLeader =
+        sorted.where((s) => s.remaining == lead).length == 1;
+    final active = sorted.firstWhere((s) => s.isActive, orElse: () => sorted.first);
+    final delta = active.remaining - lead;
+    final toWin = delta == 0
+        ? (uniqueLeader && active.remaining == lead ? 'YOU LEAD' : 'TIED')
+        : '▲ $delta';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      height: 250,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: DossedartTokens.surface,
@@ -59,218 +81,185 @@ class DossedartX01ActiveCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          // Row 1: avatar + name + dart-dots
-          Row(
-            children: [
-              DossedartPlayerAvatar(
-                avatarPath: avatarPath,
-                size: 56,
-                borderColor: accentColor,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      playerName,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'PressStart2P',
-                        fontSize: nameSize,
-                        color: Colors.white,
-                        letterSpacing: nameSize >= 15 ? 2 : 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        for (int i = 0; i < 3; i++) ...[
-                          Container(
-                            width: 9,
-                            height: 9,
-                            decoration: BoxDecoration(
-                              color: i < currentDartIndex
-                                  ? accentColor
-                                  : Colors.transparent,
-                              border: Border.all(color: accentColor, width: 2),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Text(
-                          'DART $currentDartIndex/3',
-                          style: const TextStyle(
-                            fontFamily: 'VT323',
-                            fontSize: 13,
-                            color: Colors.white54,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          // Row 2: REMAINING label + big number
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text(
-                'REMAINING',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 9,
-                  color: Colors.white70,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$remaining',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 60,
-                  color: accentColor,
-                  letterSpacing: 2,
-                  height: 1,
-                  shadows: [
-                    Shadow(
-                        color: accentColor.withValues(alpha: 0.7),
-                        blurRadius: 16),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          // Row 3: AVG + LAST — always rendered so the card height is constant
-          // from the very first dart (placeholders before any data exists).
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: accentColor.withValues(alpha: 0.4),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+          DossedartOverviewHeader(
+            playerName: playerName,
+            avatarPath: avatarPath,
+            accent: accentColor,
+            dartsThrown: currentDartIndex,
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: 52,
+                Text(
+                  'REMAINING',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 8,
+                    color: Colors.white.withValues(alpha: 0.55),
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$remaining',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 60,
+                    color: accentColor,
+                    height: 1,
+                    letterSpacing: -2,
+                    shadows: [
+                      Shadow(
+                          color: accentColor.withValues(alpha: 0.66),
+                          blurRadius: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      const Text(
-                        'AVG',
-                        style: TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 8,
-                          color: Colors.white60,
-                          letterSpacing: 1.5,
-                        ),
+                      _helperRow(
+                        label: 'LAST',
+                        value: lastTurnLabel != null
+                            ? '$lastTurnLabel  = ${lastTurnSum ?? 0}'
+                            : '— · — · —',
+                        color: DossedartTokens.yellow,
+                        dim: lastTurnLabel == null,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        avg != null ? _formatAvg(avg!) : '–',
-                        // Never wrap: a wrapped AVG value grows the card and
-                        // shifts the board below. _formatAvg keeps values to
-                        // at most 4 chars; those may still paint a few px
-                        // past the 52px column instead.
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.visible,
-                        style: TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 14,
-                          color: avg != null
-                              ? DossedartTokens.cyan
-                              : Colors.white.withValues(alpha: 0.3),
-                          letterSpacing: 1,
-                          shadows: avg != null
-                              ? [
-                                  Shadow(
-                                    color: DossedartTokens.cyan
-                                        .withValues(alpha: 0.5),
-                                    blurRadius: 6,
-                                  ),
-                                ]
-                              : null,
-                        ),
+                      _helperRow(
+                        label: 'AVG',
+                        value: avg != null ? _formatAvg(avg!) : '—',
+                        color: Colors.white,
+                        dim: avg == null,
+                        extraLabel: 'HIT%',
+                        extraValue: hitPercent != null ? '$hitPercent%' : '—',
+                        extraColor: DossedartTokens.cyan,
+                        extraDim: hitPercent == null,
+                      ),
+                      _helperRow(
+                        label: 'CHECKOUT',
+                        value: checkoutTip != null ? '▶ $checkoutTip' : '— — —',
+                        color: DossedartTokens.green,
+                        dim: checkoutTip == null,
+                        mono: checkoutTip != null,
                       ),
                     ],
                   ),
                 ),
-                const Text(
-                  'LAST',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 9,
-                    color: Colors.white70,
-                    letterSpacing: 1.5,
-                  ),
+                const SizedBox(width: 14),
+                DossedartStandingsRail(
+                  entries: [
+                    for (final s in sorted)
+                      DossedartRailEntry(
+                        name: s.name,
+                        accent: s.accent,
+                        value: '${s.remaining}',
+                        isActive: s.isActive,
+                        isLeader: uniqueLeader && s.remaining == lead,
+                      ),
+                  ],
+                  bottomLabel: 'TO WIN',
+                  bottomValue: toWin,
                 ),
-                Expanded(
-                  child: Text(
-                    lastTurnLabel ?? '— · — · —',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'VT323',
-                      fontSize: 20,
-                      color: lastTurnLabel != null
-                          ? DossedartTokens.yellow
-                          : Colors.white.withValues(alpha: 0.3),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
-                if (lastTurnSum != null)
-                  Text(
-                    '= $lastTurnSum',
-                    style: const TextStyle(
-                      fontFamily: 'PressStart2P',
-                      fontSize: 13,
-                      color: DossedartTokens.yellow,
-                      letterSpacing: 1,
-                    ),
-                  ),
               ],
             ),
           ),
-          // Row 4: checkout tip
-          if (checkoutTip != null) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: DossedartTokens.green.withValues(alpha: 0.06),
-                // Spec calls for a dashed border; Flutter has no native dashed support, rendered solid.
-                border: Border.all(color: DossedartTokens.green, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: DossedartTokens.green.withValues(alpha: 0.4),
-                    blurRadius: 14,
-                  ),
-                ],
+        ],
+      ),
+    );
+  }
+
+  /// One oche-legible helper row: label PS-9 + value VT-26 (fasit), dimmed
+  /// to 0.34 with a placeholder when empty — always rendered (rule 2).
+  Widget _helperRow({
+    required String label,
+    required String value,
+    required Color color,
+    required bool dim,
+    bool mono = false,
+    String? extraLabel,
+    String? extraValue,
+    Color? extraColor,
+    bool extraDim = false,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.1), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 88,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 9,
+                color: Colors.white.withValues(alpha: 0.5),
+                letterSpacing: 1,
               ),
+            ),
+          ),
+          Flexible(
+            child: Opacity(
+              opacity: dim ? 0.34 : 1,
               child: Text(
-                '▶ $checkoutTip',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 10,
-                  color: DossedartTokens.green,
+                value,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: mono && !dim ? 'PressStart2P' : 'VT323',
+                  fontSize: mono && !dim ? 14 : 26,
+                  height: 1,
                   letterSpacing: 1,
+                  color: dim ? Colors.white : color,
+                  shadows: dim
+                      ? null
+                      : [Shadow(color: color.withValues(alpha: 0.4), blurRadius: 8)],
+                ),
+              ),
+            ),
+          ),
+          if (extraLabel != null) ...[
+            const SizedBox(width: 22),
+            Text(
+              extraLabel,
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 9,
+                color: Colors.white.withValues(alpha: 0.5),
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Opacity(
+              opacity: extraDim ? 0.34 : 1,
+              child: Text(
+                extraValue ?? '—',
+                style: TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 26,
+                  height: 1,
+                  letterSpacing: 1,
+                  color: extraDim ? Colors.white : (extraColor ?? Colors.white),
+                  shadows: extraDim || extraColor == null
+                      ? null
+                      : [Shadow(color: extraColor.withValues(alpha: 0.4), blurRadius: 8)],
                 ),
               ),
             ),
