@@ -1,4 +1,7 @@
-# Killer overview — mode round 2 of 5 (2026-07-22)
+# Killer overview — mode round 5 of 5, queued last (2026-07-22)
+
+> Order revised 2026-07-22: 1UP → Gotcha → Wildcard → **Killer last** (played least).
+> Do not start this round until the other three are approved.
 
 **To:** Claude design (DOSSEDART track)
 **Prerequisites:** the grammar sheet (incl. new rules 4/7 from the X01 round) and the approved
