@@ -34,6 +34,19 @@ import '../widgets/dossedart/golf/golf_leaderboard.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
 import 'post_game_screen.dart';
 
+/// Zone label for a single recorded dart, v3 hero chip format: miss → '✗',
+/// bull (segment 25) → '25' single / '50' double (no triple), else
+/// 'S'/'D'/'T' + the target number — same shape as the log-line `label`
+/// built inline in `_onDartHit`, just spelled out for reuse by
+/// [_GolfGameScreenState.holeDartLabels] and the result-window freeze.
+String _golfDartLabel(DartThrow t) {
+  if (t.multiplier == 0) return '✗';
+  if (t.segment == 25) return t.multiplier == 2 ? '50' : '25';
+  final prefix =
+      t.multiplier == 3 ? 'T' : t.multiplier == 2 ? 'D' : 'S';
+  return '$prefix${t.segment}';
+}
+
 /// The DOSSEDART Golf cockpit: each hole is one dartboard number (1..holes),
 /// hole ends on the first hit, misses stack strokes. Lowest total after
 /// every hole wins; a tie for 1st goes to sudden death (see [GolfEngine]).
@@ -294,11 +307,25 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       ({int target, bool playoff}) holeTarget) {
     _resultTimer?.cancel();
     final token = ++_resultToken;
+    // The just-finished hole's darts for `seat`, in throw order: throwHistory
+    // is append-only and this dart (the hole-closer) is already in it by the
+    // time _handleHoleEnd calls here, so the LAST `darts` entries for this
+    // seat are exactly this hole's darts — robust even during sudden death,
+    // where engine.holeNumber (and so DartThrow.roundNumber) stays constant
+    // across multiple playoff holes and can't be used to disambiguate.
+    final seatThrows =
+        throwHistory.where((t) => t.playerIndex == seat).toList();
+    final labels = (seatThrows.length >= darts
+            ? seatThrows.sublist(seatThrows.length - darts)
+            : seatThrows)
+        .map(_golfDartLabel)
+        .toList();
     setState(() {
       _lastHoleStrokes = strokes;
       _lastHoleSeat = seat;
       _lastHoleDarts = darts;
       _lastHoleTarget = holeTarget;
+      _lastHoleDartLabels = labels;
     });
     _resultTimer = Timer(const Duration(seconds: 1), () {
       if (!mounted || token != _resultToken) return;
@@ -307,6 +334,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         _lastHoleSeat = null;
         _lastHoleDarts = null;
         _lastHoleTarget = null;
+        _lastHoleDartLabels = null;
       });
     });
   }
@@ -345,6 +373,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       _lastHoleSeat = null;
       _lastHoleDarts = null;
       _lastHoleTarget = null;
+      _lastHoleDartLabels = null;
       _overlaySuddenDeath = false;
       engine.undo();
       if (throwHistory.isNotEmpty) {
@@ -585,6 +614,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   int? _lastHoleDarts; // darts thrown that hole, for the dart-pip display
   ({int target, bool playoff})?
       _lastHoleTarget; // hole/playoff target as of BEFORE this dart
+  List<String>?
+      _lastHoleDartLabels; // finished hole's per-dart zone labels, throw order
 
   // Live derivation straight off the engine — used both as the hero's
   // normal (no-window) target and as what _onDartHit captures BEFORE
@@ -601,6 +632,21 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     final frozen = _lastHoleTarget;
     if (_lastHoleStrokes != null && frozen != null) return frozen;
     return _liveHoleTarget;
+  }
+
+  /// Zone labels for the DISPLAYED hole's darts, in throw order — v3 hero
+  /// chip plumbing (the hero widget itself is a later task). During the 1s
+  /// result window this returns the just-finished hole's frozen labels
+  /// (captured in [_showHoleResult], including the finishing hit); outside
+  /// the window it's the live current thrower's misses so far this hole —
+  /// a hit always ends the hole, so mid-hole the only possible darts are
+  /// misses, making `engine.missesThisHole` '✗' entries exact without
+  /// needing to filter throwHistory at all (see [_showHoleResult] for why a
+  /// roundNumber filter would be wrong during sudden death).
+  List<String> get holeDartLabels {
+    final frozen = _lastHoleDartLabels;
+    if (_lastHoleStrokes != null && frozen != null) return frozen;
+    return List<String>.filled(engine.missesThisHole, '✗');
   }
 
   /// Rows for [GolfLeaderboard] — a live readout (not frozen to the hero's

@@ -446,4 +446,47 @@ void main() {
     expect(spoken.any((s) => s == 'A, hole 2'), isTrue,
         reason: 'once the round wraps, the target rides to the new hole');
   });
+
+  testWidgets('holeDartLabels tracks the displayed hole in throw order',
+      (tester) async {
+    // v3 hero chip plumbing (Task 1): a hit always ends the hole, so the
+    // mid-hole (no result window) state can only ever be a run of misses —
+    // the full label list including the finishing hit only ever exists
+    // during the 1s result window (or, for a wash, at hole-close). This
+    // drives: miss, miss, then a hit that closes the hole with 2 misses
+    // stacked (BOGEY, since strokes = (4-1)+2 = 5... use a double instead so
+    // the arithmetic stays legible: (4-2)+2 = 4 = BOGEY).
+    useTabletViewport(tester);
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+
+    expect(dyn.holeDartLabels, <String>[]);
+
+    dyn.onDartHitForTest(0); // A misses
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗']);
+
+    dyn.onDartHitForTest(0); // A misses again
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗', '✗']);
+
+    dyn.onDartHitForTest(2); // A doubles hole 1 after 2 misses -> ends hole
+    await tester.pump();
+    // Result window: frozen labels include the finishing hit, in throw order.
+    expect(dyn.holeDartLabels, ['✗', '✗', 'D1']);
+
+    // After the 1s result window elapses, the hero hands off to B's fresh
+    // hole — labels reset to empty.
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(dyn.holeDartLabels, <String>[]);
+  });
 }
