@@ -1,13 +1,104 @@
 import 'package:flutter/material.dart';
 import '../../theme/dossedart_tokens.dart';
-import 'dossedart_player_avatar.dart';
+import 'overview/dossedart_overview_header.dart';
+
+/// Generic mode-data block for the family strip: label + big value + sub-line,
+/// left hairline, fixed width so the strip never reflows between states.
+class DossedartStripSlot extends StatelessWidget {
+  const DossedartStripSlot({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.subLine,
+    this.valueColor = DossedartTokens.yellow,
+    this.subLineColor,
+    this.dim = false,
+    this.width = 212,
+  });
+
+  /// e.g. 'LAST TURN', 'TARGET', 'ROUND 4'.
+  final String label;
+
+  /// Big line, VT323 26.
+  final String value;
+
+  /// Small line, VT323 14.
+  final String subLine;
+
+  final Color valueColor;
+
+  /// Defaults to white-0.5.
+  final Color? subLineColor;
+
+  /// 0.34 opacity (rule 2 placeholder state).
+  final bool dim;
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.only(left: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+              color: Colors.white.withValues(alpha: 0.12), width: 1),
+        ),
+      ),
+      child: Opacity(
+        opacity: dim ? 0.34 : 1,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 7,
+                    color: Colors.white.withValues(alpha: 0.45),
+                    letterSpacing: 1)),
+            const SizedBox(height: 6),
+            Text(value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontFamily: 'VT323',
+                    fontSize: 26,
+                    height: 1,
+                    letterSpacing: 1.5,
+                    color: valueColor,
+                    shadows: dim
+                        ? null
+                        : [
+                            Shadow(
+                                color: valueColor.withValues(alpha: 0.33),
+                                blurRadius: 8)
+                          ])),
+            const SizedBox(height: 3),
+            Text(subLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontFamily: 'VT323',
+                    fontSize: 14,
+                    height: 1,
+                    letterSpacing: 1,
+                    color: subLineColor ?? Colors.white.withValues(alpha: 0.5))),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// Shared active-player hero strip used by the Cricket/ATC/Splitscore/Shanghai
 /// cockpits (X01 uses the larger DossedartX01ActiveCard). One source so the
 /// chrome cannot drift between modes.
 ///
-/// Layout: avatar · name + "DART n / 3" · dart dots + "LAST · <label>" ·
-/// mode-specific trailing stat (points, target, lives...).
+/// Fixed 132px zone. Anatomy: [DossedartOverviewHeader] (avatar + name +
+/// pips + dart counter) · mode-specific [modeSlot] · score block (label +
+/// big accent-colored value).
 class DossedartActiveStrip extends StatelessWidget {
   const DossedartActiveStrip({
     super.key,
@@ -15,8 +106,10 @@ class DossedartActiveStrip extends StatelessWidget {
     required this.avatarPath,
     required this.accentColor,
     required this.dartsInTurn,
-    this.lastThrowLabel,
-    this.trailing,
+    required this.modeSlot,
+    required this.scoreLabel,
+    required this.scoreValue,
+    this.smallScore = false,
   });
 
   final String playerName;
@@ -26,122 +119,77 @@ class DossedartActiveStrip extends StatelessWidget {
   /// Darts already thrown this turn (0..3).
   final int dartsInTurn;
 
-  /// Label for the most recent throw; shows an em dash when null.
-  final String? lastThrowLabel;
+  /// Mode-specific data block (last turn, target, round...).
+  final Widget modeSlot;
 
-  /// Mode-specific stat shown at the right edge (points, target, lives...).
-  final Widget? trailing;
+  /// 'POINTS' / 'PROGRESS' / 'TOTAL' / 'TARGET'.
+  final String scoreLabel;
+  final String scoreValue;
+
+  /// PS-22 instead of PS-30, for long values.
+  final bool smallScore;
 
   @override
   Widget build(BuildContext context) {
     final c = accentColor;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [c.withValues(alpha: 0.12), Colors.transparent],
+    return SizedBox(
+      height: 132,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: DossedartTokens.surface,
+          border: Border.all(color: c, width: 3),
+          boxShadow: [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 14)],
         ),
-        border: Border(bottom: BorderSide(color: c, width: 3)),
-        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.27), blurRadius: 18)],
-      ),
-      child: Row(
-        children: [
-          DossedartPlayerAvatar(size: 52, borderColor: c, avatarPath: avatarPath),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '▶ ${playerName.toUpperCase()}',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 13,
-                          color: c,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      'DART ${dartsInTurn + 1} / 3',
-                      style: const TextStyle(
-                        fontFamily: 'VT323',
-                        fontSize: 14,
-                        color: Colors.white54,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Row(
-                  children: [
-                    _DartDots(filled: dartsInTurn, color: c),
-                    const SizedBox(width: 10),
-                    Text(
-                      'LAST · ',
-                      style: TextStyle(
-                        fontFamily: 'VT323',
-                        fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.7),
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    Flexible(
-                      child: Text(
-                        lastThrowLabel ?? '—',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 9,
-                          color: DossedartTokens.green,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: DossedartOverviewHeader(
+                playerName: playerName,
+                avatarPath: avatarPath,
+                accent: c,
+                dartsThrown: dartsInTurn,
+              ),
             ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: 10),
-            trailing!,
+            const SizedBox(width: 14),
+            modeSlot,
+            Container(
+              padding: const EdgeInsets.only(left: 16),
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.12), width: 1),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(scoreLabel,
+                      style: TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 7,
+                          color: Colors.white.withValues(alpha: 0.45),
+                          letterSpacing: 1)),
+                  const SizedBox(height: 5),
+                  Text(scoreValue,
+                      style: TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: smallScore ? 22 : 30,
+                          color: c,
+                          shadows: [
+                            Shadow(
+                                color: c.withValues(alpha: 0.5),
+                                blurRadius: 12)
+                          ])),
+                ],
+              ),
+            ),
           ],
-        ],
+        ),
       ),
-    );
-  }
-}
-
-/// Three turn-progress dots; filled dots are solid, no glow (the glow Cricket
-/// once carried was copy-paste drift, not canon).
-class _DartDots extends StatelessWidget {
-  const _DartDots({required this.filled, required this.color});
-
-  final int filled;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        return Container(
-          margin: const EdgeInsets.only(right: 6),
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: i < filled ? color : Colors.transparent,
-            border: Border.all(color: color, width: 2),
-          ),
-        );
-      }),
     );
   }
 }
