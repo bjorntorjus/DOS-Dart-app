@@ -34,11 +34,12 @@ void main() {
     final dynamic state = await _pumpGame(tester);
 
     // Dart 1 of the very first turn: visible immediately, not next turn.
+    // (rail-B grammar: label + sum render as one combined "T20  = 60" row.)
     await state.onDartHitForTest(20, 3);
     await tester.pumpAndSettle();
-    expect(find.text('T20'), findsWidgets,
+    expect(find.textContaining('T20'), findsWidgets,
         reason: 'LAST must show the in-progress turn after the first dart');
-    expect(find.text('= 60'), findsOneWidget,
+    expect(find.textContaining('= 60'), findsOneWidget,
         reason: 'the live LAST sum must reflect the first dart');
 
     // Dart 2 appends to the same row.
@@ -46,13 +47,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('T20 · S19'), findsWidgets,
         reason: 'LAST must grow dart-by-dart within the turn');
-    expect(find.text('= 79'), findsOneWidget,
+    expect(find.textContaining('= 79'), findsOneWidget,
         reason: 'the live LAST sum must grow dart-by-dart within the turn');
 
     // Undo the second dart → label shows only T20 again (history-derived).
     state.undoForTest();
     await tester.pumpAndSettle();
-    expect(find.text('T20'), findsWidgets,
+    expect(find.textContaining('T20'), findsWidgets,
         reason: 'undo must roll the live LAST row back to the first dart');
     expect(find.textContaining('S19'), findsNothing,
         reason: 'the undone dart must disappear from the LAST row');
@@ -107,7 +108,7 @@ void main() {
         reason: 'undo across the boundary must restore P0\'s in-progress turn');
     expect(find.textContaining('S5'), findsNothing,
         reason: 'the undone third dart must disappear from the LAST row');
-    expect(find.text('= 79'), findsOneWidget,
+    expect(find.textContaining('= 79'), findsOneWidget,
         reason: 'the live LAST sum must match the two remaining darts');
   });
 }

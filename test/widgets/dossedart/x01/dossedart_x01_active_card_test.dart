@@ -1,166 +1,170 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dart_scoring/widgets/dossedart/x01/dossedart_x01_active_card.dart';
+import 'package:dart_scoring/utils/dossedart_player_accents.dart';
+
+Future<void> _loadRealFonts() async {
+  for (final (family, path) in [
+    ('PressStart2P', 'assets/fonts/PressStart2P-Regular.ttf'),
+    ('VT323', 'assets/fonts/VT323-Regular.ttf'),
+  ]) {
+    final bytes = File(path).readAsBytesSync();
+    final loader = FontLoader(family)
+      ..addFont(Future.value(ByteData.view(bytes.buffer)));
+    await loader.load();
+  }
+}
 
 void main() {
-  Widget harness({
-    String name = 'MIA',
-    int remaining = 170,
-    int currentDartIndex = 2,
-    String? lastTurn = 'T20 · S20 · S20',
-    int? lastTurnSum = 80,
-    String? checkoutTip,
-    double? avg,
-  }) {
-    return MaterialApp(
-      home: Scaffold(
-        body: DossedartX01ActiveCard(
-          playerName: name,
-          avatarPath: null,
-          accentColor: const Color(0xFFFF00AA),
-          remaining: remaining,
-          currentDartIndex: currentDartIndex,
-          lastTurnLabel: lastTurn,
-          lastTurnSum: lastTurnSum,
-          checkoutTip: checkoutTip,
-          avg: avg,
-        ),
-      ),
-    );
-  }
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(_loadRealFonts);
 
-  testWidgets('renders name, remaining, last turn', (tester) async {
-    await tester.pumpWidget(harness());
-    expect(find.text('MIA'), findsOneWidget);
-    expect(find.text('170'), findsOneWidget);
-    expect(find.text('T20 · S20 · S20'), findsOneWidget);
-    expect(find.text('= 80'), findsOneWidget);
-  });
+  List<X01Standing> six({bool tied = false}) => [
+        for (final (i, (name, rem)) in [
+          ('Jonas', 60),
+          ('Tor', 89),
+          ('Live', 141),
+          ('Mia', 218),
+          ('Andreas', 264),
+          ('Per', 301),
+        ].indexed)
+          X01Standing(
+              name: name,
+              accent: dossedartAccent(i),
+              remaining: tied ? 501 : rem,
+              isActive: i == 2),
+      ];
 
-  testWidgets('hides checkout-tip when null', (tester) async {
-    await tester.pumpWidget(harness());
-    expect(find.textContaining('▶'), findsNothing);
-  });
+  Widget host(DossedartX01ActiveCard card) => MaterialApp(
+      home: Scaffold(body: Column(children: [card])));
 
-  testWidgets('shows checkout-tip when provided', (tester) async {
-    await tester.pumpWidget(harness(checkoutTip: 'T20 › S16 › D-BULL'));
-    expect(find.text('▶ T20 › S16 › D-BULL'), findsOneWidget);
-  });
+  DossedartX01ActiveCard card({
+    String name = 'Live',
+    String? last = 'T20 · 20 · —',
+    int? lastSum = 80,
+    double? avg = 58.4,
+    int? hit = 61,
+    String? tip = 'T20 T19 D12',
+    List<X01Standing>? standings,
+  }) =>
+      DossedartX01ActiveCard(
+        playerName: name,
+        avatarPath: null,
+        accentColor: dossedartAccent(2),
+        remaining: 141,
+        currentDartIndex: 2,
+        lastTurnLabel: last,
+        lastTurnSum: lastSum,
+        checkoutTip: tip,
+        avg: avg,
+        hitPercent: hit,
+        standings: standings ?? six(),
+      );
 
-  testWidgets('long name does not overflow (no exception)',
+  testWidgets('272px zone in every stress state — the regression pin',
       (tester) async {
-    await tester.pumpWidget(harness(name: 'CHRISTOPHER ALEXANDER VON LONGNAME'));
-    expect(tester.takeException(), isNull);
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final states = <String, DossedartX01ActiveCard>{
+      'max (6 players + checkout)': card(),
+      'no checkout': card(tip: null),
+      'first dart (all placeholders)': card(
+          last: null, lastSum: null, avg: null, hit: null, tip: null,
+          standings: six(tied: true)),
+      'long name': card(name: 'Alexander the boss bitch'),
+    };
+    for (final entry in states.entries) {
+      await tester.pumpWidget(host(entry.value));
+      final h = tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+      expect(h, 272.0, reason: 'zone height in state "${entry.key}"');
+    }
   });
 
-  testWidgets('short name (≤6 chars) renders at 18px font', (tester) async {
-    await tester.pumpWidget(harness(name: 'MIA'));
-    final text = tester.widget<Text>(find.text('MIA'));
-    expect(text.style!.fontSize, 18);
+  testWidgets(
+      'lays out without overflow at 393dp (pixel_5, CI integration-test '
+      'width) with 6 players + checkout + a long name', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(host(card(name: 'Alexander the boss bitch')));
+    expect(tester.takeException(), isNull,
+        reason: 'the card must not overflow at the pixel_5 phone width');
   });
 
-  testWidgets('medium name (7-10 chars) renders at 15px font',
+  testWidgets('TO WIN delta vs leader; YOU LEAD when lowest; TIED at start',
       (tester) async {
-    await tester.pumpWidget(harness(name: 'BJORN T.'));
-    final text = tester.widget<Text>(find.text('BJORN T.'));
-    expect(text.style!.fontSize, 15);
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(host(card())); // active Live 141, leader 60
+    expect(find.text('▲ 81'), findsOneWidget);
+    expect(find.text('👑'), findsOneWidget); // unique leader Jonas
+
+    final leading = [
+      X01Standing(name: 'Live', accent: dossedartAccent(0), remaining: 40, isActive: true),
+      X01Standing(name: 'Tor', accent: dossedartAccent(1), remaining: 89),
+    ];
+    await tester.pumpWidget(host(card(standings: leading)));
+    expect(find.text('YOU LEAD'), findsOneWidget);
+
+    await tester.pumpWidget(host(card(standings: six(tied: true))));
+    expect(find.text('TIED'), findsOneWidget);
+    expect(find.text('👑'), findsNothing); // no crown on a shared lead
   });
 
-  testWidgets('long name (11-16 chars) renders at 12px font',
+  testWidgets('empty checkout renders a dimmed placeholder, never collapses',
       (tester) async {
-    await tester.pumpWidget(harness(name: 'BJORN TORJUS'));
-    final text = tester.widget<Text>(find.text('BJORN TORJUS'));
-    expect(text.style!.fontSize, 12);
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(host(card(tip: null)));
+    expect(find.text('— — —'), findsOneWidget);
   });
 
-  testWidgets('uses solid surface background (no gradient)', (tester) async {
-    await tester.pumpWidget(harness());
-    // Outer card is the first Container in the widget tree with a magenta
-    // border. Look it up via the BoxDecoration and assert: solid color set,
-    // no gradient.
-    final container = tester.widget<Container>(
-      find
-          .descendant(
-            of: find.byType(DossedartX01ActiveCard),
-            matching: find.byType(Container),
-          )
-          .first,
-    );
-    final deco = container.decoration as BoxDecoration;
-    expect(deco.gradient, isNull,
-        reason: 'active card should use a solid bg, not a gradient');
-    expect(deco.color, isNotNull,
-        reason: 'active card should set a solid background color');
-  });
-
-  testWidgets('shows AVG when avg is non-null', (tester) async {
-    await tester.pumpWidget(harness(avg: 52.8));
-    expect(find.text('AVG'), findsOneWidget);
-    expect(find.text('52.8'), findsOneWidget);
-  });
-
-  testWidgets('formats AVG to 1 decimal', (tester) async {
-    await tester.pumpWidget(harness(avg: 60));
-    expect(find.text('60.0'), findsOneWidget);
-  });
-
-  testWidgets('drops AVG decimal at >=100 so it fits the column',
+  testWidgets('max state renders all content: remaining, last row, checkout, hit%',
       (tester) async {
-    await tester.pumpWidget(
-      harness(lastTurn: null, lastTurnSum: null, avg: null),
-    );
-    final placeholderHeight =
-        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(harness(avg: 180.0));
+    await tester.pumpWidget(host(card()));
+    expect(find.text('141'), findsWidgets); // REMAINING (header + standings)
+    expect(find.text('T20 · 20 · —  = 80'), findsOneWidget); // LAST row
+    expect(find.text('▶ T20 T19 D12'), findsOneWidget); // checkout
+    expect(find.text('61%'), findsOneWidget); // HIT%
+  });
+
+  testWidgets('avg formatting boundaries',
+      (tester) async {
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // avg: 180.0 → "180.0" (5 chars > 4) → formatted as "180"
+    await tester.pumpWidget(host(card(avg: 180.0)));
     expect(find.text('180'), findsOneWidget);
-    expect(find.text('180.0'), findsNothing);
-    expect(
-      tester.getSize(find.byType(DossedartX01ActiveCard)).height,
-      placeholderHeight,
-    );
-  });
 
-  testWidgets('drops AVG decimal when rounding pushes it to 100',
-      (tester) async {
-    // 99.95 < 100 but toStringAsFixed(1) rounds it to '100.0' (5 chars),
-    // which is exactly the overflow the formatter exists to prevent.
-    await tester.pumpWidget(harness(avg: 99.95));
+    // avg: 99.95 → "100.0" (5 chars > 4) → formatted as "100"
+    await tester.pumpWidget(host(card(avg: 99.95)));
     expect(find.text('100'), findsOneWidget);
-    expect(find.text('100.0'), findsNothing);
-  });
 
-  testWidgets('shows AVG placeholder value when avg is null', (tester) async {
-    await tester.pumpWidget(harness(avg: null));
-    expect(find.text('AVG'), findsOneWidget);
-    expect(find.text('–'), findsOneWidget);
-  });
+    // avg: 60.0 → "60.0" (4 chars, not > 4) → formatted as "60.0"
+    await tester.pumpWidget(host(card(avg: 60.0)));
+    expect(find.text('60.0'), findsOneWidget);
 
-  testWidgets('renders AVG/LAST placeholders when no data yet',
-      (tester) async {
-    await tester.pumpWidget(
-      harness(lastTurn: null, lastTurnSum: null, avg: null),
-    );
-    expect(find.text('AVG'), findsOneWidget);
-    expect(find.text('LAST'), findsOneWidget);
-    expect(find.text('— · — · —'), findsOneWidget);
-    expect(find.text('–'), findsOneWidget); // AVG placeholder value
-  });
-
-  testWidgets('card height is identical with and without LAST/AVG data',
-      (tester) async {
-    await tester.pumpWidget(
-      harness(lastTurn: null, lastTurnSum: null, avg: null),
-    );
-    final heightA =
-        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
-
-    await tester.pumpWidget(
-      harness(lastTurn: 'T20 · S20 · S20', lastTurnSum: 100, avg: 55.0),
-    );
-    final heightB =
-        tester.getSize(find.byType(DossedartX01ActiveCard)).height;
-
-    expect(heightA, heightB);
+    // avg: null → placeholder "—". LAST is also nulled (the default fixture
+    // embeds its own em dash, which made this assertion pass regardless of
+    // AVG) and HIT% stays non-null so the bare "—" can only come from the
+    // AVG cell.
+    await tester.pumpWidget(host(card(last: null, lastSum: null, avg: null)));
+    expect(find.text('—'), findsOneWidget,
+        reason: 'exactly the AVG placeholder renders a bare em dash');
   });
 }

@@ -22,6 +22,7 @@ import '../services/video_service.dart';
 import '../theme/dossedart_tokens.dart';
 import '../utils/dossedart_player_accents.dart';
 import '../utils/earned_feats_builder.dart';
+import '../utils/one_up_hit_suggestion.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
@@ -601,10 +602,6 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     return OneUpCardMode.normal;
   }
 
-  String get _variantChip => widget.config.variant == OneUpVariant.survivor
-      ? 'SURVIVOR · R${engine.roundNumber}'
-      : 'BEAT THE LAST';
-
   void _confirmExit() {
     showDialog(
       context: context,
@@ -718,28 +715,35 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                   ),
                   DossedartOneUpActiveCard(
                     playerName: players[cur].name,
+                    avatarPath: players[cur].avatarPath,
                     accentColor: dossedartAccent(cur),
                     lives: engine.livesLeft[cur],
                     maxLives: widget.config.lives,
-                    target: engine.target,
+                    target: engine.isFreeThrow ? null : engine.target,
                     turnTotal: engine.turnPoints,
                     currentDartIndex: engine.dartsInTurn,
                     cardMode: _cardMode,
-                    lastLife: engine.livesLeft[cur] == 1,
-                    variantChip: _variantChip,
-                    isRoundFree:
-                        widget.config.variant == OneUpVariant.survivor &&
-                            engine.isFreeThrow,
-                    opponents: [
+                    survivor:
+                        widget.config.variant == OneUpVariant.survivor,
+                    roundNumber: engine.roundNumber,
+                    targetBy: engine.isFreeThrow || engine.targetSetBy < 0
+                        ? null
+                        : players[engine.targetSetBy].name,
+                    hitSuggestion: _cardMode == OneUpCardMode.normal &&
+                            engine.target != null
+                        ? oneUpHitSuggestion(engine.target! - engine.turnPoints)
+                        : null,
+                    standings: [
                       for (int i = 0; i < players.length; i++)
-                        if (i != cur && !engine.isSkipped(i))
-                          OneUpOpponentEntry(
+                        if (!engine.isSkipped(i)) // removed players stay out (X01 parity)
+                          OneUpStanding(
                             name: players[i].name,
                             accent: dossedartAccent(i),
                             lives: engine.livesLeft[i],
                             maxLives: widget.config.lives,
                             eliminated: engine.isEliminated(i),
                             outOfRound: engine.isOutOfRound(i),
+                            isActive: i == cur,
                           ),
                     ],
                   ),

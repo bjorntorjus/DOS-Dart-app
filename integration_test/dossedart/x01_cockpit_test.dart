@@ -30,7 +30,9 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 10));
 
     // Cockpit renders: name + remaining + dartboard + menu button visible.
-    expect(find.text('MIA'), findsOneWidget);
+    // MIA's name now appears twice: once in the header, once as her own
+    // row in the standings rail.
+    expect(find.text('MIA'), findsNWidgets(2));
     expect(find.text('501'), findsWidgets);
     expect(find.byType(DossedartX01Dartboard), findsOneWidget);
     expect(find.text('⋯ MENU'), findsOneWidget);

@@ -3,12 +3,17 @@ import '../../../models/golf_engine.dart' show golfTerm;
 import '../../../theme/dossedart_tokens.dart';
 import 'golf_common.dart' show golfTermColor, vsParColor, vsParLabel;
 
-/// Windowed per-hole scorecard strip for the DOSSEDART Golf cockpit v2 —
-/// 7 holes centred on the current one (clamped at either edge), replacing
-/// the old always-on 1-18 strip that QA found unreadable. Current hole gets
-/// a yellow highlight + `▶` marker; a trailing `SCORECARD ▸` affordance (and
-/// the strip itself) opens the full [showGolfScoreSheet].
-class GolfScorecardStrip extends StatelessWidget {
+const double _kCellWidth = 72;
+const double _kCellGap = 6;
+const double _kCellStride = _kCellWidth + _kCellGap;
+
+/// Full 18-hole scorecard strip for the DOSSEDART Golf cockpit v3 — every
+/// hole scrolls horizontally in a fixed 96px zone, auto-centring on the
+/// current hole (KISS pass: replaces the v2 windowed 7-hole strip, which hid
+/// holes outside the window entirely). Only the trailing `SCORECARD ▸` chip
+/// opens the full [showGolfScoreSheet]; the cell row itself is just the
+/// horizontal scroller and does not trigger it.
+class GolfScorecardStrip extends StatefulWidget {
   const GolfScorecardStrip({
     super.key,
     required this.strokes,
@@ -24,85 +29,137 @@ class GolfScorecardStrip extends StatelessWidget {
 
   final VoidCallback onExpand;
 
-  static const int _windowSize = 7;
+  @override
+  State<GolfScorecardStrip> createState() => _GolfScorecardStripState();
+}
 
-  /// 0-based visible hole indices, [_windowSize] wide (or fewer if
-  /// [strokes] has fewer holes), centred on [currentHole] with 3 holes of
-  /// lookback, clamped so the window never runs past either edge.
-  List<int> get _visible {
-    final holes = strokes.length;
-    final width = _windowSize < holes ? _windowSize : holes;
-    var start = currentHole - 3;
-    if (start < 0) start = 0;
-    final maxStart = holes - width;
-    if (start > maxStart) start = maxStart;
-    return [for (var i = 0; i < width; i++) start + i];
+class _GolfScorecardStripState extends State<GolfScorecardStrip> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _centerCurrentHole());
+  }
+
+  @override
+  void didUpdateWidget(covariant GolfScorecardStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentHole != widget.currentHole) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _centerCurrentHole());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Scrolls so the current hole sits centred in the viewport, clamped so
+  /// the strip never scrolls past either edge (fasit formula, 0-based here:
+  /// `max(0, min(currentHole*stride - (viewport-cellWidth)/2, maxExtent))`).
+  void _centerCurrentHole() {
+    if (!mounted || !_controller.hasClients) return;
+    final position = _controller.position;
+    final target = widget.currentHole * _kCellStride -
+        (position.viewportDimension - _kCellWidth) / 2;
+    final maxExtent =
+        position.maxScrollExtent > 0 ? position.maxScrollExtent : 0.0;
+    final clamped = target.clamp(0.0, maxExtent);
+    _controller.animateTo(
+      clamped,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final nums = _visible;
-    return InkWell(
-      onTap: onExpand,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-        padding: const EdgeInsets.fromLTRB(10, 8, 8, 10),
-        decoration: BoxDecoration(
-          color: DossedartTokens.surface,
-          border: Border.all(
-              color: DossedartTokens.magenta.withValues(alpha: 0.34)),
-        ),
+    return Padding(
+      // Margin lives on the outer Padding, not the sized body below — a
+      // `Container.margin` is the outermost layer of that widget's own
+      // render size, which would pollute a `getSize` height check against
+      // the fixed 96px zone (same gotcha as GolfLeaderboard's board key).
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: SizedBox(
+        key: const Key('golfScorecardStripBody'),
+        height: 96,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                Text(
-                  'YOUR CARD · HOLES ${nums.first + 1}–${nums.last + 1}',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 9,
-                    color: Colors.white.withValues(alpha: 0.6),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'SCORECARD ▸',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 10,
-                    color: DossedartTokens.cyan,
-                    letterSpacing: 1,
-                    shadows: [
-                      Shadow(
-                        color: DossedartTokens.cyan.withValues(alpha: 0.6),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                for (final i in nums) ...[
-                  Expanded(
-                    child: _HoleCell(
+            _StripHeader(onExpand: widget.onExpand),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                controller: _controller,
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.zero,
+                children: [
+                  for (var i = 0; i < widget.strokes.length; i++) ...[
+                    _HoleCell(
                       index: i,
-                      stroke: strokes[i],
-                      isCurrent: i == currentHole,
+                      stroke: widget.strokes[i],
+                      isCurrent: i == widget.currentHole,
                     ),
-                  ),
-                  if (i != nums.last) const SizedBox(width: 5),
+                    if (i != widget.strokes.length - 1)
+                      const SizedBox(width: _kCellGap),
+                  ],
                 ],
-              ],
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _StripHeader extends StatelessWidget {
+  const _StripHeader({required this.onExpand});
+
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          'YOUR CARD',
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 10,
+            color: Colors.white.withValues(alpha: 0.6),
+            letterSpacing: 1,
+          ),
+        ),
+        Text(
+          ' · ‹ SWIPE ›',
+          style: TextStyle(
+            fontFamily: 'VT323',
+            fontSize: 15,
+            color: Colors.white.withValues(alpha: 0.35),
+          ),
+        ),
+        const Spacer(),
+        GestureDetector(
+          onTap: onExpand,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              border: Border.all(color: DossedartTokens.cyan, width: 2),
+            ),
+            child: Text(
+              'SCORECARD ▸',
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 11,
+                color: DossedartTokens.cyan,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -122,42 +179,73 @@ class _HoleCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final played = stroke != null;
     final suffix = isCurrent ? 'current' : (played ? 'played' : 'empty');
-    final Color accent = isCurrent
-        ? DossedartTokens.yellow
-        : (played ? golfTermColor(stroke!) : Colors.white24);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '${index + 1}',
-          style: TextStyle(
-            fontFamily: 'VT323',
-            fontSize: 13,
-            color: isCurrent ? DossedartTokens.yellow : Colors.white38,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Container(
-          key: ValueKey('golf-hole-$index-$suffix'),
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isCurrent
-                ? DossedartTokens.yellow.withValues(alpha: 0.16)
-                : (played ? accent.withValues(alpha: 0.12) : Colors.transparent),
-            border: Border.all(color: accent, width: isCurrent ? 2 : 1),
-          ),
-          child: Text(
-            played ? '$stroke' : (isCurrent ? '▶' : '·'),
+    final Color borderColor;
+    final Color bgColor;
+    final Color contentColor;
+    final String content;
+    final BoxShadow? glow;
+
+    if (isCurrent) {
+      borderColor = DossedartTokens.yellow;
+      bgColor = DossedartTokens.yellow.withValues(alpha: 0.11);
+      contentColor = DossedartTokens.yellow;
+      content = '▶';
+      glow = BoxShadow(
+        color: DossedartTokens.yellow.withValues(alpha: 0.6),
+        blurRadius: 8,
+      );
+    } else if (played) {
+      final term = golfTermColor(stroke!);
+      borderColor = term;
+      bgColor = term.withValues(alpha: 0.09);
+      contentColor = term;
+      content = '$stroke';
+      glow = null;
+    } else {
+      borderColor = Colors.white.withValues(alpha: 0.12);
+      bgColor = Colors.transparent;
+      contentColor = Colors.white.withValues(alpha: 0.25);
+      content = '·';
+      glow = null;
+    }
+
+    return SizedBox(
+      width: _kCellWidth,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${index + 1}',
             style: TextStyle(
-              fontFamily: 'PressStart2P',
+              fontFamily: 'VT323',
               fontSize: 15,
-              color: accent,
+              color: isCurrent
+                  ? DossedartTokens.yellow
+                  : Colors.white.withValues(alpha: 0.4),
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 1),
+          Container(
+            key: ValueKey('golf-hole-$index-$suffix'),
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: bgColor,
+              border: Border.all(color: borderColor, width: 2),
+              boxShadow: glow == null ? null : [glow],
+            ),
+            child: Text(
+              content,
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 15,
+                color: contentColor,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

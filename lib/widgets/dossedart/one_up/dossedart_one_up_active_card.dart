@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../theme/dossedart_tokens.dart';
+import '../overview/dossedart_overview_header.dart';
+import '../overview/dossedart_standings_rail.dart';
 import 'one_up_life_pips.dart';
+import 'one_up_status_plate.dart';
 
 /// Which primary content the [DossedartOneUpActiveCard] shows.
 enum OneUpCardMode {
@@ -17,38 +20,45 @@ enum OneUpCardMode {
   cantBeat,
 }
 
-/// One opponent's compact tile in the [DossedartOneUpActiveCard]'s
-/// opponents strip.
-class OneUpOpponentEntry {
-  const OneUpOpponentEntry({
+/// One row of 1UP standings data (throw order — the card never sorts).
+class OneUpStanding {
+  const OneUpStanding({
     required this.name,
     required this.accent,
     required this.lives,
     required this.maxLives,
-    required this.eliminated,
+    this.eliminated = false,
     this.outOfRound = false,
+    this.isActive = false,
   });
 
   final String name;
   final Color accent;
   final int lives;
   final int maxLives;
+
+  /// Out of lives entirely.
   final bool eliminated;
 
   /// SURVIVOR only: knocked out of the current round (fail cost a life but
-  /// the game goes on) — distinct from [eliminated] (out of lives entirely).
+  /// the game goes on) — distinct from [eliminated].
   final bool outOfRound;
+  final bool isActive;
 }
 
-/// Active player card for the DOSSEDART 1UP cockpit.
-///
-/// Shows the current BEAT target (or SET THE TARGET / SAFE / CAN'T BEAT
-/// state), the running turn total + dart pips, a status line explaining
-/// what's needed, and a strip of every opponent's remaining lives.
+/// 1UP overview card — A+ fasit (design_handoff_1up_overview, approved
+/// 2026-07-22). Fixed 250px card in a 272px zone (margins 12/10): grammar
+/// header + BEAT/SET THE TARGET primary block · rule line (SURVIVOR round
+/// label + hairline) · left column THIS TURN row + [OneUpStatusPlate]
+/// (always rendered, the dedicated state channel) · standings rail with
+/// per-row life pips / OUT / ROUND OUT and the TARGET BY bottom row. The
+/// frame stays player accent regardless of state — identity and state never
+/// share a channel.
 class DossedartOneUpActiveCard extends StatelessWidget {
   const DossedartOneUpActiveCard({
     super.key,
     required this.playerName,
+    required this.avatarPath,
     required this.accentColor,
     required this.lives,
     required this.maxLives,
@@ -56,745 +66,343 @@ class DossedartOneUpActiveCard extends StatelessWidget {
     required this.turnTotal,
     required this.currentDartIndex,
     required this.cardMode,
-    required this.lastLife,
-    required this.variantChip,
-    required this.isRoundFree,
-    required this.opponents,
+    required this.survivor,
+    required this.roundNumber,
+    required this.targetBy,
+    required this.standings,
+    this.hitSuggestion,
   });
 
   final String playerName;
+  final String? avatarPath;
   final Color accentColor;
   final int lives;
   final int maxLives;
 
-  /// Null in free mode — there is nothing to beat yet.
+  /// Null in free-throw — there is nothing to beat yet.
   final int? target;
   final int turnTotal;
-  final int currentDartIndex; // 0..3
+  final int currentDartIndex; // darts thrown this turn, 0..3
   final OneUpCardMode cardMode;
-  final bool lastLife;
 
-  /// e.g. 'BEAT THE LAST' / 'SURVIVOR · R3'.
-  final String variantChip;
+  /// True in the SURVIVOR variant (drives the rule-line round label).
+  final bool survivor;
+  final int roundNumber;
 
-  /// True when [cardMode] is [OneUpCardMode.free] because a new SURVIVOR
-  /// round just started (rather than the very first throw of the game).
-  final bool isRoundFree;
+  /// Name of the player who set the current target; null in free-throw.
+  final String? targetBy;
 
-  final List<OneUpOpponentEntry> opponents;
-
-  /// Same downscaling curve as the Gotcha active card's `_nameFontSize`,
-  /// one notch smaller across the board (compact card, tablet-QA 2026-07-17).
-  double _nameFontSize() {
-    final len = playerName.length;
-    if (len <= 6) return 15;
-    if (len <= 10) return 12;
-    if (len <= 16) return 10;
-    return 9;
-  }
-
-  String get _initials {
-    final letters = playerName.trim().replaceAll(RegExp(r'\s+'), '');
-    if (letters.isEmpty) return '';
-    return letters.substring(0, letters.length < 3 ? letters.length : 3)
-        .toUpperCase();
-  }
-
-  bool get _danger => cardMode == OneUpCardMode.cantBeat || lastLife;
-
-  Color get _frameColor {
-    if (cardMode == OneUpCardMode.safe) return DossedartTokens.green;
-    if (_danger) return DossedartTokens.red;
-    return accentColor;
-  }
-
-  int get _need {
-    if (target == null) return 0;
-    final raw = target! - turnTotal;
-    return raw <= 0 ? 0 : raw;
-  }
+  /// Throw order, including the active thrower — the card never sorts.
+  final List<OneUpStanding> standings;
+  final String? hitSuggestion;
 
   @override
   Widget build(BuildContext context) {
-    final frame = _frameColor;
-    final nameSize = _nameFontSize();
-    final dartsLeft = 3 - currentDartIndex;
+    final pipColor = lives == 1 ? DossedartTokens.red : accentColor;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  frame.withValues(alpha: 0.11),
-                  frame.withValues(alpha: 0.02),
-                ],
-              ),
-              border: Border.all(color: frame, width: 3),
-              boxShadow: [
-                BoxShadow(color: frame.withValues(alpha: 0.33), blurRadius: 20),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _HeaderRow(
-                  initials: _initials,
-                  playerName: playerName,
-                  nameSize: nameSize,
-                  accentColor: accentColor,
-                  lives: lives,
-                  maxLives: maxLives,
-                  lastLife: lastLife,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(child: _buildPrimaryBlock()),
-                    const SizedBox(width: 16),
-                    _TurnBlock(
-                      turnTotal: turnTotal,
-                      currentDartIndex: currentDartIndex,
-                      color: cardMode == OneUpCardMode.safe
-                          ? DossedartTokens.green
-                          : accentColor,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                _buildStatusLine(dartsLeft),
-                if (opponents.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  _OpponentsStrip(opponents: opponents),
-                ],
-              ],
-            ),
-          ),
-          Positioned(
-            top: -9,
-            left: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-              decoration: BoxDecoration(
-                color: frame,
-                boxShadow: [
-                  BoxShadow(color: frame.withValues(alpha: 0.67), blurRadius: 8),
-                ],
-              ),
-              child: Text(
-                '▶ NOW THROWING',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 9,
-                  letterSpacing: 1.5,
-                  color: DossedartTokens.bg,
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: -9,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-              decoration: BoxDecoration(
-                color: DossedartTokens.bg,
-                border: Border.all(color: DossedartTokens.lime, width: 2),
-              ),
-              child: Text(
-                variantChip,
-                style: const TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 8,
-                  letterSpacing: 1,
-                  color: DossedartTokens.lime,
-                ),
-              ),
-            ),
-          ),
+      margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      height: 250,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: DossedartTokens.surface,
+        border: Border.all(color: accentColor, width: 3),
+        boxShadow: [
+          BoxShadow(color: accentColor.withValues(alpha: 0.25), blurRadius: 14),
         ],
       ),
-    );
-  }
-
-  Widget _buildPrimaryBlock() {
-    switch (cardMode) {
-      case OneUpCardMode.free:
-        final secondary = isRoundFree
-            ? 'FIRST THROW · NEW ROUND'
-            : 'FREE THROW · NO TARGET';
-        final headlineLine2 = isRoundFree ? 'ROUND TARGET' : 'TARGET';
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              secondary,
-              style: const TextStyle(
-                fontFamily: 'VT323',
-                fontSize: 17,
-                color: Colors.white54,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'SET THE',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 18,
-                color: DossedartTokens.lime,
-                letterSpacing: 1,
-                height: 1.15,
-                shadows: [
-                  Shadow(
-                    color: DossedartTokens.lime.withValues(alpha: 0.67),
-                    blurRadius: 12,
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              headlineLine2,
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 18,
-                color: DossedartTokens.lime,
-                letterSpacing: 1,
-                height: 1.15,
-                shadows: [
-                  Shadow(
-                    color: DossedartTokens.lime.withValues(alpha: 0.67),
-                    blurRadius: 12,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-
-      case OneUpCardMode.safe:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DossedartOverviewHeader(
+            playerName: playerName,
+            avatarPath: avatarPath,
+            accent: accentColor,
+            dartsThrown: currentDartIndex,
+            besideName: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'SAFE',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 21,
-                    color: DossedartTokens.green,
-                    letterSpacing: 1,
-                    shadows: [
-                      Shadow(
-                        color: DossedartTokens.green,
-                        blurRadius: 16,
+                OneUpLifePips(lives: lives, max: maxLives, color: pipColor, size: 17),
+                if (lives == 1) ...[
+                  const SizedBox(width: 6),
+                  _lastLifeTag(),
+                ],
+              ],
+            ),
+            trailing: _primaryBlock(),
+          ),
+          _ruleLine(),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // flex:37 vs. the rail's flex:25 below reproduces the exact
+                // 444/300 tablet split (both sides tuned against the 758px
+                // row width — 820px card minus margin/padding/border — at
+                // the 820px fasit; same ratio as the X01 card, same Row
+                // geometry) — see the rail's comment.
+                Expanded(
+                  flex: 37,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _thisTurnRow(),
+                      OneUpStatusPlate(
+                        mode: cardMode,
+                        target: target,
+                        turnTotal: turnTotal,
+                        dartsThrown: currentDartIndex,
+                        survivor: survivor,
+                        hitSuggestion: hitSuggestion,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '✓',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 20,
-                    color: DossedartTokens.green,
+                const SizedBox(width: 14),
+                // Below tablet width the rail can no longer claim its full
+                // 300px unconditionally: Flexible lets it shrink under
+                // squeeze while the ConstrainedBox pins the max so the
+                // 820px look is unchanged (same idiom as
+                // DossedartActiveStrip's modeSlot, db085a9, and the X01
+                // card above). flex:25 is tuned so the allocated share is
+                // exactly 300 at the 820px fasit width — no wasted
+                // allocation, no gap before the card's right edge.
+                Flexible(
+                  flex: 25,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                        maxWidth: DossedartStandingsRail.width),
+                    child: DossedartStandingsRail(
+                      entries: [
+                        for (final s in standings)
+                          DossedartRailEntry(
+                            name: s.name,
+                            accent: s.accent,
+                            isActive: s.isActive,
+                            dimmed: s.eliminated || s.outOfRound,
+                            trailing: _railTrailing(s),
+                          ),
+                      ],
+                      bottomLabel: 'TARGET',
+                      bottomValue: targetBy != null ? 'BY ${targetBy!.toUpperCase()}' : '—',
+                      bottomDim: targetBy == null,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'NEW TARGET · ',
-                  style: TextStyle(
-                    fontFamily: 'VT323',
-                    fontSize: 18,
-                    color: Colors.white70,
-                    letterSpacing: 1,
-                  ),
-                ),
-                Text(
-                  '$turnTotal',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 16,
-                    color: DossedartTokens.yellow,
-                  ),
-                ),
-                const Text(
-                  ' · building…',
-                  style: TextStyle(
-                    fontFamily: 'VT323',
-                    fontSize: 18,
-                    color: Colors.white38,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-
-      case OneUpCardMode.normal:
-      case OneUpCardMode.cantBeat:
-        final danger = _danger;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'BEAT',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 11,
-                color: danger ? DossedartTokens.red : Colors.white60,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${target ?? 0}',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 42,
-                color: danger ? DossedartTokens.red : Colors.white,
-                letterSpacing: -2,
-                height: 0.95,
-                shadows: [
-                  Shadow(
-                    color: (danger ? DossedartTokens.red : accentColor)
-                        .withValues(alpha: 0.53),
-                    blurRadius: 18,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-    }
-  }
-
-  Widget _buildStatusLine(int dartsLeft) {
-    final Color tint;
-    final Widget content;
-
-    switch (cardMode) {
-      case OneUpCardMode.free:
-        tint = Colors.white.withValues(alpha: 0.14);
-        content = Text(
-          '▸ YOUR 3-DART TOTAL SETS THE BAR FOR EVERYONE',
-          style: TextStyle(
-            fontFamily: 'VT323',
-            fontSize: 16,
-            color: DossedartTokens.cyan,
-            letterSpacing: 1,
-          ),
-        );
-        break;
-
-      case OneUpCardMode.safe:
-        tint = DossedartTokens.green;
-        content = Text(
-          'BEAT $target · REMAINING DARTS PAD THE NEW TARGET',
-          style: TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 10,
-            color: DossedartTokens.green,
-            letterSpacing: 1,
-            shadows: [
-              Shadow(color: DossedartTokens.green, blurRadius: 6),
-            ],
-          ),
-        );
-        break;
-
-      case OneUpCardMode.cantBeat:
-        tint = DossedartTokens.red;
-        final maxPossible = 60 * dartsLeft;
-        content = Row(
-          children: [
-            Text(
-              "CAN'T BEAT",
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 11,
-                color: DossedartTokens.red,
-                letterSpacing: 1,
-                shadows: [
-                  Shadow(color: DossedartTokens.red, blurRadius: 8),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '· LIFE AT RISK · need $_need, max $maxPossible',
-                style: TextStyle(
-                  fontFamily: 'VT323',
-                  fontSize: 16,
-                  color: DossedartTokens.red.withValues(alpha: 0.75),
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-          ],
-        );
-        break;
-
-      case OneUpCardMode.normal:
-        tint = lastLife
-            ? DossedartTokens.red
-            : Colors.white.withValues(alpha: 0.14);
-        content = Row(
-          children: [
-            Text(
-              'NEED $_need MORE',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 11,
-                color: lastLife ? DossedartTokens.red : DossedartTokens.yellow,
-                letterSpacing: 1,
-                shadows: [
-                  Shadow(
-                    color:
-                        (lastLife ? DossedartTokens.red : DossedartTokens.yellow)
-                            .withValues(alpha: 0.53),
-                    blurRadius: 6,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                lastLife
-                    ? '· FAIL = ELIMINATED'
-                    : '· $dartsLeft dart${dartsLeft != 1 ? 's' : ''} left',
-                style: TextStyle(
-                  fontFamily: 'VT323',
-                  fontSize: 16,
-                  color: lastLife
-                      ? DossedartTokens.red
-                      : Colors.white.withValues(alpha: 0.45),
-                  letterSpacing: 1,
-                  shadows: lastLife
-                      ? [Shadow(color: DossedartTokens.red, blurRadius: 8)]
-                      : null,
-                ),
-              ),
-            ),
-          ],
-        );
-        break;
-    }
-
-    final tinted = cardMode == OneUpCardMode.safe ||
-        cardMode == OneUpCardMode.cantBeat ||
-        lastLife;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
-      decoration: BoxDecoration(
-        color: tinted
-            ? tint.withValues(alpha: 0.09)
-            : Colors.white.withValues(alpha: 0.05),
-        border: Border.all(
-          color: tinted ? tint : Colors.white.withValues(alpha: 0.14),
-          width: 2,
-        ),
-      ),
-      child: content,
-    );
-  }
-}
-
-/// Header row: avatar box · name (downscaled) · life pips, plus the
-/// LAST LIFE tag when the player is on their final heart.
-class _HeaderRow extends StatelessWidget {
-  const _HeaderRow({
-    required this.initials,
-    required this.playerName,
-    required this.nameSize,
-    required this.accentColor,
-    required this.lives,
-    required this.maxLives,
-    required this.lastLife,
-  });
-
-  final String initials;
-  final String playerName;
-  final double nameSize;
-  final Color accentColor;
-  final int lives;
-  final int maxLives;
-  final bool lastLife;
-
-  @override
-  Widget build(BuildContext context) {
-    final pipColor = lastLife ? DossedartTokens.red : accentColor;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: DossedartTokens.bg,
-            border: Border.all(color: accentColor, width: 3),
-            boxShadow: [
-              BoxShadow(color: accentColor.withValues(alpha: 0.33), blurRadius: 12),
-            ],
-          ),
-          child: Text(
-            initials,
-            style: TextStyle(
-              fontFamily: 'PressStart2P',
-              fontSize: 11,
-              color: accentColor,
-              shadows: [
-                Shadow(color: accentColor.withValues(alpha: 0.67), blurRadius: 8),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                playerName.toUpperCase(),
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: nameSize,
-                  color: Colors.white,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 6),
-              OneUpLifePips(lives: lives, max: maxLives, color: pipColor, size: 14),
-            ],
-          ),
-        ),
-        if (lastLife) ...[
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'LAST',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 10,
-                  color: DossedartTokens.red,
-                  letterSpacing: 1,
-                  shadows: [
-                    Shadow(color: DossedartTokens.red, blurRadius: 8),
-                  ],
-                ),
-              ),
-              Text(
-                'LIFE',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 10,
-                  color: DossedartTokens.red,
-                  letterSpacing: 1,
-                  shadows: [
-                    Shadow(color: DossedartTokens.red, blurRadius: 8),
-                  ],
-                ),
-              ),
-            ],
           ),
         ],
-      ],
+      ),
     );
   }
-}
 
-/// Right-side "THIS TURN" block: running total + three dart pips.
-class _TurnBlock extends StatelessWidget {
-  const _TurnBlock({
-    required this.turnTotal,
-    required this.currentDartIndex,
-    required this.color,
-  });
+  /// LAST LIFE tag next to the header's life pips — only shown at [lives] == 1.
+  Widget _lastLifeTag() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(border: Border.all(color: DossedartTokens.red, width: 1)),
+      child: const Text(
+        'LAST LIFE',
+        style: TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 7,
+          color: DossedartTokens.red,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
 
-  final int turnTotal;
-  final int currentDartIndex;
-  final Color color;
+  /// The header's right-aligned primary block: BEAT the standing target, or
+  /// SET THE TARGET when this is the free throw that sets it.
+  Widget _primaryBlock() {
+    if (target == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'FREE THROW',
+            style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 8,
+              color: Colors.white.withValues(alpha: 0.55),
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'SET THE\nTARGET',
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 22,
+              color: DossedartTokens.lime,
+              height: 1.15,
+              letterSpacing: 1,
+              shadows: [
+                Shadow(color: DossedartTokens.lime.withValues(alpha: 0.67), blurRadius: 14),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
-  @override
-  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'THIS TURN',
+          'BEAT',
           style: TextStyle(
             fontFamily: 'PressStart2P',
-            fontSize: 9,
-            color: Colors.white.withValues(alpha: 0.5),
-            letterSpacing: 1,
+            fontSize: 8,
+            color: Colors.white.withValues(alpha: 0.55),
+            letterSpacing: 1.5,
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          '$turnTotal',
+          '$target',
           style: TextStyle(
             fontFamily: 'PressStart2P',
-            fontSize: 24,
-            color: color,
+            fontSize: 60,
+            color: accentColor,
             height: 1,
-            letterSpacing: -1,
+            letterSpacing: -2,
             shadows: [
-              Shadow(color: color.withValues(alpha: 0.67), blurRadius: 14),
+              Shadow(color: accentColor.withValues(alpha: 0.66), blurRadius: 16),
             ],
           ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < 3; i++) ...[
-              Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: i < currentDartIndex ? color : Colors.transparent,
-                  border: Border.all(color: color, width: 2),
-                  boxShadow: i < currentDartIndex
-                      ? [BoxShadow(color: color.withValues(alpha: 0.67), blurRadius: 6)]
-                      : null,
-                ),
-              ),
-              if (i < 2) const SizedBox(width: 5),
-            ],
-          ],
         ),
       ],
     );
   }
-}
 
-/// Compact opponent tiles: name + life pips, or a dimmed skull + OUT tag
-/// once eliminated.
-class _OpponentsStrip extends StatelessWidget {
-  const _OpponentsStrip({required this.opponents});
-
-  final List<OneUpOpponentEntry> opponents;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+  /// Full-width rule line: SURVIVOR round label (when [survivor]) + a
+  /// hairline that always fills the remaining width — no label at all in
+  /// BEAT THE LAST (KISS).
+  Widget _ruleLine() {
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 10),
       child: Row(
         children: [
-          for (final o in opponents) ...[
-            _OpponentTile(entry: o),
-            const SizedBox(width: 8),
+          if (survivor) ...[
+            Text(
+              'SURVIVOR · RND $roundNumber',
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 6,
+                color: DossedartTokens.lime,
+                letterSpacing: 1,
+                shadows: [
+                  Shadow(color: DossedartTokens.lime.withValues(alpha: 0.6), blurRadius: 6),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
           ],
+          Expanded(
+            child: Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+          ),
         ],
       ),
     );
   }
-}
 
-class _OpponentTile extends StatelessWidget {
-  const _OpponentTile({required this.entry});
-
-  final OneUpOpponentEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final dead = entry.eliminated;
-    // The engine sets BOTH flags on every survivor elimination (the fail
-    // joins _outOfRound before the lives check) — eliminated styling wins.
-    final roundOut = !dead && entry.outOfRound;
-    final dimmed = dead || roundOut;
-    final color = dimmed ? Colors.white.withValues(alpha: 0.25) : entry.accent;
-    return Opacity(
-      opacity: dimmed ? 0.5 : 1,
-      child: Container(
-        width: 80,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: dimmed
-              ? Colors.white.withValues(alpha: 0.02)
-              : entry.accent.withValues(alpha: 0.05),
-          border: Border.all(color: color, width: 2),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (dead)
-              const Text('💀', style: TextStyle(fontSize: 11, height: 1)),
-            Text(
-              entry.name.toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'VT323',
-                fontSize: 14,
-                color: Colors.white.withValues(alpha: dimmed ? 0.6 : 1),
-                letterSpacing: 1,
-              ),
+  /// Left column's top row: running turn total against the standing target,
+  /// dimmed to 0.34 before the first dart of the turn lands.
+  Widget _thisTurnRow() {
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        SizedBox(
+          width: 88,
+          child: Text(
+            'THIS TURN',
+            style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 9,
+              color: Colors.white.withValues(alpha: 0.5),
+              letterSpacing: 1,
             ),
-            const SizedBox(height: 4),
-            if (dead)
-              Text(
-                'OUT',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 8,
-                  color: DossedartTokens.red,
-                  letterSpacing: 1,
-                ),
-              )
-            else if (roundOut)
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'ROUND OUT',
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 8,
-                    color: DossedartTokens.yellow,
-                    letterSpacing: 1,
-                  ),
-                ),
-              )
-            else
-              OneUpLifePips(
-                lives: entry.lives,
-                max: entry.maxLives,
-                color: entry.accent,
-                size: 13,
-              ),
-          ],
+          ),
         ),
-      ),
+        Flexible(
+          child: Text(
+            '$turnTotal',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 38,
+              color: accentColor,
+              height: 1,
+              shadows: [
+                Shadow(color: accentColor.withValues(alpha: 0.53), blurRadius: 10),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            '/ ${target ?? '—'}',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 28,
+              height: 1,
+              color: Colors.white.withValues(alpha: 0.35),
+            ),
+          ),
+        ),
+      ],
+    );
+    return Opacity(opacity: currentDartIndex == 0 ? 0.34 : 1, child: content);
+  }
+
+  /// The standings rail's per-row trailing widget: eliminated wins over
+  /// out-of-round (same precedence the engine uses — an elimination also
+  /// flags outOfRound as a side effect), otherwise life pips.
+  Widget _railTrailing(OneUpStanding s) {
+    if (s.eliminated) {
+      return Text(
+        '💀 OUT',
+        style: TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 7,
+          color: Colors.white.withValues(alpha: 0.3),
+          letterSpacing: 0.5,
+        ),
+      );
+    }
+    if (s.outOfRound) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          border: Border.all(color: DossedartTokens.red.withValues(alpha: 0.4), width: 1),
+        ),
+        child: Text(
+          'ROUND OUT',
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 6,
+            color: DossedartTokens.red.withValues(alpha: 0.8),
+          ),
+        ),
+      );
+    }
+    return OneUpLifePips(
+      lives: s.lives,
+      max: s.maxLives,
+      color: s.lives == 1 ? DossedartTokens.red : s.accent,
+      size: 13,
     );
   }
 }

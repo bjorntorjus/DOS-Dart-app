@@ -34,6 +34,8 @@ import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+import '../widgets/dossedart/dossedart_player_avatar.dart';
+import '../utils/dossedart_player_accents.dart';
 
 class CricketGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -695,6 +697,45 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   String? get _stripTurnLabel =>
       throwHistory.recentTurnLabel(currentPlayerIndex);
 
+  /// Total marks scored (own count toward closing/overflow, not opponents'
+  /// cutthroat overflow) in the current player's most recent turn — the same
+  /// turn window [_stripTurnLabel] groups by (turnId), derived from the same
+  /// throwHistory data.
+  int get _lastTurnMarks {
+    final darts = throwHistory
+        .where((t) => t.playerIndex == currentPlayerIndex)
+        .toList();
+    if (darts.isEmpty) return 0;
+    final lastTurnId = darts.last.turnId;
+    return darts
+        .where((t) => t.turnId == lastTurnId)
+        .fold(0, (sum, t) => sum + (targets.contains(t.segment) ? t.multiplier : 0));
+  }
+
+  /// Index of the UNIQUE best score among non-removed players — Cutthroat
+  /// flips it (lowest score leads); any tie (including the all-zero opening
+  /// state) yields no leader. Feeds the grid header's 👑.
+  int? get _dossedartLeaderIndex {
+    final activeIdx = List.generate(players.length, (i) => i)
+        .where((i) => !_removedPlayerIndices.contains(i))
+        .toList();
+    if (activeIdx.isEmpty) return null;
+    final best = widget.config.isCutthroat
+        ? activeIdx.map((i) => scores[i]).reduce(min)
+        : activeIdx.map((i) => scores[i]).reduce(max);
+    final tops = activeIdx.where((i) => scores[i] == best).toList();
+    return tops.length == 1 ? tops.first : null;
+  }
+
+  /// 3-char handle for the grid's compact header cells — same derivation as
+  /// the other DOSSEDART cockpits (wildcard_game_screen/dossedart_home_screen
+  /// `_handleFor`): strips non-alphanumerics, uppercases, pads short names.
+  String _handleFor(String name) {
+    final cleaned = name.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+    if (cleaned.length >= 3) return cleaned.substring(0, 3);
+    return cleaned.padRight(3, 'X');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.useDossedartDesign) return _buildDossedartCockpit(context);
@@ -726,34 +767,18 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               DossedartActiveStrip(
                 playerName: players[currentPlayerIndex].name,
                 avatarPath: players[currentPlayerIndex].avatarPath,
-                accentColor: DossedartTokens.cyan,
+                accentColor: dossedartAccent(currentPlayerIndex),
                 dartsInTurn: dartsInTurn,
-                lastThrowLabel: _stripTurnLabel,
-                trailing: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'POINTS',
-                      style: TextStyle(
-                        fontFamily: 'VT323',
-                        fontSize: 12,
-                        color: Colors.white54,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${scores[currentPlayerIndex]}',
-                      style: const TextStyle(
-                        fontFamily: 'PressStart2P',
-                        fontSize: 36,
-                        color: DossedartTokens.cyan,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                modeSlot: DossedartStripSlot(
+                  label: 'LAST TURN',
+                  value: _stripTurnLabel ?? '— · — · —',
+                  subLine: _stripTurnLabel != null
+                      ? '= $_lastTurnMarks MARKS'
+                      : 'NO DARTS YET',
+                  dim: _stripTurnLabel == null,
                 ),
+                scoreLabel: 'POINTS',
+                scoreValue: '${scores[currentPlayerIndex]}',
               ),
               Expanded(child: _dossedartMatrix()),
               DossedartActionBar(
@@ -832,33 +857,61 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
   Widget _dossedartPlayerHeader(int pi) {
     final active = pi == currentPlayerIndex;
-    final c = active ? DossedartTokens.cyan : DossedartTokens.phosphor;
+    final c = dossedartAccent(pi);
+    final isLeader = pi == _dossedartLeaderIndex;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
       decoration: BoxDecoration(
-        color: active ? c.withValues(alpha: 0.11) : Colors.transparent,
+        color: active ? c.withValues(alpha: 0.08) : Colors.transparent,
         border: Border(
           left: BorderSide(
               color: DossedartTokens.magenta.withValues(alpha: 0.2), width: 1),
+          top: active ? BorderSide(color: c, width: 3) : BorderSide.none,
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            players[pi].name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: c),
+          DossedartPlayerAvatar(
+            avatarPath: players[pi].avatarPath,
+            size: 26,
+            borderColor: c,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  _handleFor(players[pi].name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 8,
+                    letterSpacing: 0.5,
+                    color: active
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
+              if (isLeader) ...[
+                const SizedBox(width: 4),
+                const Text('👑', style: TextStyle(fontSize: 10, height: 1)),
+              ],
+            ],
           ),
           const SizedBox(height: 3),
           Text(
             '${scores[pi]}',
             style: TextStyle(
               fontFamily: 'PressStart2P',
-              fontSize: active ? 18 : 14,
+              fontSize: 17,
               color: c,
+              shadows: [
+                Shadow(color: c.withValues(alpha: 0.6), blurRadius: 9),
+              ],
             ),
           ),
         ],
@@ -871,6 +924,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final isBull = target == 25;
     final label = isBull ? 'BULL' : '$target';
     final magenta = DossedartTokens.magenta;
+    final yellow = DossedartTokens.yellow;
     return Opacity(
       opacity: closedByAll ? 0.3 : 1,
       child: Container(
@@ -887,15 +941,38 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
             SizedBox(
               width: 56,
               child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: isBull ? 11 : 18,
-                    color:
-                        closedByAll ? Colors.white38 : DossedartTokens.yellow,
-                    letterSpacing: 1,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: isBull ? 11 : 19,
+                        color: closedByAll ? Colors.white38 : yellow,
+                        letterSpacing: 1,
+                        shadows: closedByAll
+                            ? null
+                            : [
+                                Shadow(
+                                    color: yellow.withValues(alpha: 0.55),
+                                    blurRadius: 8),
+                              ],
+                      ),
+                    ),
+                    if (closedByAll) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'DEAD',
+                        style: TextStyle(
+                          fontFamily: 'VT323',
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.45),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -903,8 +980,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
               Expanded(
                 flex: pi == currentPlayerIndex ? 27 : 10,
                 child: pi == currentPlayerIndex
-                    ? _dossedartActiveCell(target, closedByAll)
-                    : _dossedartGlyphCell(marks[pi][target] ?? 0),
+                    ? _dossedartActiveCell(target)
+                    : _dossedartGlyphCell(pi, marks[pi][target] ?? 0),
               ),
           ],
         ),
@@ -912,85 +989,145 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     );
   }
 
-  Widget _dossedartActiveCell(int target, bool closedByAll) {
-    const c = DossedartTokens.cyan;
-    final magenta = DossedartTokens.magenta;
-    if (closedByAll) {
-      return Container(
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(
-                color: magenta.withValues(alpha: 0.2), width: 1),
-          ),
-        ),
-        alignment: Alignment.center,
-        child: const Text(
-          '⊗',
-          style: TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 22,
-            color: DossedartTokens.phosphor,
-          ),
-        ),
-      );
-    }
+  Widget _dossedartActiveCell(int target) {
+    final c = dossedartAccent(currentPlayerIndex);
     final own = marks[currentPlayerIndex][target] ?? 0;
+    // Artboard's own-closed ⊗-lock (hiding S/D/T once the active player's own
+    // marks hit 3) dropped: it's a BEHAVIOR change vs. standard Cricket
+    // overflow scoring, and rules win over artboards per the 2026-07-23
+    // handover protocol. Only closedByAll (nobody can score any more) locks
+    // the cell; a personally-closed-but-still-live target stays tappable —
+    // the fully-filled meter below is the "you closed this" signal instead.
+    final closedByAll = engine.isClosedByAll(target);
     final isBull = target == 25;
-    final List<(String, int)> subs = isBull
-        ? const [('BULL', 1), ('D-BULL', 2)]
-        : [('$target', 1), ('D$target', 2), ('T$target', 3)];
+    final List<(String, int, bool)> subs = isBull
+        ? const [('BULL', 1, false), ('D-BULL', 2, false), ('—', 0, true)]
+        : [('$target', 1, false), ('D$target', 2, false), ('T$target', 3, false)];
+
     return Container(
-      color: c.withValues(alpha: 0.07),
-      child: Row(
+      color: c.withValues(alpha: 0.06),
+      child: Stack(
         children: [
-          SizedBox(
-            width: 30,
-            child: Center(
+          if (closedByAll)
+            Center(
               child: Text(
-                _dossedartGlyphText(own),
+                '⊗',
                 style: TextStyle(
                   fontFamily: 'PressStart2P',
-                  fontSize: 16,
-                  color: own >= 3 ? DossedartTokens.green : c,
+                  fontSize: 26,
+                  color: c.withValues(alpha: 0.85),
+                  shadows: [
+                    Shadow(color: c.withValues(alpha: 0.7), blurRadius: 12),
+                  ],
                 ),
               ),
-            ),
-          ),
-          for (final (label, mult) in subs)
-            Expanded(
-              child: GestureDetector(
-                onTap: () => _registerHit(target, mult),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.withValues(alpha: 0.05),
-                    border: Border(
-                      left: BorderSide(
-                          color: c.withValues(alpha: 0.33), width: 1),
-                    ),
+            )
+          else ...[
+            Row(
+              children: [
+                for (final (label, mult, off) in subs)
+                  Expanded(
+                    child: off
+                        ? Opacity(
+                            opacity: 0.25,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  left: BorderSide(
+                                      color: c.withValues(alpha: 0.33),
+                                      width: 1),
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                '—',
+                                style: TextStyle(
+                                  fontFamily: 'PressStart2P',
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          )
+                        : GestureDetector(
+                            onTap: () => _registerHit(target, mult),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  left: BorderSide(
+                                      color: c.withValues(alpha: 0.33),
+                                      width: 1),
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 2),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontFamily: 'PressStart2P',
+                                    fontSize: label.length > 3 ? 11 : 14,
+                                    color: c,
+                                    letterSpacing: 0.5,
+                                    shadows: [
+                                      Shadow(
+                                          color: c.withValues(alpha: 0.6),
+                                          blurRadius: 8),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                   ),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      style: const TextStyle(
-                        fontFamily: 'PressStart2P',
-                        fontSize: 13,
-                        color: c,
-                        letterSpacing: 0.5,
+              ],
+            ),
+            Positioned(
+              bottom: 5,
+              left: 5,
+              right: 5,
+              child: IgnorePointer(
+                child: Row(
+                  children: [
+                    for (int i = 0; i < 3; i++) ...[
+                      if (i > 0) const SizedBox(width: 3),
+                      Expanded(
+                        child: Container(
+                          key: ValueKey('seg-$target-$i'),
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: i < own
+                                ? c
+                                : Colors.black.withValues(alpha: 0.4),
+                            border: Border.all(
+                              color:
+                                  i < own ? c : c.withValues(alpha: 0.4),
+                              width: 2,
+                            ),
+                            boxShadow: i < own
+                                ? [
+                                    BoxShadow(
+                                        color: c.withValues(alpha: 0.7),
+                                        blurRadius: 8),
+                                  ]
+                                : null,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    ],
+                  ],
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _dossedartGlyphCell(int n) {
+  Widget _dossedartGlyphCell(int pi, int n) {
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -999,7 +1136,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         ),
       ),
       alignment: Alignment.center,
-      child: _dossedartGlyph(n, DossedartTokens.phosphor),
+      child: _dossedartGlyph(n, dossedartAccent(pi)),
     );
   }
 
@@ -1014,13 +1151,17 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         ),
       );
     }
+    final size = players.length > 4 ? 20.0 : 24.0;
     if (n >= 3) {
-      return const Text(
+      return Text(
         '⊗',
         style: TextStyle(
           fontFamily: 'PressStart2P',
-          fontSize: 26,
-          color: DossedartTokens.green,
+          fontSize: size + 2,
+          color: color,
+          shadows: [
+            Shadow(color: color.withValues(alpha: 0.6), blurRadius: 9),
+          ],
         ),
       );
     }
@@ -1028,16 +1169,13 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       n == 1 ? '/' : 'X',
       style: TextStyle(
         fontFamily: 'PressStart2P',
-        fontSize: 26,
+        fontSize: size,
         color: color,
+        shadows: [
+          Shadow(color: color.withValues(alpha: 0.6), blurRadius: 9),
+        ],
       ),
     );
-  }
-
-  String _dossedartGlyphText(int n) {
-    if (n <= 0) return '·';
-    if (n >= 3) return '⊗';
-    return n == 1 ? '/' : 'X';
   }
 
   Future<void> _showDossedartMenu(BuildContext outerContext) {

@@ -61,3 +61,24 @@ first dart of the game · one player far ahead (diff readability).
 
 Same bundle format: HTML artboard(s) + spec cards as fasit, JSX optional. Tokens only, English
 strings, no border-radius.
+
+---
+
+## Round outcome (2026-07-22) — APPROVED
+
+Bundle received same day (`cricket-strip-overview/design_handoff_cricket_strip_overview/`,
+DOSSEDART (14).zip); **A+ with SEGMENTS approved** (user-picked through three iterations):
+score-in-strip + points-in-grid-headers, active player's marks as a 3-segment meter inside the
+existing tap cells. Family budget fasit: **`FAMILY STRIP: h=132 px @ 820×1180`** (card 110 +
+margins 12/10), identical in Cricket · ATC · Shanghai · Splitscore, sibling inheritance proven
+on thumbnails. Notes:
+
+- **Diff plate dropped for Cricket** (user's KISS call during iteration) — 👑 in the grid header
+  carries the leader; the P2 "diff vs leader" from this brief is intentionally not shipped.
+  Siblings keep their plates (ATC behind-plate, Shanghai diff) as illustrated; exact copy is
+  implementation's call against real data.
+- Grid never changes height: always 7 rows, `DEAD` tag on closed-by-all, ⊗ lock for the active.
+- Leader math flips in Cutthroat (lowest leads) — implementation owns it.
+- **Recurring flag to design:** demo purple is `#B15CFF` again (rule 7 says `#7B3FFF`; the 1UP
+  bundle had it right). No implementation impact — accents come from `dossedartAccent` — but
+  rounds 6-7 (Gotcha/Wildcard) should start from the 1UP template, not the X01 one.
