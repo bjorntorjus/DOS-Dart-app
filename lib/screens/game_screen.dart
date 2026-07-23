@@ -7,6 +7,7 @@ import '../widgets/dart_board.dart';
 import '../data/checkout_table.dart';
 import '../services/player_storage.dart';
 import '../models/saved_player.dart';
+import '../models/game_history.dart';
 import '../models/achievement_event.dart';
 import '../models/earned_feat.dart';
 import '../models/game_mode.dart';
@@ -1354,6 +1355,7 @@ class _GameScreenState extends State<GameScreen> {
       results: results,
       canContinue: true,
       statsSkipped: _midGamePlayerChanges,
+      detailEntry: _buildDetailEntry(),
       // Chart lines index by seat; a changed roster misaligns them —
       // suppress instead of mislabeling.
       throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(_statThrows),
@@ -1381,6 +1383,88 @@ class _GameScreenState extends State<GameScreen> {
     _gameFullyOver = true;
     await _updateStats();
     if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  /// EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
+  /// the modeCounters shape [_updateStats] assembles for
+  /// `StatsRecorder.recordGame`, but built now (before Finish) with no
+  /// ratings yet (Elo computes at Finish) and never persisted. Null on a
+  /// mid-game roster change, matching [_updateStats]' own early return for
+  /// that case (no game history entry is ever recorded then either).
+  GameHistoryEntry? _buildDetailEntry() {
+    if (_midGamePlayerChanges) return null;
+    final placements = _buildPlacements();
+    final modeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      final playerThrows =
+          _statThrows.where((t) => t.playerIndex == pi).toList();
+
+      int totalDarts = playerThrows.length;
+      int doublesHit = 0;
+      int triplesHit = 0;
+      int bullsHit = 0, misses = 0;
+      final segmentHits = <String, int>{};
+
+      for (final t in playerThrows) {
+        final segKey = 'seg_${t.segment}';
+        segmentHits[segKey] = (segmentHits[segKey] ?? 0) + 1;
+        if (t.segment > 0) {
+          final mulSuffix =
+              t.multiplier == 3 ? '_t' : t.multiplier == 2 ? '_d' : '_s';
+          final detailKey = 'seg_${t.segment}$mulSuffix';
+          segmentHits[detailKey] = (segmentHits[detailKey] ?? 0) + 1;
+        }
+        if (t.segment == 0) {
+          misses++;
+        } else {
+          if (t.segment == 25) bullsHit++;
+          if (t.multiplier == 2) {
+            doublesHit++;
+          } else if (t.multiplier == 3) {
+            triplesHit++;
+          }
+        }
+      }
+
+      final turnTotals = x01TurnTotals(_statThrows, playerIndex: pi);
+      final totalTurnsMode = turnTotals.length;
+      final totalTurnScoreMode = turnTotals.fold<int>(0, (s, t) => s + t);
+      final highestTurnMode = turnTotals.fold<int>(0, (m, t) => t > m ? t : m);
+      final turnsOver100 = turnTotals.where((t) => t >= 100).length;
+
+      int bestCheckout = 0;
+      if (finishedPlayers.contains(pi) && playerThrows.isNotEmpty) {
+        bestCheckout = playerThrows.last.scoreAtStartOfTurn;
+      }
+
+      modeCounters[playerId] = {
+        'totalDarts': totalDarts,
+        'totalTurnScore': totalTurnScoreMode,
+        'totalTurns': totalTurnsMode,
+        'max:highestTurn': highestTurnMode,
+        'turnsOver100': turnsOver100,
+        'doublesHit': doublesHit,
+        'triplesHit': triplesHit,
+        'bullsHit': bullsHit,
+        'misses': misses,
+        'checkouts': finishedPlayers.contains(pi) ? 1 : 0,
+        'max:bestCheckout': bestCheckout,
+        ...segmentHits,
+      };
+    }
+
+    return StatsRecorder.buildEntry(
+      gameMode: 'x01',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      modeCounters: modeCounters,
+      gameConfig: _gameConfigLabel,
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(_statThrows),
+    );
   }
 
   GameResult _buildGameResult() {
@@ -1446,6 +1530,7 @@ class _GameScreenState extends State<GameScreen> {
           players.length - _removedPlayerIndices.length > 2,
       canUndo: !_hadSuddenDeath,
       statsSkipped: _midGamePlayerChanges,
+      detailEntry: _buildDetailEntry(),
       // Chart lines index by seat; a changed roster misaligns them —
       // suppress instead of mislabeling.
       throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(_statThrows),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/game_result.dart';
 import '../stats/mode_progression.dart';
+import '../screens/dossedart/game_detail_screen.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
 import '../widgets/dossedart/progression_chart.dart';
 import '../widgets/player_avatar.dart';
@@ -244,6 +245,28 @@ class PostGameScreen extends StatelessWidget {
                     ],
                   ],
                 ),
+                // DETAILS drill-down (post-game v2) — opens the same
+                // KAMPDETALJER screen game history uses, backed by an
+                // EPHEMERAL entry (no history entry is persisted yet at this
+                // point — see GameResult.detailEntry). Hidden entirely when
+                // the mode hasn't opted in or stats were skipped (mid-game
+                // roster change), matching the "stats not recorded" notice
+                // above.
+                if (result.detailEntry != null && !result.statsSkipped) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              GameDetailScreen(entry: result.detailEntry!),
+                        ),
+                      ),
+                      child: const Text('▶ DETAILS'),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,

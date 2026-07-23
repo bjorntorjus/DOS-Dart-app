@@ -1,4 +1,5 @@
 import 'dart_throw.dart';
+import 'game_history.dart';
 
 class PlayerResult {
   final String name;
@@ -48,6 +49,16 @@ class GameResult {
   /// for every mode that doesn't opt in — zero impact elsewhere.
   final Map<String, dynamic>? modeExtras;
 
+  /// EPHEMERAL [GameHistoryEntry] for the "▶ DETAILS" drill-down
+  /// (`GameDetailScreen`) on [PostGameScreen]. Stats recording is deferred
+  /// until Finish (post-game Undo safety), so no persisted history entry
+  /// exists yet while the post-game screen shows — this is built in memory
+  /// by `StatsRecorder.buildEntry` from the same locals the mode's
+  /// `_updateStats`/`recordGame` call assembles, just with pre-Finish rating
+  /// values (usually null — Elo computes at Finish). Null for every mode
+  /// that doesn't opt in, and ignored entirely when [statsSkipped] is true.
+  final GameHistoryEntry? detailEntry;
+
   GameResult({
     required this.gameMode,
     required this.results,
@@ -57,5 +68,6 @@ class GameResult {
     this.throwHistory,
     this.progressionMode,
     this.modeExtras,
+    this.detailEntry,
   });
 }

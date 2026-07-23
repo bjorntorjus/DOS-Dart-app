@@ -104,6 +104,52 @@ class StatsRecorder {
     }
 
     // Record to game history (fire-and-forget)
+    final entry = buildEntry(
+      gameMode: gameMode,
+      playerIds: playerIds,
+      playerNames: playerNames,
+      placements: placements,
+      modeCounters: modeCounters,
+      ratingsBefore: ratingsBefore,
+      ratingsAfter: ratingsAfter,
+      gameConfig: gameConfig,
+      durationSeconds: durationSeconds,
+      throwHistory: throwHistory,
+      earnedFeatsByIndex: earnedFeatsByIndex,
+    );
+
+    GameHistoryService.record(entry);
+  }
+
+  /// Assembles a [GameHistoryEntry] from the same inputs [recordGame] uses to
+  /// persist one — extracted so callers can build an EPHEMERAL entry (never
+  /// passed to [GameHistoryService.record]) for immediate display, e.g. the
+  /// post-game "DETAILS" drill-down. Stats recording is deferred until Finish
+  /// (post-game Undo safety), so no persisted entry exists yet while the
+  /// post-game screen is showing — screens call this directly with
+  /// pre-Finish values (typically null/empty ratings, since Elo computes at
+  /// Finish) to get a stand-in entry for [GameDetailScreen].
+  ///
+  /// Note: [GameHistoryEntry.id] and `date` are derived from `DateTime.now()`
+  /// at call time. An ephemeral entry built here and the "real" entry
+  /// [recordGame] persists later will therefore get different ids/dates —
+  /// this is fine and expected, not a bug: the ephemeral copy is discarded
+  /// once the post-game screen closes.
+  static GameHistoryEntry buildEntry({
+    required String gameMode,
+    required List<String?> playerIds,
+    required List<String> playerNames,
+    required List<int> placements,
+    Map<String, Map<String, int>>? modeCounters,
+    Map<String, double>? ratingsBefore,
+    Map<String, double>? ratingsAfter,
+    String? gameConfig,
+    int? durationSeconds,
+    List<DartThrow>? throwHistory,
+    Map<int, List<EarnedFeat>>? earnedFeatsByIndex,
+  }) {
+    final now = DateTime.now();
+
     final historyPlayers = List.generate(playerIds.length, (i) {
       final stats = (modeCounters != null && playerIds[i] != null)
           ? (modeCounters[playerIds[i]] ?? <String, int>{})
@@ -122,7 +168,7 @@ class StatsRecorder {
       );
     });
 
-    final entry = GameHistoryEntry(
+    return GameHistoryEntry(
       id: '${now.millisecondsSinceEpoch}',
       gameMode: gameMode,
       date: now,
@@ -131,8 +177,6 @@ class StatsRecorder {
       durationSeconds: durationSeconds,
       throwHistory: throwHistory,
     );
-
-    GameHistoryService.record(entry);
   }
 
   /// Records mid-game join/leave counters for a game whose stats are skipped.

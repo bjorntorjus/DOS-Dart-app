@@ -578,6 +578,42 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   void _showPostGame(List<int> placements) {
     final order = _orderByPlacement(placements);
 
+    // EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
+    // the modeCounters shape _updateStats assembles for StatsRecorder
+    // .recordGame, but built now (before Finish) with no ratings yet (Elo
+    // computes at Finish) and never persisted. Suppressed on a mid-game
+    // roster change, same as throwHistory/progressionMode below.
+    final detailModeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      detailModeCounters[playerId] = {
+        'totalStrokes': engine.total(pi),
+        'holesPlayed': engine.holesCompleted(pi),
+        'aces': engine.aces[pi],
+        'bogeys': engine.bogeys[pi],
+        'firstDartHits': engine.firstDartHits[pi],
+        if (engine.bestHole[pi] != null) 'min:bestHole': engine.bestHole[pi]!,
+        if (engine.holesCompleted(pi) == widget.config.holes)
+          'min:bestRound${widget.config.holes}': engine.total(pi),
+        'totalDarts': engine.dartsThrown[pi],
+        'totalGames': 1,
+      };
+    }
+    final detailEntry = _midGamePlayerChanges
+        ? null
+        : StatsRecorder.buildEntry(
+            gameMode: 'golf',
+            playerIds: players.map((p) => p.savedPlayerId).toList(),
+            playerNames: players.map((p) => p.name).toList(),
+            placements: placements,
+            modeCounters: detailModeCounters,
+            gameConfig: '${widget.config.holes} holes',
+            durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+            throwHistory: List<DartThrow>.from(throwHistory),
+          );
+
     final results = <PlayerResult>[
       for (final i in order)
         PlayerResult(
@@ -612,6 +648,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             gameMode: 'golf',
             results: results,
             canUndo: engine.canUndo,
+            detailEntry: detailEntry,
             // Chart lines index by seat; a changed roster misaligns them —
             // suppress instead of mislabeling.
             throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),

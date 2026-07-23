@@ -688,6 +688,41 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     // after the removed seat — the same accepted limitation as the other
     // DOSSEDART progression charts' documented gaps.
     final placements = _buildPlacements(ranking);
+
+    // EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
+    // the modeCounters shape _updateStats assembles for StatsRecorder
+    // .recordGame, but built now (before Finish) with no ratings (WILDCARD
+    // has none, spec §9) and never persisted. Suppressed on a mid-game
+    // roster change, same as throwHistory/progressionMode below.
+    final detailModeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      detailModeCounters[playerId] = {
+        'jokersHit': engine.jokersHitCount[pi],
+        'windowPrizes': engine.windowPrizes[pi],
+        'max:chaosPeak': engine.chaosPeak,
+        'pointsStolen': engine.pointsStolen[pi],
+        'max:highestTurn': engine.highestTurn[pi],
+        'totalDarts': throwHistory.where((t) => t.playerIndex == pi).length,
+        'totalGames': 1,
+      };
+    }
+    final detailEntry = _midGamePlayerChanges
+        ? null
+        : StatsRecorder.buildEntry(
+            gameMode: 'wildcard',
+            playerIds: players.map((p) => p.savedPlayerId).toList(),
+            playerNames: players.map((p) => p.name).toList(),
+            placements: placements,
+            modeCounters: detailModeCounters,
+            gameConfig:
+                '${widget.config.rounds} rounds · chaos ${widget.config.startingChaos}',
+            durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+            throwHistory: List<DartThrow>.from(throwHistory),
+          );
+
     final results = <PlayerResult>[
       for (int i = 0; i < players.length; i++)
         if (!engine.isSkipped(i))
@@ -717,6 +752,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           result: GameResult(
             gameMode: 'wildcard',
             results: results,
+            detailEntry: detailEntry,
             // Chart lines index by seat; a changed roster misaligns them —
             // suppress instead of mislabeling.
             throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
