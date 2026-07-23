@@ -33,6 +33,7 @@ import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+import '../utils/dossedart_player_accents.dart';
 
 class ShanghaiGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -178,11 +179,6 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
         return 'miss';
     }
   }
-
-  /// In-progress turn's darts joined live (e.g. "S5 · S6 · MISS"); falls back
-  /// to the active player's previous turn between turns.
-  String? get _stripTurnLabel =>
-      throwHistory.recentTurnLabel(engine.currentPlayerIndex);
 
   void _onHit(HitType type) {
     if (engine.gameOver) return;
@@ -763,31 +759,16 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
               DossedartActiveStrip(
                 playerName: players[engine.currentPlayerIndex].name,
                 avatarPath: players[engine.currentPlayerIndex].avatarPath,
-                accentColor: DossedartTokens.cyan,
+                accentColor: dossedartAccent(engine.currentPlayerIndex),
                 dartsInTurn: engine.dartNumber,
-                lastThrowLabel: _stripTurnLabel,
-                trailing: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('TOTAL',
-                        style: TextStyle(
-                            fontFamily: 'VT323',
-                            fontSize: 12,
-                            color: Colors.white54,
-                            letterSpacing: 2)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${engine.totalScores[engine.currentPlayerIndex]}',
-                      style: const TextStyle(
-                        fontFamily: 'PressStart2P',
-                        fontSize: 36,
-                        color: DossedartTokens.cyan,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                modeSlot: DossedartStripSlot(
+                  label: 'ROUND ${engine.currentTarget}',
+                  value: 'TARGET ${engine.currentTarget}',
+                  subLine:
+                      'S${engine.currentTarget} · D${engine.currentTarget * 2} · T${engine.currentTarget * 3}',
                 ),
+                scoreLabel: 'TOTAL',
+                scoreValue: '${engine.totalScores[engine.currentPlayerIndex]}',
               ),
               _shanghaiStandings(),
               _shanghaiBanner(),

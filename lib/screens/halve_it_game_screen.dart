@@ -33,6 +33,7 @@ import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+import '../utils/dossedart_player_accents.dart';
 
 class HalveItGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -377,12 +378,6 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
-  /// In-progress turn's darts joined live (e.g. "S5 \u00b7 S6 \u00b7 MISS"); falls back
-  /// to the active player's previous turn between turns. Per-dart suffixes
-  /// ("\u2713 (+points)") are dropped \u2014 they do not fit the joined 3-dart row.
-  String? get _stripTurnLabel =>
-      throwHistory.recentTurnLabel(currentPlayerIndex);
-
   void _undo() {
     if (throwHistory.isEmpty || _undoStack.isEmpty) return;
     final undoneThrow = throwHistory.last;
@@ -706,31 +701,18 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
               DossedartActiveStrip(
                 playerName: players[currentPlayerIndex].name,
                 avatarPath: players[currentPlayerIndex].avatarPath,
-                accentColor: DossedartTokens.cyan,
+                accentColor: dossedartAccent(currentPlayerIndex),
                 dartsInTurn: dartsInTurn,
-                lastThrowLabel: _stripTurnLabel,
-                trailing: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('TARGET',
-                        style: TextStyle(
-                            fontFamily: 'VT323',
-                            fontSize: 12,
-                            color: Colors.white54,
-                            letterSpacing: 2)),
-                    const SizedBox(height: 4),
-                    Text(
-                      rounds[currentRoundIndex].label.toUpperCase(),
-                      style: const TextStyle(
-                        fontFamily: 'PressStart2P',
-                        fontSize: 20,
-                        color: DossedartTokens.yellow,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                modeSlot: DossedartStripSlot(
+                  label: 'TARGET',
+                  value: rounds[currentRoundIndex].label.toUpperCase(),
+                  subLine:
+                      'MISS HALVES ${totalScores[currentPlayerIndex]} › ${totalScores[currentPlayerIndex] ~/ 2}',
+                  subLineColor: DossedartTokens.red,
                 ),
+                scoreLabel: 'POINTS',
+                scoreValue: '${totalScores[currentPlayerIndex]}',
+                smallScore: true,
               ),
               _splitJeopardyBar(),
               // The scorecard shrink-wraps to its content (the inner Column

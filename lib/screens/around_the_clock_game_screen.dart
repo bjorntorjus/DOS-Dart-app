@@ -32,6 +32,7 @@ import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
+import '../utils/dossedart_player_accents.dart';
 
 /// Progress arc for the DOSSEDART clock-ring centre: a faint full track with a
 /// green arc covering the fraction of targets the active player has completed.
@@ -831,12 +832,6 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     return last3.map((t) => t.shortLabel).join(' \u00b7 ');
   }
 
-  /// In-progress turn's darts joined live (e.g. "S5 \u00b7 S6 \u00b7 MISS"); falls back
-  /// to the active player's previous turn between turns. Per-dart suffixes
-  /// ("+2 steps") are dropped \u2014 they do not fit the joined 3-dart row.
-  String? get _stripTurnLabel =>
-      throwHistory.recentTurnLabel(currentPlayerIndex);
-
   void _undo() {
     if (throwHistory.isEmpty) return;
     // Sudden death cannot be rewound: targets were reset when it started, so
@@ -1158,6 +1153,31 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     return nums;
   }
 
+  /// 'BULL' for 25, plain number otherwise.
+  String _atcTargetLabel(int target) => target == 25 ? 'BULL' : '$target';
+
+  /// Up to the next 3 targets after the active player's current one, joined
+  /// with ' › '; 'THEN —' once the sequence is exhausted.
+  String _atcThenLine() {
+    final seq = _atcSequence();
+    final activeIdx = seq.indexOf(currentTargets[currentPlayerIndex]);
+    if (activeIdx < 0) return 'THEN —';
+    final upcoming = seq.sublist(
+        min(activeIdx + 1, seq.length), min(activeIdx + 4, seq.length));
+    if (upcoming.isEmpty) return 'THEN —';
+    return 'THEN ${upcoming.map(_atcTargetLabel).join(' › ')}';
+  }
+
+  /// How many targets [playerIndex] has already cleared (matches the clock
+  /// ring's doneCount).
+  int _atcHitCount(int playerIndex) {
+    final seq = _atcSequence();
+    final idx = seq.indexOf(currentTargets[playerIndex]);
+    return idx < 0 ? seq.length : idx;
+  }
+
+  int _atcTotalTargets() => _atcSequence().length;
+
   Widget _buildDossedartCockpit(BuildContext context) {
     final dir = _isReverse ? '20→1' : '1→20';
     final title = 'CLOCK · $dir${widget.config.includeBull ? ' · +BULL' : ''}';
@@ -1175,33 +1195,16 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
               DossedartActiveStrip(
                 playerName: players[currentPlayerIndex].name,
                 avatarPath: players[currentPlayerIndex].avatarPath,
-                accentColor: DossedartTokens.cyan,
+                accentColor: dossedartAccent(currentPlayerIndex),
                 dartsInTurn: dartsInTurn,
-                lastThrowLabel: _stripTurnLabel,
-                trailing: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('TARGET',
-                        style: TextStyle(
-                            fontFamily: 'VT323',
-                            fontSize: 12,
-                            color: Colors.white54,
-                            letterSpacing: 2)),
-                    const SizedBox(height: 4),
-                    Text(
-                      currentTargets[currentPlayerIndex] == 25
-                          ? 'BULL'
-                          : '${currentTargets[currentPlayerIndex]}',
-                      style: const TextStyle(
-                        fontFamily: 'PressStart2P',
-                        fontSize: 28,
-                        color: DossedartTokens.cyan,
-                        height: 1,
-                      ),
-                    ),
-                  ],
+                modeSlot: DossedartStripSlot(
+                  label: 'TARGET',
+                  value: _atcTargetLabel(currentTargets[currentPlayerIndex]),
+                  subLine: _atcThenLine(),
                 ),
+                scoreLabel: 'PROGRESS',
+                scoreValue: '${_atcHitCount(currentPlayerIndex)}/${_atcTotalTargets()}',
+                smallScore: true,
               ),
               Expanded(child: Padding(
                 padding: const EdgeInsets.all(16),
