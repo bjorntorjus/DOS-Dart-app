@@ -5,6 +5,7 @@ import 'package:dart_scoring/widgets/dossedart/golf/golf_input_cells.dart';
 import 'package:dart_scoring/widgets/dossedart/golf/golf_leaderboard.dart';
 import 'package:dart_scoring/widgets/dossedart/golf/golf_scorecard.dart';
 import 'package:dart_scoring/widgets/dossedart/golf/golf_status_plate.dart';
+import 'package:dart_scoring/widgets/dossedart/golf/golf_sudden_death_chain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -578,95 +579,200 @@ void main() {
     });
   });
 
-  group('GolfScorecardStrip', () {
-    testWidgets('colours played holes and highlights the current one', (
-      tester,
-    ) async {
+  group('GolfScorecardStrip v3 (18-hole swipe + auto-center)', () {
+    // Pumped at a fixed width so the auto-center clamp-formula assertions
+    // below are deterministic: viewport = 820 - 32 (16+16 margin) = 788,
+    // cell stride = 72 + 6 = 78. The default flutter_test surface is only
+    // 800x600 logical px, which would silently clip an 820-wide SizedBox —
+    // widen the surface so the full 820px is actually available.
+    const stripWidth = 820.0;
+
+    Future<void> pumpStrip(
+      WidgetTester tester, {
+      required List<int?> strokes,
+      required int currentHole,
+      VoidCallback? onExpand,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(900, 300));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GolfScorecardStrip(
-              strokes: [1, 4, null, null, null, null, null, null, null],
-              currentHole: 2,
-              onExpand: () {},
+            body: SizedBox(
+              width: stripWidth,
+              child: GolfScorecardStrip(
+                strokes: strokes,
+                currentHole: currentHole,
+                onExpand: onExpand ?? () {},
+              ),
             ),
           ),
         ),
       );
-      expect(find.text('1'), findsWidgets); // hole numbers render
+    }
+
+    ScrollableState scrollableOf(WidgetTester tester) =>
+        tester.state<ScrollableState>(find.byType(Scrollable));
+
+    testWidgets('pins to 96px tall', (tester) async {
+      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 0);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(find.byKey(const Key('golfScorecardStripBody'))).height,
+        96,
+      );
+    });
+
+    testWidgets('renders all 18 holes as cells', (tester) async {
+      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 0);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('golf-hole-0-current')), findsOneWidget);
+      // Jump the scroll to the tail to bring hole 18 fully into view.
+      final scrollable = scrollableOf(tester);
+      scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('golf-hole-17-empty')), findsOneWidget);
+    });
+
+    testWidgets('colours played holes and highlights the current one', (
+      tester,
+    ) async {
+      await pumpStrip(
+        tester,
+        strokes: [
+          1, 4, null, null, null, null, null, null, null,
+          null, null, null, null, null, null, null, null, null,
+        ],
+        currentHole: 2,
+      );
+      await tester.pumpAndSettle();
       // played cells get term colour, unplayed are empty — assert by key:
       expect(find.byKey(const ValueKey('golf-hole-0-played')), findsOneWidget);
       expect(find.byKey(const ValueKey('golf-hole-2-current')), findsOneWidget);
     });
 
-    testWidgets('windows to 7 holes centred on the current hole', (
+    testWidgets(
+      'only the SCORECARD chip triggers onExpand — a cell tap does not',
+      (tester) async {
+        var expandCount = 0;
+        await pumpStrip(
+          tester,
+          strokes: List<int?>.filled(18, null),
+          currentHole: 0,
+          onExpand: () => expandCount++,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('golf-hole-5-empty')));
+        await tester.pump();
+        expect(expandCount, 0);
+        await tester.tap(find.text('SCORECARD ▸'));
+        await tester.pump();
+        expect(expandCount, 1);
+      },
+    );
+
+    testWidgets('auto-centers the current hole per the clamp formula', (
       tester,
     ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: GolfScorecardStrip(
-              strokes: List<int?>.filled(18, null),
-              currentHole: 10, // hole 11 (1-based)
-              onExpand: () {},
-            ),
-          ),
-        ),
-      );
-      expect(find.text('YOUR CARD · HOLES 8–14'), findsOneWidget);
+      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 9);
+      await tester.pumpAndSettle();
+      // target = 9*78 - (788-72)/2 = 702 - 358 = 344 (well inside [0, maxExtent]).
+      expect(scrollableOf(tester).position.pixels, closeTo(344, 1));
+    });
+
+    testWidgets('clamps to 0 for hole 1 (front edge)', (tester) async {
+      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 0);
+      await tester.pumpAndSettle();
+      expect(scrollableOf(tester).position.pixels, closeTo(0, 1));
+    });
+
+    testWidgets('clamps to maxScrollExtent for hole 18 (back edge)', (
+      tester,
+    ) async {
+      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 17);
+      await tester.pumpAndSettle();
+      final scrollable = scrollableOf(tester);
       expect(
-        find.byKey(const ValueKey('golf-hole-10-current')),
-        findsOneWidget,
+        scrollable.position.pixels,
+        closeTo(scrollable.position.maxScrollExtent, 1),
       );
-      // Hole index 6 (hole 7) is outside the 8-14 window — not rendered.
-      expect(find.byKey(const ValueKey('golf-hole-6-empty')), findsNothing);
     });
 
-    testWidgets('clamps the window at the front edge', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: GolfScorecardStrip(
+    testWidgets('re-centers when currentHole changes (didUpdateWidget)', (
+      tester,
+    ) async {
+      final key = GlobalKey();
+      Widget build(int hole) => MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: stripWidth,
+            child: GolfScorecardStrip(
+              key: key,
               strokes: List<int?>.filled(18, null),
-              currentHole: 1, // hole 2 — too close to the front to centre
+              currentHole: hole,
               onExpand: () {},
             ),
           ),
         ),
       );
-      expect(find.text('YOUR CARD · HOLES 1–7'), findsOneWidget);
+      await tester.binding.setSurfaceSize(const Size(900, 300));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(build(0));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(build(17));
+      await tester.pumpAndSettle();
+      final scrollable = scrollableOf(tester);
+      expect(
+        scrollable.position.pixels,
+        closeTo(scrollable.position.maxScrollExtent, 1),
+      );
+    });
+  });
+
+  group('GolfSuddenDeathChain', () {
+    Widget buildChain(int stage) => MaterialApp(
+      home: Scaffold(body: GolfSuddenDeathChain(stage: stage)),
+    );
+
+    testWidgets('pins to 96px tall', (tester) async {
+      await tester.pumpWidget(buildChain(0));
+      expect(
+        tester.getSize(find.byKey(const Key('golfSuddenDeathChainBody'))).height,
+        96,
+      );
     });
 
-    testWidgets('clamps the window at the back edge', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: GolfScorecardStrip(
-              strokes: List<int?>.filled(18, null),
-              currentHole: 16, // hole 17 — too close to the back to centre
-              onExpand: () {},
-            ),
-          ),
-        ),
-      );
-      expect(find.text('YOUR CARD · HOLES 12–18'), findsOneWidget);
+    testWidgets('names the header: SUDDEN DEATH + TIE ▸ NEXT', (tester) async {
+      await tester.pumpWidget(buildChain(0));
+      expect(find.text('SUDDEN DEATH'), findsOneWidget);
+      expect(find.text('TIE ▸ NEXT'), findsOneWidget);
     });
 
-    testWidgets('the SCORECARD affordance triggers onExpand', (tester) async {
-      var expanded = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: GolfScorecardStrip(
-              strokes: List<int?>.filled(9, null),
-              currentHole: 0,
-              onExpand: () => expanded = true,
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('SCORECARD ▸'));
-      expect(expanded, isTrue);
+    testWidgets('stage 0 (19 live): NOW on 19, dots on 20/BULL', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildChain(0));
+      expect(find.text('▶ NOW'), findsOneWidget);
+      expect(find.text('✓ TIED'), findsNothing);
+      expect(find.text('·'), findsNWidgets(2));
+    });
+
+    testWidgets('stage 1 (20 live): 19 tied, NOW on 20, dot on BULL', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildChain(1));
+      expect(find.text('✓ TIED'), findsOneWidget);
+      expect(find.text('▶ NOW'), findsOneWidget);
+      expect(find.text('·'), findsOneWidget);
+    });
+
+    testWidgets('stage 2 (BULL live): 19 and 20 tied, NOW on BULL', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildChain(2));
+      expect(find.text('✓ TIED'), findsNWidgets(2));
+      expect(find.text('▶ NOW'), findsOneWidget);
+      expect(find.text('·'), findsNothing);
     });
   });
 
