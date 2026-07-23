@@ -53,6 +53,8 @@ class DossedartStripSlot extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontFamily: 'PressStart2P',
                     fontSize: 7,
@@ -145,7 +147,12 @@ class DossedartActiveStrip extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // flex:2 vs. the mode slot's flex:1 below — the player identity
+            // (avatar + pips) has a hard, non-shrinkable minimum width, so it
+            // gets priority for whatever squeeze room is left; the mode slot
+            // is the one designed to give way first.
             Expanded(
+              flex: 2,
               child: DossedartOverviewHeader(
                 playerName: playerName,
                 avatarPath: avatarPath,
@@ -154,7 +161,17 @@ class DossedartActiveStrip extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            modeSlot,
+            // Below tablet width the mode slot can no longer claim its full
+            // 212px unconditionally: Flexible lets it shrink under squeeze
+            // while the ConstrainedBox pins the max so the 820px look is
+            // unchanged (DossedartStripSlot's own fixed-width Container
+            // still renders at exactly 212 whenever that much room exists).
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 212),
+                child: modeSlot,
+              ),
+            ),
             Container(
               padding: const EdgeInsets.only(left: 16),
               decoration: BoxDecoration(
@@ -168,22 +185,28 @@ class DossedartActiveStrip extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(scoreLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontFamily: 'PressStart2P',
                           fontSize: 7,
                           color: Colors.white.withValues(alpha: 0.45),
                           letterSpacing: 1)),
                   const SizedBox(height: 5),
-                  Text(scoreValue,
-                      style: TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: smallScore ? 22 : 30,
-                          color: c,
-                          shadows: [
-                            Shadow(
-                                color: c.withValues(alpha: 0.5),
-                                blurRadius: 12)
-                          ])),
+                  Flexible(
+                    child: Text(scoreValue,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontFamily: 'PressStart2P',
+                            fontSize: smallScore ? 22 : 30,
+                            color: c,
+                            shadows: [
+                              Shadow(
+                                  color: c.withValues(alpha: 0.5),
+                                  blurRadius: 12)
+                            ])),
+                  ),
                 ],
               ),
             ),

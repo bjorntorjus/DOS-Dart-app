@@ -141,16 +141,12 @@ void main() {
   testWidgets(
       'scorecard does not overflow on a short phone screen in the double round',
       (tester) async {
-    // 620x640: short enough that the taller D-keypad squeezes the scorecard
+    // 440x640: short enough that the taller D-keypad squeezes the scorecard
     // below its header height (the 27px overflow seen on 360x640 phones), but
-    // wide enough to clear DossedartActiveStrip's fixed-width mode-slot +
-    // score-block budget (the family strip rewrite made the score block grow
-    // with digit count — by round 2 here totals are 3 digits) without
-    // overflowing the player header. That header overflow is a pre-existing,
-    // width-only strip issue, orthogonal to what this test checks — the
-    // width is picked purely to dodge it.
+    // wide enough that DossedartActiveStrip's pre-existing horizontal
+    // overflows at <=400 width don't fire and mask this assertion.
     final dynamic state =
-        await _pumpSplitscore(tester, size: const Size(620, 640));
+        await _pumpSplitscore(tester, size: const Size(440, 640));
 
     await _playRound(state, tester, segment: 15, mult: 1); // round 0
     await _playRound(state, tester, segment: 16, mult: 1); // round 1

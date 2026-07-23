@@ -85,13 +85,17 @@ class DossedartOverviewHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                   ],
-                  Text(
-                    'DART ${min(dartsThrown + 1, 3)}/3',
-                    style: const TextStyle(
-                      fontFamily: 'VT323',
-                      fontSize: 13,
-                      color: Colors.white54,
-                      letterSpacing: 1,
+                  Flexible(
+                    child: Text(
+                      'DART ${min(dartsThrown + 1, 3)}/3',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'VT323',
+                        fontSize: 13,
+                        color: Colors.white54,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
                 ],

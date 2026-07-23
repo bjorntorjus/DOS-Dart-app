@@ -88,6 +88,21 @@ void main() {
     expect(find.text('58'), findsOneWidget);
   });
 
+  testWidgets(
+      'lays out without overflow at 412px (old safe boundary) with a '
+      '3-digit score', (tester) async {
+    tester.view.physicalSize = const Size(412, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(host(strip(
+      scoreValue: '168',
+      slot: const DossedartStripSlot(
+          label: 'LAST TURN', value: 'T18 · 18 · ✗', subLine: '= 4 MARKS'),
+    )));
+    expect(tester.takeException(), isNull,
+        reason: 'the strip must not overflow at the 412px old safe boundary');
+  });
+
   testWidgets('dimmed slot renders at 0.34 opacity', (tester) async {
     tester.view.physicalSize = const Size(820, 1180);
     tester.view.devicePixelRatio = 1.0;
