@@ -958,4 +958,34 @@ void main() {
     expect(find.text('TOTAL'), findsOneWidget);
     expect(find.text('ACE'), findsOneWidget); // legend
   });
+
+  group('GolfScoreGrid (standalone, post-game v2 Task 4)', () {
+    testWidgets('renders names, PAR row and legend outside any modal', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GolfScoreGrid(
+              names: const ['Amund', 'Kirsti'],
+              scorecards: const [
+                [1, 3, null],
+                [6, 3, null],
+              ],
+              totals: const [4, 9],
+              vsPars: const [-2, 3],
+              skippedSeats: const {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('AMUND'), findsOneWidget);
+      expect(find.text('KIRSTI'), findsOneWidget);
+      expect(find.text('PAR'), findsNWidgets(2)); // grid par row + legend
+      expect(find.text('TOTAL'), findsOneWidget);
+      expect(find.text('ACE'), findsOneWidget); // legend
+      expect(find.text('TRIPLE BOGEY'), findsOneWidget); // legend
+    });
+  });
 }

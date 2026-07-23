@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dart_scoring/models/dart_throw.dart';
 import 'package:dart_scoring/models/game_result.dart';
 import 'package:dart_scoring/screens/post_game_screen.dart';
+import 'package:dart_scoring/widgets/dossedart/golf/golf_scorecard.dart';
 import 'package:dart_scoring/widgets/dossedart/progression_chart.dart';
 
 /// Post-game v2 Task 2: `_buildStats` had a missing `case 'shanghai':` (its
@@ -188,5 +189,135 @@ void main() {
 
     expect(find.textContaining('1st-dart: 3/9'), findsOneWidget);
     expect(find.textContaining('1st-dart: 0/0'), findsNothing);
+  });
+
+  group('golfTermDist (post-game v2 Task 4)', () {
+    test('counts strokes into A/B/P/B+, omitting zero categories, ignoring nulls', () {
+      expect(golfTermDist([1, 2, 3, 3, 4, 6, null]), 'A1 B1 P2 B+2');
+    });
+
+    test('returns null when nothing has been played', () {
+      expect(golfTermDist([null, null, null]), isNull);
+    });
+
+    test('returns null for an empty card', () {
+      expect(golfTermDist(const []), isNull);
+    });
+  });
+
+  group('Golf SCORECARD section (post-game v2 Task 4)', () {
+    Map<String, dynamic> golfExtras() => {
+          'names': ['A', 'B'],
+          'scorecards': [
+            [1, 3, null],
+            [6, 3, null],
+          ],
+          'totals': [4, 9],
+          'vsPars': [-2, 3],
+          'skippedSeats': <int>{},
+        };
+
+    testWidgets('present for golf when modeExtras is set', (tester) async {
+      // The SCORECARD grid pushes the stats card off a default 600px
+      // viewport (RenderFlex overflow) — same tall-viewport fix as the
+      // SCORE PER ROUND chart tests above.
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final result = GameResult(
+        gameMode: 'golf',
+        results: [
+          PlayerResult(
+            name: 'A',
+            placement: 1,
+            stats: const {'strokes': 4, 'vsPar': -2},
+          ),
+          PlayerResult(
+            name: 'B',
+            placement: 2,
+            stats: const {'strokes': 9, 'vsPar': 3},
+          ),
+        ],
+        modeExtras: golfExtras(),
+      );
+
+      await tester
+          .pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SCORECARD'), findsOneWidget);
+      expect(find.byType(GolfScoreGrid), findsOneWidget);
+    });
+
+    testWidgets('absent for golf without modeExtras', (tester) async {
+      final result = GameResult(
+        gameMode: 'golf',
+        results: [
+          PlayerResult(name: 'A', placement: 1, stats: const {'strokes': 4}),
+        ],
+      );
+
+      await tester
+          .pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SCORECARD'), findsNothing);
+      expect(find.byType(GolfScoreGrid), findsNothing);
+    });
+
+    testWidgets('absent for a non-golf mode even if modeExtras were set', (
+      tester,
+    ) async {
+      final result = GameResult(
+        gameMode: 'x01',
+        results: [
+          PlayerResult(name: 'A', placement: 1, stats: const {'darts': 3}),
+        ],
+        modeExtras: golfExtras(),
+      );
+
+      await tester
+          .pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SCORECARD'), findsNothing);
+      expect(find.byType(GolfScoreGrid), findsNothing);
+    });
+
+    testWidgets('termDist renders as a Terms: row in the stats line', (
+      tester,
+    ) async {
+      // The SCORECARD grid pushes the stats card off a default 600px
+      // viewport (RenderFlex overflow) — same tall-viewport fix as the
+      // SCORE PER ROUND chart tests above.
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final result = GameResult(
+        gameMode: 'golf',
+        results: [
+          PlayerResult(
+            name: 'A',
+            placement: 1,
+            stats: const {
+              'strokes': 27,
+              'vsPar': 0,
+              'termDist': 'A1 B1 P2 B+2',
+            },
+          ),
+        ],
+        modeExtras: golfExtras(),
+      );
+
+      await tester
+          .pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Terms: A1 B1 P2 B+2'), findsOneWidget);
+    });
   });
 }

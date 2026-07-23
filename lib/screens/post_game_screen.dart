@@ -1,12 +1,44 @@
 import 'package:flutter/material.dart';
 import '../models/game_result.dart';
 import '../stats/mode_progression.dart';
+import '../widgets/dossedart/golf/golf_scorecard.dart';
 import '../widgets/dossedart/progression_chart.dart';
 import '../widgets/player_avatar.dart';
 
 /// Golf's vs-par display: 'E' at even, '+n' over, 'n' (with the leading '-'
 /// already in the int's string form) under.
 String vsParText(dynamic v) => v == null || v == 0 ? 'E' : (v > 0 ? '+$v' : '$v');
+
+/// Per-player term-distribution for Golf's post-game stats: counts each
+/// played hole's stroke score into ACE (1) / BIRDIE (2) / PAR (3) / BOGEY-
+/// or-worse (4-6), omitting categories with zero count and ignoring
+/// not-yet-played (`null`) holes. Returns null when nothing has been played
+/// (nothing to show) — a pure, unit-testable helper so `golf_game_screen.dart`
+/// can compute it into `PlayerResult.stats['termDist']` without duplicating
+/// the counting logic.
+String? golfTermDist(List<int?> card) {
+  var aces = 0, birdies = 0, pars = 0, bogeyPlus = 0;
+  for (final stroke in card) {
+    if (stroke == null) continue;
+    switch (stroke) {
+      case 1:
+        aces++;
+      case 2:
+        birdies++;
+      case 3:
+        pars++;
+      default:
+        bogeyPlus++;
+    }
+  }
+  final parts = <String>[
+    if (aces != 0) 'A$aces',
+    if (birdies != 0) 'B$birdies',
+    if (pars != 0) 'P$pars',
+    if (bogeyPlus != 0) 'B+$bogeyPlus',
+  ];
+  return parts.isEmpty ? null : parts.join(' ');
+}
 
 class PostGameScreen extends StatelessWidget {
   final GameResult result;
@@ -28,6 +60,11 @@ class PostGameScreen extends StatelessWidget {
             result.progressionMode != null
         ? progressionForMode(result.progressionMode!, result.throwHistory!)
         : null;
+
+    // Golf's embedded scorecard grid (post-game v2) — mode opt-in via
+    // `modeExtras`, same shape it feeds `showGolfScoreSheet` in-game.
+    final golfExtras =
+        result.gameMode == 'golf' ? result.modeExtras : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +109,43 @@ class PostGameScreen extends StatelessWidget {
               ],
             ),
           ),
+
+          // Golf's SCORECARD section (post-game v2) — embeds the same grid
+          // shown in-game via `showGolfScoreSheet`, between the winner banner
+          // and the placements list.
+          if (golfExtras != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SCORECARD',
+                    style: TextStyle(
+                      color: cs.tertiary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // GolfScoreGrid owns its own horizontal scroll for the
+                  // hole-by-hole table (matches the in-game modal sheet) —
+                  // an outer horizontal scroller here would hand it
+                  // unbounded width and blow up its stretched Column.
+                  GolfScoreGrid(
+                    names: List<String>.from(golfExtras['names'] as List),
+                    scorecards: (golfExtras['scorecards'] as List)
+                        .map((row) => List<int?>.from(row as List))
+                        .toList(),
+                    totals: List<int>.from(golfExtras['totals'] as List),
+                    vsPars: List<int>.from(golfExtras['vsPars'] as List),
+                    skippedSeats:
+                        Set<int>.from(golfExtras['skippedSeats'] as Set),
+                  ),
+                ],
+              ),
+            ),
 
           // Stats skipped notice
           if (result.statsSkipped)
@@ -320,6 +394,7 @@ class _PlayerResultTile extends StatelessWidget {
         if (stats['holesPlayed'] != null && stats['holesPlayed'] != 0) {
           entries.add('1st-dart: ${stats['firstDartHits'] ?? 0}/${stats['holesPlayed']}');
         }
+        if (stats['termDist'] != null) entries.add('Terms: ${stats['termDist']}');
       case 'shanghai':
         if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['bestRound'] != null && stats['bestRound'] != 0) entries.add('Best round: ${stats['bestRound']}');

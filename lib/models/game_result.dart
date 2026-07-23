@@ -43,6 +43,11 @@ class GameResult {
   /// from [throwHistory]. Null unless [throwHistory] is also provided.
   final String? progressionMode;
 
+  /// Mode-specific extra data for optional embedded widgets on
+  /// [PostGameScreen] (e.g. Golf's `GolfScoreGrid` scorecard section). Null
+  /// for every mode that doesn't opt in — zero impact elsewhere.
+  final Map<String, dynamic>? modeExtras;
+
   GameResult({
     required this.gameMode,
     required this.results,
@@ -51,5 +56,6 @@ class GameResult {
     this.canUndo = true,
     this.throwHistory,
     this.progressionMode,
+    this.modeExtras,
   });
 }

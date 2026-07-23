@@ -592,6 +592,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             'firstDartHits': engine.firstDartHits[i],
             'holesPlayed': engine.holesCompleted(i),
             if (engine.bestHole[i] != null) 'bestHole': engine.bestHole[i],
+            if (golfTermDist(engine.scorecards[i]) != null)
+              'termDist': golfTermDist(engine.scorecards[i]),
           },
           ratingBefore: players[i].savedPlayerId != null
               ? _ratingsBefore[players[i].savedPlayerId!]
@@ -614,6 +616,18 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             // suppress instead of mislabeling.
             throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
             progressionMode: _midGamePlayerChanges ? null : 'golf',
+            // Same shape _openScoreSheet feeds showGolfScoreSheet in-game,
+            // restricted to `order` (placement-sorted, non-skipped seats
+            // only) — a removed mid-game player must be excluded from the
+            // result screen entirely (same bar as `results` above), not
+            // merely dimmed the way the in-game modal sheet shows them.
+            modeExtras: {
+              'names': [for (final i in order) players[i].name],
+              'scorecards': [for (final i in order) engine.scorecards[i]],
+              'totals': [for (final i in order) engine.total(i)],
+              'vsPars': [for (final i in order) engine.vsPar(i)],
+              'skippedSeats': const <int>{},
+            },
           ),
         ),
       ),
