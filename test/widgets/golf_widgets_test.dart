@@ -11,23 +11,30 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('GolfInputCells', () {
-    testWidgets('renders S/D/T cells with terms for a normal hole', (
+    testWidgets('renders S/D/T + MISS cells (4) with terms for a normal hole', (
       tester,
     ) async {
       int? tapped;
+      var missed = false;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GolfInputCells(targetNumber: 7, onHit: (m) => tapped = m),
+            body: GolfInputCells(
+              targetNumber: 7,
+              onHit: (m) => tapped = m,
+              onMiss: () => missed = true,
+            ),
           ),
         ),
       );
       expect(find.text('S7'), findsOneWidget);
       expect(find.text('D7'), findsOneWidget);
       expect(find.text('T7'), findsOneWidget);
+      expect(find.text('✗'), findsOneWidget);
       expect(find.text('ACE'), findsOneWidget);
       await tester.tap(find.text('T7'));
       expect(tapped, 3);
+      expect(missed, isFalse);
     });
 
     testWidgets('names the console and states the live target — one line', (
@@ -35,46 +42,88 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(body: GolfInputCells(targetNumber: 7, onHit: (_) {})),
+          home: Scaffold(
+            body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+          ),
         ),
       );
       expect(find.text('▼ TAP TO SCORE'), findsOneWidget);
       expect(find.textContaining('THROW AT 7'), findsOneWidget);
     });
 
-    testWidgets('shows the copy-delta miss caption (rules v2: miss = +1)', (
-      tester,
-    ) async {
+    testWidgets('the old footer miss caption is gone', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(body: GolfInputCells(targetNumber: 7, onHit: (_) {})),
+          home: Scaffold(
+            body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+          ),
         ),
       );
-      expect(find.text('✗ MISS = +1 STROKE'), findsOneWidget);
+      expect(find.textContaining('MISS = +1 STROKE'), findsNothing);
     });
 
-    testWidgets(
-      'renders two cells for a Bull playoff — 25/50 labels, no triple',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: GolfInputCells(targetNumber: 25, onHit: (_) {}),
+    testWidgets('the ✗ cell states the engine-true miss cost and fires '
+        'onMiss, never onHit', (tester) async {
+      int? tapped;
+      var missed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GolfInputCells(
+              targetNumber: 7,
+              onHit: (m) => tapped = m,
+              onMiss: () => missed = true,
             ),
           ),
-        );
-        expect(find.text('25'), findsOneWidget);
-        expect(find.text('50'), findsOneWidget);
-        expect(find.text('T25'), findsNothing);
-        expect(find.text('BULL'), findsNothing); // cell label dropped in v2
-        expect(find.text('PAR'), findsOneWidget);
-        expect(find.text('BIRDIE'), findsOneWidget);
-        expect(
-          find.textContaining('THROW AT BULL'),
-          findsOneWidget,
-        ); // header still names the aim generically
-      },
-    );
+        ),
+      );
+      // A single miss only ever adds ONE stroke (GolfEngine.applyDart) — the
+      // fixed "5 strokes" artboard copy is only true for a 3rd-miss wash.
+      expect(find.text('+1 STROKE'), findsOneWidget);
+      await tester.tap(find.text('✗'));
+      expect(missed, isTrue);
+      expect(tapped, isNull);
+    });
+
+    testWidgets('pins to 220px tall', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+          ),
+        ),
+      );
+      expect(tester.getSize(find.byType(GolfInputCells)).height, 220);
+    });
+
+    testWidgets('renders three cells for a Bull playoff — 25/50/✗, no triple, '
+        'and the ✗ sub-label reads NO SCORE', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GolfInputCells(
+              targetNumber: 25,
+              onHit: (_) {},
+              onMiss: () {},
+              playoff: true,
+            ),
+          ),
+        ),
+      );
+      expect(find.text('25'), findsOneWidget);
+      expect(find.text('50'), findsOneWidget);
+      expect(find.text('✗'), findsOneWidget);
+      expect(find.text('T25'), findsNothing);
+      expect(find.text('BULL'), findsNothing); // cell label dropped in v2
+      expect(find.text('PAR'), findsOneWidget);
+      expect(find.text('BIRDIE'), findsOneWidget);
+      expect(find.text('NO SCORE'), findsOneWidget);
+      expect(find.text('+1 STROKE'), findsNothing);
+      expect(
+        find.textContaining('THROW AT BULL'),
+        findsOneWidget,
+      ); // header still names the aim generically
+    });
   });
 
   group('GolfHero v3 (244px hero, chips + status plate)', () {
@@ -407,7 +456,9 @@ void main() {
     testWidgets('pins height to header + n rows for n <= 5', (tester) async {
       for (final n in [2, 4, 5]) {
         await pumpBoard(tester, n: n);
-        final size = tester.getSize(find.byKey(const Key('golfLeaderboardBoard')));
+        final size = tester.getSize(
+          find.byKey(const Key('golfLeaderboardBoard')),
+        );
         expect(size.height, 34 + 56.0 * n + 2, reason: 'n=$n');
       }
     });
@@ -416,13 +467,13 @@ void main() {
       tester,
     ) async {
       await pumpBoard(tester, n: 6);
-      final size = tester.getSize(find.byKey(const Key('golfLeaderboardBoard')));
+      final size = tester.getSize(
+        find.byKey(const Key('golfLeaderboardBoard')),
+      );
       expect(size.height, 34 + 56.0 * 5 + 2);
     });
 
-    testWidgets('shows LOWEST WINS hint at 5 or fewer entries', (
-      tester,
-    ) async {
+    testWidgets('shows LOWEST WINS hint at 5 or fewer entries', (tester) async {
       await pumpBoard(tester, n: 5);
       expect(find.text('LOWEST WINS'), findsOneWidget);
       expect(find.textContaining('SCROLL'), findsNothing);
@@ -436,65 +487,65 @@ void main() {
       expect(find.text('LOWEST WINS'), findsNothing);
     });
 
-    testWidgets('the THROWING/TO PLAY status column is gone', (
-      tester,
-    ) async {
+    testWidgets('the THROWING/TO PLAY status column is gone', (tester) async {
       await pumpBoard(tester, n: 2);
       expect(find.text('▶ THROWING'), findsNothing);
       expect(find.textContaining('TO PLAY'), findsNothing);
     });
 
-    testWidgets('scrolling the 6-entry board reveals the 6th, highest-total name', (
-      tester,
-    ) async {
-      await pumpBoard(tester, n: 6);
-      // P0 has the highest total (100), so after the ascending sort it's
-      // the last (6th) row — cut off by the fixed 5-row window initially.
-      expect(find.text('P0'), findsNothing);
-      await tester.drag(find.byType(ListView), const Offset(0, -300));
-      await tester.pump();
-      expect(find.text('P0'), findsOneWidget);
-    });
+    testWidgets(
+      'scrolling the 6-entry board reveals the 6th, highest-total name',
+      (tester) async {
+        await pumpBoard(tester, n: 6);
+        // P0 has the highest total (100), so after the ascending sort it's
+        // the last (6th) row — cut off by the fixed 5-row window initially.
+        expect(find.text('P0'), findsNothing);
+        await tester.drag(find.byType(ListView), const Offset(0, -300));
+        await tester.pump();
+        expect(find.text('P0'), findsOneWidget);
+      },
+    );
 
-    testWidgets('sorts by total ascending and marks the leader row + this-hole chip', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: GolfLeaderboard(
-              entries: const [
-                GolfLeaderboardEntry(
-                  name: 'A',
-                  accent: Colors.cyan,
-                  total: 30,
-                  vsPar: 6,
-                  isActive: false,
-                  holeStroke: 3,
-                ),
-                GolfLeaderboardEntry(
-                  name: 'B',
-                  accent: Colors.pink,
-                  total: 24,
-                  vsPar: 0,
-                  isActive: true,
-                ),
-              ],
-              holeNumber: 10,
-              playoff: false,
+    testWidgets(
+      'sorts by total ascending and marks the leader row + this-hole chip',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: GolfLeaderboard(
+                entries: const [
+                  GolfLeaderboardEntry(
+                    name: 'A',
+                    accent: Colors.cyan,
+                    total: 30,
+                    vsPar: 6,
+                    isActive: false,
+                    holeStroke: 3,
+                  ),
+                  GolfLeaderboardEntry(
+                    name: 'B',
+                    accent: Colors.pink,
+                    total: 24,
+                    vsPar: 0,
+                    isActive: true,
+                  ),
+                ],
+                holeNumber: 10,
+                playoff: false,
+              ),
             ),
           ),
-        ),
-      );
-      expect(find.text('LEADERBOARD'), findsOneWidget);
-      // B has the lower total, so it leads and renders above A.
-      expect(
-        tester.getTopLeft(find.text('B')).dy,
-        lessThan(tester.getTopLeft(find.text('A')).dy),
-      );
-      expect(find.text('3'), findsOneWidget); // A's this-hole stroke chip
-      expect(find.text('·'), findsOneWidget); // B (active) hasn't played it
-    });
+        );
+        expect(find.text('LEADERBOARD'), findsOneWidget);
+        // B has the lower total, so it leads and renders above A.
+        expect(
+          tester.getTopLeft(find.text('B')).dy,
+          lessThan(tester.getTopLeft(find.text('A')).dy),
+        );
+        expect(find.text('3'), findsOneWidget); // A's this-hole stroke chip
+        expect(find.text('·'), findsOneWidget); // B (active) hasn't played it
+      },
+    );
 
     testWidgets('playoff header reads TIED LEADERS', (tester) async {
       await tester.pumpWidget(
@@ -615,7 +666,11 @@ void main() {
         tester.state<ScrollableState>(find.byType(Scrollable));
 
     testWidgets('pins to 96px tall', (tester) async {
-      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 0);
+      await pumpStrip(
+        tester,
+        strokes: List<int?>.filled(18, null),
+        currentHole: 0,
+      );
       await tester.pumpAndSettle();
       expect(
         tester.getSize(find.byKey(const Key('golfScorecardStripBody'))).height,
@@ -624,7 +679,11 @@ void main() {
     });
 
     testWidgets('renders all 18 holes as cells', (tester) async {
-      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 0);
+      await pumpStrip(
+        tester,
+        strokes: List<int?>.filled(18, null),
+        currentHole: 0,
+      );
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('golf-hole-0-current')), findsOneWidget);
       // Jump the scroll to the tail to bring hole 18 fully into view.
@@ -640,8 +699,24 @@ void main() {
       await pumpStrip(
         tester,
         strokes: [
-          1, 4, null, null, null, null, null, null, null,
-          null, null, null, null, null, null, null, null, null,
+          1,
+          4,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
         ],
         currentHole: 2,
       );
@@ -674,14 +749,22 @@ void main() {
     testWidgets('auto-centers the current hole per the clamp formula', (
       tester,
     ) async {
-      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 9);
+      await pumpStrip(
+        tester,
+        strokes: List<int?>.filled(18, null),
+        currentHole: 9,
+      );
       await tester.pumpAndSettle();
       // target = 9*78 - (788-72)/2 = 702 - 358 = 344 (well inside [0, maxExtent]).
       expect(scrollableOf(tester).position.pixels, closeTo(344, 1));
     });
 
     testWidgets('clamps to 0 for hole 1 (front edge)', (tester) async {
-      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 0);
+      await pumpStrip(
+        tester,
+        strokes: List<int?>.filled(18, null),
+        currentHole: 0,
+      );
       await tester.pumpAndSettle();
       expect(scrollableOf(tester).position.pixels, closeTo(0, 1));
     });
@@ -689,7 +772,11 @@ void main() {
     testWidgets('clamps to maxScrollExtent for hole 18 (back edge)', (
       tester,
     ) async {
-      await pumpStrip(tester, strokes: List<int?>.filled(18, null), currentHole: 17);
+      await pumpStrip(
+        tester,
+        strokes: List<int?>.filled(18, null),
+        currentHole: 17,
+      );
       await tester.pumpAndSettle();
       final scrollable = scrollableOf(tester);
       expect(
@@ -737,7 +824,9 @@ void main() {
     testWidgets('pins to 96px tall', (tester) async {
       await tester.pumpWidget(buildChain(0));
       expect(
-        tester.getSize(find.byKey(const Key('golfSuddenDeathChainBody'))).height,
+        tester
+            .getSize(find.byKey(const Key('golfSuddenDeathChainBody')))
+            .height,
         96,
       );
     });

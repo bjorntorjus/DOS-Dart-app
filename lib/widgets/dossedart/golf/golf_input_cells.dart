@@ -15,11 +15,19 @@ import 'golf_common.dart' show golfTermColor;
 /// (`targetNumber`/`onHit`/`enabled`) — only the surrounding chrome and the
 /// Bull cell labels changed (`25`/`50`, matching the dartboard segment
 /// values, instead of `BULL`/`D-BULL` — copy delta, term math unchanged).
+///
+/// Console v3 (2026-07-23): the console gains its own `✗` cell — misses are
+/// now registered from the SAME surface as hits instead of only via
+/// `DossedartActionBar`'s separate miss button (that button stays, this is
+/// an approved duplicate entry point). The footer caption explaining the
+/// miss cost is gone — the cost is stated on the cell itself now.
 class GolfInputCells extends StatelessWidget {
   const GolfInputCells({
     super.key,
     required this.targetNumber,
     required this.onHit,
+    required this.onMiss,
+    this.playoff = false,
     this.enabled = true,
   });
 
@@ -28,6 +36,17 @@ class GolfInputCells extends StatelessWidget {
 
   /// Multiplier hit: 1 = single, 2 = double, 3 = triple.
   final void Function(int multiplier) onHit;
+
+  /// Fires when the ✗ cell is tapped — never routes through [onHit].
+  final VoidCallback onMiss;
+
+  /// True during a sudden-death playoff hole — changes the ✗ cell's sub
+  /// copy from the regulation miss cost to `NO SCORE` (a playoff miss just
+  /// stacks toward this turn's eventual stroke count, same as regulation,
+  /// but the strokes aren't banked to the main scorecard/total the way a
+  /// regulation hole's are, so the artboard's regulation miss-cost copy
+  /// doesn't apply here).
+  final bool playoff;
   final bool enabled;
 
   bool get _isBull => targetNumber == 25;
@@ -35,32 +54,37 @@ class GolfInputCells extends StatelessWidget {
   List<_CellSpec> get _cells => _isBull
       ? [
           _CellSpec(
-              label: '25',
-              multiplier: 1,
-              term: golfTerm(3),
-              color: golfTermColor(3)),
+            label: '25',
+            multiplier: 1,
+            term: golfTerm(3),
+            color: golfTermColor(3),
+          ),
           _CellSpec(
-              label: '50',
-              multiplier: 2,
-              term: golfTerm(2),
-              color: golfTermColor(2)),
+            label: '50',
+            multiplier: 2,
+            term: golfTerm(2),
+            color: golfTermColor(2),
+          ),
         ]
       : [
           _CellSpec(
-              label: 'S$targetNumber',
-              multiplier: 1,
-              term: golfTerm(3),
-              color: golfTermColor(3)),
+            label: 'S$targetNumber',
+            multiplier: 1,
+            term: golfTerm(3),
+            color: golfTermColor(3),
+          ),
           _CellSpec(
-              label: 'D$targetNumber',
-              multiplier: 2,
-              term: golfTerm(2),
-              color: golfTermColor(2)),
+            label: 'D$targetNumber',
+            multiplier: 2,
+            term: golfTerm(2),
+            color: golfTermColor(2),
+          ),
           _CellSpec(
-              label: 'T$targetNumber',
-              multiplier: 3,
-              term: golfTerm(1),
-              color: golfTermColor(1)),
+            label: 'T$targetNumber',
+            multiplier: 3,
+            term: golfTerm(1),
+            color: golfTermColor(1),
+          ),
         ];
 
   @override
@@ -69,98 +93,101 @@ class GolfInputCells extends StatelessWidget {
       opacity: enabled ? 1 : 0.4,
       child: IgnorePointer(
         ignoring: !enabled,
-        child: Container(
-          decoration: BoxDecoration(
-            color: DossedartTokens.green.withValues(alpha: 0.03),
-            border: Border.all(color: DossedartTokens.green, width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: DossedartTokens.green.withValues(alpha: 0.28),
-                blurRadius: 24,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: DossedartTokens.green.withValues(alpha: 0.11),
-                  border: Border(
-                    bottom: BorderSide(
-                        color: DossedartTokens.green.withValues(alpha: 0.4)),
+        child: SizedBox(
+          height: 220,
+          child: Container(
+            decoration: BoxDecoration(
+              color: DossedartTokens.green.withValues(alpha: 0.03),
+              border: Border.all(color: DossedartTokens.green, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: DossedartTokens.green.withValues(alpha: 0.28),
+                  blurRadius: 24,
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DossedartTokens.green.withValues(alpha: 0.11),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: DossedartTokens.green.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                  // Wrap-proof (fix 2, cockpit v2 layout round): the pair must
+                  // never break to two lines at narrow widths — scale the row
+                  // down as a unit rather than letting it wrap.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '▼ TAP TO SCORE',
+                          style: TextStyle(
+                            fontFamily: 'PressStart2P',
+                            fontSize: 11,
+                            color: DossedartTokens.green,
+                            letterSpacing: 1.2,
+                            shadows: [
+                              Shadow(
+                                color: DossedartTokens.green.withValues(
+                                  alpha: 0.6,
+                                ),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '· THROW AT ${_isBull ? 'BULL' : targetNumber}',
+                          style: const TextStyle(
+                            fontFamily: 'VT323',
+                            fontSize: 16,
+                            color: Colors.white60,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                // Wrap-proof (fix 2, cockpit v2 layout round): the pair must
-                // never break to two lines at narrow widths — scale the row
-                // down as a unit rather than letting it wrap.
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '▼ TAP TO SCORE',
-                        style: TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 11,
-                          color: DossedartTokens.green,
-                          letterSpacing: 1.2,
-                          shadows: [
-                            Shadow(
-                              color:
-                                  DossedartTokens.green.withValues(alpha: 0.6),
-                              blurRadius: 8,
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        for (final cell in _cells)
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              child: _InputCell(spec: cell, onHit: onHit),
                             ),
-                          ],
+                          ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: _MissCell(onMiss: onMiss, playoff: playoff),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '· THROW AT ${_isBull ? 'BULL' : targetNumber}',
-                        style: const TextStyle(
-                          fontFamily: 'VT323',
-                          fontSize: 16,
-                          color: Colors.white60,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    for (final cell in _cells)
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: _InputCell(spec: cell, onHit: onHit),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  '✗ MISS = +1 STROKE',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'VT323',
-                    fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.5),
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -201,7 +228,10 @@ class _InputCell extends StatelessWidget {
           color: spec.color.withValues(alpha: 0.09),
           border: Border.all(color: spec.color, width: 3),
           boxShadow: [
-            BoxShadow(color: spec.color.withValues(alpha: 0.35), blurRadius: 16),
+            BoxShadow(
+              color: spec.color.withValues(alpha: 0.35),
+              blurRadius: 16,
+            ),
           ],
         ),
         child: Column(
@@ -214,7 +244,10 @@ class _InputCell extends StatelessWidget {
                 fontSize: 20,
                 color: spec.color,
                 shadows: [
-                  Shadow(color: spec.color.withValues(alpha: 0.7), blurRadius: 10),
+                  Shadow(
+                    color: spec.color.withValues(alpha: 0.7),
+                    blurRadius: 10,
+                  ),
                 ],
               ),
             ),
@@ -230,6 +263,77 @@ class _InputCell extends StatelessWidget {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The console's `✗` cell — same red chrome shape as the hit cells but its
+/// own colour (`DossedartTokens.red`) and its own tap target (`onMiss`,
+/// never [_InputCell.onHit]).
+///
+/// Sub-copy is engine-true, not the artboard's literal `5 STROKES`: a single
+/// miss only ever adds ONE stroke to whatever this turn eventually scores
+/// (`GolfEngine.applyDart`'s `strokes = (4 - multiplier) + missesThisHole`)
+/// — a fixed "5 strokes" cost is only true for a wash (3rd miss), which is a
+/// different, worse outcome than tapping ✗ once. During a sudden-death
+/// playoff hole the strokes aren't banked to the regulation scorecard/total
+/// at all until the hole resolves, so the artboard's `NO SCORE` copy is used
+/// instead.
+class _MissCell extends StatelessWidget {
+  const _MissCell({required this.onMiss, required this.playoff});
+
+  final VoidCallback onMiss;
+  final bool playoff;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = DossedartTokens.red;
+    return GestureDetector(
+      onTap: onMiss,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.09),
+          border: Border.all(color: color, width: 3),
+          boxShadow: [
+            BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 16),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '✗',
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 30,
+                color: color,
+                shadows: [Shadow(color: color, blurRadius: 10)],
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'MISS',
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 11,
+                color: Colors.white,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              playoff ? 'NO SCORE' : '+1 STROKE',
+              style: const TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 17,
+                color: Colors.white70,
+                letterSpacing: 1,
+              ),
+            ),
           ],
         ),
       ),

@@ -32,6 +32,8 @@ import '../widgets/dossedart/golf/golf_hero.dart';
 import '../widgets/dossedart/golf/golf_input_cells.dart';
 import '../widgets/dossedart/golf/golf_leaderboard.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
+import '../widgets/dossedart/golf/golf_status_plate.dart' show GolfPlateMode;
+import '../widgets/dossedart/golf/golf_sudden_death_chain.dart';
 import 'post_game_screen.dart';
 
 /// Zone label for a single recorded dart, v3 hero chip format: miss → '✗',
@@ -42,8 +44,11 @@ import 'post_game_screen.dart';
 String _golfDartLabel(DartThrow t) {
   if (t.multiplier == 0) return '✗';
   if (t.segment == 25) return t.multiplier == 2 ? '50' : '25';
-  final prefix =
-      t.multiplier == 3 ? 'T' : t.multiplier == 2 ? 'D' : 'S';
+  final prefix = t.multiplier == 3
+      ? 'T'
+      : t.multiplier == 2
+      ? 'D'
+      : 'S';
   return '$prefix${t.segment}';
 }
 
@@ -60,7 +65,11 @@ String _golfDartLabel(DartThrow t) {
 /// leaderboard; pure layout/copy reskin, no rule/state/flow changes — see
 /// `docs/design/dossedart-handoff/golf/v2/design_handoff_golf_cockpit_v2/HANDOVER.md`.
 class GolfGameScreen extends StatefulWidget {
-  const GolfGameScreen({super.key, required this.players, required this.config});
+  const GolfGameScreen({
+    super.key,
+    required this.players,
+    required this.config,
+  });
 
   final List<Player> players;
   final GolfConfig config;
@@ -143,11 +152,15 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   void initState() {
     super.initState();
     players = List.of(widget.players);
-    engine = GolfEngine(playerCount: players.length, holes: widget.config.holes);
+    engine = GolfEngine(
+      playerCount: players.length,
+      holes: widget.config.holes,
+    );
     _announcer.init();
     _meme.init();
-    AppSettings.getSoundEffectsEnabled()
-        .then((v) => SoundService.instance.setEnabled(v));
+    AppSettings.getSoundEffectsEnabled().then(
+      (v) => SoundService.instance.setEnabled(v),
+    );
     _log.logGameStart(
       gameMode: 'Golf',
       playerNames: players.map((p) => p.name).toList(),
@@ -177,8 +190,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       names: players.map((p) => p.name).toList(),
       scores: [for (var i = 0; i < players.length; i++) engine.total(i)],
     );
-    _log.log('H${engine.holeNumber} STATE target=${engine.targetNumber} '
-        'sd=${engine.inSuddenDeath} misses=${engine.missesThisHole}');
+    _log.log(
+      'H${engine.holeNumber} STATE target=${engine.targetNumber} '
+      'sd=${engine.inSuddenDeath} misses=${engine.missesThisHole}',
+    );
   }
 
   void _onDartHit(int multiplier) {
@@ -207,7 +222,11 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
     final label = multiplier == 0
         ? 'miss'
-        : (multiplier == 3 ? 'T$target' : multiplier == 2 ? 'D$target' : 'S$target');
+        : (multiplier == 3
+              ? 'T$target'
+              : multiplier == 2
+              ? 'D$target'
+              : 'S$target');
     // Strokes only land on the scorecard when the hole ends, so this dart's
     // contribution to the running total is 0 until then, then the whole
     // hole's stroke count at once — mirrors scoreBefore/scoreAfter's meaning
@@ -223,20 +242,22 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       dartNumber: dartNo,
     );
 
-    throwHistory.add(DartThrow(
-      playerIndex: seat,
-      segment: multiplier == 0 ? 0 : target,
-      multiplier: multiplier,
-      // Placeholder dart-arithmetic for the shared DartThrow model — Golf
-      // scores strokes, not points, and never reads this field back; it's
-      // only here to satisfy the model's shape.
-      points: multiplier == 0 ? 0 : target * multiplier,
-      scoreBefore: scoreBefore,
-      turnNumber: dartNo,
-      scoreAtStartOfTurn: scoreBefore,
-      turnId: _turnIdCounter,
-      roundNumber: roundNo,
-    ));
+    throwHistory.add(
+      DartThrow(
+        playerIndex: seat,
+        segment: multiplier == 0 ? 0 : target,
+        multiplier: multiplier,
+        // Placeholder dart-arithmetic for the shared DartThrow model — Golf
+        // scores strokes, not points, and never reads this field back; it's
+        // only here to satisfy the model's shape.
+        points: multiplier == 0 ? 0 : target * multiplier,
+        scoreBefore: scoreBefore,
+        turnNumber: dartNo,
+        scoreAtStartOfTurn: scoreBefore,
+        turnId: _turnIdCounter,
+        roundNumber: roundNo,
+      ),
+    );
     setState(() {});
     if (result.holeEnded) {
       _turnIdCounter++;
@@ -259,8 +280,12 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// game, opens the sudden-death overlay, or announces the next playoff
   /// target — `announceNextPlayer` always fires last, queueing after the
   /// term via the TTS queue so both staples are heard (spec §6).
-  void _handleHoleEnd(int seat, int darts, GolfDartResult result,
-      ({int target, bool playoff}) holeTarget) {
+  void _handleHoleEnd(
+    int seat,
+    int darts,
+    GolfDartResult result,
+    ({int target, bool playoff}) holeTarget,
+  ) {
     final strokes = result.holeStrokes!;
     _showHoleResult(seat, strokes, darts, holeTarget);
 
@@ -269,17 +294,22 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       6 => 'Triple bogey.',
       _ => '${golfTerm(strokes).toLowerCase()}!',
     };
-    _announcer.announceGolf(phrase, soundFolders: [
-      'golf/${golfTerm(strokes).toLowerCase().replaceAll(' ', '_')}'
-    ]);
+    _announcer.announceGolf(
+      phrase,
+      soundFolders: [
+        'golf/${golfTerm(strokes).toLowerCase().replaceAll(' ', '_')}',
+      ],
+    );
 
     if (result.gameOver) {
       _onGameEnd();
       return;
     }
     if (result.suddenDeathStarted) {
-      _announcer.announceGolf('Sudden death!',
-          soundFolders: const ['golf/sudden_death']);
+      _announcer.announceGolf(
+        'Sudden death!',
+        soundFolders: const ['golf/sudden_death'],
+      );
       _showSuddenDeathOverlay();
     } else if (result.playoffContinued) {
       _announcer.announceGolf('Still tied!');
@@ -288,7 +318,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         ? (engine.targetNumber == 25 ? 'bull' : '${engine.targetNumber}')
         : 'hole ${engine.holeNumber}';
     _announcer.announceNextPlayer(
-        '${players[engine.currentPlayerIndex].name}, $target');
+      '${players[engine.currentPlayerIndex].name}, $target',
+    );
     _logTurn();
   }
 
@@ -303,8 +334,12 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// on to the next thrower by the time this runs. [holeTarget] is likewise
   /// the hole/playoff target as it read BEFORE this dart, since a rotation
   /// wrap may have already advanced `engine.currentHole`/the playoff target.
-  void _showHoleResult(int seat, int strokes, int darts,
-      ({int target, bool playoff}) holeTarget) {
+  void _showHoleResult(
+    int seat,
+    int strokes,
+    int darts,
+    ({int target, bool playoff}) holeTarget,
+  ) {
     _resultTimer?.cancel();
     final token = ++_resultToken;
     // The just-finished hole's darts for `seat`, in throw order: throwHistory
@@ -313,17 +348,18 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     // seat are exactly this hole's darts — robust even during sudden death,
     // where engine.holeNumber (and so DartThrow.roundNumber) stays constant
     // across multiple playoff holes and can't be used to disambiguate.
-    final seatThrows =
-        throwHistory.where((t) => t.playerIndex == seat).toList();
-    final labels = (seatThrows.length >= darts
-            ? seatThrows.sublist(seatThrows.length - darts)
-            : seatThrows)
-        .map(_golfDartLabel)
+    final seatThrows = throwHistory
+        .where((t) => t.playerIndex == seat)
         .toList();
+    final labels =
+        (seatThrows.length >= darts
+                ? seatThrows.sublist(seatThrows.length - darts)
+                : seatThrows)
+            .map(_golfDartLabel)
+            .toList();
     setState(() {
       _lastHoleStrokes = strokes;
       _lastHoleSeat = seat;
-      _lastHoleDarts = darts;
       _lastHoleTarget = holeTarget;
       _lastHoleDartLabels = labels;
     });
@@ -332,7 +368,6 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       setState(() {
         _lastHoleStrokes = null;
         _lastHoleSeat = null;
-        _lastHoleDarts = null;
         _lastHoleTarget = null;
         _lastHoleDartLabels = null;
       });
@@ -371,7 +406,6 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     setState(() {
       _lastHoleStrokes = null;
       _lastHoleSeat = null;
-      _lastHoleDarts = null;
       _lastHoleTarget = null;
       _lastHoleDartLabels = null;
       _overlaySuddenDeath = false;
@@ -395,7 +429,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// shared by the game-end log and [_showPostGame]'s result ordering.
   List<int> _orderByPlacement(List<int> placements) {
     return [
-      for (var i = 0; i < players.length; i++) if (placements[i] != 0) i,
+      for (var i = 0; i < players.length; i++)
+        if (placements[i] != 0) i,
     ]..sort((a, b) => placements[a].compareTo(placements[b]));
   }
 
@@ -517,8 +552,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
     );
-    final earnedFeats =
-        buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
+    final earnedFeats = buildEarnedFeats(
+      eventsByIndex: const {},
+      unlocksByIndex: unlocks,
+    );
 
     StatsRecorder.recordGame(
       gameMode: 'golf',
@@ -605,17 +642,18 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     });
   }
 
-  // Result-window quartet: all four are set together in _showHoleResult and
+  // Result-window trio: all three are set together in _showHoleResult and
   // cleared together (by its 1s timer or by undo) — never partially, so the
   // hero's build-time derivation can gate on _lastHoleStrokes alone and
-  // trust _lastHoleSeat/_lastHoleDarts/_lastHoleTarget are present too.
+  // trust _lastHoleSeat/_lastHoleTarget are present too. Dart count no
+  // longer needs its own field (v3): it's implicit in
+  // _lastHoleDartLabels.length, the hero's actual per-dart chip source.
   int? _lastHoleStrokes; // finished hole's stroke count, shown on the hero
   int? _lastHoleSeat; // seat that finished the hole (identity for the hero)
-  int? _lastHoleDarts; // darts thrown that hole, for the dart-pip display
   ({int target, bool playoff})?
-      _lastHoleTarget; // hole/playoff target as of BEFORE this dart
+  _lastHoleTarget; // hole/playoff target as of BEFORE this dart
   List<String>?
-      _lastHoleDartLabels; // finished hole's per-dart zone labels, throw order
+  _lastHoleDartLabels; // finished hole's per-dart zone labels, throw order
 
   // Live derivation straight off the engine — used both as the hero's
   // normal (no-window) target and as what _onDartHit captures BEFORE
@@ -649,6 +687,16 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     return List<String>.filled(engine.missesThisHole, '✗');
   }
 
+  /// Maps the live playoff target to [GolfSuddenDeathChain]'s stage index
+  /// (19 → 0, 20 → 1, Bull/25 → 2) — derived from the target number rather
+  /// than `engine.playoffHole` directly, so it stays correct regardless of
+  /// how many cycles the playoff has gone through.
+  int get _suddenDeathStage => switch (engine.targetNumber) {
+    20 => 1,
+    25 => 2,
+    _ => 0,
+  };
+
   /// Rows for [GolfLeaderboard] — a live readout (not frozen to the hero's
   /// result window): every non-skipped seat, restricted to the tied
   /// playoff participants during sudden death (HANDOVER §Component notes).
@@ -665,14 +713,16 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       } else if (!engine.gameOver && engine.currentHole < engine.holes) {
         holeStroke = engine.scorecards[i][engine.currentHole];
       }
-      rows.add(GolfLeaderboardEntry(
-        name: players[i].name,
-        accent: dossedartAccent(i),
-        total: engine.total(i),
-        vsPar: engine.vsPar(i),
-        isActive: i == engine.currentPlayerIndex,
-        holeStroke: holeStroke,
-      ));
+      rows.add(
+        GolfLeaderboardEntry(
+          name: players[i].name,
+          accent: dossedartAccent(i),
+          total: engine.total(i),
+          vsPar: engine.vsPar(i),
+          isActive: i == engine.currentPlayerIndex,
+          holeStroke: holeStroke,
+        ),
+      );
     }
     return rows;
   }
@@ -695,8 +745,9 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error,
-                foregroundColor: Theme.of(ctx).colorScheme.onError),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
             child: const Text('Quit'),
           ),
         ],
@@ -712,21 +763,25 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     final rows = <DossedartStandingRow>[];
     for (int i = 0; i < players.length; i++) {
       final p = players[i];
-      rows.add(DossedartStandingRow(
-        playerIndex: i,
-        name: p.name,
-        avatarPath: p.avatarPath,
-        isActive: i == engine.currentPlayerIndex,
-        isRemoved: engine.isSkipped(i),
-        primary: '${engine.total(i)} (${vsParLabel(engine.vsPar(i))})',
-      ));
+      rows.add(
+        DossedartStandingRow(
+          playerIndex: i,
+          name: p.name,
+          avatarPath: p.avatarPath,
+          isActive: i == engine.currentPlayerIndex,
+          isRemoved: engine.isSkipped(i),
+          primary: '${engine.total(i)} (${vsParLabel(engine.vsPar(i))})',
+        ),
+      );
     }
     showDossedartPlayerSheet(
       context,
       rows: rows,
       gameOver: engine.gameOver,
-      excludeSavedIds:
-          players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
+      excludeSavedIds: players
+          .map((p) => p.savedPlayerId)
+          .whereType<String>()
+          .toSet(),
       addInfoText:
           'Joins at hole ${engine.holeNumber} — earlier holes count as par.',
       onAdd: _addSavedPlayerMidGame,
@@ -738,12 +793,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
-      players.add(Player(
-        name: sp.name,
-        score: 0,
-        savedPlayerId: sp.id,
-        avatarPath: sp.avatarPath,
-      ));
+      players.add(
+        Player(
+          name: sp.name,
+          score: 0,
+          savedPlayerId: sp.id,
+          avatarPath: sp.avatarPath,
+        ),
+      );
       engine.addPlayer();
     });
     _log.logRoster(
@@ -793,6 +850,17 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         ? _lastHoleSeat!
         : engine.currentPlayerIndex;
     final holeTarget = _holeTarget;
+    final resultWindow = _lastHoleStrokes != null;
+    final dartLabels = holeDartLabels;
+    final plateMode = resultWindow
+        ? GolfPlateMode.result
+        : (dartLabels.isEmpty ? GolfPlateMode.teeOff : GolfPlateMode.mid);
+    // Mid-hole: pass null (not 0) so the plate reads NO SCORE rather than
+    // "LYING 0" before the first miss lands.
+    final lie = resultWindow
+        ? _lastHoleStrokes
+        : (engine.missesThisHole == 0 ? null : engine.missesThisHole);
+    final wash = resultWindow && _lastHoleStrokes == 6;
 
     return Scaffold(
       backgroundColor: DossedartTokens.bg,
@@ -816,14 +884,11 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                     accentColor: dossedartAccent(displaySeat),
                     targetNumber: holeTarget.target,
                     playoff: holeTarget.playoff,
-                    dartsThrown: _lastHoleStrokes != null &&
-                            _lastHoleDarts != null
-                        ? _lastHoleDarts!
-                        : engine.missesThisHole,
-                    total: engine.total(displaySeat),
-                    vsPar: engine.vsPar(displaySeat),
-                    holeStrokes: _lastHoleStrokes,
-                    nextPlayerName: _lastHoleStrokes != null
+                    dartLabels: dartLabels,
+                    plateMode: plateMode,
+                    lie: lie,
+                    wash: wash,
+                    nextPlayerName: resultWindow
                         ? players[engine.currentPlayerIndex].name
                         : null,
                   ),
@@ -832,20 +897,24 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                     holeNumber: engine.holeNumber,
                     playoff: engine.inSuddenDeath,
                   ),
-                  // Playoff holes have no per-player scorecard row — the
-                  // strip is regulation-only (HANDOVER §Vertical layout).
-                  if (!engine.inSuddenDeath)
-                    GolfScorecardStrip(
-                      strokes: engine.scorecards[displaySeat],
-                      currentHole: engine.currentHole,
-                      onExpand: _openScoreSheet,
-                    ),
+                  // v3 (D4): the strip zone is now always present — a
+                  // sudden-death playoff swaps it for the tiebreak ladder
+                  // instead of hiding it outright.
+                  engine.inSuddenDeath
+                      ? GolfSuddenDeathChain(stage: _suddenDeathStage)
+                      : GolfScorecardStrip(
+                          strokes: engine.scorecards[displaySeat],
+                          currentHole: engine.currentHole,
+                          onExpand: _openScoreSheet,
+                        ),
                   const Expanded(child: SizedBox()),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                     child: GolfInputCells(
                       targetNumber: engine.targetNumber,
                       onHit: _onDartHit,
+                      onMiss: _onMiss,
+                      playoff: engine.inSuddenDeath,
                       enabled: !_overlaySuddenDeath && !engine.gameOver,
                     ),
                   ),
@@ -875,10 +944,12 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   // aces are celebrated via sound/TTS only.
 
   Widget _buildSuddenDeathOverlay() {
-    final targetLabel =
-        engine.targetNumber == 25 ? 'BULL' : '${engine.targetNumber}';
-    final names =
-        engine.playoffParticipants.map((i) => players[i].name).join(' vs ');
+    final targetLabel = engine.targetNumber == 25
+        ? 'BULL'
+        : '${engine.targetNumber}';
+    final names = engine.playoffParticipants
+        .map((i) => players[i].name)
+        .join(' vs ');
     return _momentOverlay(
       tint: DossedartTokens.red,
       onTap: _dismissSuddenDeathOverlay,
@@ -888,32 +959,33 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         const Text(
           'SUDDEN DEATH',
           style: TextStyle(
-              fontFamily: 'PressStart2P',
-              fontSize: 30,
-              color: DossedartTokens.red,
-              letterSpacing: 2,
-              shadows: [
-                Shadow(color: DossedartTokens.red, blurRadius: 20),
-              ]),
+            fontFamily: 'PressStart2P',
+            fontSize: 30,
+            color: DossedartTokens.red,
+            letterSpacing: 2,
+            shadows: [Shadow(color: DossedartTokens.red, blurRadius: 20)],
+          ),
         ),
         const SizedBox(height: 14),
         Text(
           'PLAYOFF ON $targetLabel',
           style: const TextStyle(
-              fontFamily: 'VT323',
-              fontSize: 24,
-              color: Colors.white,
-              letterSpacing: 2),
+            fontFamily: 'VT323',
+            fontSize: 24,
+            color: Colors.white,
+            letterSpacing: 2,
+          ),
         ),
         const SizedBox(height: 10),
         Text(
           names,
           textAlign: TextAlign.center,
           style: const TextStyle(
-              fontFamily: 'VT323',
-              fontSize: 20,
-              color: Colors.white70,
-              letterSpacing: 1),
+            fontFamily: 'VT323',
+            fontSize: 20,
+            color: Colors.white70,
+            letterSpacing: 1,
+          ),
         ),
       ],
     );
@@ -943,10 +1015,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             ),
           ),
           alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: children,
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: children),
         ),
       ),
     );
