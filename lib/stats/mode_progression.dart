@@ -140,6 +140,62 @@ class AtcProgression implements ModeProgression {
   String get finishLabel => '✓';
 }
 
+/// Golf: cumulative vs-par after each hole. `DartThrow.points` is a
+/// placeholder for this mode and is NEVER the real per-dart score — strokes
+/// are derived by walking a hole's darts in throw order and stopping at the
+/// first hole-terminating dart: a hit (`segment > 0`) scores
+/// `(4 - multiplier) + missesSoFar` strokes (e.g. an ace = T-hit on the first
+/// dart = 1 stroke; a hit after 2 misses via a double = 2 + 2 = 4 strokes),
+/// or the 3rd miss is a wash worth 6 strokes. Any darts thrown after that
+/// terminator within the same round are ignored — playoff darts share the
+/// frozen final `roundNumber` and would otherwise contaminate the last hole.
+/// A round with no terminator yet (still in progress) contributes nothing.
+class GolfProgression implements ModeProgression {
+  GolfProgression({required this.maxValue});
+  @override
+  final num maxValue;
+
+  @override
+  List<num> seriesFor(List<DartThrow> throws, {required int playerIndex}) {
+    final mine = throws.where((t) => t.playerIndex == playerIndex).toList();
+    final byRound = <int, List<DartThrow>>{};
+    for (final t in mine) {
+      (byRound[t.roundNumber] ??= []).add(t);
+    }
+    final rounds = byRound.keys.toList()..sort();
+    final out = <num>[0];
+    var vsPar = 0;
+    for (final r in rounds) {
+      final strokes = _strokesForHole(byRound[r]!);
+      if (strokes == null) continue; // hole still in progress
+      vsPar += strokes - 3;
+      out.add(vsPar);
+    }
+    return out;
+  }
+
+  /// Walks one hole's darts in throw order, stopping at the first
+  /// hole-terminating dart. Returns null when the hole has no terminator
+  /// yet (in progress) — darts after the terminator (playoff contamination)
+  /// are never reached because we return as soon as we find it.
+  int? _strokesForHole(List<DartThrow> hole) {
+    var misses = 0;
+    for (final t in hole) {
+      if (t.segment > 0) {
+        return (4 - t.multiplier) + misses;
+      }
+      misses++;
+      if (misses >= 3) return 6;
+    }
+    return null;
+  }
+
+  @override
+  bool get descending => false;
+  @override
+  String get finishLabel => '⛳';
+}
+
 /// Maps a `gameMode` key + throw history to the [ModeProgression] that
 /// builds the MATCH FLOW / SCORE PER ROUND chart's series, or null when the
 /// mode has none (Killer & unknown). Moved out of game_detail_screen.dart
@@ -158,6 +214,8 @@ ModeProgression? progressionForMode(String modeKey, List<DartThrow> throws) {
           targets: const {15, 16, 17, 18, 19, 20, 25}, maxValue: 0);
     case 'aroundTheClock':
       return AtcProgression();
+    case 'golf':
+      return GolfProgression(maxValue: 0);
     case 'shanghai':
     case 'halveIt':
       return CumulativeScoreProgression(maxValue: 0);
