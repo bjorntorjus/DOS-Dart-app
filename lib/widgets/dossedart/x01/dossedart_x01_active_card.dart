@@ -124,7 +124,12 @@ class DossedartX01ActiveCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // flex:37 vs. the rail's flex:25 below reproduces the exact
+                // 444/300 tablet split (both sides tuned against the 758px
+                // row width — 820px card minus margin/padding/border — at
+                // the 820px fasit) — see the rail's comment.
                 Expanded(
+                  flex: 37,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -157,19 +162,34 @@ class DossedartX01ActiveCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 14),
-                DossedartStandingsRail(
-                  entries: [
-                    for (final s in sorted)
-                      DossedartRailEntry(
-                        name: s.name,
-                        accent: s.accent,
-                        value: '${s.remaining}',
-                        isActive: s.isActive,
-                        isLeader: uniqueLeader && s.remaining == lead,
-                      ),
-                  ],
-                  bottomLabel: 'TO WIN',
-                  bottomValue: toWin,
+                // Below tablet width the rail can no longer claim its full
+                // 300px unconditionally: Flexible lets it shrink under
+                // squeeze while the ConstrainedBox pins the max so the
+                // 820px look is unchanged (same idiom as
+                // DossedartActiveStrip's modeSlot, db085a9). flex:25 (vs.
+                // the left column's flex:37) is tuned so the allocated
+                // share is exactly 300 at the 820px fasit width — no
+                // wasted allocation, no gap before the card's right edge.
+                Flexible(
+                  flex: 25,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                        maxWidth: DossedartStandingsRail.width),
+                    child: DossedartStandingsRail(
+                      entries: [
+                        for (final s in sorted)
+                          DossedartRailEntry(
+                            name: s.name,
+                            accent: s.accent,
+                            value: '${s.remaining}',
+                            isActive: s.isActive,
+                            isLeader: uniqueLeader && s.remaining == lead,
+                          ),
+                      ],
+                      bottomLabel: 'TO WIN',
+                      bottomValue: toWin,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -237,30 +257,51 @@ class DossedartX01ActiveCard extends StatelessWidget {
           ),
           if (extraLabel != null) ...[
             const SizedBox(width: 22),
-            Text(
-              extraLabel,
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 9,
-                color: Colors.white.withValues(alpha: 0.5),
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Opacity(
-              opacity: extraDim ? 0.34 : 1,
-              child: Text(
-                extraValue ?? '—',
-                style: TextStyle(
-                  fontFamily: 'VT323',
-                  fontSize: 26,
-                  height: 1,
-                  letterSpacing: 1,
-                  color: extraDim ? Colors.white : (extraColor ?? Colors.white),
-                  shadows: extraDim || extraColor == null
-                      ? null
-                      : [Shadow(color: extraColor.withValues(alpha: 0.4), blurRadius: 8)],
-                ),
+            // The HIT% pair squeezes as a unit at phone width (Flexible +
+            // ellipsis on both texts) rather than forcing its fixed
+            // natural width, matching the LAST/AVG/CHECKOUT value's own
+            // ellipsis handling above.
+            Flexible(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      extraLabel,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 9,
+                        color: Colors.white.withValues(alpha: 0.5),
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Opacity(
+                      opacity: extraDim ? 0.34 : 1,
+                      child: Text(
+                        extraValue ?? '—',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'VT323',
+                          fontSize: 26,
+                          height: 1,
+                          letterSpacing: 1,
+                          color: extraDim ? Colors.white : (extraColor ?? Colors.white),
+                          shadows: extraDim || extraColor == null
+                              ? null
+                              : [Shadow(color: extraColor.withValues(alpha: 0.4), blurRadius: 8)],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

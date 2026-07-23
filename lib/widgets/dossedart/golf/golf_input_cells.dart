@@ -234,36 +234,44 @@ class _InputCell extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              spec.label,
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 20,
-                color: spec.color,
-                shadows: [
-                  Shadow(
-                    color: spec.color.withValues(alpha: 0.7),
-                    blurRadius: 10,
-                  ),
-                ],
-              ),
-            ),
-            if (spec.term != null) ...[
-              const SizedBox(height: 6),
+        // Below tablet width the cell's own text stack no longer fits its
+        // natural size — FittedBox scales the whole label/term pair down
+        // as a unit (same wrap-proof idiom as the console header above)
+        // instead of the Text widgets wrapping to a 2nd line and blowing
+        // out the console's fixed 220px height.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                spec.term!,
-                style: const TextStyle(
+                spec.label,
+                style: TextStyle(
                   fontFamily: 'PressStart2P',
-                  fontSize: 11,
-                  color: Colors.white,
-                  letterSpacing: 1,
+                  fontSize: 20,
+                  color: spec.color,
+                  shadows: [
+                    Shadow(
+                      color: spec.color.withValues(alpha: 0.7),
+                      blurRadius: 10,
+                    ),
+                  ],
                 ),
               ),
+              if (spec.term != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  spec.term!,
+                  style: const TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 11,
+                    color: Colors.white,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -302,39 +310,45 @@ class _MissCell extends StatelessWidget {
             BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 16),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              '✗',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 30,
-                color: color,
-                shadows: [Shadow(color: color, blurRadius: 10)],
+        // Same wrap-proof FittedBox treatment as _InputCell above — the
+        // ✗/MISS/cost stack scales down as a unit under squeeze instead of
+        // wrapping and blowing out the console's fixed 220px height.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '✗',
+                style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 30,
+                  color: color,
+                  shadows: [Shadow(color: color, blurRadius: 10)],
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'MISS',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 11,
-                color: Colors.white,
-                letterSpacing: 1,
+              const SizedBox(height: 6),
+              const Text(
+                'MISS',
+                style: TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 11,
+                  color: Colors.white,
+                  letterSpacing: 1,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              playoff ? 'NO SCORE' : '+1 STROKE',
-              style: const TextStyle(
-                fontFamily: 'VT323',
-                fontSize: 17,
-                color: Colors.white70,
-                letterSpacing: 1,
+              const SizedBox(height: 4),
+              Text(
+                playoff ? 'NO SCORE' : '+1 STROKE',
+                style: const TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 17,
+                  color: Colors.white70,
+                  letterSpacing: 1,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -76,8 +76,18 @@ class DossedartStandingsRail extends StatelessWidget {
             ),
             child: Row(
               children: [
+                // Non-flex label keeps its natural (short) width; the
+                // Expanded+Align reproduces the Spacer's flush-right value
+                // at tablet width (value's natural size is well under the
+                // allocated remainder, so Align just hugs the right edge —
+                // pixel-identical to the old Spacer layout) while gaining
+                // ellipsis instead of overflow once the remainder gets
+                // squeezed below the value's natural width.
                 Text(
                   bottomLabel,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PressStart2P',
                     fontSize: 8,
@@ -85,24 +95,31 @@ class DossedartStandingsRail extends StatelessWidget {
                     letterSpacing: 1,
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  bottomValue,
-                  style: TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 13,
-                    color: bottomDim
-                        ? Colors.white.withValues(alpha: 0.3)
-                        : DossedartTokens.yellow,
-                    shadows: bottomDim
-                        ? null
-                        : [
-                            Shadow(
-                              color: DossedartTokens.yellow
-                                  .withValues(alpha: 0.53),
-                              blurRadius: 8,
-                            ),
-                          ],
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      bottomValue,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PressStart2P',
+                        fontSize: 13,
+                        color: bottomDim
+                            ? Colors.white.withValues(alpha: 0.3)
+                            : DossedartTokens.yellow,
+                        shadows: bottomDim
+                            ? null
+                            : [
+                                Shadow(
+                                  color: DossedartTokens.yellow
+                                      .withValues(alpha: 0.53),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                      ),
+                    ),
                   ),
                 ),
               ],

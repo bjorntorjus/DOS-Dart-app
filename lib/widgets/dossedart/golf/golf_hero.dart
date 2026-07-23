@@ -147,46 +147,62 @@ class GolfHero extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        playoff ? 'PLAYOFF' : 'HOLE · PAR 3',
-                        style: const TextStyle(
-                          fontFamily: 'PressStart2P',
-                          fontSize: 9,
-                          color: Colors.white54,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      Text(
-                        _isBull ? 'BULL' : '$targetNumber',
-                        style: TextStyle(
-                          fontFamily: 'PressStart2P',
-                          // The hole number is the aim signal and must read
-                          // from the throw line — v3 pins it at 120px (BULL
-                          // scaled proportionally, matching the prior
-                          // 86/130 ratio).
-                          fontSize: _isBull ? 58 : 120,
-                          color: DossedartTokens.green,
-                          height: 0.85,
-                          letterSpacing: _isBull ? 0 : -4,
-                          shadows: [
-                            Shadow(
-                              color: DossedartTokens.green.withValues(
-                                alpha: 0.75,
-                              ),
-                              blurRadius: 30,
+                  // The hero number is the aim signal (tablet-fasit 120px)
+                  // and never shrinks in normal play — the name column's
+                  // Expanded absorbs the squeeze first. FittedBox is only
+                  // the last-resort backstop for extreme combinations (long
+                  // name + narrow width) where even a fully-collapsed name
+                  // column isn't enough; at the 820px fasit the column's
+                  // natural size is already well inside its constraints so
+                  // FittedBox never scales it, keeping the tablet look
+                  // pixel-identical.
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            playoff ? 'PLAYOFF' : 'HOLE · PAR 3',
+                            style: const TextStyle(
+                              fontFamily: 'PressStart2P',
+                              fontSize: 9,
+                              color: Colors.white54,
+                              letterSpacing: 2,
                             ),
-                            const Shadow(
-                              color: Color.fromRGBO(0, 0, 0, 0.55),
-                              offset: Offset(5, 5),
+                          ),
+                          Text(
+                            _isBull ? 'BULL' : '$targetNumber',
+                            style: TextStyle(
+                              fontFamily: 'PressStart2P',
+                              // The hole number is the aim signal and must
+                              // read from the throw line — v3 pins it at
+                              // 120px (BULL scaled proportionally, matching
+                              // the prior 86/130 ratio).
+                              fontSize: _isBull ? 58 : 120,
+                              color: DossedartTokens.green,
+                              height: 0.85,
+                              letterSpacing: _isBull ? 0 : -4,
+                              shadows: [
+                                Shadow(
+                                  color: DossedartTokens.green.withValues(
+                                    alpha: 0.75,
+                                  ),
+                                  blurRadius: 30,
+                                ),
+                                const Shadow(
+                                  color: Color.fromRGBO(0, 0, 0, 0.55),
+                                  offset: Offset(5, 5),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),

@@ -96,6 +96,41 @@ void main() {
       expect(tester.getSize(find.byType(GolfInputCells)).height, 220);
     });
 
+    testWidgets(
+      'lays out without overflow at 393dp (pixel_5, CI integration-test '
+      'width) — regulation and Bull playoff',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2340);
+        tester.view.devicePixelRatio = 2.75;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull,
+            reason: 'the console must not overflow at the pixel_5 phone width');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: GolfInputCells(
+                targetNumber: 25,
+                onHit: (_) {},
+                onMiss: () {},
+                playoff: true,
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull,
+            reason: 'the Bull playoff console must not overflow at the pixel_5 phone width');
+      },
+    );
+
     testWidgets('renders three cells for a Bull playoff — 25/50/✗, no triple, '
         'and the ✗ sub-label reads NO SCORE', (tester) async {
       await tester.pumpWidget(
@@ -283,6 +318,34 @@ void main() {
       expect(find.textContaining('NOW THROWING'), findsNothing);
       expect(find.textContaining('HOLE RESULT'), findsNothing);
     });
+
+    testWidgets(
+      'lays out without overflow at 393dp (pixel_5, CI integration-test '
+      'width) with a long name and a Bull playoff aim',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2340);
+        tester.view.devicePixelRatio = 2.75;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: GolfHero(
+                playerName: 'Alexander the boss bitch',
+                avatarPath: null,
+                accentColor: Colors.cyan,
+                targetNumber: 25,
+                playoff: true,
+                dartLabels: [],
+                plateMode: GolfPlateMode.teeOff,
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull,
+            reason: 'the hero must not overflow at the pixel_5 phone width');
+      },
+    );
   });
 
   group('GolfStatusPlate', () {

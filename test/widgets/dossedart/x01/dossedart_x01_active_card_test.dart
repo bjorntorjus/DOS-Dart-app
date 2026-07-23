@@ -85,6 +85,18 @@ void main() {
     }
   });
 
+  testWidgets(
+      'lays out without overflow at 393dp (pixel_5, CI integration-test '
+      'width) with 6 players + checkout + a long name', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(host(card(name: 'Alexander the boss bitch')));
+    expect(tester.takeException(), isNull,
+        reason: 'the card must not overflow at the pixel_5 phone width');
+  });
+
   testWidgets('TO WIN delta vs leader; YOU LEAD when lowest; TIED at start',
       (tester) async {
     tester.view.physicalSize = const Size(820, 1180);

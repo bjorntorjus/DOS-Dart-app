@@ -96,6 +96,26 @@ void main() {
     }
   });
 
+  testWidgets(
+      'lays out without overflow at 393dp (pixel_5, CI integration-test '
+      'width) with 6 players, life pips and a long name', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(host(card(
+      name: 'Alexander the boss bitch',
+      lives: 1,
+      standings: [
+        ...four(lastLife: true, survivorOut: true),
+        OneUpStanding(name: 'Tor', accent: dossedartAccent(4), lives: 3, maxLives: 3),
+        OneUpStanding(name: 'Andreas', accent: dossedartAccent(5), lives: 2, maxLives: 3),
+      ],
+    )));
+    expect(tester.takeException(), isNull,
+        reason: 'the card must not overflow at the pixel_5 phone width');
+  });
+
   testWidgets('primary block: BEAT target vs SET THE TARGET', (tester) async {
     tester.view.physicalSize = const Size(820, 1180);
     tester.view.devicePixelRatio = 1.0;

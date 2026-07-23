@@ -136,7 +136,13 @@ class DossedartOneUpActiveCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // flex:37 vs. the rail's flex:25 below reproduces the exact
+                // 444/300 tablet split (both sides tuned against the 758px
+                // row width — 820px card minus margin/padding/border — at
+                // the 820px fasit; same ratio as the X01 card, same Row
+                // geometry) — see the rail's comment.
                 Expanded(
+                  flex: 37,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -153,20 +159,35 @@ class DossedartOneUpActiveCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 14),
-                DossedartStandingsRail(
-                  entries: [
-                    for (final s in standings)
-                      DossedartRailEntry(
-                        name: s.name,
-                        accent: s.accent,
-                        isActive: s.isActive,
-                        dimmed: s.eliminated || s.outOfRound,
-                        trailing: _railTrailing(s),
-                      ),
-                  ],
-                  bottomLabel: 'TARGET',
-                  bottomValue: targetBy != null ? 'BY ${targetBy!.toUpperCase()}' : '—',
-                  bottomDim: targetBy == null,
+                // Below tablet width the rail can no longer claim its full
+                // 300px unconditionally: Flexible lets it shrink under
+                // squeeze while the ConstrainedBox pins the max so the
+                // 820px look is unchanged (same idiom as
+                // DossedartActiveStrip's modeSlot, db085a9, and the X01
+                // card above). flex:25 is tuned so the allocated share is
+                // exactly 300 at the 820px fasit width — no wasted
+                // allocation, no gap before the card's right edge.
+                Flexible(
+                  flex: 25,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                        maxWidth: DossedartStandingsRail.width),
+                    child: DossedartStandingsRail(
+                      entries: [
+                        for (final s in standings)
+                          DossedartRailEntry(
+                            name: s.name,
+                            accent: s.accent,
+                            isActive: s.isActive,
+                            dimmed: s.eliminated || s.outOfRound,
+                            trailing: _railTrailing(s),
+                          ),
+                      ],
+                      bottomLabel: 'TARGET',
+                      bottomValue: targetBy != null ? 'BY ${targetBy!.toUpperCase()}' : '—',
+                      bottomDim: targetBy == null,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -309,26 +330,36 @@ class DossedartOneUpActiveCard extends StatelessWidget {
             ),
           ),
         ),
-        Text(
-          '$turnTotal',
-          style: TextStyle(
-            fontFamily: 'VT323',
-            fontSize: 38,
-            color: accentColor,
-            height: 1,
-            shadows: [
-              Shadow(color: accentColor.withValues(alpha: 0.53), blurRadius: 10),
-            ],
+        Flexible(
+          child: Text(
+            '$turnTotal',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 38,
+              color: accentColor,
+              height: 1,
+              shadows: [
+                Shadow(color: accentColor.withValues(alpha: 0.53), blurRadius: 10),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 6),
-        Text(
-          '/ ${target ?? '—'}',
-          style: TextStyle(
-            fontFamily: 'VT323',
-            fontSize: 28,
-            height: 1,
-            color: Colors.white.withValues(alpha: 0.35),
+        Flexible(
+          child: Text(
+            '/ ${target ?? '—'}',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'VT323',
+              fontSize: 28,
+              height: 1,
+              color: Colors.white.withValues(alpha: 0.35),
+            ),
           ),
         ),
       ],

@@ -67,7 +67,18 @@ class DossedartOverviewHeader extends StatelessWidget {
                   ),
                   if (besideName != null) ...[
                     const SizedBox(width: 12),
-                    besideName!,
+                    // besideName (1UP's life pips + LAST LIFE tag) has no
+                    // text to ellipsize internally — FittedBox scales the
+                    // whole block down as a unit under extreme squeeze
+                    // (long name + narrow width) instead of it overflowing
+                    // past the name Flexible once that's shrunk to ~0.
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: besideName!,
+                      ),
+                    ),
                   ],
                 ],
               ),
