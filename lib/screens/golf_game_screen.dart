@@ -610,8 +610,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             gameMode: 'golf',
             results: results,
             canUndo: engine.canUndo,
-            throwHistory: List<DartThrow>.from(throwHistory),
-            progressionMode: 'golf',
+            // Chart lines index by seat; a changed roster misaligns them —
+            // suppress instead of mislabeling.
+            throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+            progressionMode: _midGamePlayerChanges ? null : 'golf',
           ),
         ),
       ),
