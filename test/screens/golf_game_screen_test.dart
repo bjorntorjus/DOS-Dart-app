@@ -489,4 +489,177 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1100));
     expect(dyn.holeDartLabels, <String>[]);
   });
+
+  testWidgets(
+      'undo during the hole-result window clears frozen labels and steps '
+      'back through the live miss-derived state', (tester) async {
+    // Reviewer-verified scenario promoted to the permanent suite: undoing
+    // WHILE the 1s result window is still open must clear
+    // _lastHoleDartLabels immediately (not wait for the timer), falling
+    // back to holeDartLabels' live derivation — which, per the getter's own
+    // invariant, is just List.filled(engine.missesThisHole, '✗') — and each
+    // further undo steps that live count back down one dart at a time,
+    // since GolfEngine.undo() restores missesThisHole to its value as of
+    // just-before the undone dart.
+    useTabletViewport(tester);
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+
+    dyn.onDartHitForTest(0); // A misses
+    await tester.pump();
+    dyn.onDartHitForTest(0); // A misses again
+    await tester.pump();
+    dyn.onDartHitForTest(1); // A singles hole 1 after 2 misses -> ends hole
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗', '✗', 'S1']);
+
+    // Undo mid-window, before the 1s timer ever fires.
+    dyn.onUndoForTest();
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗', '✗']);
+
+    dyn.onUndoForTest();
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗']);
+
+    dyn.onUndoForTest();
+    await tester.pump();
+    expect(dyn.holeDartLabels, <String>[]);
+  });
+
+  testWidgets(
+      'sudden death: playoff turns sharing engine.holeNumber never leak '
+      "labels across seats or across the next target's fresh turn",
+      (tester) async {
+    // Reviewer-verified scenario promoted to the permanent suite. Once
+    // regulation ends in a tie, GolfEngine.currentHole is pinned at `holes`
+    // for the rest of the game — every playoff turn, on every target (19,
+    // 20, Bull, cycling), reads the exact same engine.holeNumber (and so
+    // the exact same DartThrow.roundNumber). This is precisely why
+    // holeDartLabels' live derivation is engine.missesThisHole-based (never
+    // a roundNumber filter over throwHistory) and the frozen capture in
+    // _showHoleResult slices the LAST N throws for the finishing seat
+    // rather than filtering by round: a roundNumber-based filter would
+    // accumulate every prior playoff turn's darts for that seat. This test
+    // pins that no such leakage happens, across a seat handoff (A -> B) and
+    // across a target change (19 -> 20 -> Bull), and exercises the bull
+    // '25'/'50' labels along the way.
+    useTabletViewport(tester);
+    await tester.pumpWidget(MaterialApp(
+      home: GolfGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GolfConfig(holes: 9),
+      ),
+    ));
+    await tester.pump();
+    final dyn =
+        tester.state<State<GolfGameScreen>>(find.byType(GolfGameScreen))
+            as dynamic;
+    final engine = dyn.engineForTest as GolfEngine;
+
+    // Tie every regulation hole on PAR so sudden death opens on target 19 —
+    // same setup as the "sudden death overlay" test above.
+    for (var h = 0; h < 9; h++) {
+      dyn.onDartHitForTest(1); // A par
+      await tester.pump(const Duration(seconds: 2));
+      dyn.onDartHitForTest(1); // B par
+      if (h < 8) await tester.pump(const Duration(seconds: 2));
+    }
+    await tester.pump(); // final dart tied the round -> overlay is up
+    await tester.pump(const Duration(milliseconds: 1100)); // overlay dismiss
+
+    expect(engine.inSuddenDeath, isTrue);
+    expect(engine.targetNumber, 19);
+    expect(engine.currentPlayerIndex, 0); // A throws first in the playoff
+    final fixedHoleNumber = engine.holeNumber;
+    expect(dyn.holeDartLabels, <String>[]);
+
+    // --- Target 19: A misses, then singles -> ends A's turn, ties nobody
+    // yet (B hasn't thrown). Result window freezes A's labels.
+    dyn.onDartHitForTest(0); // A misses on 19
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗']);
+    dyn.onDartHitForTest(1); // A singles 19 -> 4 strokes, ends A's turn
+    await tester.pump();
+    expect(engine.holeNumber, fixedHoleNumber); // unchanged by the turn
+    expect(dyn.holeDartLabels, ['✗', 'S19']); // A's frozen result
+
+    // B's turn is already live on the engine, but the getter must keep
+    // returning A's frozen result until the window elapses.
+    expect(engine.currentPlayerIndex, 1);
+    expect(dyn.holeDartLabels, ['✗', 'S19']);
+
+    await tester.pump(const Duration(milliseconds: 1100));
+    // B's turn starts with EMPTY live labels — no leakage from A's frozen
+    // ['✗', 'S19'], despite sharing the exact same engine.holeNumber.
+    expect(dyn.holeDartLabels, <String>[]);
+
+    // B misses, then singles -> ties A at 4 strokes -> playoff continues to
+    // target 20 (still sharing the same fixedHoleNumber).
+    dyn.onDartHitForTest(0); // B misses on 19
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗']);
+    dyn.onDartHitForTest(1); // B singles 19 -> ties A -> on to target 20
+    await tester.pump();
+    expect(engine.holeNumber, fixedHoleNumber);
+    expect(dyn.holeDartLabels, ['✗', 'S19']); // B's frozen result
+
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(engine.targetNumber, 20);
+    expect(engine.currentPlayerIndex, 0); // A leads off the new target too
+    expect(dyn.holeDartLabels, <String>[]); // no leakage from B's turn
+
+    // --- Target 20: same shape, both tie again -> on to Bull (25).
+    dyn.onDartHitForTest(0); // A misses on 20
+    await tester.pump();
+    dyn.onDartHitForTest(1); // A singles 20 -> 4 strokes
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗', 'S20']);
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(dyn.holeDartLabels, <String>[]);
+
+    dyn.onDartHitForTest(0); // B misses on 20
+    await tester.pump();
+    dyn.onDartHitForTest(1); // B singles 20 -> ties A -> on to Bull
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗', 'S20']);
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(engine.targetNumber, 25);
+    expect(engine.currentPlayerIndex, 0);
+    expect(dyn.holeDartLabels, <String>[]);
+
+    // --- Bull (25): no triple, so the tie is engineered with single/double
+    // only. A misses then doubles (3 strokes) -> label '50'; B singles
+    // clean (3 strokes) -> label '25' -> tie -> cycles back to target 19.
+    dyn.onDartHitForTest(0); // A misses on Bull
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗']);
+    dyn.onDartHitForTest(2); // A doubles Bull -> 3 strokes, ends A's turn
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['✗', '50']);
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(engine.currentPlayerIndex, 1);
+    expect(dyn.holeDartLabels, <String>[]); // no leakage from A's '50'
+
+    dyn.onDartHitForTest(1); // B singles Bull clean -> 3 strokes, ties A
+    await tester.pump();
+    expect(dyn.holeDartLabels, ['25']); // single dart, no prior miss
+    await tester.pump(const Duration(milliseconds: 1100));
+
+    // Tied again -> cycles back to target 19; fresh turn, no leakage from
+    // B's Bull result despite the whole playoff sharing fixedHoleNumber.
+    expect(engine.targetNumber, 19);
+    expect(engine.currentPlayerIndex, 0);
+    expect(engine.holeNumber, fixedHoleNumber);
+    expect(dyn.holeDartLabels, <String>[]);
+  });
 }
