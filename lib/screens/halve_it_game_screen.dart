@@ -714,20 +714,52 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 scoreValue: '${totalScores[currentPlayerIndex]}',
                 smallScore: true,
               ),
-              _splitJeopardyBar(),
-              // The scorecard shrink-wraps to its content (the inner Column
-              // is mainAxisSize.min with a Flexible scroll wrapper); Align
-              // pins it to the top of the flexible share so freed space sits
-              // between the card and the input area instead of as empty
-              // bordered space inside the card. Input + action bar stay
-              // anchored at the bottom.
+              // Jeopardy bar + scorecard + input area share one flexible,
+              // scrollable slot; only TopBar/Strip/ActionBar are genuinely
+              // fixed-height chrome. This matters because the input area is
+              // NOT actually fixed-height: an "any double" round renders a
+              // 5-row keypad (S/D/T rows plus a D-BULL row) that's taller
+              // than "any triple"'s 4-row keypad or the single-row
+              // number/bull layout. On a short surface, if "Double" happens
+              // to be the CURRENT round, that extra row alone was enough to
+              // overflow this Column even with the scorecard already
+              // shrunk to nothing (PR #12 CI failure — see
+              // test/screens/halve_it_random_hidden_test.dart).
+              //
+              // ConstrainedBox(minHeight: <available height>) + a plain
+              // Column let mainAxisAlignment.spaceBetween push all slack
+              // into the single gap between the scorecard and the input
+              // when there's room (matching the old shrink-wrap look on
+              // generous screens — see
+              // test/screens/strip_turn_label_test.dart), while the
+              // SingleChildScrollView means a genuine height shortage (e.g.
+              // the double keypad on a short screen) scrolls instead of
+              // throwing a RenderFlex overflow.
               Expanded(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: _splitScorecard(),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minHeight: constraints.maxHeight),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _splitJeopardyBar(),
+                                _splitScorecard(),
+                              ],
+                            ),
+                            _splitInput(),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-              _splitInput(),
               DossedartActionBar(
                 onUndo: _undo,
                 onMiss: _onMiss,
@@ -763,15 +795,28 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         border: Border.all(color: c, width: 2),
         boxShadow: [BoxShadow(color: c.withValues(alpha: 0.35), blurRadius: 12)],
       ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'PressStart2P',
-          fontSize: 10,
-          color: c,
-          letterSpacing: 1,
-          height: 1.4,
+      // FittedBox + maxLines: 1 pins this bar to a single, constant text-line
+      // height no matter what the message says. Without it, the sentence's
+      // length rides on the round label ("HIT TRIPLE OR HALVE" vs. "HIT 7 OR
+      // HALVE") and on the score digit count, so it could silently wrap from
+      // one line to two — growing the bar by ~19px and overflowing the
+      // cockpit Column below, since every other element in that Column is
+      // genuinely fixed-height. Scaling down (not truncating) keeps the full
+      // message readable even if it would otherwise be too wide.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(
+            fontFamily: 'PressStart2P',
+            fontSize: 10,
+            color: c,
+            letterSpacing: 1,
+            height: 1.4,
+          ),
         ),
       ),
     );
