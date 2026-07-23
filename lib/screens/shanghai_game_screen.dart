@@ -83,6 +83,12 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   @visibleForTesting
   List<HitType> get turnHitsForTest => _turnHits;
 
+  @visibleForTesting
+  List<DartThrow> get throwHistoryForTest => throwHistory;
+
+  @visibleForTesting
+  int bestRoundForTest(int playerIndex) => _bestRoundFor(playerIndex);
+
   final GameLogger _log = GameLogger.instance;
 
   // Per-turn hit history for the dart-slot display.
@@ -187,6 +193,12 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final target = engine.currentTarget;
     final scoreBefore = engine.totalScores[playerIdx];
     final wasTurnStart = dart == 0;
+    // engine.currentRound must be read BEFORE recordThrow, or the last active
+    // player's 3rd dart gets tagged with the round the engine just advanced
+    // to (recordThrow bumps currentRound on that dart), colliding with the
+    // next round's bucket. Same capture-before-apply pattern as
+    // golf_game_screen.dart's roundNo / one_up_game_screen.dart.
+    final roundNo = engine.currentRound;
 
     setState(() {
       engine.recordThrow(type);
@@ -198,7 +210,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final logLabel = _logLabelForHit(type, target);
 
     _log.logThrow(
-      roundNumber: engine.currentRound,
+      roundNumber: roundNo,
       playerIndex: playerIdx,
       label: logLabel,
       points: pointsDelta,
@@ -216,7 +228,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       turnNumber: dart,
       scoreAtStartOfTurn: wasTurnStart ? scoreBefore : (scoreBefore - 0),
       turnId: _turnIdCounter,
-      roundNumber: engine.currentRound,
+      roundNumber: roundNo,
     );
     throwHistory.add(dartThrow);
 
