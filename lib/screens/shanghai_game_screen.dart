@@ -416,6 +416,19 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     await PlayerStorage.savePlayers(savedPlayers);
   }
 
+  /// Max single-round points sum for [playerIndex], grouped by [DartThrow.
+  /// roundNumber] from this screen's [throwHistory]. 0 when the player has no
+  /// throws recorded (never happens post-game, but keeps this total).
+  int _bestRoundFor(int playerIndex) {
+    final byRound = <int, int>{};
+    for (final t in throwHistory) {
+      if (t.playerIndex != playerIndex) continue;
+      byRound[t.roundNumber] = (byRound[t.roundNumber] ?? 0) + t.points;
+    }
+    if (byRound.isEmpty) return 0;
+    return byRound.values.reduce((a, b) => a > b ? a : b);
+  }
+
   void _showPostGame(List<int> ranking) {
     final results = <PlayerResult>[];
     for (int rank = 0; rank < ranking.length; rank++) {
@@ -424,7 +437,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
         name: players[i].name,
         avatarPath: players[i].avatarPath,
         placement: rank + 1,
-        stats: {'score': engine.totalScores[i]},
+        stats: {
+          'score': engine.totalScores[i],
+          'bestRound': _bestRoundFor(i),
+          // Only meaningful for the winner — an early sudden-death win via
+          // an instant Shanghai (all three of a hole in one turn).
+          if (engine.isInstantShanghai && i == engine.winnerIndex)
+            'shanghai': true,
+        },
         ratingBefore: players[i].savedPlayerId != null
             ? _ratingsBefore[players[i].savedPlayerId!]
             : null,

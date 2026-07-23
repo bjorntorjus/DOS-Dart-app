@@ -294,6 +294,7 @@ class _PlayerResultTile extends StatelessWidget {
         if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['halved'] != null) entries.add('Halved: ${stats['halved']}');
       case 'gotcha':
+        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['kills'] != null) entries.add('Kills: ${stats['kills']}');
         if (stats['timesKilled'] != null) entries.add('Killed: ${stats['timesKilled']}');
         if (stats['busts'] != null) entries.add('Busts: ${stats['busts']}');
@@ -308,6 +309,7 @@ class _PlayerResultTile extends StatelessWidget {
           entries.add('Last-dart saves: ${stats['lastDartSaves']}');
         }
         if (stats['roundsWon'] != null && stats['roundsWon'] != 0) entries.add('Rounds won: ${stats['roundsWon']}');
+        if (stats['elimsDealt'] != null && stats['elimsDealt'] != 0) entries.add('Elims: ${stats['elimsDealt']}');
       case 'golf':
         if (stats['strokes'] != null) {
           entries.add('Strokes: ${stats['strokes']} (${vsParText(stats['vsPar'])})');
@@ -315,6 +317,13 @@ class _PlayerResultTile extends StatelessWidget {
         if ((stats['aces'] ?? 0) != 0) entries.add('Aces: ${stats['aces']}');
         if ((stats['bogeys'] ?? 0) != 0) entries.add('Bogeys: ${stats['bogeys']}');
         if (stats['bestHole'] != null) entries.add('Best hole: ${stats['bestHole']}');
+        if (stats['holesPlayed'] != null && stats['holesPlayed'] != 0) {
+          entries.add('1st-dart: ${stats['firstDartHits'] ?? 0}/${stats['holesPlayed']}');
+        }
+      case 'shanghai':
+        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
+        if (stats['bestRound'] != null && stats['bestRound'] != 0) entries.add('Best round: ${stats['bestRound']}');
+        if (stats['shanghai'] == true) entries.add('Shanghai!');
       case 'wildcard':
         if (stats['score'] != null) entries.add('Score: ${stats['score']}');
         if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');
