@@ -992,7 +992,13 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   Widget _dossedartActiveCell(int target) {
     final c = dossedartAccent(currentPlayerIndex);
     final own = marks[currentPlayerIndex][target] ?? 0;
-    final closed = own >= 3;
+    // Artboard's own-closed ⊗-lock (hiding S/D/T once the active player's own
+    // marks hit 3) dropped: it's a BEHAVIOR change vs. standard Cricket
+    // overflow scoring, and rules win over artboards per the 2026-07-23
+    // handover protocol. Only closedByAll (nobody can score any more) locks
+    // the cell; a personally-closed-but-still-live target stays tappable —
+    // the fully-filled meter below is the "you closed this" signal instead.
+    final closedByAll = engine.isClosedByAll(target);
     final isBull = target == 25;
     final List<(String, int, bool)> subs = isBull
         ? const [('BULL', 1, false), ('D-BULL', 2, false), ('—', 0, true)]
@@ -1002,7 +1008,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       color: c.withValues(alpha: 0.06),
       child: Stack(
         children: [
-          if (closed)
+          if (closedByAll)
             Center(
               child: Text(
                 '⊗',

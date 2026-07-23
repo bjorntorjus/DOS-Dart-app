@@ -69,13 +69,14 @@ void main() {
     expect(find.text('👑'), findsNothing,
         reason: 'all players start tied at 0 — no unique leader yet');
 
-    // P0 (active) puts a single mark on 20, then a triple on top of it: the
-    // triple closes 20 (1 + 3 = 4 marks) AND overflows by 1 mark in the same
-    // dart, scoring 20 points to P0 alone (standard rules: overflow scores to
-    // the thrower once the target isn't closed by all).
-    await tapSubCell(tester, '20');
-    await tester.pump();
+    // P0 (active) closes 20 (T20, exactly 3 marks, no overflow yet), then
+    // hits a single 20 on top of it: the target stays open for the other
+    // two players, so this overflow tap scores 20 points to P0 alone
+    // (standard rules: overflow keeps scoring past personal closure until
+    // everyone has closed the target).
     await tapSubCell(tester, 'T20');
+    await tester.pump();
+    await tapSubCell(tester, '20');
     await tester.pump();
 
     expect(find.text('👑'), findsOneWidget,
@@ -96,9 +97,9 @@ void main() {
     // Same dart sequence, but in cutthroat the overflow point lands on the
     // OPPONENTS (P1/P2), not on the thrower — leaving P0 at 0, the lowest
     // (and therefore leading) score.
-    await tapSubCell(tester, '20');
-    await tester.pump();
     await tapSubCell(tester, 'T20');
+    await tester.pump();
+    await tapSubCell(tester, '20');
     await tester.pump();
 
     expect(find.text('👑'), findsOneWidget);
@@ -135,6 +136,43 @@ void main() {
     expect((empty2.decoration as BoxDecoration).color,
         Colors.black.withValues(alpha: 0.4),
         reason: 'third segment stays empty');
+  });
+
+  testWidgets(
+      'own-closed-but-not-dead target keeps scoring: overflow taps still '
+      'register (rules win over the artboard\'s own-closed ⊗-lock)',
+      (tester) async {
+    await pumpCricket(tester);
+
+    // P0 closes 20 alone (T20 → exactly 3 marks, no overflow). P1/P2 haven't
+    // touched 20, so it is NOT closedByAll — the sub-cells must stay
+    // rendered and tappable.
+    await tapSubCell(tester, 'T20');
+    await tester.pump();
+
+    final dynamic state =
+        tester.state<State<CricketGameScreen>>(find.byType(CricketGameScreen));
+    expect(state.scores[0], 0);
+
+    final accent = dossedartAccent(0);
+    for (final key in ['seg-20-0', 'seg-20-1', 'seg-20-2']) {
+      final seg = tester.widget<Container>(find.byKey(ValueKey(key)));
+      expect((seg.decoration as BoxDecoration).color, accent,
+          reason: '$key: meter is fully filled once personally closed — '
+              'that IS the "you closed this" signal, no ⊗ overlay');
+    }
+    expect(find.text('⊗'), findsNothing,
+        reason: '⊗ only appears once closedByAll, not on personal closure');
+
+    // The overflow tap: still tappable past personal closure, and it must
+    // still score (standard rules: overflow scores to the thrower until the
+    // target is closed by everyone).
+    await tapSubCell(tester, '20');
+    await tester.pump();
+
+    expect(state.scores[0], 20,
+        reason: 'a personally-closed-but-still-live target must keep '
+            'scoring overflow via taps');
   });
 
   testWidgets('closed-by-all row shows DEAD tag', (tester) async {
