@@ -1093,6 +1093,10 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       canContinue:
           !_gameFullyOver && remainingActive.length > 1 && activeCount > 2,
       canUndo: !_hadSuddenDeath,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(_statThrows),
+      progressionMode: _midGamePlayerChanges ? null : 'aroundTheClock',
     );
   }
 

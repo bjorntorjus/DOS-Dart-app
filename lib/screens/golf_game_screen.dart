@@ -611,6 +611,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             results: results,
             canUndo: engine.canUndo,
             throwHistory: List<DartThrow>.from(throwHistory),
+            progressionMode: 'golf',
           ),
         ),
       ),

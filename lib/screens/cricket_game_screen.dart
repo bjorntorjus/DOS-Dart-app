@@ -641,6 +641,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       results: results,
       canContinue:
           !_gameFullyOver && active.length > 1 && players.length > 2,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+      progressionMode: _midGamePlayerChanges ? null : 'cricket',
     );
   }
 

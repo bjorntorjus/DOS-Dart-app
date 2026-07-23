@@ -671,7 +671,14 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         ratingAfter: players[i].savedPlayerId != null ? _ratingsAfter[players[i].savedPlayerId!] : null,
       ));
     }
-    return GameResult(gameMode: 'halveIt', results: results);
+    return GameResult(
+      gameMode: 'halveIt',
+      results: results,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+      progressionMode: _midGamePlayerChanges ? null : 'halveIt',
+    );
   }
 
   @override

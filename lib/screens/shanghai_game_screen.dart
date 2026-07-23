@@ -470,7 +470,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
-          result: GameResult(gameMode: 'shanghai', results: results),
+          result: GameResult(
+            gameMode: 'shanghai',
+            results: results,
+            // Chart lines index by seat; a changed roster misaligns them —
+            // suppress instead of mislabeling.
+            throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+            progressionMode: _midGamePlayerChanges ? null : 'shanghai',
+          ),
         ),
       ),
     ).then((action) async {

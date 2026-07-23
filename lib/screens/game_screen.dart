@@ -1354,6 +1354,10 @@ class _GameScreenState extends State<GameScreen> {
       results: results,
       canContinue: true,
       statsSkipped: _midGamePlayerChanges,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(_statThrows),
+      progressionMode: _midGamePlayerChanges ? null : 'x01',
     );
 
     final action = await Navigator.of(context).push<String>(
@@ -1442,6 +1446,10 @@ class _GameScreenState extends State<GameScreen> {
           players.length - _removedPlayerIndices.length > 2,
       canUndo: !_hadSuddenDeath,
       statsSkipped: _midGamePlayerChanges,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(_statThrows),
+      progressionMode: _midGamePlayerChanges ? null : 'x01',
     );
   }
 
