@@ -374,7 +374,88 @@ void main() {
   });
 
   group('GolfLeaderboard', () {
-    testWidgets('sorts by total, marks the leader and the active row', (
+    // Totals run in reverse of insertion order (P0 highest, Pn-1 lowest) so
+    // the ascending-total sort actually has to reorder the rows — a pass
+    // would be a false positive if entries happened to already be sorted.
+    List<GolfLeaderboardEntry> buildEntries(int n) => [
+      for (var i = 0; i < n; i++)
+        GolfLeaderboardEntry(
+          name: 'P$i',
+          accent: Colors.cyan,
+          total: 100 - i,
+          vsPar: -i,
+          isActive: false,
+          holeStroke: 3,
+        ),
+    ];
+
+    Future<void> pumpBoard(WidgetTester tester, {required int n}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GolfLeaderboard(
+              entries: buildEntries(n),
+              holeNumber: 10,
+              playoff: false,
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('pins height to header + n rows for n <= 5', (tester) async {
+      for (final n in [2, 4, 5]) {
+        await pumpBoard(tester, n: n);
+        final size = tester.getSize(find.byKey(const Key('golfLeaderboardBoard')));
+        expect(size.height, 34 + 56.0 * n + 2, reason: 'n=$n');
+      }
+    });
+
+    testWidgets('caps height at 5 rows worth once there are 6+ entries', (
+      tester,
+    ) async {
+      await pumpBoard(tester, n: 6);
+      final size = tester.getSize(find.byKey(const Key('golfLeaderboardBoard')));
+      expect(size.height, 34 + 56.0 * 5 + 2);
+    });
+
+    testWidgets('shows LOWEST WINS hint at 5 or fewer entries', (
+      tester,
+    ) async {
+      await pumpBoard(tester, n: 5);
+      expect(find.text('LOWEST WINS'), findsOneWidget);
+      expect(find.textContaining('SCROLL'), findsNothing);
+    });
+
+    testWidgets('shows the player-count scroll hint at 6+ entries', (
+      tester,
+    ) async {
+      await pumpBoard(tester, n: 6);
+      expect(find.text('▼ 6 PLAYERS · SCROLL'), findsOneWidget);
+      expect(find.text('LOWEST WINS'), findsNothing);
+    });
+
+    testWidgets('the THROWING/TO PLAY status column is gone', (
+      tester,
+    ) async {
+      await pumpBoard(tester, n: 2);
+      expect(find.text('▶ THROWING'), findsNothing);
+      expect(find.textContaining('TO PLAY'), findsNothing);
+    });
+
+    testWidgets('scrolling the 6-entry board reveals the 6th, highest-total name', (
+      tester,
+    ) async {
+      await pumpBoard(tester, n: 6);
+      // P0 has the highest total (100), so after the ascending sort it's
+      // the last (6th) row — cut off by the fixed 5-row window initially.
+      expect(find.text('P0'), findsNothing);
+      await tester.drag(find.byType(ListView), const Offset(0, -300));
+      await tester.pump();
+      expect(find.text('P0'), findsOneWidget);
+    });
+
+    testWidgets('sorts by total ascending and marks the leader row + this-hole chip', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -405,35 +486,13 @@ void main() {
         ),
       );
       expect(find.text('LEADERBOARD'), findsOneWidget);
-      expect(find.text('▶ THROWING'), findsOneWidget); // B, the active seat
-      expect(find.text('H10'), findsOneWidget); // A already played hole 10
-      expect(find.text('3'), findsOneWidget); // A's stroke chip
-      expect(find.text('· TO PLAY'), findsNothing);
-    });
-
-    testWidgets('shows TO PLAY for a seat that has not thrown this hole', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: GolfLeaderboard(
-              entries: const [
-                GolfLeaderboardEntry(
-                  name: 'A',
-                  accent: Colors.cyan,
-                  total: 10,
-                  vsPar: 1,
-                  isActive: false,
-                ),
-              ],
-              holeNumber: 4,
-              playoff: false,
-            ),
-          ),
-        ),
+      // B has the lower total, so it leads and renders above A.
+      expect(
+        tester.getTopLeft(find.text('B')).dy,
+        lessThan(tester.getTopLeft(find.text('A')).dy),
       );
-      expect(find.text('· TO PLAY'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget); // A's this-hole stroke chip
+      expect(find.text('·'), findsOneWidget); // B (active) hasn't played it
     });
 
     testWidgets('playoff header reads TIED LEADERS', (tester) async {
