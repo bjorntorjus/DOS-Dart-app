@@ -11,30 +11,30 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('GolfInputCells', () {
-    testWidgets('renders S/D/T + MISS cells (4) with terms for a normal hole', (
+    testWidgets('renders bare S/D/T cells (3) — no terms, no ✗ cell', (
       tester,
     ) async {
       int? tapped;
-      var missed = false;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GolfInputCells(
-              targetNumber: 7,
-              onHit: (m) => tapped = m,
-              onMiss: () => missed = true,
-            ),
+            body: GolfInputCells(targetNumber: 7, onHit: (m) => tapped = m),
           ),
         ),
       );
       expect(find.text('S7'), findsOneWidget);
       expect(find.text('D7'), findsOneWidget);
       expect(find.text('T7'), findsOneWidget);
-      expect(find.text('✗'), findsOneWidget);
-      expect(find.text('ACE'), findsOneWidget);
+      // Console v4: the term sub-labels and the console's own miss cell are
+      // gone — misses go through DossedartActionBar's button only.
+      expect(find.text('ACE'), findsNothing);
+      expect(find.text('BIRDIE'), findsNothing);
+      expect(find.text('PAR'), findsNothing);
+      expect(find.text('✗'), findsNothing);
+      expect(find.text('MISS'), findsNothing);
+      expect(find.text('+1 STROKE'), findsNothing);
       await tester.tap(find.text('T7'));
       expect(tapped, 3);
-      expect(missed, isFalse);
     });
 
     testWidgets('names the console and states the live target — one line', (
@@ -43,7 +43,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+            body: GolfInputCells(targetNumber: 7, onHit: (_) {}),
           ),
         ),
       );
@@ -55,41 +55,18 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+            body: GolfInputCells(targetNumber: 7, onHit: (_) {}),
           ),
         ),
       );
       expect(find.textContaining('MISS = +1 STROKE'), findsNothing);
     });
 
-    testWidgets('the ✗ cell states the engine-true miss cost and fires '
-        'onMiss, never onHit', (tester) async {
-      int? tapped;
-      var missed = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: GolfInputCells(
-              targetNumber: 7,
-              onHit: (m) => tapped = m,
-              onMiss: () => missed = true,
-            ),
-          ),
-        ),
-      );
-      // A single miss only ever adds ONE stroke (GolfEngine.applyDart) — the
-      // fixed "5 strokes" artboard copy is only true for a 3rd-miss wash.
-      expect(find.text('+1 STROKE'), findsOneWidget);
-      await tester.tap(find.text('✗'));
-      expect(missed, isTrue);
-      expect(tapped, isNull);
-    });
-
     testWidgets('pins to 220px tall', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+            body: GolfInputCells(targetNumber: 7, onHit: (_) {}),
           ),
         ),
       );
@@ -107,7 +84,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: GolfInputCells(targetNumber: 7, onHit: (_) {}, onMiss: () {}),
+              body: GolfInputCells(targetNumber: 7, onHit: (_) {}),
             ),
           ),
         );
@@ -117,12 +94,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: GolfInputCells(
-                targetNumber: 25,
-                onHit: (_) {},
-                onMiss: () {},
-                playoff: true,
-              ),
+              body: GolfInputCells(targetNumber: 25, onHit: (_) {}),
             ),
           ),
         );
@@ -131,29 +103,23 @@ void main() {
       },
     );
 
-    testWidgets('renders three cells for a Bull playoff — 25/50/✗, no triple, '
-        'and the ✗ sub-label reads NO SCORE', (tester) async {
+    testWidgets('renders two cells for a Bull playoff — 25/50, no triple, '
+        'no terms', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: GolfInputCells(
-              targetNumber: 25,
-              onHit: (_) {},
-              onMiss: () {},
-              playoff: true,
-            ),
+            body: GolfInputCells(targetNumber: 25, onHit: (_) {}),
           ),
         ),
       );
       expect(find.text('25'), findsOneWidget);
       expect(find.text('50'), findsOneWidget);
-      expect(find.text('✗'), findsOneWidget);
       expect(find.text('T25'), findsNothing);
       expect(find.text('BULL'), findsNothing); // cell label dropped in v2
-      expect(find.text('PAR'), findsOneWidget);
-      expect(find.text('BIRDIE'), findsOneWidget);
-      expect(find.text('NO SCORE'), findsOneWidget);
-      expect(find.text('+1 STROKE'), findsNothing);
+      expect(find.text('PAR'), findsNothing);
+      expect(find.text('BIRDIE'), findsNothing);
+      expect(find.text('✗'), findsNothing);
+      expect(find.text('NO SCORE'), findsNothing);
       expect(
         find.textContaining('THROW AT BULL'),
         findsOneWidget,
@@ -360,9 +326,8 @@ void main() {
       expect(find.text('▸ TEE OFF · LAST DART COUNTS'), findsOneWidget);
     });
 
-    testWidgets('mid-hole with a lie shows LYING n, the term and darts left', (
-      tester,
-    ) async {
+    testWidgets('mid-hole with a lie shows the miss count and darts left — '
+        'no LYING, no term', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -374,9 +339,27 @@ void main() {
           ),
         ),
       );
-      expect(find.text('LYING 2'), findsOneWidget);
-      expect(find.text('BIRDIE'), findsOneWidget);
+      expect(find.text('2 MISSES'), findsOneWidget);
       expect(find.text('1 DART LEFT'), findsOneWidget);
+      expect(find.textContaining('LYING'), findsNothing);
+      // golfTerm(misses) was never a term the hole could still score.
+      expect(find.text('BIRDIE'), findsNothing);
+    });
+
+    testWidgets('mid-hole singular: one miss reads 1 MISS', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GolfStatusPlate(
+              mode: GolfPlateMode.mid,
+              dartLabels: const ['✗'],
+              lie: 1,
+            ),
+          ),
+        ),
+      );
+      expect(find.text('1 MISS'), findsOneWidget);
+      expect(find.text('2 DARTS LEFT'), findsOneWidget);
     });
 
     testWidgets('mid-hole with no lie yet shows NO SCORE and darts left', (
@@ -399,7 +382,7 @@ void main() {
       expect(find.text('PAR'), findsNothing);
     });
 
-    testWidgets('result shows the term, LYING n and NEXT', (tester) async {
+    testWidgets('result shows the term and NEXT — no LYING n', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -412,8 +395,8 @@ void main() {
           ),
         ),
       );
-      expect(find.text('LYING 4'), findsOneWidget);
       expect(find.text('BOGEY'), findsOneWidget);
+      expect(find.textContaining('LYING'), findsNothing);
       expect(find.textContaining('NEXT'), findsOneWidget);
       expect(find.textContaining('KARI'), findsOneWidget);
     });

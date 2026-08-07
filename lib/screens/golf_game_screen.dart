@@ -88,6 +88,11 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   int _turnIdCounter = 0;
   final DateTime _gameStart = DateTime.now();
 
+  /// True when [MemeService.tryMissSound] actually queued a sting for the
+  /// miss being registered — the spoken "miss" is then skipped so the meme
+  /// isn't talked over (same gate as Gotcha/Cricket/X01).
+  bool _missSoundPlayed = false;
+
   // Roster-change gating for the deferred-stats protocol (1UP/Shanghai
   // parity). Set unconditionally and FIRST by every roster-change path
   // (_addSavedPlayerMidGame / _removePlayerMidGame, including the
@@ -242,6 +247,16 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       dartNumber: dartNo,
     );
 
+    // A miss must be audibly confirmed (2026-08-07 QA): the v1 "TTS diet"
+    // left misses completely silent, so a registered bom looked like a
+    // dropped tap from the oche. Hits stay silent — the hole-result term in
+    // _handleHoleEnd is their confirmation, and it always follows within the
+    // same dart. Skipped when a meme sting already covers the miss.
+    if (multiplier == 0 && !_missSoundPlayed) {
+      _announcer.announceThrow('miss');
+    }
+    _missSoundPlayed = false;
+
     throwHistory.add(
       DartThrow(
         playerIndex: seat,
@@ -271,7 +286,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   void _onMiss() {
     if (engine.gameOver || _overlaySuddenDeath) return;
-    _meme.tryMissSound();
+    _missSoundPlayed = _meme.tryMissSound();
     _onDartHit(0);
   }
 
@@ -967,8 +982,6 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                     child: GolfInputCells(
                       targetNumber: engine.targetNumber,
                       onHit: _onDartHit,
-                      onMiss: _onMiss,
-                      playoff: engine.inSuddenDeath,
                       enabled: !_overlaySuddenDeath && !engine.gameOver,
                     ),
                   ),

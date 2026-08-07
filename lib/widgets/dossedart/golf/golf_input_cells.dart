@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../models/golf_engine.dart';
 import '../../../theme/dossedart_tokens.dart';
 import 'golf_common.dart' show golfTermColor;
 
@@ -16,18 +15,17 @@ import 'golf_common.dart' show golfTermColor;
 /// Bull cell labels changed (`25`/`50`, matching the dartboard segment
 /// values, instead of `BULL`/`D-BULL` — copy delta, term math unchanged).
 ///
-/// Console v3 (2026-07-23): the console gains its own `✗` cell — misses are
-/// now registered from the SAME surface as hits instead of only via
-/// `DossedartActionBar`'s separate miss button (that button stays, this is
-/// an approved duplicate entry point). The footer caption explaining the
-/// miss cost is gone — the cost is stated on the cell itself now.
+/// Console v4 (2026-08-07 QA): back to hits only. The console's own `✗`
+/// cell (v3) is gone — `DossedartActionBar`'s miss button is the single
+/// miss entry point again, matching every sibling cockpit. The PAR/BIRDIE/
+/// ACE sub-labels are gone too: the cells read as plain `S7`/`D7`/`T7`
+/// (`25`/`50` on Bull), same grammar as the other modes' score input. Cell
+/// colours still carry the term.
 class GolfInputCells extends StatelessWidget {
   const GolfInputCells({
     super.key,
     required this.targetNumber,
     required this.onHit,
-    required this.onMiss,
-    this.playoff = false,
     this.enabled = true,
   });
 
@@ -37,52 +35,29 @@ class GolfInputCells extends StatelessWidget {
   /// Multiplier hit: 1 = single, 2 = double, 3 = triple.
   final void Function(int multiplier) onHit;
 
-  /// Fires when the ✗ cell is tapped — never routes through [onHit].
-  final VoidCallback onMiss;
-
-  /// True during a sudden-death playoff hole — changes the ✗ cell's sub
-  /// copy from the regulation miss cost to `NO SCORE` (a playoff miss just
-  /// stacks toward this turn's eventual stroke count, same as regulation,
-  /// but the strokes aren't banked to the main scorecard/total the way a
-  /// regulation hole's are, so the artboard's regulation miss-cost copy
-  /// doesn't apply here).
-  final bool playoff;
   final bool enabled;
 
   bool get _isBull => targetNumber == 25;
 
   List<_CellSpec> get _cells => _isBull
       ? [
-          _CellSpec(
-            label: '25',
-            multiplier: 1,
-            term: golfTerm(3),
-            color: golfTermColor(3),
-          ),
-          _CellSpec(
-            label: '50',
-            multiplier: 2,
-            term: golfTerm(2),
-            color: golfTermColor(2),
-          ),
+          _CellSpec(label: '25', multiplier: 1, color: golfTermColor(3)),
+          _CellSpec(label: '50', multiplier: 2, color: golfTermColor(2)),
         ]
       : [
           _CellSpec(
             label: 'S$targetNumber',
             multiplier: 1,
-            term: golfTerm(3),
             color: golfTermColor(3),
           ),
           _CellSpec(
             label: 'D$targetNumber',
             multiplier: 2,
-            term: golfTerm(2),
             color: golfTermColor(2),
           ),
           _CellSpec(
             label: 'T$targetNumber',
             multiplier: 3,
-            term: golfTerm(1),
             color: golfTermColor(1),
           ),
         ];
@@ -176,12 +151,6 @@ class GolfInputCells extends StatelessWidget {
                               child: _InputCell(spec: cell, onHit: onHit),
                             ),
                           ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: _MissCell(onMiss: onMiss, playoff: playoff),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -199,16 +168,14 @@ class _CellSpec {
   const _CellSpec({
     required this.label,
     required this.multiplier,
-    required this.term,
     required this.color,
   });
 
   final String label;
   final int multiplier;
 
-  /// Golf term shown as the sub-label (PAR/BIRDIE/ACE), including for the
-  /// Bull cells (PAR/BIRDIE).
-  final String? term;
+  /// Term colour for the cell chrome — the term NAME is no longer written
+  /// out (console v4), only carried by this colour.
   final Color color;
 }
 
@@ -223,7 +190,10 @@ class _InputCell extends StatelessWidget {
     return GestureDetector(
       onTap: () => onHit(spec.multiplier),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        // 24, not the v3 16: with the term sub-label gone the padding is
+        // what keeps the cell (and so the tap target) the same height it
+        // had when the label/term pair set it.
+        padding: const EdgeInsets.symmetric(vertical: 24),
         decoration: BoxDecoration(
           color: spec.color.withValues(alpha: 0.09),
           border: Border.all(color: spec.color, width: 3),
@@ -234,120 +204,25 @@ class _InputCell extends StatelessWidget {
             ),
           ],
         ),
-        // Below tablet width the cell's own text stack no longer fits its
-        // natural size — FittedBox scales the whole label/term pair down
-        // as a unit (same wrap-proof idiom as the console header above)
-        // instead of the Text widgets wrapping to a 2nd line and blowing
-        // out the console's fixed 220px height.
+        // Below tablet width the cell's own label no longer fits its natural
+        // size — FittedBox scales it down (same wrap-proof idiom as the
+        // console header above) instead of the Text wrapping to a 2nd line
+        // and blowing out the console's fixed 220px height.
         child: FittedBox(
           fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                spec.label,
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 20,
-                  color: spec.color,
-                  shadows: [
-                    Shadow(
-                      color: spec.color.withValues(alpha: 0.7),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-              ),
-              if (spec.term != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  spec.term!,
-                  style: const TextStyle(
-                    fontFamily: 'PressStart2P',
-                    fontSize: 11,
-                    color: Colors.white,
-                    letterSpacing: 1,
-                  ),
+          child: Text(
+            spec.label,
+            style: TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 20,
+              color: spec.color,
+              shadows: [
+                Shadow(
+                  color: spec.color.withValues(alpha: 0.7),
+                  blurRadius: 10,
                 ),
               ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The console's `✗` cell — same red chrome shape as the hit cells but its
-/// own colour (`DossedartTokens.red`) and its own tap target (`onMiss`,
-/// never [_InputCell.onHit]).
-///
-/// Sub-copy is engine-true, not the artboard's literal `5 STROKES`: a single
-/// miss only ever adds ONE stroke to whatever this turn eventually scores
-/// (`GolfEngine.applyDart`'s `strokes = (4 - multiplier) + missesThisHole`)
-/// — a fixed "5 strokes" cost is only true for a wash (3rd miss), which is a
-/// different, worse outcome than tapping ✗ once. During a sudden-death
-/// playoff hole the strokes aren't banked to the regulation scorecard/total
-/// at all until the hole resolves, so the artboard's `NO SCORE` copy is used
-/// instead.
-class _MissCell extends StatelessWidget {
-  const _MissCell({required this.onMiss, required this.playoff});
-
-  final VoidCallback onMiss;
-  final bool playoff;
-
-  @override
-  Widget build(BuildContext context) {
-    const color = DossedartTokens.red;
-    return GestureDetector(
-      onTap: onMiss,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.09),
-          border: Border.all(color: color, width: 3),
-          boxShadow: [
-            BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 16),
-          ],
-        ),
-        // Same wrap-proof FittedBox treatment as _InputCell above — the
-        // ✗/MISS/cost stack scales down as a unit under squeeze instead of
-        // wrapping and blowing out the console's fixed 220px height.
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '✗',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 30,
-                  color: color,
-                  shadows: [Shadow(color: color, blurRadius: 10)],
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'MISS',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 11,
-                  color: Colors.white,
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                playoff ? 'NO SCORE' : '+1 STROKE',
-                style: const TextStyle(
-                  fontFamily: 'VT323',
-                  fontSize: 17,
-                  color: Colors.white70,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
