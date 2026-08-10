@@ -71,7 +71,14 @@ class MemeService {
   }
 
   /// Convert frequency (1-10) to a chance denominator for playRandomMaybe.
-  /// 1=1/8, 3=1/5, 5=1/3 (default), 7=1/2, 10=always (1/1).
+  ///
+  /// The buckets are coarse — the slider has 10 stops but only 6 outcomes:
+  ///   1 → 1/8 · 2-3 → 1/6 · 4-5 → 1/4 · 6-7 → 1/3 · 8-9 → 1/2 · 10 → always
+  ///
+  /// (Corrected 2026-08-10. This comment previously read "1=1/8, 3=1/5,
+  /// 5=1/3, 7=1/2" — wrong for every stop except 1 and 10, and the source of
+  /// a wrong claim in the meme-audit spec. The code is unchanged; only the
+  /// description was ever off.)
   int get frequencyChance {
     if (_frequency >= 10) return 1;
     if (_frequency >= 8) return 2;

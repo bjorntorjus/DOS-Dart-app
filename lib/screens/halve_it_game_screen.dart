@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../models/player.dart';
@@ -215,9 +214,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       clutchSaversBefore: Set.of(_clutchSavers),
     ));
 
-    // Pre-roll video dice before setState
-    final vc = _meme.frequencyChance;
-    final videoRoll = vc <= 1 || Random().nextInt(vc) == 0;
+    // Video gating lives entirely in VideoService.shouldPlay (video-damping
+    // 2026-07-22). The old meme-frequency pre-roll here meant the meme slider
+    // silently changed how often videos played (audit 2026-08-10, F2).
+    final videoRoll = VideoService.instance.shouldPlay();
 
     // Track consecutive misses for pending video event
     if (segment == 0) {
@@ -280,7 +280,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
     // Video triggers at turn end only
     if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
-      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!,
+          alreadyDecided: true);
       _pendingVideoEvent = null;
       if (!mounted) return;
     }

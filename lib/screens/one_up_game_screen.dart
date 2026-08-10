@@ -228,15 +228,25 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       dartNumber: dartNo,
     );
 
+    // Full meme path (audit 2026-08-10, F3): 1UP used to reach tryMissSound
+    // only, so 6-7 and the end-of-turn stings never fired here. Its
+    // DartThrow.points are real turn points, so onTurnEnd's round-score
+    // branch is safe — unlike Golf's placeholder points.
+    final memeTriggered = _meme.onThrow(throwHistory.last);
+
     // Every dart gets a plain throw-result callout (Gotcha parity, task 14
     // QA fix — the mode was near-silent). Unlike Gotcha there's no per-dart
     // competing announcement (bust/kill) to gate this on; the turn-level
     // moments below (life lost/eliminated/etc.) are separate TTS lines that
-    // queue after this one.
-    _announcer.announceThrow(segment == 0 ? 'miss' : '${segment * multiplier}');
+    // queue after this one. Skipped when a meme sting already covers it.
+    if (!memeTriggered) {
+      _announcer.announceThrow(
+          segment == 0 ? 'miss' : '${segment * multiplier}');
+    }
 
     // A completed turn opens a fresh turnId group for the next thrower.
     if (result.turnEnded && !engine.gameOver) _turnIdCounter++;
+    if (result.turnEnded) _meme.onTurnEnd();
 
     setState(() {});
     if (result.turnEnded) _handleTurnEnd(result);

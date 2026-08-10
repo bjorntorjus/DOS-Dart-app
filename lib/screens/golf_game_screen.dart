@@ -277,6 +277,18 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         roundNumber: roundNo,
       ),
     );
+    // Golf deliberately reaches ONLY tryMissSound, unlike the other nine
+    // modes (audit 2026-08-10, F3 — parity was attempted and reverted).
+    // Every meme path MemeService offers is structurally dead here:
+    //  - 6-7 needs two consecutive darts on different numbers, but every
+    //    dart in a Golf turn targets the same hole, and the turn ends the
+    //    moment it is hit;
+    //  - the end-of-round stings and "nice" both sum DartThrow.points, which
+    //    is a placeholder in Golf (it scores strokes — see the field comment
+    //    above), so they would fire on a meaningless number.
+    // Wiring onThrow/onTurnEnd here would add calls that can never trigger
+    // and would read as a working feature. If Golf should have memes, it
+    // needs golf-shaped ones (an ACE sting, a wash sting), not these.
     setState(() {});
     if (result.holeEnded) {
       _turnIdCounter++;

@@ -222,10 +222,14 @@ class AppSettings {
     await prefs.setBool(_memeOffensiveKey, value);
   }
 
-  /// Meme frequency: 1 (rare) to 10 (always). Default 5.
+  /// Meme frequency: 1 (rare) to 10 (always). Default 3 = 1-in-6 throws
+  /// (meme-damping 2026-08-10: lowered from 5 = 1-in-4, offsetting 1UP
+  /// gaining the full meme path). See [MemeService.frequencyChance] for the
+  /// bucketing — the slider's 10 stops map to only 6 distinct rates, so 2 and
+  /// 3 behave identically. Only clean installs move; a stored value wins.
   static Future<int> getMemeFrequency() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_memeFrequencyKey) ?? 5;
+    return prefs.getInt(_memeFrequencyKey) ?? 3;
   }
 
   static Future<void> setMemeFrequency(int value) async {

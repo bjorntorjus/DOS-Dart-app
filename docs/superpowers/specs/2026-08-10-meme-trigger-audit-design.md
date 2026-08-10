@@ -56,24 +56,40 @@ stays at 5; if the next tablet session says videos are too frequent, that slider
 Both call `tryMissSound()` only. No 6-7 sequence, no "nice" at 69, no end-of-round sounds. Eight
 modes have three meme paths; these two have one.
 
-**Fix:** bring both to parity — wire `onThrow` and `onTurnEnd` following the pattern the other
-eight already use. Cross-mode consistency is a standing project principle.
+**Fix:** bring 1UP to parity — wire `onThrow` and `onTurnEnd` following the pattern the other
+eight already use. 1UP's `DartThrow.points` are real turn points, so every meme branch works.
 
-Golf needs care: `DartThrow.points` is a placeholder in Golf (documented in the post-game v2
-spec), so any meme path that reads points must not be fed Golf's throws as if they were scores.
-`onThrow`'s 6-7 check reads `segment`/`multiplier` only and is safe; the `remainingScore` argument
-must be left unset, and `onTurnEnd`'s round-score sounds are driven by summed `points` — for Golf,
-pass nothing that implies a score total, or skip the round-sound path for that mode. Decide during
-implementation and record it in a comment; do not silently feed it garbage.
+**Golf is the exception, decided during implementation (2026-08-10).** Parity was attempted and
+reverted: every path `MemeService` offers is structurally dead in Golf.
+
+- **6-7** needs two consecutive darts on *different* numbers. Every dart in a Golf turn targets
+  the same hole, and the turn ends the instant the hole is hit — so the sequence cannot occur.
+- **The end-of-round stings and "nice"** both sum `DartThrow.points`, which is a placeholder in
+  Golf (it scores strokes, not points — documented in the post-game v2 spec). They would fire on
+  a meaningless number.
+
+Wiring the calls anyway would add code that can never trigger while reading as a working feature.
+Golf keeps `tryMissSound` only, the reason is a comment in `_onDartHit`, and a test pins the
+deviation so it reads as a decision rather than an oversight. If Golf should have memes, it needs
+**golf-shaped** ones — an ACE sting, a wash sting — which is new content, not this audit.
 
 ### F4 — Meme frequency default lowered 5 → 3
 
 F3 adds meme paths, which works against the original complaint. The compensating lever is the
-default frequency: 5 (1-in-3 throws) becomes 3 (1-in-5).
+default frequency: 5 becomes 3.
+
+**Correction (2026-08-10, during implementation).** This section first said "5 (1-in-3) becomes
+3 (1-in-5)", copied from `MemeService.frequencyChance`'s own doc comment — which was wrong for
+every slider stop except 1 and 10. The real bucketing, read off the code:
 
 ```
-frequency 5 (today):  1-in-3      frequency 3 (new default):  1-in-5
+1 → 1/8    2-3 → 1/6    4-5 → 1/4    6-7 → 1/3    8-9 → 1/2    10 → always
 ```
+
+So the change is **1-in-4 → 1-in-6**, a slightly deeper cut than promised — in the direction the
+feedback asked for. The stale comment is fixed, and a test now pins the whole mapping so the next
+reader gets it from an assertion rather than prose. Note also that stops 2 and 3 are identical,
+which is why "lower it to 2 instead" would have changed nothing.
 
 **Only new installations are affected.** `getMemeFrequency()` returns
 `prefs.getInt(_memeFrequencyKey) ?? 5` — an existing player who has ever touched the slider has a
@@ -88,11 +104,15 @@ default moves.
 | Setting | Before | After |
 |---|---|---|
 | Memes off | X01 triple + bull still fire | Silent — the switch means off |
-| Memes on, default frequency | 1-in-3, 8 of 10 modes | 1-in-5, all 10 modes |
+| Memes on, default frequency | 1-in-4, 8 of 10 modes | 1-in-6, 9 of 10 modes |
 | Videos | meme slider × video slider | video slider only |
 
-For a player on defaults with memes on: fewer meme sounds per throw, but Golf and 1UP stop being
-quiet outliers. For a player with memes off: genuinely off for the first time.
+For a player on defaults with memes on: meaningfully fewer meme sounds per throw, and 1UP stops
+being a quiet outlier. For a player with memes off: genuinely off for the first time. Videos get
+slightly more frequent at the same slider position, because a gate that was never meant to be
+there is gone — the video slider now means what it says.
+
+Golf remains at one meme path by design (see F3).
 
 ## 4. Testing
 

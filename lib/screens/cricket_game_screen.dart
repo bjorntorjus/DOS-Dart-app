@@ -163,9 +163,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       turnId: _turnIdCounter,
     );
 
-    // Pre-roll video dice and track per-dart events
-    final vc = _meme.frequencyChance;
-    final videoRoll = vc <= 1 || Random().nextInt(vc) == 0;
+    // Video gating lives entirely in VideoService.shouldPlay (video-damping
+    // 2026-07-22). The old meme-frequency pre-roll here meant the meme slider
+    // silently changed how often videos played (audit 2026-08-10, F2).
+    final videoRoll = VideoService.instance.shouldPlay();
 
     if (segment == 25 && multiplier == 2) _pendingVideoEvent ??= 'bullseye';
     if (segment == 0) {
@@ -298,7 +299,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     // Show video at turn end only
     if (result.turnEnded && _pendingVideoEvent != null && videoRoll) {
       await VideoService.instance
-          .showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+          .showRandomFromFolder(context, _pendingVideoEvent!,
+              alreadyDecided: true);
     }
     if (result.turnEnded) _pendingVideoEvent = null;
     if (!mounted) return;

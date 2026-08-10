@@ -360,9 +360,11 @@ class _GameScreenState extends State<GameScreen> {
       isBust: isBust,
     );
 
-    // Pre-roll video dice and track per-dart events
+    // Video gating lives entirely in VideoService.shouldPlay (video-damping
+    // 2026-07-22). The old meme-frequency pre-roll here meant the meme slider
+    // silently changed how often videos played (audit 2026-08-10, F2).
     final vc = _meme.frequencyChance;
-    final videoRoll = vc <= 1 || Random().nextInt(vc) == 0;
+    final videoRoll = VideoService.instance.shouldPlay();
 
     if (segment == 25 && multiplier == 2) _pendingVideoEvent ??= 'bullseye';
     if (segment == 0) {
@@ -549,12 +551,17 @@ class _GameScreenState extends State<GameScreen> {
           if (!memeTriggered && !_missSoundPlayed) {
             _announcer.announceThrow(dartThrow.spokenLabel);
           }
-          if (multiplier == 3 && segment >= 18 && segment <= 20) {
-            if (_meme.frequency < 10) _meme.markSoundPlayed();
-            SoundService.instance.playRandomMaybe(['triple'], chance: vc);
-          } else if (segment == 25) {
-            if (_meme.frequency < 10) _meme.markSoundPlayed();
-            SoundService.instance.play('bull');
+          // Both are memes (audit 2026-08-10, F1): they used to fire even with
+          // the meme switch off, and the bull sound reached play() directly,
+          // making it the only sound in the app with no gate at all.
+          if (_memeEnabled) {
+            if (multiplier == 3 && segment >= 18 && segment <= 20) {
+              if (_meme.frequency < 10) _meme.markSoundPlayed();
+              SoundService.instance.playRandomMaybe(['triple'], chance: vc);
+            } else if (segment == 25) {
+              if (_meme.frequency < 10) _meme.markSoundPlayed();
+              SoundService.instance.playRandomMaybe(['bull'], chance: vc);
+            }
           }
           dartsInTurn++;
           if (dartsInTurn >= 3) {
@@ -580,7 +587,8 @@ class _GameScreenState extends State<GameScreen> {
     if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
       if (!context.mounted) return;
       // ignore: use_build_context_synchronously
-      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!,
+          alreadyDecided: true);
     }
     if (isTurnEnd) _pendingVideoEvent = null;
     if (!context.mounted) return;

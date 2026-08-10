@@ -287,9 +287,10 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       roundNumber: _roundNumber,
     );
 
-    // Pre-roll video dice and track per-dart events
-    final vc = _meme.frequencyChance;
-    final videoRoll = vc <= 1 || Random().nextInt(vc) == 0;
+    // Video gating lives entirely in VideoService.shouldPlay (video-damping
+    // 2026-07-22). The old meme-frequency pre-roll here meant the meme slider
+    // silently changed how often videos played (audit 2026-08-10, F2).
+    final videoRoll = VideoService.instance.shouldPlay();
 
     if (segment == 0) {
       _consecutiveMisses++;
@@ -422,7 +423,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
     // Show video at turn end only (awaited so it doesn't get hidden)
     if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
-      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!,
+          alreadyDecided: true);
     }
     if (isTurnEnd) _pendingVideoEvent = null;
     if (!mounted) return;

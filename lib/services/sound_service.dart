@@ -105,6 +105,15 @@ class SoundService {
   int _generation = 0;
   String? _currentName;
 
+  /// Every sound REQUEST made this test, in order — `play`'s name and
+  /// `playRandom`'s folder list. Recorded before the `disableForTest` and
+  /// `_enabled` guards on purpose: the point is to assert what the caller
+  /// asked for (did the meme gate let it through?), not what the audio layer
+  /// ended up doing, and `disableForTest` silences real playback in tests.
+  /// Clear it in `setUp`.
+  @visibleForTesting
+  final List<String> playedForTest = [];
+
   @visibleForTesting
   List<String> get pendingQueueForTesting => List<String>.unmodifiable(_queue);
 
@@ -135,6 +144,10 @@ class SoundService {
 
   /// Play [name].mp3 from assets/sounds/. Queued — will not overlap other sounds.
   Future<void> play(String name) async {
+    assert(() {
+      playedForTest.add(name);
+      return true;
+    }());
     if (disableForTest) return;
     if (!_enabled) return;
     GameLogger.instance.logSound(source: 'SoundService', event: 'play($name)', outcome: 'queued (queueLen=${_queue.length}, playing=$_isPlaying)');
@@ -247,6 +260,10 @@ class SoundService {
   /// Play a random .mp3 from one or more asset folders (paths relative to assets/sounds/).
   /// Files from all listed folders are merged into one pool before picking.
   Future<void> playRandom(List<String> folders, {String? fallback}) async {
+    assert(() {
+      playedForTest.add(folders.join('|'));
+      return true;
+    }());
     if (!_enabled) return;
     try {
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
