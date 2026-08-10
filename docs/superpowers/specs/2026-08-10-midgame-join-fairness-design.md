@@ -40,9 +40,16 @@ Seats are appended on join, so a joiner always holds the highest index and lands
 they tie with. No score is fudged, and it works identically in modes where "one point worse" is
 meaningless (Killer/1UP: one life less can be zero).
 
-This also fixes a latent problem. `List.sort` in Dart is **not stable**, so today's tied players
-order arbitrarily between rebuilds. Adding the seat tiebreaker makes tie ordering deterministic
-everywhere — a small correctness win independent of this feature.
+**Correction (2026-08-10, after implementation).** An earlier draft justified this by claiming
+`List.sort` is not stable, so tied players would otherwise order arbitrarily. That is true of the
+API contract but inert in practice here: Dart falls back to insertion sort below 32 elements, and
+insertion sort is stable, so at realistic player counts seat order already survives a tie.
+Verified by removing the tiebreak and re-running the tie tests — still green.
+
+The tiebreak is kept anyway, on narrower grounds: it states the invariant explicitly at every
+ranking site rather than leaving it to an implementation detail of the sort, and it holds if a
+comparator is ever reordered or a list ever grows past the insertion-sort threshold. It is not a
+bug fix, and the tie tests are characterization tests, not regression guards — both say so.
 
 **Decision to confirm at review:** shared placement *numbers* on a genuine tie are kept as they
 are today. A joiner who catches up over many rounds and finishes genuinely level has earned the

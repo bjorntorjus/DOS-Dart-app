@@ -590,7 +590,8 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     final w = engine.winnerIndex;
     if (w != null && !engine.isSkipped(w)) ranked.add(w);
     final alive = engine.aliveIndices.where((i) => i != w).toList()
-      ..sort((a, b) => engine.livesLeft[b].compareTo(engine.livesLeft[a]));
+      ..sort(withSeatTiebreak(
+          (a, b) => engine.livesLeft[b].compareTo(engine.livesLeft[a])));
     ranked.addAll(alive);
     for (final i in engine.eliminationOrder.reversed) {
       if (!engine.isSkipped(i) && !ranked.contains(i)) ranked.add(i);

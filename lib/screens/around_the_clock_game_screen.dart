@@ -622,7 +622,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
     // Sort by fewest remaining segments (most progress)
     final sorted = _suddenDeathPlayers.toList()
-      ..sort((a, b) => (progress[a] ?? 999).compareTo(progress[b] ?? 999));
+      ..sort(withSeatTiebreak(
+          (a, b) => (progress[a] ?? 999).compareTo(progress[b] ?? 999)));
 
     if (sorted.length > 1 && progress[sorted[0]] == progress[sorted[1]]) {
       // Still tied
@@ -1788,6 +1789,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -1802,6 +1804,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       gameOver: _gameFullyOver,
       colorFor: avatarColor,
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,

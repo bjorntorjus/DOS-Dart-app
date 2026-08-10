@@ -1051,7 +1051,8 @@ class _GameScreenState extends State<GameScreen> {
 
     // Sort by highest score
     final sorted = _suddenDeathPlayers.toList()
-      ..sort((a, b) => (scores[b] ?? 0).compareTo(scores[a] ?? 0));
+      ..sort(withSeatTiebreak(
+          (a, b) => (scores[b] ?? 0).compareTo(scores[a] ?? 0)));
 
     // Check if still tied
     if (sorted.length > 1 && scores[sorted[0]] == scores[sorted[1]]) {
@@ -1299,7 +1300,7 @@ class _GameScreenState extends State<GameScreen> {
   ///   2. Non-finishers after, sorted by current score asc (closer to 0 = better)
   List<int> _noBustRankIndices() {
     final indices = List<int>.generate(players.length, (i) => i);
-    indices.sort((a, b) {
+    indices.sort(withSeatTiebreak((a, b) {
       final aFinish = _finishes.where((f) => f.playerIndex == a).firstOrNull;
       final bFinish = _finishes.where((f) => f.playerIndex == b).firstOrNull;
       if (aFinish != null && bFinish == null) return -1;
@@ -1311,7 +1312,7 @@ class _GameScreenState extends State<GameScreen> {
       }
       // both non-finishers
       return players[a].score.compareTo(players[b].score);
-    });
+    }));
     return indices;
   }
 
@@ -1771,6 +1772,7 @@ class _GameScreenState extends State<GameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -2295,6 +2297,7 @@ class _GameScreenState extends State<GameScreen> {
       gameOver: _gameFullyOver,
       colorFor: avatarColor,
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: (saved) => _addSavedPlayerMidGame(saved),
       onRemove: (i) => _removePlayerMidGame(i),

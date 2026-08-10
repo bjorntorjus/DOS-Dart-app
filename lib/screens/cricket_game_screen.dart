@@ -435,7 +435,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         .toList();
     if (remaining.isEmpty) return result;
 
-    remaining.sort((a, b) {
+    remaining.sort(withSeatTiebreak((a, b) {
       final scoreComp = widget.config.isCutthroat
           ? scores[a].compareTo(scores[b])
           : scores[b].compareTo(scores[a]);
@@ -446,7 +446,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       final marksA = targets.fold(0, (s, t) => s + (marks[a][t] ?? 0));
       final marksB = targets.fold(0, (s, t) => s + (marks[b][t] ?? 0));
       return marksB.compareTo(marksA);
-    });
+    }));
 
     final base = rankedFinished.length + 1;
     int place = base;
@@ -1785,6 +1785,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -1799,6 +1800,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       gameOver: _gameFullyOver,
       colorFor: avatarColor,
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,

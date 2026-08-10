@@ -461,7 +461,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// Rank by total score (higher = better placement); equal scores tie.
   List<int> _buildPlacements() {
     final sorted = List.generate(players.length, (i) => i)
-      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+      ..sort(withSeatTiebreak(
+          (a, b) => totalScores[b].compareTo(totalScores[a])));
     final placements = List.filled(players.length, 0);
     for (int rank = 0; rank < sorted.length; rank++) {
       if (rank > 0 && totalScores[sorted[rank]] == totalScores[sorted[rank - 1]]) {
@@ -617,7 +618,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   void _showPostGame() async {
     // Rank players by total score descending
     final indexed = List.generate(players.length, (i) => i);
-    indexed.sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+    indexed.sort(
+        withSeatTiebreak((a, b) => totalScores[b].compareTo(totalScores[a])));
 
     _log.logGameEnd(
       playerNames: players.map((p) => p.name).toList(),
@@ -653,7 +655,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     final indexed = List.generate(players.length, (i) => i)
         .where((i) => !_removedPlayerIndices.contains(i))
         .toList()
-      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+      ..sort(withSeatTiebreak(
+          (a, b) => totalScores[b].compareTo(totalScores[a])));
 
     final results = <PlayerResult>[];
     for (int rank = 0; rank < indexed.length; rank++) {
@@ -1785,6 +1788,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -1799,6 +1803,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       gameOver: gameOver,
       colorFor: avatarColor,
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,

@@ -450,7 +450,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     return [
       for (var i = 0; i < players.length; i++)
         if (placements[i] != 0) i,
-    ]..sort((a, b) => placements[a].compareTo(placements[b]));
+    ]..sort(withSeatTiebreak((a, b) => placements[a].compareTo(placements[b])));
   }
 
   Future<void> _onGameEnd() async {

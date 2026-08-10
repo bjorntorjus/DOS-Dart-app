@@ -513,7 +513,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final indices = List<int>.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    indices.sort((a, b) => engine.totalScores[b].compareTo(engine.totalScores[a]));
+    indices.sort(withSeatTiebreak(
+        (a, b) => engine.totalScores[b].compareTo(engine.totalScores[a])));
     if (engine.isInstantShanghai && engine.winnerIndex != null) {
       indices.remove(engine.winnerIndex!);
       indices.insert(0, engine.winnerIndex!);
@@ -623,6 +624,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -637,6 +639,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       gameOver: engine.gameOver,
       colorFor: avatarColor,
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -837,7 +840,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final order = [
       for (int i = 0; i < players.length; i++)
         if (!engine.isSkipped(i)) i
-    ]..sort((a, b) => engine.totalScores[b].compareTo(engine.totalScores[a]));
+    ]..sort(withSeatTiebreak(
+        (a, b) => engine.totalScores[b].compareTo(engine.totalScores[a])));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(

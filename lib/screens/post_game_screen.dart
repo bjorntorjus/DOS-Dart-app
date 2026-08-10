@@ -4,6 +4,7 @@ import '../stats/mode_progression.dart';
 import '../screens/dossedart/game_detail_screen.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
 import '../widgets/dossedart/progression_chart.dart';
+import '../utils/join_seed.dart';
 import '../widgets/player_avatar.dart';
 
 /// Golf's vs-par display: 'E' at even, '+n' over, 'n' (with the leading '-'
@@ -49,8 +50,15 @@ class PostGameScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final sorted = List<PlayerResult>.from(result.results)
-      ..sort((a, b) => a.placement.compareTo(b.placement));
+    // Seat order breaks placement ties (join-fairness 2026-08-10): a mid-game
+    // joiner holds the last seat, so on an exact tie they are listed BELOW the
+    // player they were seeded from rather than above them. `result.results` is
+    // in seat order, and Dart's List.sort is not stable, so the fallback has
+    // to be explicit.
+    final seats = List.generate(result.results.length, (i) => i)
+      ..sort(withSeatTiebreak((a, b) =>
+          result.results[a].placement.compareTo(result.results[b].placement)));
+    final sorted = [for (final i in seats) result.results[i]];
     final winner = sorted.first;
 
     // Optional per-round progression chart (SCORE PER ROUND) — only when the

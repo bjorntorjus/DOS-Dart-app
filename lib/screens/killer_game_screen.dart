@@ -672,7 +672,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     placements[winnerIndex!] = 1;
     final nonWinners = List.generate(players.length, (i) => i)
       ..removeWhere((i) => i == winnerIndex);
-    nonWinners.sort((a, b) => lives[b].compareTo(lives[a]));
+    nonWinners.sort(withSeatTiebreak((a, b) => lives[b].compareTo(lives[a])));
     int rank = 2;
     for (int i = 0; i < nonWinners.length; i++) {
       if (i > 0 && lives[nonWinners[i]] < lives[nonWinners[i - 1]]) {
@@ -1792,6 +1792,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -1806,6 +1807,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       gameOver: winnerIndex != null,
       colorFor: avatarColor,
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player. '
           'New players get a random unused number and must qualify by hitting their double.',
       onAdd: _addSavedPlayerMidGame,

@@ -81,6 +81,9 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   @visibleForTesting
+  List<int> rankPlayersForTest() => _rankPlayers();
+
+  @visibleForTesting
   Future<void> updateStatsForTest() => _updateStats(_rankPlayers());
 
   /// Whether the roster changed mid-game — read by the stats/rating gating
@@ -487,7 +490,8 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     final indices = List<int>.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    indices.sort((a, b) => engine.totals[b].compareTo(engine.totals[a]));
+    indices.sort(withSeatTiebreak(
+        (a, b) => engine.totals[b].compareTo(engine.totals[a])));
     if (engine.winnerIndex != null && !engine.isSkipped(engine.winnerIndex!)) {
       indices.remove(engine.winnerIndex!);
       indices.insert(0, engine.winnerIndex!);
@@ -542,6 +546,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
+          'A new player starts level with whoever is in last place. '
           'Rating is skipped for this game once you add or remove a player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
