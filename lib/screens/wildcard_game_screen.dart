@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app_version.dart';
+import '../utils/join_seed.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_mode.dart';
@@ -808,9 +809,17 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     );
   }
 
-  /// WILDCARD joiners always start at 0 — spec §7.2, deliberately NOT the
-  /// table-average other cockpits (Shanghai/Cricket/Gotcha) use.
+  /// WILDCARD joiners follow the shared last-place rule (spec §7.2, amended
+  /// 2026-08-10). The original "always 0" existed to reject the table AVERAGE
+  /// the other cockpits used; the last-place rule did not exist yet, and the
+  /// lowest active total is always >= 0, so this can only be more generous.
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    final activeIndices = [
+      for (var i = 0; i < players.length; i++)
+        if (!engine.isSkipped(i)) i
+    ];
+    final worst = worstSeat(engine.totals, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 0 : engine.totals[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
@@ -820,7 +829,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer();
+      engine.addPlayer(initialScore: seedScore);
     });
   }
 

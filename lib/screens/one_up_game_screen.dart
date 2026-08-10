@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../app_version.dart';
+import '../utils/join_seed.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_mode.dart';
@@ -100,6 +101,9 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
 
   @visibleForTesting
   void onUndoForTest() => _onUndo();
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   // ─── Moment overlays (Task 8; auto-dismiss added task 14) ─────
   _OuOverlay? _overlay;
@@ -648,13 +652,20 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       gameOver: engine.gameOver,
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
-      addInfoText: 'Joins next round with ${widget.config.lives} lives',
+      addInfoText: "Joins next round with the last-placed player's lives",
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not a full set of lives
+    // (tester feedback 2026-08-10). Fewest lives is the worst position, and
+    // there is deliberately no floor.
+    final worst =
+        worstSeat(engine.livesLeft, engine.aliveIndices, higherIsBetter: true);
+    final seedLives =
+        worst == null ? widget.config.lives : engine.livesLeft[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
@@ -664,7 +675,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer();
+      engine.addPlayer(initialLives: seedLives);
     });
     _log.logRoster(
       action: 'ADD',

@@ -1189,10 +1189,10 @@ class WildcardEngine {
 
   void clearUndoStack() => _undoStack.clear();
 
-  /// Add a mid-game joiner. Per spec §7.2 WILDCARD joiners always start at 0
-  /// (no table-average like Shanghai/Cricket) — [initialScore] exists only
-  /// for API symmetry and defaults to 0. Clears the undo stack — snapshots
-  /// have the old list lengths.
+  /// Add a mid-game joiner seeded with [initialScore] — the last-placed active
+  /// player's total (spec §7.2, amended 2026-08-10; the original "always 0"
+  /// rejected the table AVERAGE, which no mode uses any more). Clears the undo
+  /// stack — snapshots have the old list lengths.
   void addPlayer({int initialScore = 0}) {
     totals.add(initialScore);
     roundStartTotals.add(initialScore);

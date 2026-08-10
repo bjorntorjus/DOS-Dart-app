@@ -345,9 +345,12 @@ class OneUpEngine {
   void clearUndoStack() => _undoStack.clear();
 
   /// New player joins the rotation from the NEXT round with full lives.
-  void addPlayer() {
+  /// Adds a seat mid-game. [initialLives] seeds the joiner from the
+  /// last-placed active player (tester feedback 2026-08-10); null keeps the
+  /// original behaviour of granting a full set of [startingLives].
+  void addPlayer({int? initialLives}) {
     _undoStack.clear();
-    livesLeft.add(startingLives);
+    livesLeft.add(initialLives ?? startingLives);
     livesLost.add(0);
     targetsSet.add(0);
     highestTurn.add(0);

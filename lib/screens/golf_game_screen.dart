@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../app_version.dart';
+import '../utils/join_seed.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_mode.dart';
@@ -135,6 +136,9 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   @visibleForTesting
   void onUndoForTest() => _onUndo();
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   // ─── Moments (Task 8): hole-result display window + sudden-death overlay ──
   // Both timers are token-guarded (1UP QA pattern, task 14): the token is
@@ -852,13 +856,25 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
           .whereType<String>()
           .toSet(),
       addInfoText:
-          'Joins at hole ${engine.holeNumber} — earlier holes count as par.',
+          'Joins at hole ${engine.holeNumber} — earlier holes match the last-placed player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not PAR (tester feedback
+    // 2026-08-10). Golf is lowest-total-wins, so the HIGHEST stroke total is
+    // the worst position.
+    final activeIndices = [
+      for (var i = 0; i < players.length; i++)
+        if (!engine.isSkipped(i)) i
+    ];
+    final worst = worstSeat(
+      [for (var i = 0; i < players.length; i++) engine.total(i)],
+      activeIndices,
+      higherIsBetter: false,
+    );
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
@@ -870,7 +886,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
           avatarPath: sp.avatarPath,
         ),
       );
-      engine.addPlayer();
+      engine.addPlayer(seedTotal: worst == null ? null : engine.total(worst));
     });
     _log.logRoster(
       action: 'ADD',
