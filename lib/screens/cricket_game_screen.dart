@@ -8,6 +8,7 @@ import '../models/cricket_engine.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
+import '../utils/join_seed.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
@@ -1805,37 +1806,50 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
-    // Active = not in finishedPlayers. Removed players are always also in
-    // finishedPlayers, so this single check excludes them too — matching the
-    // pre-engine averaging exactly.
+    // Seeded from the LAST-PLACED active player, not the table average — a
+    // joiner should not arrive better off than the player who has been
+    // struggling all game (tester feedback 2026-08-10). Active = not in
+    // finishedPlayers; removed players are always also in finishedPlayers, so
+    // this single check excludes them too.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !finishedPlayers.contains(i))
         .toList();
 
-    int avgPoints = 0;
-    final newMarks = {for (final t in targets) t: 0};
+    // The same ordering _computeExitPlacements uses, so "last" means the same
+    // thing here as it does on the result screen — including cutthroat, where
+    // the highest score is the worst.
+    final worst = worstSeatBy(activeIndices, (a, b) {
+      final scoreComp = widget.config.isCutthroat
+          ? scores[a].compareTo(scores[b])
+          : scores[b].compareTo(scores[a]);
+      if (scoreComp != 0) return scoreComp;
+      final closedA = targets.where((t) => engine.isClosed(t, a)).length;
+      final closedB = targets.where((t) => engine.isClosed(t, b)).length;
+      if (closedB != closedA) return closedB.compareTo(closedA);
+      final marksA = targets.fold(0, (s, t) => s + (marks[a][t] ?? 0));
+      final marksB = targets.fold(0, (s, t) => s + (marks[b][t] ?? 0));
+      return marksB.compareTo(marksA);
+    });
 
-    if (activeIndices.isNotEmpty) {
-      avgPoints = (activeIndices.map((i) => scores[i]).reduce((a, b) => a + b) /
-              activeIndices.length)
-          .round();
+    final seedPoints = worst == null ? 0 : scores[worst];
 
-      // Per-target average marks (rounded), capped at 3 (closed)
-      for (final t in targets) {
-        final avgMarks = activeIndices
-                .map((i) => marks[i][t]!.clamp(0, 3))
-                .reduce((a, b) => a + b) /
-            activeIndices.length;
-        newMarks[t] = avgMarks.round().clamp(0, 3);
-      }
-    }
+    // A target closed by EVERY seat is dead. Copying a last-placed player who
+    // never closed it would bring it back to life and let the whole table farm
+    // it again — so the joiner is given 3 marks there regardless. Evaluated
+    // before the add, or the joiner's own empty marks make isClosedByAll false.
+    final newMarks = {
+      for (final t in targets)
+        t: engine.isClosedByAll(t)
+            ? 3
+            : (worst == null ? 0 : (marks[worst][t] ?? 0).clamp(0, 3))
+    };
 
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgPoints,
+        score: seedPoints,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
@@ -1843,7 +1857,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       // averages) and resets its undo history — an undo snapshot taken before
       // the add has the old list lengths and would RangeError (audit
       // 2026-07-06, F8).
-      engine.addPlayer(initialScore: avgPoints, initialMarks: newMarks);
+      engine.addPlayer(initialScore: seedPoints, initialMarks: newMarks);
     });
     _log.logRoster(
         action: 'ADD',
