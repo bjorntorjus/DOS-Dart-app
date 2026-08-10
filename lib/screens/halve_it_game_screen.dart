@@ -7,6 +7,7 @@ import '../models/game_config.dart';
 import '../models/halve_it_round.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
+import '../utils/join_seed.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
@@ -1804,26 +1805,30 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Splitscore accumulates, so the LOWEST
+    // total is the worst position. Every player plays every round here, so
+    // "active" is only about removal.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !_removedPlayerIndices.contains(i))
         .toList();
-    final avgScore = activeIndices.isEmpty
-        ? 40
-        : (activeIndices.map((i) => totalScores[i]).reduce((a, b) => a + b) /
-                activeIndices.length)
-            .round();
+    final worst = worstSeat(totalScores, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 40 : totalScores[worst];
 
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgScore,
+        score: seedScore,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      totalScores.add(avgScore);
+      totalScores.add(seedScore);
       // Backfill roundScores for rounds already played with null (skipped)
       for (int ri = 0; ri < rounds.length; ri++) {
         roundScores[ri].add(null);

@@ -8,6 +8,7 @@ import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/game_mode.dart';
+import '../utils/join_seed.dart';
 import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../services/player_storage.dart';
@@ -193,7 +194,11 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     super.initState();
     players = widget.players;
     final start = _startTarget;
-    currentTargets = List.filled(players.length, start);
+    // growable: _addSavedPlayerMidGame appends a seat. List.filled defaults to
+    // fixed-length, so every mid-game add threw "Cannot add to a fixed-length
+    // list" — the path was unreachable in tests until the 2026-08-10 join-seed
+    // work covered it.
+    currentTargets = List.filled(players.length, start, growable: true);
     for (final p in players) {
       p.score = start;
     }
@@ -1803,31 +1808,26 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     );
   }
 
-  /// Compute new player's starting target from average remaining segments
-  /// of active players. Standard rounding (0.5 up).
-  int _computeJoinTarget() {
+  @visibleForTesting
+  List<int> get currentTargetsForTest => currentTargets;
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). More segments remaining is worse, and the
+    // last-placed player's target IS the position — no conversion needed,
+    // which is why the old average-remaining walk is gone.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !finishedPlayers.contains(i))
         .toList();
-    if (activeIndices.isEmpty) return _startTarget;
-    final avgRemaining = activeIndices
-            .map((i) => _segmentsRemaining(currentTargets[i]))
-            .reduce((a, b) => a + b) /
-        activeIndices.length;
-    final remainingRounded = avgRemaining.round();
-    // Walk forward from start by (totalSegments - remaining) steps
-    int totalSegments = _segmentsRemaining(_startTarget);
-    int stepsTaken = totalSegments - remainingRounded;
-    if (stepsTaken < 0) stepsTaken = 0;
-    int t = _startTarget;
-    for (int s = 0; s < stepsTaken; s++) {
-      t = _advanceTarget(t);
-    }
-    return t;
-  }
-
-  void _addSavedPlayerMidGame(SavedPlayer sp) {
-    final target = _computeJoinTarget();
+    final worst = worstSeatBy(
+      activeIndices,
+      (a, b) => _segmentsRemaining(currentTargets[a])
+          .compareTo(_segmentsRemaining(currentTargets[b])),
+    );
+    final target = worst == null ? _startTarget : currentTargets[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);

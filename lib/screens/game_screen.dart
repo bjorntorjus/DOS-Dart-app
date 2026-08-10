@@ -12,6 +12,7 @@ import '../models/achievement_event.dart';
 import '../models/earned_feat.dart';
 import '../models/game_mode.dart';
 import '../services/achievement_service.dart';
+import '../utils/join_seed.dart';
 import '../utils/earned_feats_builder.dart';
 import '../utils/x01_achievement_feats.dart';
 import '../services/elo_service.dart';
@@ -2376,22 +2377,32 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  @visibleForTesting
+  List<Player> get playersForTest => players;
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
   void _addSavedPlayerMidGame(SavedPlayer sp) {
-    // Avg of active players' remaining score; added as last in round
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). X01 counts down, so the HIGHEST remaining
+    // score is the worst position. Added as last in round.
     final activePlayers = List.generate(players.length, (i) => i)
         .where((i) => !finishedPlayers.contains(i))
         .toList();
-    final avgScore = activePlayers.isEmpty
-        ? widget.startingScore
-        : (activePlayers.fold<int>(0, (s, i) => s + players[i].score) /
-                activePlayers.length)
-            .round();
+    final worst = worstSeat(
+      [for (final p in players) p.score],
+      activePlayers,
+      higherIsBetter: false,
+    );
+    final seedScore =
+        worst == null ? widget.startingScore : players[worst].score;
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgScore,
+        score: seedScore,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));

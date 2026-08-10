@@ -17,6 +17,7 @@ import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
+import '../utils/join_seed.dart';
 import '../utils/player_colors.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
@@ -642,28 +643,29 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     );
   }
 
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Shanghai accumulates, so the LOWEST total
+    // is the worst position.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    int avgScore = 0;
-    if (activeIndices.isNotEmpty) {
-      avgScore = (activeIndices
-                  .map((i) => engine.totalScores[i])
-                  .reduce((a, b) => a + b) /
-              activeIndices.length)
-          .round();
-    }
+    final worst =
+        worstSeat(engine.totalScores, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 0 : engine.totalScores[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgScore,
+        score: seedScore,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer(initialScore: avgScore);
+      engine.addPlayer(initialScore: seedScore);
     });
     _log.logRoster(
       action: 'ADD',

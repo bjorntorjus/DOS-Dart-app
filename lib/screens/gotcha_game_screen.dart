@@ -19,6 +19,7 @@ import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
 import '../theme/dossedart_tokens.dart';
+import '../utils/join_seed.dart';
 import '../utils/earned_feats_builder.dart';
 import '../utils/gotcha_achievement_feats.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
@@ -548,27 +549,24 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Gotcha races up to a target, so the
+    // LOWEST total is the worst position.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    int avgScore = 0;
-    if (activeIndices.isNotEmpty) {
-      avgScore = (activeIndices
-                  .map((i) => engine.totals[i])
-                  .reduce((a, b) => a + b) /
-              activeIndices.length)
-          .round();
-    }
+    final worst = worstSeat(engine.totals, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 0 : engine.totals[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgScore,
+        score: seedScore,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer(initialScore: avgScore);
+      engine.addPlayer(initialScore: seedScore);
     });
   }
 

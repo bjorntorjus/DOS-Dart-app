@@ -7,6 +7,7 @@ import '../widgets/active_player_highlight.dart';
 import '../widgets/dart_board.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
+import '../utils/join_seed.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
@@ -157,6 +158,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
   @visibleForTesting
   List<int> get livesForTest => lives;
+
+  @visibleForTesting
+  List<bool> get isEliminatedForTest => isEliminated;
 
   void _commitKillsThisTurn() {
     final cur = _maxKillsInTurn[currentPlayerIndex] ?? 0;
@@ -1814,12 +1818,12 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         .where((i) => !isEliminated[i] && !_removedPlayerIndices.contains(i))
         .toList();
 
-    // Avg lives, standard rounding
-    final avgLives = activeIndices.isEmpty
-        ? widget.config.lives
-        : (activeIndices.map((i) => lives[i]).reduce((a, b) => a + b) /
-                activeIndices.length)
-            .round();
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Fewest lives is the worst position, and
+    // there is deliberately NO floor: joining a game where everyone is nearly
+    // out is a bad deal, and the rule says so honestly.
+    final worst = worstSeat(lives, activeIndices, higherIsBetter: true);
+    final seedLives = worst == null ? widget.config.lives : lives[worst];
 
     // Random unused number
     final usedNumbers = assignedNumbers.toSet();
@@ -1842,7 +1846,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         avatarPath: sp.avatarPath,
       ));
       assignedNumbers.add(number);
-      lives.add(avgLives);
+      lives.add(seedLives);
       isKiller.add(false); // must qualify
       isEliminated.add(false);
       shields.add(0);
