@@ -161,6 +161,12 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       turnNumber: engine.dartsInTurn,
       scoreAtStartOfTurn: scoreBefore,
       turnId: _turnIdCounter,
+      // Without this every dart lands in round 0, so the MATCH FLOW chart
+      // groups the whole game into one bucket and collapses to two points —
+      // start and finish (tester feedback 2026-08-10). roundNum is captured
+      // above, before the throw joins throwHistory, because _roundNumber is
+      // derived FROM throwHistory.
+      roundNumber: roundNum,
     );
 
     // Video gating lives entirely in VideoService.shouldPlay (video-damping

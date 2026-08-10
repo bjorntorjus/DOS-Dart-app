@@ -195,6 +195,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       turnNumber: dartsInTurn,
       scoreAtStartOfTurn: totalScores[currentPlayerIndex],
       turnId: _turnIdCounter,
+      // Without this every dart lands in round 0, so the MATCH FLOW chart
+      // groups the whole game into one bucket and collapses to two points —
+      // start and finish (tester feedback 2026-08-10).
+      roundNumber: currentRoundIndex,
     );
 
     // Save undo data
