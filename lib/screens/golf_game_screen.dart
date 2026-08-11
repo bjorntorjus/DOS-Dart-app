@@ -676,6 +676,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
           result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
             gameMode: 'golf',
             results: results,
             canUndo: engine.canUndo,

@@ -1096,6 +1096,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     final activeCount = players.length - _removedPlayerIndices.length;
 
     return GameResult(
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'aroundTheClock',
       results: results,
       canContinue:

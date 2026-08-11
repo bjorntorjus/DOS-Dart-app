@@ -751,6 +751,8 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
           result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
             gameMode: 'wildcard',
             results: results,
             detailEntry: detailEntry,

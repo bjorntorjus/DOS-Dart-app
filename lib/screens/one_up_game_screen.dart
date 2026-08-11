@@ -562,7 +562,12 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
-          result: GameResult(gameMode: 'oneUp', results: results),
+          result: GameResult(
+            gameMode: 'oneUp',
+            results: results,
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
+          ),
         ),
       ),
     ).then((action) async {

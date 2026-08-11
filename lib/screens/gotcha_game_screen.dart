@@ -451,6 +451,8 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
           result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
             gameMode: 'gotcha',
             results: results,
             // Chart lines index by seat; a changed roster misaligns them —

@@ -646,6 +646,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         .where((i) => !finishedPlayers.contains(i))
         .toList();
     return GameResult(
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'cricket',
       results: results,
       canContinue:

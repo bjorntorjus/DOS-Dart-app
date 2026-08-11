@@ -1361,6 +1361,7 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     final gameResult = GameResult(
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'x01',
       results: results,
       canContinue: true,
@@ -1533,6 +1534,7 @@ class _GameScreenState extends State<GameScreen> {
         .toList();
 
     return GameResult(
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'x01',
       results: results,
       canContinue: !_gameFullyOver &&

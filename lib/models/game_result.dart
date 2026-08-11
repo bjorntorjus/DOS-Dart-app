@@ -59,6 +59,12 @@ class GameResult {
   /// that doesn't opt in, and ignored entirely when [statsSkipped] is true.
   final GameHistoryEntry? detailEntry;
 
+  /// Wall-clock seconds from the screen's `_gameStart` to game end, for the
+  /// post-game MATCH SUMMARY's DURATION cell. It cannot be derived from
+  /// [throwHistory] — and DURATION is the one summary value that still
+  /// renders when throwHistory is suppressed by a roster change.
+  final int? durationSeconds;
+
   GameResult({
     required this.gameMode,
     required this.results,
@@ -69,5 +75,6 @@ class GameResult {
     this.progressionMode,
     this.modeExtras,
     this.detailEntry,
+    this.durationSeconds,
   });
 }

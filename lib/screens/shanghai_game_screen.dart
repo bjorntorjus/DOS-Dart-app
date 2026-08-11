@@ -472,6 +472,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
           result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
             gameMode: 'shanghai',
             results: results,
             // Chart lines index by seat; a changed roster misaligns them —

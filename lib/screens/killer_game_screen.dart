@@ -884,7 +884,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             : null,
       ));
     }
-    return GameResult(gameMode: 'killer', results: results);
+    return GameResult(
+      gameMode: 'killer',
+      results: results,
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+    );
   }
 
   @override
