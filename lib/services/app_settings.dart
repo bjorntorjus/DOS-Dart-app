@@ -163,6 +163,23 @@ class AppSettings {
     await prefs.setInt(_eloThresholdKey, value);
   }
 
+  // Backup
+  static const String _lastBackupAtKey = 'last_backup_at';
+
+  /// When a full-data backup was last exported, or null if never. The seasons
+  /// migration refuses to run until this is set — see
+  /// `docs/superpowers/specs/2026-08-11-elo-seasons-design.md` §6.
+  static Future<DateTime?> getLastBackupAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_lastBackupAtKey);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  static Future<void> setLastBackupAt(DateTime value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastBackupAtKey, value.toIso8601String());
+  }
+
   // Memes
   static const String _memeEnabledKey = 'meme_enabled';
   static const String _meme67Key = 'meme_67';

@@ -1,8 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_version.dart';
+import 'app_settings.dart';
 import 'game_history_service.dart';
 import 'player_storage.dart';
 
@@ -57,5 +62,39 @@ class BackupService {
     String two(int v) => v.toString().padLeft(2, '0');
     return 'dart-scorer-backup-'
         '${now.year}-${two(now.month)}-${two(now.day)}.json';
+  }
+
+  /// The share sheet is a platform channel with no binding in a unit test —
+  /// same reason SoundService and VideoService carry a disableForTest.
+  @visibleForTesting
+  static bool disableShareForTest = false;
+
+  /// Writes the backup into the app's documents directory and returns its
+  /// path. A second export on the same day overwrites the first rather than
+  /// accumulating copies.
+  static Future<String> writeBackupFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/${fileName(DateTime.now())}');
+    await file.writeAsString(encode(await buildBackup()));
+    return file.path;
+  }
+
+  /// Writes the file, hands it to the system share sheet, then records that an
+  /// export happened.
+  ///
+  /// The stamp lands AFTER the share returns. SharePlus cannot report whether
+  /// the user actually saved anything, so this records "an export was
+  /// performed" — the honest claim, and the strongest one available. The
+  /// migration gate inherits that limitation, which is why it is friction
+  /// rather than a guarantee.
+  static Future<void> exportAndShare() async {
+    final path = await writeBackupFile();
+    if (!disableShareForTest) {
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(path)],
+        subject: 'Dart Scorer - data backup',
+      ));
+    }
+    await AppSettings.setLastBackupAt(DateTime.now());
   }
 }
