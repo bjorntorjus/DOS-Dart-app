@@ -23,6 +23,7 @@ class DossedartPlacementCard extends StatelessWidget {
     this.avatarPath,
     this.ratingChange,
     this.showElo = true,
+    this.showStats = true,
     this.isTied = false,
   });
 
@@ -36,10 +37,18 @@ class DossedartPlacementCard extends StatelessWidget {
   final String? avatarPath;
   final double? ratingChange;
 
-  /// False for modes that never rate (WILDCARD). The column still occupies
-  /// its fixed 86 px and renders a dimmed em dash, so standings geometry is
-  /// the same in every mode.
+  /// False for modes that never rate (WILDCARD), and on the provisional
+  /// screen. For WILDCARD the column still occupies its fixed 86 px and
+  /// renders a dimmed em dash, so standings geometry is the same in every
+  /// mode; [showStats] false drops it entirely instead, since that screen is
+  /// a different thing rather than the same screen missing a value.
   final bool showElo;
+
+  /// False while the game is still running: the card shrinks to rank, name
+  /// and the headline number. Statistics belong to a finished game — the
+  /// "continue?" screen answers who is out and where everyone stands, and
+  /// nothing on it is final yet.
+  final bool showStats;
   final bool isTied;
 
   @override
@@ -71,7 +80,8 @@ class DossedartPlacementCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(height: 40, child: _header(medal)),
-          if (fields.fields.isNotEmpty) _StatGrid(fields: fields.fields),
+          if (showStats && fields.fields.isNotEmpty)
+            _StatGrid(fields: fields.fields),
         ],
       ),
     );
@@ -150,8 +160,10 @@ class DossedartPlacementCard extends StatelessWidget {
           style: PostGameType.psStyle(20,
               color: accent, letterSpacing: -0.5, glow: accent),
         ),
-        const SizedBox(width: 8),
-        SizedBox(width: 86, child: _elo()),
+        if (showStats) ...[
+          const SizedBox(width: 8),
+          SizedBox(width: 86, child: _elo()),
+        ],
       ],
     );
   }

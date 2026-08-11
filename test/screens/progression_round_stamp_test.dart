@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/screens/cricket_game_screen.dart';
+import 'package:dart_scoring/screens/game_screen.dart';
+import 'package:dart_scoring/screens/gotcha_game_screen.dart';
 import 'package:dart_scoring/screens/halve_it_game_screen.dart';
 import 'package:dart_scoring/services/video_service.dart';
 import 'package:dart_scoring/stats/mode_progression.dart';
@@ -61,6 +63,72 @@ void main() {
     // Marks accumulate, so the line has to actually move between points.
     expect(series.toSet().length, greaterThan(2),
         reason: 'a flat two-value series is the bug being fixed');
+  });
+
+  testWidgets('X01 stamps a rising round number and plots per round',
+      (tester) async {
+    await sized(tester);
+    await tester.pumpWidget(MaterialApp(
+      home: GameScreen(
+        players: [
+          Player(name: 'P0', score: 501),
+          Player(name: 'P1', score: 501),
+        ],
+        startingScore: 501,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final dynamic s = tester.state<State<GameScreen>>(find.byType(GameScreen));
+
+    for (var i = 0; i < 18; i++) {
+      await s.onDartHitForTest(5, 1);
+      await tester.pump();
+    }
+
+    final throws = s.throwHistory as List;
+    final rounds = {
+      for (final t in throws.where((t) => t.playerIndex == 0)) t.roundNumber
+    };
+    expect(rounds.length, greaterThan(1),
+        reason: 'three rounds must not collapse into one bucket');
+
+    final series = progressionForMode('x01', List.from(throws))!
+        .seriesFor(List.from(throws), playerIndex: 0);
+    expect(series.length, rounds.length + 1);
+    expect(series.toSet().length, greaterThan(2),
+        reason: 'the line must actually move, not run flat');
+  });
+
+  testWidgets('Gotcha stamps a rising round number and plots per round',
+      (tester) async {
+    await sized(tester);
+    await tester.pumpWidget(MaterialApp(
+      home: GotchaGameScreen(
+        players: [
+          Player(name: 'P0', score: 0),
+          Player(name: 'P1', score: 0),
+        ],
+        config: const GotchaConfig(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final dynamic s =
+        tester.state<State<GotchaGameScreen>>(find.byType(GotchaGameScreen));
+
+    for (var i = 0; i < 18; i++) {
+      s.onDartHitForTest(5, 1);
+      await tester.pump();
+    }
+
+    final throws = s.throwHistory as List;
+    final rounds = {
+      for (final t in throws.where((t) => t.playerIndex == 0)) t.roundNumber
+    };
+    expect(rounds.length, greaterThan(1));
+
+    final series = progressionForMode('gotcha', List.from(throws))!
+        .seriesFor(List.from(throws), playerIndex: 0);
+    expect(series.toSet().length, greaterThan(2));
   });
 
   testWidgets('Splitscore stamps a rising round number and plots per round',

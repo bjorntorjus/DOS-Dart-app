@@ -17,6 +17,7 @@ class DossedartWinnerSpotlight extends StatelessWidget {
     this.avatarPath,
     this.ratingChange,
     this.showElo = true,
+    this.showStats = true,
   });
 
   final String name;
@@ -24,7 +25,16 @@ class DossedartWinnerSpotlight extends StatelessWidget {
   final String headlineValue;
   final String? avatarPath;
   final double? ratingChange;
+
+  /// False for a mode that never rates (WILDCARD): the ELO plate is still
+  /// drawn, dimmed, with an em dash — the zone keeps its shape across modes.
   final bool showElo;
+
+  /// False while the game is still running: the ELO plate is dropped
+  /// entirely. Nothing is persisted before FINISH, and the preview can still
+  /// change if a player continues and climbs a place, so showing a number
+  /// here would be a promise the app cannot keep.
+  final bool showStats;
 
   @override
   Widget build(BuildContext context) {
@@ -104,18 +114,20 @@ class DossedartWinnerSpotlight extends StatelessWidget {
             children: [
               _Plate(
                   label: headlineLabel, value: headlineValue, color: yellow),
-              const SizedBox(height: 9),
-              _Plate(
-                label: 'ELO',
-                value: elo == null
-                    ? '—'
-                    : '${elo > 0 ? '+' : ''}${elo.toStringAsFixed(1)}',
-                color: elo == null
-                    ? const Color(0xFF6A5F7A)
-                    : elo < 0
-                        ? DossedartTokens.red
-                        : DossedartTokens.green,
-              ),
+              if (showStats) ...[
+                const SizedBox(height: 9),
+                _Plate(
+                  label: 'ELO',
+                  value: elo == null
+                      ? '—'
+                      : '${elo > 0 ? '+' : ''}${elo.toStringAsFixed(1)}',
+                  color: elo == null
+                      ? const Color(0xFF6A5F7A)
+                      : elo < 0
+                          ? DossedartTokens.red
+                          : DossedartTokens.green,
+                ),
+              ],
             ],
           ),
         ],
