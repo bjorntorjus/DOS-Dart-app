@@ -6,6 +6,8 @@ import 'screens/home_screen.dart';
 import 'services/achievement_service.dart';
 import 'services/app_settings.dart';
 import 'services/elo_service.dart';
+import 'services/season_service.dart';
+import 'screens/season_migration_screen.dart';
 import 'services/game_logger.dart';
 import 'services/player_storage.dart';
 import 'services/stats_migration.dart';
@@ -58,25 +60,52 @@ void main() async {
     return true;
   };
 
-  runApp(DartScoringApp(useDossedartDesign: useDossedartDesign));
+  // Seasons, in this order and never during a game:
+  //  1. close a season whose quarter ended while the app was shut — cheap,
+  //     and a no-op the rest of the time;
+  //  2. decide whether the one-time migration gate has to show instead of
+  //     the home screen.
+  await SeasonService.closeDueSeason();
+  final needsSeasonMigration = await SeasonService.needsMigration();
+
+  runApp(DartScoringApp(
+    useDossedartDesign: useDossedartDesign,
+    needsSeasonMigration: needsSeasonMigration,
+  ));
 }
 
-class DartScoringApp extends StatelessWidget {
-  const DartScoringApp({super.key, required this.useDossedartDesign});
+class DartScoringApp extends StatefulWidget {
+  const DartScoringApp({
+    super.key,
+    required this.useDossedartDesign,
+    this.needsSeasonMigration = false,
+  });
 
   final bool useDossedartDesign;
+  final bool needsSeasonMigration;
+
+  @override
+  State<DartScoringApp> createState() => _DartScoringAppState();
+}
+
+class _DartScoringAppState extends State<DartScoringApp> {
+  late bool _needsSeasonMigration = widget.needsSeasonMigration;
 
   @override
   Widget build(BuildContext context) {
+    final useDossedartDesign = widget.useDossedartDesign;
     return MaterialApp(
       title: 'Dart Scorer',
       debugShowCheckedModeBanner: false,
       theme: useDossedartDesign ? buildDossedartTheme() : buildClassicTheme(),
       builder: (context, child) =>
           AchievementOverlayHost(child: child ?? const SizedBox.shrink()),
-      home: useDossedartDesign
-          ? const DossedartHomeScreen()
-          : const HomeScreen(),
+      home: _needsSeasonMigration
+          ? SeasonMigrationScreen(
+              onDone: () => setState(() => _needsSeasonMigration = false))
+          : useDossedartDesign
+              ? const DossedartHomeScreen()
+              : const HomeScreen(),
     );
   }
 }
