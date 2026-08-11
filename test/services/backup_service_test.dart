@@ -27,7 +27,12 @@ void main() {
   });
 
   tearDown(() async {
-    if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    // Best-effort: Windows keeps a handle on the just-written file long
+    // enough that the delete can fail, and a failed cleanup must not fail
+    // the test that already passed.
+    try {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    } catch (_) {}
   });
 
   test('an empty install still produces a well-formed backup', () async {
