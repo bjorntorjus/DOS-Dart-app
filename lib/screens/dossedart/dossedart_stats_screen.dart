@@ -3,6 +3,9 @@ import '../../models/game_history.dart';
 import '../../models/saved_player.dart';
 import '../../services/game_history_service.dart';
 import '../../services/player_storage.dart';
+import '../../services/season_service.dart';
+import '../../models/season.dart';
+import '../../widgets/dossedart/stats/seasons_tab.dart';
 import '../../stats/profile_stats.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../utils/rating_rank.dart';
@@ -56,9 +59,10 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     ('golf', 'GOLF'),
   ];
 
-  late final TabController _tabs = TabController(length: 4, vsync: this);
+  late final TabController _tabs = TabController(length: 5, vsync: this);
   List<SavedPlayer> _players = [];
   List<GameHistoryEntry> _history = [];
+  List<SeasonRecord> _seasons = [];
   bool _loading = true;
 
   /// Players shown in selectors, leaderboards and rank computations.
@@ -90,12 +94,14 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   Future<void> _load() async {
     final players = await PlayerStorage.loadPlayers();
     final history = await GameHistoryService.load();
+    final seasons = await SeasonService.loadSeasons();
     players.sort((a, b) => b.rating.compareTo(a.rating));
     if (!mounted) return;
     final visible = players.where((p) => !p.archived).toList();
     setState(() {
       _players = players;
       _history = history;
+      _seasons = seasons;
       _selectedPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
       _heatmapPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
       _loading = false;
@@ -125,7 +131,13 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
               ),
               if (!_loading && _visiblePlayers.isNotEmpty)
                 _ArcadeTabBar(
-                  labels: const ['PROFILE', 'MODES', 'HEATMAP', 'HISTORY'],
+                  labels: const [
+                    'PROFILE',
+                    'MODES',
+                    'HEATMAP',
+                    'HISTORY',
+                    'SEASONS',
+                  ],
                   index: _tabs.index,
                   onTap: (i) => _tabs.animateTo(i),
                 ),
@@ -142,6 +154,7 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
                               _buildModus(),
                               _buildHeatmap(),
                               _buildHistorikk(),
+                              SeasonsTab(seasons: _seasons),
                             ],
                           ),
               ),
