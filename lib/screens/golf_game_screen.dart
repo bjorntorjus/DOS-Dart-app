@@ -500,6 +500,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'golf',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
@@ -563,6 +564,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     // Reached only when the roster was unchanged (mid-game changes returned
     // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
+      gameMode: 'golf',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,

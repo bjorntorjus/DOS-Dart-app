@@ -2,7 +2,20 @@ import 'dart:math';
 import '../models/saved_player.dart';
 import 'app_settings.dart';
 
+/// Modes that never touch the rating. WILDCARD is chaos by design; Killer is
+/// decided in large part by who gets attacked rather than who throws best.
+///
+/// This lists EXCLUSIONS on purpose: a mode added later is rated unless
+/// somebody says otherwise, which fails in the direction that keeps the number
+/// complete rather than silently narrow.
+///
+/// Note the keys are history keys, not modes. Cricket writes two of them —
+/// `cricket` and `cricket_cutthroat` — and both are rated.
+const Set<String> kUnratedModes = {'wildcard', 'killer'};
+
 class EloService {
+  static bool isRatedMode(String gameMode) => !kUnratedModes.contains(gameMode);
+
   static double _kNew = AppSettings.defaultEloKNew;
   static double _kExp = AppSettings.defaultEloKExp;
   static int _threshold = AppSettings.defaultEloThreshold;
@@ -44,11 +57,16 @@ class EloService {
   ///
   /// Rating changes are scaled by 1/(N-1) where N is the number of players,
   /// so that a game with many players doesn't cause disproportionate swings.
+  /// [gameMode] is the history key the game will be recorded under. Gating
+  /// here rather than at the ten call sites means a mode cannot become rated
+  /// by a caller forgetting to check.
   static void updateRatings({
+    required String gameMode,
     required List<String?> playerIds,
     required List<int> placements,
     required List<SavedPlayer> savedPlayers,
   }) {
+    if (!isRatedMode(gameMode)) return;
     final n = playerIds.length;
     if (n < 2) return;
 

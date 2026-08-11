@@ -431,6 +431,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'oneUp',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _placementsFromRanking(ranking),
       savedPlayers: savedPlayers,
@@ -489,6 +490,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     // Reached only when the roster was unchanged (mid-game changes returned
     // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
+      gameMode: 'oneUp',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,

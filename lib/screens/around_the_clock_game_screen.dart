@@ -937,6 +937,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(),
       savedPlayers: savedPlayers,
@@ -1018,6 +1019,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,

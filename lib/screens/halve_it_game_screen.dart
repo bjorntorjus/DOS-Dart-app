@@ -449,6 +449,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(),
       savedPlayers: savedPlayers,
@@ -575,6 +576,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,

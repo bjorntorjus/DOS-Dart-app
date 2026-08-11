@@ -304,6 +304,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'shanghai',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(ranking),
       savedPlayers: savedPlayers,
@@ -383,6 +384,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     // Reached only when the roster was unchanged (mid-game changes returned
     // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
+      gameMode: 'shanghai',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,

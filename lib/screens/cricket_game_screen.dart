@@ -494,6 +494,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _computeExitPlacements(),
       savedPlayers: savedPlayers,
@@ -575,6 +576,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,

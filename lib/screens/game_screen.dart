@@ -619,6 +619,7 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'x01',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(),
       savedPlayers: savedPlayers,
@@ -746,6 +747,7 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'x01',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,

@@ -651,6 +651,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(),
       savedPlayers: savedPlayers,
@@ -779,6 +780,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
