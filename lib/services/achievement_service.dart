@@ -4,6 +4,7 @@ import '../models/achievement_event.dart';
 import '../models/game_mode.dart';
 import '../models/game_outcome.dart';
 import '../models/saved_player.dart';
+import '../models/season.dart';
 
 class AchievementUnlock {
   final SavedPlayer player;
@@ -35,6 +36,26 @@ class AchievementService {
     player.achievementUnlockedAt[a.id] = DateTime.now();
     if (emit) _unlockController.add(AchievementUnlock(player, a));
     return true;
+  }
+
+  /// A season closed → unlock the season badges this player just earned.
+  ///
+  /// These are lifetime unlocks like every other; only the trigger is new.
+  /// One evaluation path serves both because `ctx.season` is null at game end,
+  /// so every season badge tests it first and stays inert there.
+  ///
+  /// Emits on the banner stream like [checkEvent] — a season ending is
+  /// exactly the moment worth celebrating.
+  List<Achievement> evaluateSeasonClose(
+      SavedPlayer player, SeasonStanding standing) {
+    final ctx = AchievementContext(player: player, season: standing);
+    final newly = <Achievement>[];
+    for (final a in _catalog) {
+      if (!a.id.startsWith('x_season_')) continue;
+      if (!(a.milestoneTest?.call(ctx) ?? false)) continue;
+      if (_unlock(player, a, emit: true)) newly.add(a);
+    }
+    return newly;
   }
 
   /// Live in-game event → unlock matching event badges, emit banner.

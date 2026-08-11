@@ -195,29 +195,29 @@ List<Achievement> _build() => [
       Achievement(
         id: 'x_master',
         name: 'MASTER',
-        description: 'Cross 1450 rating',
+        description: 'Cross 1400 rating',
         tier: AchievementTier.gold,
         category: AchievementCategory.milestone,
         glyph: _g(Icons.grade),
-        milestoneTest: (ctx) => ctx.player.rating >= 1450,
+        milestoneTest: (ctx) => ctx.player.rating >= 1400,
       ),
       Achievement(
         id: 'x_grandmaster',
         name: 'GRANDMASTER',
-        description: 'Cross 1550 rating',
+        description: 'Cross 1450 rating',
         tier: AchievementTier.gold,
         category: AchievementCategory.milestone,
         glyph: _g(Icons.diamond),
-        milestoneTest: (ctx) => ctx.player.rating >= 1550,
+        milestoneTest: (ctx) => ctx.player.rating >= 1450,
       ),
       Achievement(
         id: 'x_the_floor',
         name: 'THE FLOOR',
-        description: 'Bottom out at the 100 rating floor',
+        description: 'Drop below 1100 in a season',
         tier: AchievementTier.bronze,
         category: AchievementCategory.quirky,
         glyph: _g(Icons.south),
-        milestoneTest: (ctx) => ctx.player.rating <= 100,
+        milestoneTest: (ctx) => ctx.player.rating <= 1100,
       ),
       Achievement(
         id: 'x_giant_slayer',
@@ -778,6 +778,140 @@ List<Achievement> _build() => [
         glyph: _g(Icons.airline_seat_flat),
         mode: 'gotcha',
         event: AchievementEvent.gotchaCrashDummy,
+      ),
+
+      // ===================== SEASONS =====================
+      // Lifetime unlocks like every other badge — only the trigger is new.
+      // Each tests ctx.season first, so they are inert at game end where it
+      // is null (see AchievementService.evaluateSeasonClose).
+      Achievement(
+        id: 'x_season_champion',
+        name: 'SEASON CHAMPION',
+        description: 'Win a season',
+        tier: AchievementTier.gold,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.workspace_premium),
+        milestoneTest: (ctx) => ctx.season?.rank == 1,
+      ),
+      Achievement(
+        id: 'x_season_dynasty',
+        name: 'DYNASTY',
+        description: 'Win two seasons in a row',
+        tier: AchievementTier.gold,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.account_balance),
+        milestoneTest: (ctx) {
+          final s = ctx.season;
+          return s != null && s.rank == 1 && s.previousRank == 1;
+        },
+      ),
+      Achievement(
+        id: 'x_season_untouchable',
+        name: 'UNTOUCHABLE',
+        description: 'End a season 100+ points clear of second',
+        tier: AchievementTier.gold,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.shield_moon),
+        milestoneTest: (ctx) => (ctx.season?.leadOverSecond ?? 0) >= 100,
+      ),
+      Achievement(
+        id: 'x_season_podium',
+        name: 'PODIUM REGULAR',
+        description: 'Finish top 3 in three different seasons',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.leaderboard),
+        milestoneTest: (ctx) => (ctx.season?.podiums ?? 0) >= 3,
+      ),
+      Achievement(
+        id: 'x_season_climb',
+        name: 'THE CLIMB',
+        description: 'Improve your season rank by 3 places or more',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.trending_up),
+        milestoneTest: (ctx) {
+          final s = ctx.season;
+          final prev = s?.previousRank;
+          final now = s?.rank;
+          if (prev == null || now == null) return false;
+          return prev - now >= 3;
+        },
+      ),
+      Achievement(
+        id: 'x_season_rookie',
+        name: 'ROOKIE SEASON',
+        description: 'Qualify in your very first season',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.child_care),
+        milestoneTest: (ctx) {
+          final s = ctx.season;
+          return s != null && s.isFirstSeason && s.row.qualified;
+        },
+      ),
+      Achievement(
+        id: 'x_season_iron_arm',
+        name: 'IRON ARM',
+        description: 'Play 40 games in one season',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.fitness_center),
+        milestoneTest: (ctx) => (ctx.season?.row.games ?? 0) >= 40,
+      ),
+      Achievement(
+        id: 'x_season_just_in_time',
+        name: 'JUST IN TIME',
+        description: "Qualify with your 10th game on the season's last day",
+        tier: AchievementTier.silver,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.alarm_on),
+        milestoneTest: (ctx) => ctx.season?.qualifiedOnFinalDay ?? false,
+      ),
+      Achievement(
+        id: 'x_season_nine_and_out',
+        name: 'NINE AND OUT',
+        description: 'End a season on exactly 9 games — one short',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.sentiment_neutral),
+        milestoneTest: (ctx) => ctx.season?.row.games == 9,
+      ),
+      Achievement(
+        id: 'x_season_almost_famous',
+        name: 'ALMOST FAMOUS',
+        description: 'Finish second in a season',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.looks_two),
+        milestoneTest: (ctx) => ctx.season?.rank == 2,
+      ),
+      Achievement(
+        id: 'x_season_participation',
+        name: 'PARTICIPATION TROPHY',
+        description: 'Finish last among the qualified players',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.emoji_people),
+        milestoneTest: (ctx) {
+          final s = ctx.season;
+          final rank = s?.rank;
+          if (s == null || rank == null) return false;
+          final field = s.season.ranked.length;
+          return field > 1 && rank == field;
+        },
+      ),
+      Achievement(
+        id: 'x_season_ghost',
+        name: 'GHOST',
+        description: 'Get through a whole season without qualifying',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.blur_on),
+        milestoneTest: (ctx) {
+          final r = ctx.season?.row;
+          return r != null && r.games > 0 && !r.qualified;
+        },
       ),
     ];
 
