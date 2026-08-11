@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import '../models/game_result.dart';
 import '../stats/mode_progression.dart';
 import '../screens/dossedart/game_detail_screen.dart';
-import '../widgets/dossedart/golf/golf_scorecard.dart';
-import '../widgets/dossedart/progression_chart.dart';
+import '../theme/dossedart_tokens.dart';
+import '../utils/dossedart_player_accents.dart';
 import '../utils/join_seed.dart';
-import '../widgets/player_avatar.dart';
+import '../widgets/dossedart/dossedart_crt_frame.dart';
+import '../widgets/dossedart/golf/golf_scorecard.dart';
+import '../widgets/dossedart/post_game/dossedart_match_summary.dart';
+import '../widgets/dossedart/post_game/dossedart_placement_card.dart';
+import '../widgets/dossedart/post_game/dossedart_post_game_actions.dart';
+import '../widgets/dossedart/post_game/dossedart_winner_spotlight.dart';
+import '../widgets/dossedart/post_game/post_game_type.dart';
+import '../widgets/dossedart/progression_chart.dart';
+import 'post_game/match_summary.dart';
+import 'post_game/post_game_fields.dart';
 
 /// Golf's vs-par display: 'E' at even, '+n' over, 'n' (with the leading '-'
 /// already in the int's string form) under.
@@ -42,6 +51,28 @@ String? golfTermDist(List<int?> card) {
   return parts.isEmpty ? null : parts.join(' ');
 }
 
+/// Human label for the mode key, shown in the top bar's left slot.
+String _modeLabel(String gameMode) => switch (gameMode) {
+      'x01' => 'X01',
+      'cricket' => 'CRICKET',
+      'aroundTheClock' => 'ATC',
+      'killer' => 'KILLER',
+      'halveIt' => 'SPLITSCORE',
+      'gotcha' => 'GOTCHA',
+      'oneUp' => '1UP',
+      'golf' => 'GOLF',
+      'shanghai' => 'SHANGHAI',
+      'wildcard' => 'WILDCARD',
+      _ => gameMode.toUpperCase(),
+    };
+
+/// The DOSSEDART result screen (design round 2026-08-10).
+///
+/// Four zones, and only the middle one scrolls:
+/// `TOPBAR 52 · WINNER 196 · SCROLL flex · ACTIONS 134`. The action bar is a
+/// SIBLING of the scroll view, never its last item — the old Material screen
+/// put the chart inside the placements list and floated the buttons under it,
+/// which is how they could be pushed off a short frame.
 class PostGameScreen extends StatelessWidget {
   final GameResult result;
 
@@ -49,428 +80,249 @@ class PostGameScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     // Seat order breaks placement ties (join-fairness 2026-08-10): a mid-game
     // joiner holds the last seat, so on an exact tie they are listed BELOW the
-    // player they were seeded from rather than above them. `result.results` is
-    // in seat order, and Dart's List.sort is not stable, so the fallback has
-    // to be explicit.
+    // player they were seeded from. `result.results` is in seat order.
     final seats = List.generate(result.results.length, (i) => i)
       ..sort(withSeatTiebreak((a, b) =>
           result.results[a].placement.compareTo(result.results[b].placement)));
-    final sorted = [for (final i in seats) result.results[i]];
-    final winner = sorted.first;
 
-    // Optional per-round progression chart (SCORE PER ROUND) — only when the
-    // mode opted in (`throwHistory`/`progressionMode` both set, WILDCARD as
-    // of 2026-07-09). `result.results`' own (unsorted) order is index-aligned
-    // with each DartThrow's `playerIndex`, unlike `sorted` above.
-    final progression = result.throwHistory != null &&
-            result.progressionMode != null
-        ? progressionForMode(result.progressionMode!, result.throwHistory!)
-        : null;
+    // Optional per-round progression chart — only when the mode opted in.
+    final progression =
+        result.throwHistory != null && result.progressionMode != null
+            ? progressionForMode(result.progressionMode!, result.throwHistory!)
+            : null;
 
-    // Golf's embedded scorecard grid (post-game v2) — mode opt-in via
-    // `modeExtras`, same shape it feeds `showGolfScoreSheet` in-game.
-    final golfExtras =
-        result.gameMode == 'golf' ? result.modeExtras : null;
+    // Golf's embedded scorecard grid, same shape it feeds the in-game sheet.
+    final golfExtras = result.gameMode == 'golf' ? result.modeExtras : null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Game Over'),
-        automaticallyImplyLeading: false,
-      ),
-      body: Column(
-        children: [
-          // Winner section
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  cs.tertiary.withAlpha(40),
-                  Colors.transparent,
-                ],
-              ),
-            ),
+    final showDetails = result.detailEntry != null && !result.statsSkipped;
+
+    final summary = matchSummaryFrom(
+      durationSeconds: result.durationSeconds,
+      throws: result.throwHistory,
+      playerNames: [for (final p in result.results) p.name],
+      // BIGGEST LEAD reads the same series the chart draws, so the number can
+      // never disagree with the picture above it. Null for 1UP and Killer,
+      // which have no series — that dims one cell, not the zone.
+      seriesFor: progression == null
+          ? null
+          : (seat) => progression.seriesFor(result.throwHistory!,
+              playerIndex: seat),
+    );
+
+    if (result.results.isEmpty) {
+      // Defensive: a result screen is the worst place to crash.
+      return DossedartCrtFrame(
+        child: Scaffold(
+          backgroundColor: DossedartTokens.bg,
+          body: SafeArea(
             child: Column(
               children: [
-                Icon(Icons.emoji_events, size: 48, color: cs.tertiary),
-                const SizedBox(height: 8),
-                PlayerAvatar(
-                  avatarPath: winner.avatarPath,
-                  name: winner.name,
-                  radius: 36,
+                _TopBar(mode: _modeLabel(result.gameMode)),
+                const Spacer(),
+                DossedartPostGameActions(
+                  canUndo: false,
+                  canContinue: false,
+                  canShowDetails: false,
+                  onBack: () {},
+                  onContinue: () {},
+                  onDetails: () {},
+                  onFinish: () => Navigator.of(context).pop('home'),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  winner.name,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text('Winner!',
-                    style: TextStyle(color: cs.tertiary, fontSize: 16)),
               ],
             ),
           ),
+        ),
+      );
+    }
 
-          // Golf's SCORECARD section (post-game v2) — embeds the same grid
-          // shown in-game via `showGolfScoreSheet`, between the winner banner
-          // and the placements list.
-          if (golfExtras != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SCORECARD',
-                    style: TextStyle(
-                      color: cs.tertiary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // GolfScoreGrid owns its own horizontal scroll for the
-                  // hole-by-hole table (matches the in-game modal sheet) —
-                  // an outer horizontal scroller here would hand it
-                  // unbounded width and blow up its stretched Column.
-                  GolfScoreGrid(
-                    names: List<String>.from(golfExtras['names'] as List),
-                    scorecards: (golfExtras['scorecards'] as List)
-                        .map((row) => List<int?>.from(row as List))
-                        .toList(),
-                    totals: List<int>.from(golfExtras['totals'] as List),
-                    vsPars: List<int>.from(golfExtras['vsPars'] as List),
-                    skippedSeats:
-                        Set<int>.from(golfExtras['skippedSeats'] as Set),
-                  ),
-                ],
-              ),
-            ),
+    final winnerSeat = seats.first;
+    final winner = result.results[winnerSeat];
+    final winnerFields = postGameFields(result.gameMode, winner.stats);
+    // WILDCARD never rates; the column still holds its width and dims.
+    final rates = result.results.any((p) => p.ratingChange != null);
 
-          // Stats skipped notice
-          if (result.statsSkipped)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: cs.secondary.withAlpha(30),
-                border: Border.all(color: cs.secondary.withAlpha(80)),
-                borderRadius: BorderRadius.circular(8),
+    return DossedartCrtFrame(
+      child: Scaffold(
+        backgroundColor: DossedartTokens.bg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopBar(mode: _modeLabel(result.gameMode)),
+              DossedartWinnerSpotlight(
+                name: winner.name,
+                headlineLabel: winnerFields.headlineLabel,
+                headlineValue: winnerFields.headlineValue,
+                avatarPath: winner.avatarPath,
+                ratingChange: winner.ratingChange,
+                showElo: rates,
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: cs.secondary, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Statistics not recorded (player list changed mid-game)',
-                      style: TextStyle(color: cs.secondary, fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Rankings, plus the per-round progression chart (mode opt-in
-          // only) as a trailing list item — kept inside the same scrollable
-          // region as the placements (rather than a fixed sibling below
-          // Expanded) so the chart's own ~250px doesn't blow the Column's
-          // budget and push "Finish Game" off small screens.
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: sorted.length + (progression != null ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index < sorted.length) {
-                  return _PlayerResultTile(
-                    result: sorted[index],
-                    gameMode: result.gameMode,
-                  );
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'SCORE PER ROUND',
-                        style: TextStyle(
-                          color: cs.tertiary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
+                      if (result.statsSkipped) ...[
+                        const _RosterNotice(),
+                        const SizedBox(height: 16),
+                      ],
+                      PostGameSectionLabel('FINAL STANDINGS',
+                          note: '· ${result.results.length} players'),
+                      for (final seat in seats) ...[
+                        DossedartPlacementCard(
+                          placement: result.results[seat].placement,
+                          name: result.results[seat].name,
+                          // Accent is indexed by SEAT, not rank, so a player
+                          // keeps one colour between here and the chart.
+                          accent: dossedartAccent(seat),
+                          fields: postGameFields(
+                              result.gameMode, result.results[seat].stats),
+                          avatarPath: result.results[seat].avatarPath,
+                          ratingChange: result.results[seat].ratingChange,
+                          showElo: rates,
+                          isTied: result.results.where((p) =>
+                                  p.placement ==
+                                  result.results[seat].placement).length >
+                              1,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      ProgressionChart(
-                        progression: progression!,
-                        throws: result.throwHistory!,
-                        playerNames: result.results.map((p) => p.name).toList(),
-                      ),
+                        if (seat != seats.last) const SizedBox(height: 8),
+                      ],
+                      if (golfExtras != null) ...[
+                        const SizedBox(height: 16),
+                        const PostGameSectionLabel('SCORECARD'),
+                        // GolfScoreGrid owns its own horizontal scroll — an
+                        // outer scroller would hand it unbounded width.
+                        GolfScoreGrid(
+                          names: List<String>.from(golfExtras['names'] as List),
+                          scorecards: (golfExtras['scorecards'] as List)
+                              .map((row) => List<int?>.from(row as List))
+                              .toList(),
+                          totals: List<int>.from(golfExtras['totals'] as List),
+                          vsPars: List<int>.from(golfExtras['vsPars'] as List),
+                          skippedSeats:
+                              Set<int>.from(golfExtras['skippedSeats'] as Set),
+                        ),
+                      ],
+                      if (progression != null) ...[
+                        const SizedBox(height: 16),
+                        const PostGameSectionLabel('SCORE PER ROUND'),
+                        ProgressionChart(
+                          progression: progression,
+                          throws: result.throwHistory!,
+                          playerNames: [
+                            for (final p in result.results) p.name
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      DossedartMatchSummary(summary: summary),
                     ],
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+              DossedartPostGameActions(
+                canUndo: result.canUndo,
+                canContinue: result.canContinue,
+                canShowDetails: showDetails,
+                onBack: () => Navigator.of(context).pop('undo'),
+                onContinue: () => Navigator.of(context).pop('continue'),
+                onDetails: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => GameDetailScreen(entry: result.detailEntry!),
+                  ),
+                ),
+                onFinish: () => Navigator.of(context).pop('home'),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
 
-          // Action buttons: Back + Continue side by side, Finish Game wide bottom
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    if (result.canUndo)
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop('undo'),
-                          child: const Text('↶ Back'),
-                        ),
-                      ),
-                    if (result.canContinue) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              Navigator.of(context).pop('continue'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: cs.primary,
-                            foregroundColor: cs.onPrimary,
-                          ),
-                          child: const Text('▶ Continue'),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                // DETAILS drill-down (post-game v2) — opens the same
-                // KAMPDETALJER screen game history uses, backed by an
-                // EPHEMERAL entry (no history entry is persisted yet at this
-                // point — see GameResult.detailEntry). Hidden entirely when
-                // the mode hasn't opted in or stats were skipped (mid-game
-                // roster change), matching the "stats not recorded" notice
-                // above.
-                if (result.detailEntry != null && !result.statsSkipped) ...[
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              GameDetailScreen(entry: result.detailEntry!),
-                        ),
-                      ),
-                      child: const Text('▶ DETAILS'),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop('home'),
-                    child: const Text('Finish Game'),
-                  ),
-                ),
-              ],
+/// The result screen's own 52 px bar.
+///
+/// Deliberately NOT [DossedartTopBar], despite the handover listing it under
+/// "reused verbatim": that widget hard-requires an `onExit` and renders a
+/// `◀ EXIT` control, and post-game must not offer one — stats recording is
+/// deferred until FINISH GAME, so leaving by any other route would silently
+/// drop the game. Same height, same magenta rule, no exit.
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.mode});
+
+  final String mode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      decoration: const BoxDecoration(
+        color: Colors.black,
+        border: Border(
+            bottom: BorderSide(color: DossedartTokens.magenta, width: 2)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(mode,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: PostGameType.vtStyle(18,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    letterSpacing: 2,
+                    height: 1)),
+          ),
+          Expanded(
+            child: Text(
+              'GAME OVER',
+              textAlign: TextAlign.center,
+              style: PostGameType.psStyle(13,
+                  color: DossedartTokens.yellow,
+                  letterSpacing: 3,
+                  glow: DossedartTokens.yellow,
+                  height: 1),
             ),
           ),
+          // Right slot stays empty: mirroring the duration here is PROPOSAL 1
+          // in the design round, parked by default.
+          const SizedBox(width: 120),
         ],
       ),
     );
   }
 }
 
-class _PlayerResultTile extends StatelessWidget {
-  final PlayerResult result;
-  final String gameMode;
-
-  const _PlayerResultTile({required this.result, required this.gameMode});
-
-  Color _placementColor(int p, BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    switch (p) {
-      case 1:
-        return cs.tertiary;
-      case 2:
-        return cs.onSurface.withValues(alpha: 0.7);
-      case 3:
-        return Colors.brown[300]!;
-      default:
-        return cs.onSurface.withValues(alpha: 0.4);
-    }
-  }
+class _RosterNotice extends StatelessWidget {
+  const _RosterNotice();
 
   @override
   Widget build(BuildContext context) {
-    final ratingChange = result.ratingChange;
-    final stats = result.stats;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            // Placement badge
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _placementColor(result.placement, context).withAlpha(40),
-                border: Border.all(
-                  color: _placementColor(result.placement, context),
-                  width: 2,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '${result.placement}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _placementColor(result.placement, context),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Avatar
-            PlayerAvatar(
-              avatarPath: result.avatarPath,
-              name: result.name,
-              radius: 20,
-            ),
-            const SizedBox(width: 12),
-            // Name and stats
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    result.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildStats(stats, context),
-                ],
-              ),
-            ),
-            // Rating change
-            if (ratingChange != null)
-              _buildRatingDelta(context, ratingChange),
-          ],
-        ),
+    const orange = DossedartTokens.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: orange.withValues(alpha: 0.07),
+        border: Border.all(color: orange, width: 2),
       ),
-    );
-  }
-
-  Widget _buildStats(Map<String, dynamic> stats, BuildContext context) {
-    final entries = <String>[];
-
-    switch (gameMode) {
-      case 'x01':
-        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
-        if (stats['avgTurn'] != null) entries.add('Avg: ${(stats['avgTurn'] as double).toStringAsFixed(1)}');
-        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
-        if (stats['checkout'] != null) entries.add('Out: ${stats['checkout']}');
-      case 'cricket':
-        if (stats['points'] != null) entries.add('Pts: ${stats['points']}');
-        if (stats['closed'] != null) entries.add('Closed: ${stats['closed']}');
-      case 'aroundTheClock':
-        if (stats['reached'] != null) entries.add('Reached: ${stats['reached']}');
-        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
-      case 'killer':
-        if (stats['lives'] != null) entries.add('Lives: ${stats['lives']}');
-      case 'halveIt':
-        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
-        if (stats['halved'] != null) entries.add('Halved: ${stats['halved']}');
-      case 'gotcha':
-        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
-        if (stats['kills'] != null) entries.add('Kills: ${stats['kills']}');
-        if (stats['timesKilled'] != null) entries.add('Killed: ${stats['timesKilled']}');
-        if (stats['busts'] != null) entries.add('Busts: ${stats['busts']}');
-        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
-        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
-      case 'oneUp':
-        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
-        if (stats['targetsSet'] != null) entries.add('Targets: ${stats['targetsSet']}');
-        if (stats['livesLost'] != null) entries.add('Lives lost: ${stats['livesLost']}');
-        if (stats['turnsSurvived'] != null) entries.add('Turns: ${stats['turnsSurvived']}');
-        if (stats['lastDartSaves'] != null && stats['lastDartSaves'] != 0) {
-          entries.add('Last-dart saves: ${stats['lastDartSaves']}');
-        }
-        if (stats['roundsWon'] != null && stats['roundsWon'] != 0) entries.add('Rounds won: ${stats['roundsWon']}');
-        if (stats['elimsDealt'] != null && stats['elimsDealt'] != 0) entries.add('Elims: ${stats['elimsDealt']}');
-      case 'golf':
-        if (stats['strokes'] != null) {
-          entries.add('Strokes: ${stats['strokes']} (${vsParText(stats['vsPar'])})');
-        }
-        if ((stats['aces'] ?? 0) != 0) entries.add('Aces: ${stats['aces']}');
-        if ((stats['bogeys'] ?? 0) != 0) entries.add('Bogeys: ${stats['bogeys']}');
-        if (stats['bestHole'] != null) entries.add('Best hole: ${stats['bestHole']}');
-        if (stats['holesPlayed'] != null && stats['holesPlayed'] != 0) {
-          entries.add('1st-dart: ${stats['firstDartHits'] ?? 0}/${stats['holesPlayed']}');
-        }
-        if (stats['termDist'] != null) entries.add('Terms: ${stats['termDist']}');
-      case 'shanghai':
-        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
-        if (stats['bestRound'] != null && stats['bestRound'] != 0) entries.add('Best round: ${stats['bestRound']}');
-        if (stats['shanghai'] == true) entries.add('Shanghai!');
-      case 'wildcard':
-        if (stats['score'] != null) entries.add('Score: ${stats['score']}');
-        if (stats['jokersHit'] != null) entries.add('Jokers: ${stats['jokersHit']}');
-        if (stats['windowPrizes'] != null) entries.add('Prizes: ${stats['windowPrizes']}');
-        // Only when ROBIN HOOD fired
-        if (stats['pointsStolen'] != null && stats['pointsStolen'] != 0) entries.add('Stolen: ${stats['pointsStolen']}');
-        if (stats['highestTurn'] != null) entries.add('Best: ${stats['highestTurn']}');
-        if (stats['darts'] != null) entries.add('Darts: ${stats['darts']}');
-    }
-
-    if (entries.isEmpty) return const SizedBox.shrink();
-    return Text(
-      entries.join(' | '),
-      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 12),
-    );
-  }
-
-  Widget _buildRatingDelta(BuildContext context, double delta) {
-    if (delta.abs() < 0.5) {
-      return Text(
-        '±0',
-        style: TextStyle(
-          fontSize: 12,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-        ),
-      );
-    }
-    final cs = Theme.of(context).colorScheme;
-    final positive = delta > 0;
-    final color = positive ? cs.primary : cs.error;
-    final icon = positive ? Icons.arrow_upward : Icons.arrow_downward;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 14),
-        const SizedBox(width: 2),
-        Text(
-          '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)}',
-          style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold),
-        ),
-      ],
+      child: Row(
+        children: [
+          Text('!',
+              style: PostGameType.psStyle(14, color: orange, glow: orange)),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              'STATISTICS NOT RECORDED — PLAYER LIST CHANGED MID-GAME',
+              style: PostGameType.vtStyle(18,
+                  color: orange, letterSpacing: 1, height: 1.2),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

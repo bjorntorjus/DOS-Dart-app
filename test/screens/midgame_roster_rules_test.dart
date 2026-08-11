@@ -98,7 +98,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     // Game ended: the result screen is shown instead of a frozen UI.
-    expect(find.text('Finish Game'), findsOneWidget,
+    expect(find.text('✓ FINISH GAME'), findsOneWidget,
         reason: 'removal down to one active player must end the game');
   });
 
@@ -240,7 +240,7 @@ void main() {
 
     expect(s.winnerIndexForTest, 0,
         reason: 'last player standing after removals must win');
-    expect(find.text('Finish Game'), findsOneWidget);
+    expect(find.text('✓ FINISH GAME'), findsOneWidget);
   });
 
   testWidgets('Killer F8: undo after add-player is a safe no-op',

@@ -99,10 +99,10 @@ void main() {
 
     expect(state.engineForTest.gameOver, isTrue);
     expect(state.engineForTest.totals[0], 101);
-    expect(find.text('↶ Back'), findsOneWidget,
+    expect(find.text('↶ BACK'), findsOneWidget,
         reason: 'PostGameScreen with Undo button should be on top');
 
-    await tester.tap(find.text('↶ Back'));
+    await tester.tap(find.text('↶ BACK'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 

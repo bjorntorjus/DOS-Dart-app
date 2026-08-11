@@ -46,18 +46,23 @@ void main() {
     expect(find.text('▶ DETAILS'), findsOneWidget);
   });
 
-  testWidgets('DETAILS button is hidden when detailEntry is null',
+  testWidgets('DETAILS is rendered but inert when detailEntry is null',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(home: PostGameScreen(result: resultWith(detailEntry: null))),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('▶ DETAILS'), findsNothing);
+    // Dimmed, not removed (DOSSEDART round 2026-08-10) so the primary action
+    // never moves between two games. Tapping it must go nowhere.
+    expect(find.text('▶ DETAILS'), findsOneWidget);
+    await tester.tap(find.text('▶ DETAILS'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.byType(GameDetailScreen), findsNothing);
   });
 
   testWidgets(
-      'DETAILS button is hidden when statsSkipped is true, even with a '
+      'DETAILS is inert when statsSkipped is true, even with a '
       'detailEntry', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -68,7 +73,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('▶ DETAILS'), findsNothing);
+    expect(find.text('▶ DETAILS'), findsOneWidget);
+    await tester.tap(find.text('▶ DETAILS'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.byType(GameDetailScreen), findsNothing);
   });
 
   testWidgets('tapping DETAILS pushes GameDetailScreen with the ephemeral entry',

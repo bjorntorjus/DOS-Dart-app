@@ -11,7 +11,7 @@ import 'package:dart_scoring/services/video_service.dart';
 
 /// Regression test for the defer-until-leave recording protocol (audit
 /// 2026-07-06, F2/F3): stats/Elo/history must be persisted exactly once, when
-/// the user LEAVES the result screen — never before. "↶ Back" (undo) must
+/// the user LEAVES the result screen — never before. "↶ BACK" (undo) must
 /// leave no trace, so re-finishing after an undo cannot double-record.
 ///
 /// One single test on purpose: it ends by leaving the game cleanly. Ending a
@@ -67,7 +67,7 @@ void main() {
       await s.onDartHitForTest(20, 1);
     }
     await settle();
-    expect(find.text('Finish Game'), findsOneWidget);
+    expect(find.text('✓ FINISH GAME'), findsOneWidget);
 
     // Deferred: nothing persisted while the result screen is open.
     var saved = await PlayerStorage.loadPlayers();
@@ -84,7 +84,7 @@ void main() {
         isNot(equals(result.results.first.ratingBefore)));
 
     // Back pops P1's last dart and re-opens the game → still nothing.
-    await tester.tap(find.text('↶ Back'));
+    await tester.tap(find.text('↶ BACK'));
     await settle();
     saved = await PlayerStorage.loadPlayers();
     expect(saved.every((p) => p.gamesPlayed == 0), isTrue,
@@ -95,10 +95,10 @@ void main() {
     // (the double-record scenario from B1).
     await s.onDartHitForTest(20, 1);
     await settle();
-    expect(find.text('Finish Game'), findsOneWidget);
+    expect(find.text('✓ FINISH GAME'), findsOneWidget);
 
     // Leave via Finish Game → recorded exactly once.
-    await tester.tap(find.text('Finish Game'));
+    await tester.tap(find.text('✓ FINISH GAME'));
     await settle();
     await settle();
 

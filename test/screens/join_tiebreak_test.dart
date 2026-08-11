@@ -80,8 +80,8 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
       await tester.pumpAndSettle();
 
-      final earned = tester.getTopLeft(find.text('Earned it')).dy;
-      final joiner = tester.getTopLeft(find.text('Joiner')).dy;
+      final earned = tester.getTopLeft(find.text('EARNED IT')).dy;
+      final joiner = tester.getTopLeft(find.text('JOINER')).dy;
       expect(earned, lessThan(joiner),
           reason: 'tied players keep seat order, newest last');
     }

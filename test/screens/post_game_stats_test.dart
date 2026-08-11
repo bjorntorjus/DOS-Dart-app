@@ -101,11 +101,16 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Score: 42'), findsOneWidget);
-    expect(find.textContaining('Best round: 23'), findsOneWidget);
-    expect(find.textContaining('Shanghai!'), findsOneWidget);
-    expect(find.textContaining('Score: 30'), findsOneWidget);
-    expect(find.textContaining('Best round: 12'), findsOneWidget);
+    // Since the DOSSEDART round (2026-08-10) each stat is its own labelled
+    // grid cell instead of one joined string, and the mode's headline sits in
+    // the row header rather than the grid.
+    expect(find.text('42'), findsWidgets); // headline SCORE, winner
+    expect(find.text('BEST ROUND'), findsNWidgets(2));
+    expect(find.text('23'), findsOneWidget);
+    expect(find.text('SHANGHAI!'), findsOneWidget,
+        reason: 'only the seat that scored one carries the flag');
+    expect(find.text('30'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
   });
 
   testWidgets('gotcha result shows Score first', (tester) async {
@@ -130,7 +135,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Score: 250'), findsOneWidget);
+    expect(find.text('SCORE'), findsWidgets);
+    expect(find.text('250'), findsWidgets);
   });
 
   testWidgets('oneUp result shows Elims and hides it at 0', (tester) async {
@@ -153,8 +159,12 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Elims: 2'), findsOneWidget);
-    expect(find.textContaining('Elims: 0'), findsNothing);
+    // ELIMS is a conditional counter: rendered for both players, but the
+    // zero is dimmed to an em dash rather than removed, so the grid keeps
+    // identical geometry between two games of the mode.
+    expect(find.text('ELIMS'), findsNWidgets(2));
+    expect(find.text('2'), findsWidgets);
+    expect(find.text('0'), findsNothing, reason: 'a zero renders as an em dash');
   });
 
   testWidgets('golf result shows 1st-dart hit rate', (tester) async {
@@ -187,8 +197,10 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('1st-dart: 3/9'), findsOneWidget);
-    expect(find.textContaining('1st-dart: 0/0'), findsNothing);
+    expect(find.text('1ST-DART'), findsWidgets);
+    expect(find.text('3/9'), findsOneWidget);
+    expect(find.text('0/0'), findsNothing,
+        reason: 'holesPlayed 0 means the field is absent, not zero');
   });
 
   group('golfTermDist (post-game v2 Task 4)', () {
@@ -317,7 +329,8 @@ void main() {
           .pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Terms: A1 B1 P2 B+2'), findsOneWidget);
+      expect(find.text('TERMS'), findsWidgets);
+      expect(find.text('A1 B1 P2 B+2'), findsOneWidget);
     });
   });
 }

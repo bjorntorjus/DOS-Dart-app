@@ -139,7 +139,9 @@ PostGameFields postGameFields(String gameMode, Map<String, dynamic> stats) {
           conditional('ACES', 'aces'),
           conditional('BOGEYS', 'bogeys'),
           plain('BEST HOLE', 'bestHole'),
-          stats['holesPlayed'] == null
+          // Absent when no hole was completed: "0/0" is not a zero result,
+          // it is a missing denominator. Same rule the pre-grid screen used.
+          (stats['holesPlayed'] == null || stats['holesPlayed'] == 0)
               ? null
               : StatField('1ST-DART',
                   '${stats['firstDartHits'] ?? 0}/${stats['holesPlayed']}'),

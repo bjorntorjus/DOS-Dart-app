@@ -84,8 +84,9 @@ void main() {
 
     expect(find.text('SCORE PER ROUND'), findsOneWidget);
     expect(find.byType(ProgressionChart), findsOneWidget);
-    expect(find.textContaining('Score: 180'), findsOneWidget);
-    expect(find.textContaining('Score: 114'), findsOneWidget);
+    // Headline values now sit in the row header, not a joined stat string.
+    expect(find.text('180'), findsWidgets);
+    expect(find.text('114'), findsOneWidget);
   });
 
   testWidgets('result without throwHistory shows no chart', (tester) async {
