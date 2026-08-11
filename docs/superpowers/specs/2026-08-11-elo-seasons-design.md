@@ -19,8 +19,27 @@ counts, the top is permanent because nothing ever resets, nobody cares because i
 into anything, and those behind are stuck because K drops once a player passes 20 games.
 
 One thing is stated plainly rather than designed around: **if a player rarely wins, no rating
-model should lift them toward the top** — that would make the number lie. What is genuinely
-unfair, and is fixed here, is that an early lead compounds forever.
+model should lift them toward the top** — that would make the number lie.
+
+### Correction from the real data (2026-08-11)
+
+A backup export was inspected after this spec was first written, and it does **not** support the
+"an early lead froze the hierarchy" part of the diagnosis:
+
+| Player | Rating | Games | Win % |
+|---|---|---|---|
+| Bjørn | 1276 | 71 | 52 % |
+| Simen Tunaboii | 1241 | 46 | 43 % |
+| Bartosz | 1221 | 40 | 42 % |
+| Amund | 1136 | 73 | 19 % |
+| Alexander | 1124 | 30 | 17 % |
+
+The whole field sits inside **152 points** after four months, and the order tracks win rate over
+70+ games each. That is an earned spread, not a frozen one — the rating is telling the truth.
+
+The other three complaints stand, and seasons still address them: the number gains something to
+*resolve into*, the luck modes stop counting, and each quarter opens level. But "it is unfairly
+frozen" is not why, and this spec should not be read as claiming it is.
 
 ## 2. Seasons
 
@@ -35,6 +54,19 @@ are plain calendar quarters, closing on 1 January, 1 April, 1 July and 1 October
 and nothing older, so "the oldest surviving game" is not necessarily the group's first ever game.
 The UI says *from the oldest recorded game*, never *since you started playing* — the difference is
 real and the app has no way to know the latter.
+
+**Measured against the real data (2026-08-11):** 93 games recorded, well under the 200 cap, so
+**nothing has been pruned** and season 1 does in fact reach the group's first ever game —
+**22 April 2026**. The two retroactive seasons come out evenly matched, and the qualification
+threshold behaves:
+
+| | Games | Rated | Qualified (≥10) | Unqualified |
+|---|---|---|---|---|
+| Season 1 · 22 Apr – 30 Jun | 51 | 51 | 5 | 7 |
+| Season 2 · Q3, to 11 Aug | 42 | 37 | 5 | 4 |
+
+Five regulars and a tail of one-to-seven-game guests in both — which is exactly the split §7 is
+there to make.
 
 **Hard reset to 1200** at each boundary — not a partial regression. Everyone starts a quarter
 level. This is a deliberate reframe: with quarterly resets the rating stops being a lifetime skill
@@ -76,6 +108,14 @@ skipped; Killer is decided in large part by who gets attacked rather than who th
 The exclusion moves into `EloService.updateRatings`, which gains a required mode parameter and
 returns early for an unrated mode. One gate, in the place that can't be forgotten, instead of ten
 call sites each remembering not to call it.
+
+**Mode keys are not one-to-one with modes.** Cricket writes two different keys depending on the
+variant — `cricket_game_screen.dart:607` records `cricket_cutthroat` or `cricket` — while the
+`GameResult` it hands the result screen always says `cricket`. The rated-mode check reads the
+**history** key during a replay, so it must recognise both spellings; the real backup contains 14
+`cricket_cutthroat` games that would otherwise vanish from season 1. `achievement_catalog.dart:31`
+already sums the pair for the same reason. Killer, meanwhile, has never been played at all, so
+excluding it costs nothing today.
 
 **Post-game display:** an unrated mode drops the Elo column entirely rather than rendering the
 dimmed em dash the design round specified. Bjørn's call — "WILDCARD trenger ikke ELO". The
@@ -162,6 +202,12 @@ past the 100 mark before it closes.
 **Season 1 and 2 are retroactive, so their hit % is partial by nature.** They are computed from
 whatever throws still survive, and the archive marks the figure as covering *n of m games* rather
 than presenting it as complete. From the first game recorded after this ships, hit % is exact.
+
+**Measured (2026-08-11): the partial is worse than the caps alone suggest.** Throws are stored on
+only 45 of the 93 recorded games, and the boundary is not the 100-entry pruning — it is **18 June
+2026**, the date `throwHistory` started reaching `recordGame` at all. Season 1 therefore covers
+22 April to 30 June with throws for its last twelve days only, and season 2 has them throughout.
+The *n of m* label is doing real work here, not guarding a hypothetical.
 
 ## 9. Viewing past seasons
 
