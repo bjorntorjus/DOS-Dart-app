@@ -5,8 +5,9 @@ modes polluted the number, one player sat permanently on top, nobody cared about
 who had fallen behind found it hard to climb — an early lead, earned while everyone still had a
 high K-factor, had frozen into a permanent hierarchy.
 
-**Scope:** how the rating is scoped, reset and displayed. No change to the Elo maths itself, to
-achievements, or to any per-mode statistic.
+**Scope:** how the rating is scoped, reset, displayed and archived, plus the achievements that
+follow from it (§10). **No change to the Elo maths itself** — not the formula, not the K values,
+not the pairwise scaling — and no change to any per-mode statistic.
 
 ---
 
@@ -30,7 +31,7 @@ The app computes its start date at migration and labels it with the real range, 
 **Season 2 is Q3 2026** (1 July – 30 September), also built retroactively. From Q4 onward seasons
 are plain calendar quarters, closing on 1 January, 1 April, 1 July and 1 October.
 
-**Storage caps bound what season 1 can contain** (§12). Game history keeps the newest 200 entries
+**Storage caps bound what season 1 can contain** (§13). Game history keeps the newest 200 entries
 and nothing older, so "the oldest surviving game" is not necessarily the group's first ever game.
 The UI says *from the oldest recorded game*, never *since you started playing* — the difference is
 real and the app has no way to know the latter.
@@ -170,7 +171,60 @@ rating, games, win %, hit % — with unqualified players beneath it per §7.
 
 The current season appears at the top, marked as running, with its closing date.
 
-## 10. What a reset touches — and what it never touches
+## 10. Achievements
+
+### Season achievements — twelve, all lifetime unlocks
+
+Season achievements need **no new state model**. Each is a permanent unlock like every other; only
+the trigger is new — a hook that runs once per player when a season closes, reading that player's
+archive row plus their earlier rows.
+
+| Name | Trigger | Tier |
+|---|---|---|
+| `SEASON CHAMPION` | Win a season | gold |
+| `DYNASTY` | Win two seasons in a row | gold |
+| `UNTOUCHABLE` | End a season 100+ points clear of second place | gold |
+| `PODIUM REGULAR` | Finish top 3 in three different seasons | silver |
+| `THE CLIMB` | Improve your rank by 3+ places from one season to the next | silver |
+| `ROOKIE SEASON` | Qualify in your very first season | bronze |
+| `IRON ARM` | Play 40+ games in one season | silver |
+| `JUST IN TIME` | Qualify with your 10th game on the season's final day | silver |
+| `NINE AND OUT` | End a season on exactly 9 games — one short | bronze |
+| `ALMOST FAMOUS` | Finish second in a season | bronze |
+| `PARTICIPATION TROPHY` | Finish last among the qualified players | bronze |
+| `GHOST` | Get through a whole season without qualifying | bronze |
+
+Names are globally unique with no parenthetical mode suffixes, and the bottom four are deliberately
+self-deprecating — both standing rules for this catalogue.
+
+**Retroactive unlocks:** the migration closes seasons 1 and 2, so these evaluate against them and
+players may unlock several at once. That is intended — the seasons genuinely happened.
+
+**Not included: a hit-% badge.** There is no honest threshold to pick yet. X01 scores on nearly
+every dart while ATC misses far more often, so a cross-mode hit % has no established range. It is
+worth adding once one real season of data exists.
+
+### Recalibrating the rating achievements
+
+Quarterly hard resets make the existing rating thresholds unreachable. Measured in clean wins from
+1200 at K=16 in four-player games:
+
+| Achievement | Today | Wins needed | New threshold | Wins needed |
+|---|---|---|---|---|
+| `RANKED` | 1250 | 8 | **unchanged** | 8 |
+| `CONTENDER` | 1350 | 25 | **unchanged** | 25 |
+| `MASTER` | 1450 | 51 | **1400** | 36 |
+| `GRANDMASTER` | 1550 | **92** | **1450** | 51 |
+| `THE FLOOR` | ≤ 100 | never | **below 1100 at season close** | reachable |
+
+`GRANDMASTER` at 1550 would need 92 clean wins inside a single quarter — it would have become a
+badge nobody could ever earn. `THE FLOOR` had the same problem inverted: the 100 floor is now
+unreachable, so it retargets to ending a season under 1100, which a rough quarter genuinely
+produces (the simulation puts a 20 %-winner over 40 games at ~1140).
+
+Players who already hold these keep them; unlocks are never revoked.
+
+## 11. What a reset touches — and what it never touches
 
 | Reset at a season boundary | Never touched by a reset |
 |---|---|
@@ -187,7 +241,7 @@ One honest side effect: the achievement for beating an opponent rated 200+ above
 unlock they already have — it is a one-time award — but it becomes a harder thing to earn early in
 a season.
 
-## 11. Testing
+## 12. Testing
 
 - **Replay determinism:** a fixed history fixture replayed twice yields identical ratings, and
   replaying it produces the same ratings as applying the same games live one at a time.
@@ -213,8 +267,14 @@ a season.
   round-trips — the written JSON decodes back into the same players and history it was built from.
 - **Empty history:** migrating with no recorded games produces an empty season 1 rather than
   throwing, and leaves every rating at 1200.
+- **Season achievements:** each of the twelve fires on the season row that should trigger it and
+  on no other. `NINE AND OUT` fires at exactly 9 games and not at 8 or 10; `DYNASTY` needs the two
+  wins to be consecutive; `THE CLIMB` reads the previous season's rank, and does not fire for a
+  player who has no previous season.
+- **Achievements survive the reset:** a player holding `GRANDMASTER` under the old 1550 threshold
+  still holds it after migration and recalibration — unlocks are never revoked.
 
-## 12. Storage caps — a standing constraint
+## 13. Storage caps — a standing constraint
 
 `GameHistoryService` keeps the newest **200** entries and strips throws beyond the newest **100**.
 Nothing in this design changes that, and two consequences are load-bearing rather than incidental:
@@ -225,13 +285,15 @@ Nothing in this design changes that, and two consequences are load-bearing rathe
 Raising the caps is not part of this work. If it is ever wanted, the export from §6 is the thing
 that makes it safe to try.
 
-## 13. Out of scope
+## 14. Out of scope
 
 - **Per-mode ratings.** Ten ratings in a friend group means ten numbers that all hover near 1200;
   the symptoms are addressed by seasons and rated-mode selection at a fraction of the complexity.
 - Any change to the Elo formula, the K values, or the pairwise scaling.
-- Season-scoped achievements. Achievements stay lifetime.
+- Season-scoped achievement STATE. The twelve new badges in §10 are triggered by a season
+  close but unlock permanently, exactly like every other achievement — no per-season unlock
+  table exists.
 - **Importing a backup.** The export in §6 is written and shareable; reading one back is the
   obvious next step and deserves its own spec, since a restore has to reconcile ids, seasons and
   achievements rather than blindly overwrite.
-- Raising the storage caps (§12).
+- Raising the storage caps (§13).
