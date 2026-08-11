@@ -2,10 +2,14 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/game_history.dart';
+import '../models/saved_player.dart';
 import '../models/season.dart';
 import '../stats/season_replay.dart';
 import '../stats/season_stats.dart';
+import 'achievement_service.dart';
 import 'app_settings.dart';
+import 'elo_service.dart';
 import 'game_history_service.dart';
 import 'player_storage.dart';
 
@@ -47,6 +51,93 @@ class SeasonService {
     final all = await loadSeasons()
       ..add(season);
     await _saveSeasons(all);
+  }
+
+  /// Hands every player their season badges for a season that just closed.
+  ///
+  /// Called by both [migrate] and [closeDueSeason] — a season the migration
+  /// rebuilt genuinely happened, so its badges are as earned as any other's.
+  /// Unlocks are idempotent (`_unlock` checks first), so re-running is safe.
+  static Future<void> _awardSeason(
+    SeasonRecord closed,
+    List<SeasonRecord> earlier,
+    List<SavedPlayer> players,
+    List<GameHistoryEntry> history,
+  ) async {
+    final ranked = closed.ranked;
+
+    for (final row in closed.rows) {
+      final player = players.where((p) => p.id == row.playerId).firstOrNull;
+      if (player == null) continue;
+
+      final idx = ranked.indexWhere((r) => r.playerId == row.playerId);
+      final rank = idx < 0 ? null : idx + 1;
+
+      // Where they stood in the immediately preceding season, by number.
+      final prior = earlier.where((s) => s.number == closed.number - 1);
+      int? previousRank;
+      if (prior.isNotEmpty) {
+        final pr = prior.first.ranked
+            .indexWhere((r) => r.playerId == row.playerId);
+        previousRank = pr < 0 ? null : pr + 1;
+      }
+
+      // Lifetime counts across every closed season, this one included. The
+      // all-time record (number 0) is excluded — it is not a season and
+      // nobody "won" it.
+      final all = [...earlier.where((s) => !s.isAllTime), closed];
+      var seasonsWon = 0, podiums = 0;
+      for (final s in all) {
+        final at = s.ranked.indexWhere((r) => r.playerId == row.playerId);
+        if (at == 0) seasonsWon++;
+        if (at >= 0 && at < 3) podiums++;
+      }
+
+      final playedBefore = earlier
+          .where((s) => !s.isAllTime)
+          .any((s) => s.rows.any((r) => r.playerId == row.playerId));
+
+      AchievementService.instance.evaluateSeasonClose(
+        player,
+        SeasonStanding(
+          season: closed,
+          row: row,
+          rank: rank,
+          previousRank: previousRank,
+          seasonsWon: seasonsWon,
+          podiums: podiums,
+          isFirstSeason: !playedBefore,
+          qualifiedOnFinalDay:
+              _qualifiedOnFinalDay(row, closed, history),
+        ),
+      );
+    }
+    await PlayerStorage.savePlayers(players);
+  }
+
+  /// True when the game that took this player to [kSeasonQualifyingGames]
+  /// landed on the season's last day — the JUST IN TIME badge.
+  static bool _qualifiedOnFinalDay(
+    SeasonPlayerRow row,
+    SeasonRecord season,
+    List<GameHistoryEntry> history,
+  ) {
+    if (!row.qualified) return false;
+    final theirs = history
+        .where((e) =>
+            !e.date.isBefore(DateTime(
+                season.start.year, season.start.month, season.start.day)) &&
+            !e.date.isAfter(DateTime(season.end.year, season.end.month,
+                season.end.day, 23, 59, 59, 999)) &&
+            EloService.isRatedMode(e.gameMode) &&
+            e.players.any((p) => p.savedPlayerId == row.playerId))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+    if (theirs.length < kSeasonQualifyingGames) return false;
+    final qualifying = theirs[kSeasonQualifyingGames - 1].date;
+    return qualifying.year == season.end.year &&
+        qualifying.month == season.end.month &&
+        qualifying.day == season.end.day;
   }
 
   static Future<bool> needsMigration() async =>
@@ -124,7 +215,7 @@ class SeasonService {
     // 3. Season 1 — from the oldest surviving game to 30 June.
     replayRatings(history: history, players: players, to: kSeasonOneEnd);
     await PlayerStorage.savePlayers(players);
-    await _append(SeasonRecord(
+    final seasonOne = SeasonRecord(
       number: 1,
       start: allTimeStart,
       end: kSeasonOneEnd,
@@ -135,7 +226,13 @@ class SeasonService {
         finalRatings: {for (final p in players) p.id: p.rating},
         names: names,
       ),
-    ));
+    );
+    // `earlier` must be read BEFORE the append, or the season being closed
+    // counts as its own predecessor — which quietly breaks ROOKIE SEASON
+    // (nobody's first) and double-counts podiums.
+    final beforeSeasonOne = await loadSeasons();
+    await _append(seasonOne);
+    await _awardSeason(seasonOne, beforeSeasonOne, players, history);
 
     // 4. Season 2 — Q3, left open.
     final seasonTwoStart = DateTime(2026, 7, 1);
@@ -166,7 +263,7 @@ class SeasonService {
     // The season ends the day before the new quarter began.
     final end = quarterStart(today).subtract(const Duration(days: 1));
 
-    await _append(SeasonRecord(
+    final closing = SeasonRecord(
       number: await AppSettings.getSeasonNumber(),
       start: start,
       end: end,
@@ -177,7 +274,12 @@ class SeasonService {
         finalRatings: {for (final p in players) p.id: p.rating},
         names: {for (final p in players) p.id: p.name},
       ),
-    ));
+    );
+    final earlier = await loadSeasons();
+    await _append(closing);
+    // Award BEFORE the reset: the badges are about the season that just
+    // ended, and its ratings are still the live ones at this point.
+    await _awardSeason(closing, earlier, players, history);
 
     // Hard reset. Rating ONLY — gamesPlayed, gamesWon, modeStats and
     // unlockedAchievementIds are never touched by a season boundary.
