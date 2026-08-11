@@ -163,6 +163,47 @@ class AppSettings {
     await prefs.setInt(_eloThresholdKey, value);
   }
 
+  // Seasons
+  static const String _seasonNumberKey = 'season_number';
+  static const String _seasonStartKey = 'season_start';
+  static const String _seasonsMigratedKey = 'seasons_migrated';
+
+  /// The open season's number. 1 until the migration runs, which closes
+  /// season 1 and opens season 2.
+  static Future<int> getSeasonNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_seasonNumberKey) ?? 1;
+  }
+
+  static Future<void> setSeasonNumber(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_seasonNumberKey, value);
+  }
+
+  /// First day of the open season, or null before the migration.
+  static Future<DateTime?> getSeasonStart() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_seasonStartKey);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  static Future<void> setSeasonStart(DateTime value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_seasonStartKey, value.toIso8601String());
+  }
+
+  /// Written LAST by the migration, so an interrupted run resumes rather
+  /// than resetting a season a second time.
+  static Future<bool> getSeasonsMigrated() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_seasonsMigratedKey) ?? false;
+  }
+
+  static Future<void> setSeasonsMigrated(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_seasonsMigratedKey, value);
+  }
+
   // Backup
   static const String _lastBackupAtKey = 'last_backup_at';
 
