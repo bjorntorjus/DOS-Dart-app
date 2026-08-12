@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'app_settings.dart';
 import 'game_announcer.dart';
+import 'game_logger.dart';
 import 'sound_service.dart';
 
 /// The bar a turn must cross to be COUNTED as slow.
@@ -31,16 +32,12 @@ class ShotClock {
   @visibleForTesting
   static Duration Function()? elapsedOverride;
 
+  final GameLogger _log = GameLogger.instance;
   final Map<String, int> _slowTurns = {};
   final Stopwatch _watch = Stopwatch();
   Timer? _nudge;
   Timer? _sting;
   String? _currentPlayer;
-
-  /// True until the first turn of a game has started. People are finding darts
-  /// and agreeing who goes first — nagging then is unfair, and counting it
-  /// would pollute every single game with setup time.
-  bool _isFirstTurn = true;
 
   Map<String, int> get slowTurnsByName => Map.unmodifiable(_slowTurns);
 
@@ -54,18 +51,22 @@ class ShotClock {
   /// explicitly ends it. That makes the failure direction safe — a mode whose
   /// dart hook was missed records nothing at all, rather than flagging every
   /// turn in that mode as slow.
+  ///
+  /// **There is no first-turn grace, and there must not be one.** An earlier
+  /// version skipped the first call of each game, meaning to spare the opening
+  /// turn while people find their darts. That was wrong: no mode announces a
+  /// player at game start — every `announceNextPlayer` call site sits in an
+  /// advance/turn-end method — so the opening turn never reaches this class at
+  /// all, and the first call it sees is the SECOND player's first real turn.
+  /// The grace silently swallowed exactly the turn the feature exists to
+  /// measure (found in a live log, 2026-08-12).
   void startTurn(String playerName) {
     _cancelTimers();
-    final wasFirst = _isFirstTurn;
-    _isFirstTurn = false;
-    if (wasFirst) {
-      _currentPlayer = null;
-      return;
-    }
     _currentPlayer = playerName;
     _watch
       ..reset()
       ..start();
+    _log.log('SHOTCLOCK start $playerName');
     _scheduleNudges(playerName);
   }
 
@@ -74,8 +75,13 @@ class ShotClock {
   void registerDart() {
     final player = _currentPlayer;
     if (player == null) return;
-    if (_elapsed.inSeconds > kSlowTurnSeconds) {
+    final seconds = _elapsed.inSeconds;
+    if (seconds > kSlowTurnSeconds) {
       _slowTurns[player] = (_slowTurns[player] ?? 0) + 1;
+      _log.log('SHOTCLOCK slow $player ${seconds}s '
+          '(total=${_slowTurns[player]})');
+    } else {
+      _log.log('SHOTCLOCK dart $player ${seconds}s');
     }
     stop();
   }
@@ -87,11 +93,10 @@ class ShotClock {
     _currentPlayer = null;
   }
 
-  /// A new game: clears the tally and restores the first-turn grace.
+  /// A new game: clears the tally.
   void resetGame() {
     stop();
     _slowTurns.clear();
-    _isFirstTurn = true;
   }
 
   void _cancelTimers() {
@@ -109,17 +114,24 @@ class ShotClock {
   void _scheduleNudges(String playerName) {
     if (disableForTest) return;
     AppSettings.getShotClockEnabled().then((enabled) {
-      if (!enabled || _currentPlayer != playerName) return;
+      if (!enabled) {
+        _log.log('SHOTCLOCK nudge off (counter still runs)');
+        return;
+      }
+      if (_currentPlayer != playerName) return;
       AppSettings.getShotClockSeconds().then((seconds) {
         if (_currentPlayer != playerName) return;
+        _log.log('SHOTCLOCK armed $playerName ${seconds}s');
         _nudge = Timer(Duration(seconds: seconds), () {
           if (_currentPlayer != playerName) return;
+          _log.log('SHOTCLOCK nudge $playerName');
           // NOT announceNextPlayer: that is the hook which STARTS this clock,
           // so calling it here would restart the turn forever.
           GameAnnouncer().announceShotClock(playerName);
         });
         _sting = Timer(Duration(seconds: seconds + 30), () {
           if (_currentPlayer != playerName) return;
+          _log.log('SHOTCLOCK sting $playerName');
           // An empty assets/sounds/slow/ folder degrades to silence, so the
           // feature ships working before anybody records a sound.
           SoundService.instance.playRandom(['slow']);

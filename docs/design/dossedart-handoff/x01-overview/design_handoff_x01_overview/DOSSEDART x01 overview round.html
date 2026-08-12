@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — X01 overview · mode round 1/5</title>
+<meta name="viewport" content="width=2600"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Archivo:wght@900&display=swap" rel="stylesheet"/>
+<style>
+  body { margin: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  a { color: #c96442; } a:hover { color: #a04d30; }
+  .intro { max-width: 1000px; margin: 28px auto 6px; padding: 0 28px; color: #2a251f; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #c96442; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 38px; line-height: 1.05; letter-spacing: -1px; margin: 0 0 10px; font-weight: 900; }
+  .intro p { font-size: 15px; line-height: 1.55; color: #5a544a; max-width: 880px; margin: 0; }
+  .intro b { color: #2a251f; }
+</style>
+</head>
+<body>
+<div class="intro">
+  <div class="kick">X01 overview · mode round 1 av 5 · 2026-07-22</div>
+  <h1>X01-score i 272px — med motstanderne synlig.</h1>
+  <p>Dagens kort først (inkl. checkout-hoppet som flytter brettkanten), så <b>tre forslag</b> i samme max-state — alle innenfor det faste <b>272px</b>-budsjettet: surface-fill, per-spiller-accent, alltid-rendret checkout, og det nye <b>standings-elementet</b> med alle spilleres remaining + <b>▲ to win</b>-delta. <b>B (standings-skinne til høyre) er valgt:</b> store, oche-lesbare LAST/AVG/CHECKOUT-verdier i venstre kolonne, og aktiv spiller står markert i skinnen så egen rang alltid er synlig. Stress-states + full cockpit + fasit nederst.</p>
+</div>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="x01-overview-round.jsx"></script>
+<script type="text/babel" data-presets="react">
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <DesignCanvas><X01OverviewRound/></DesignCanvas>
+  );
+</script>
+</body>
+</html>

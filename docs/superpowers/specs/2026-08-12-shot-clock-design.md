@@ -52,8 +52,21 @@ before anybody records a sound.
 
 ## 4. Edge cases, all of which matter
 
-- **The game's first turn never counts.** People are finding darts, fetching a beer and agreeing
-  who starts. Nagging then is unfair, and the number would be polluted by setup on every game.
+- **The game's opening turn never reaches the clock, and that needs no code.**
+
+  *(Corrected 2026-08-12, from a live log. This bullet originally said "the game's first turn never
+  counts" and the service implemented a grace period to match — it skipped the first `startTurn` of
+  each game. That shipped, and the feature did nothing: Bjørn played a game where P0 threw three
+  darts, the turn advanced to P1, and no nudge ever fired.*
+
+  *The reasoning error: no mode announces a player at game start. Every `announceNextPlayer` call
+  site sits in an advance/turn-end method, verified across all ten screens. So the opening turn
+  never reaches the clock at all — it is excluded for free — and the first call the clock does see
+  is the **second** player's first real turn. The grace was swallowing exactly the turn the feature
+  exists to measure.*
+
+  *The unit test asserted the grace and passed, because it encoded the same mistaken model as the
+  code. Only a real log exposed it.)*
 - **The clock stops** on the turn's first dart, on game end, on undo, and when the screen is
   disposed. Nothing may outlive the screen: `flutter_test_config.dart` fails any test that leaves
   a timer pending, which is the enforcement rather than a promise.
@@ -84,11 +97,23 @@ catalogue's standing rule asks for.
 No match-summary cell and no per-player post-game field. Naming a slowest player on the result
 screen every single game would turn a light joke into a nightly verdict.
 
-## 7. Testing
+## 7. Logging
+
+Every transition writes one `SHOTCLOCK` line to `GameLogger`, in the same shape as the existing
+`MEME` and `SOUND` lines: `start`, `armed`, `nudge`, `sting`, `dart` (with the elapsed seconds) and
+`slow` (with the running total). `nudge off` records that the setting is off while the counter
+keeps running.
+
+Added after the grace-period bug, which took a code reading to diagnose because the feature was
+completely invisible in the log. Now a shared log answers "did it arm, and what did it measure?"
+without anyone opening the source.
+
+## 8. Testing
 
 - **The window:** a turn that gets its first dart at 59 s counts nothing; at 61 s it counts one.
   The boundary is asserted on both sides because a fixed threshold is the entire basis of the stat.
-- **First turn:** the opening turn of a game records nothing however long it takes.
+- **First announced turn:** the first `startTurn` of a game is the second player's real turn and
+  MUST be measured. This is the regression test for the 2026-08-12 grace-period bug.
 - **Nudge gating:** with the setting off, no sound and no TTS fire — and the counter still
   increments. That combination is the design's most surprising claim, so it gets its own test.
 - **Escalation:** the name fires once at the threshold and the sting once at threshold + 30 s;
@@ -102,7 +127,7 @@ screen every single game would turn a light joke into a nightly verdict.
   player's `modeStats`, and the profile sums two modes into one figure.
 - **Achievement:** `FILIBUSTER` fires at 10 and not at 9.
 
-## 8. Out of scope
+## 9. Out of scope
 
 - Any penalty. No lost turns, no lost points — this is a social game, and a rule that hands out
   punishments would be enforced by an app that cannot see the room.

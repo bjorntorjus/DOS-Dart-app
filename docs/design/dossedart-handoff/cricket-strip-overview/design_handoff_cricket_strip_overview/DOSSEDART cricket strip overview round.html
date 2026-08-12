@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8"/>
+<title>DOSSEDART — Cricket / strip-family overview · mode round 3</title>
+<meta name="viewport" content="width=2600"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Archivo:wght@900&display=swap" rel="stylesheet"/>
+<style>
+  body { margin: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  a { color: #c96442; } a:hover { color: #a04d30; }
+  .intro { max-width: 1000px; margin: 28px auto 6px; padding: 0 28px; color: #2a251f; }
+  .intro .kick { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2.5px; color: #c96442; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+  .intro h1 { font-family: 'Archivo', sans-serif; font-size: 38px; line-height: 1.05; letter-spacing: -1px; margin: 0 0 10px; font-weight: 900; }
+  .intro p { font-size: 15px; line-height: 1.55; color: #5a544a; max-width: 880px; margin: 0; }
+  .intro b { color: #2a251f; }
+</style>
+</head>
+<body>
+<div class="intro">
+  <div class="kick">Cricket / strip-family · mode round 3 · 2026-07-22</div>
+  <h1>Én strip for fire modes — og et grid som ER standings.</h1>
+  <p>Dagens låste Cricket først (4 og 6 spillere), så <b>valgt retning A+</b>: stripen adopterer grammatikken — surface-kort, 3px per-spiller-accent, header regel 4, fast <b>132px</b> familie-budsjett — med <b>kun POINTS</b> i score-blokken (diff-platen er besluttet ut). Grid-et får per-spiller-accents, points PS-17 m/ glow i headerne og 👑 på leder. Deretter <b>zoom på 175%</b> av tre varianter for aktivens egne treff i tapcellene — <b>SEGMENTER anbefalt</b>, PIPS og TGT-GLYF som alternativer — så stress-states, én thumbnail per søsken-modus (ATC · Shanghai · Splitscore arver stripen gratis) og fasit.</p>
+</div>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="cricket-strip-overview-round.jsx"></script>
+<script type="text/babel" data-presets="react">
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <DesignCanvas><CricketStripOverviewRound/></DesignCanvas>
+  );
+</script>
+</body>
+</html>
