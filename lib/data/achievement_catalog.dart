@@ -785,6 +785,19 @@ List<Achievement> _build() => [
       // Each tests ctx.season first, so they are inert at game end where it
       // is null (see AchievementService.evaluateSeasonClose).
       Achievement(
+        id: 'x_filibuster',
+        name: 'FILIBUSTER',
+        description: 'Take over a minute to throw, 10 times',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.record_voice_over),
+        milestoneTest: (ctx) =>
+            ctx.player.modeStats.values
+                .fold<int>(0, (sum, m) => sum + m.get('slowTurns')) >=
+            10,
+      ),
+
+      Achievement(
         id: 'x_season_champion',
         name: 'SEASON CHAMPION',
         description: 'Win a season',

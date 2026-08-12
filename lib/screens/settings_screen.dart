@@ -35,6 +35,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _useDossedartDesign = false;
 
   // Sound & Video
+  bool _shotClockEnabled = false;
+  int _shotClockSeconds = 60;
   bool _soundEffectsEnabled = true;
   bool _videoEventsEnabled = true;
   int _videoFrequency = 5;
@@ -71,6 +73,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final soundEffectsEnabled = await AppSettings.getSoundEffectsEnabled();
     final videoEventsEnabled = await AppSettings.getVideoEventsEnabled();
     final videoFrequency = await AppSettings.getVideoFrequency();
+    final shotClockEnabled = await AppSettings.getShotClockEnabled();
+    final shotClockSeconds = await AppSettings.getShotClockSeconds();
     final ttsVoice = await AppSettings.getTtsVoice();
     final eloKNew = await AppSettings.getEloKNew();
     final eloKExp = await AppSettings.getEloKExp();
@@ -99,6 +103,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _soundEffectsEnabled = soundEffectsEnabled;
       _videoEventsEnabled = videoEventsEnabled;
       _videoFrequency = videoFrequency;
+      _shotClockEnabled = shotClockEnabled;
+      _shotClockSeconds = shotClockSeconds;
       _eloKNew = eloKNew;
       _eloKExp = eloKExp;
       _eloThreshold = eloThreshold;
@@ -526,6 +532,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Card(
                   child: Column(
                     children: [
+                      SwitchListTile(
+                        title: const Text('Shot clock'),
+                        subtitle: const Text(
+                            'Reminds a player who has not thrown yet. '
+                            'Slow turns are counted either way.'),
+                        value: _shotClockEnabled,
+                        onChanged: (v) {
+                          setState(() => _shotClockEnabled = v);
+                          AppSettings.setShotClockEnabled(v);
+                        },
+                      ),
+                      if (_shotClockEnabled)
+                        ListTile(
+                          title: const Text('Nudge after'),
+                          subtitle: Slider(
+                            value: _shotClockSeconds.toDouble(),
+                            min: 30,
+                            max: 120,
+                            divisions: 6,
+                            label: '${_shotClockSeconds}s',
+                            onChanged: (v) {
+                              setState(() => _shotClockSeconds = v.round());
+                              AppSettings.setShotClockSeconds(v.round());
+                            },
+                          ),
+                          trailing: Text('${_shotClockSeconds}s'),
+                        ),
                       SwitchListTile(
                         title: const Text('Sound effects'),
                         subtitle: const Text(
