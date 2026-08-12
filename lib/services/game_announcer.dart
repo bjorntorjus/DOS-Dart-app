@@ -28,6 +28,14 @@ class GameAnnouncer {
     if (_nextPlayer) _tts.speak(name);
   }
 
+  /// The shot clock's nudge: says the name of a player who has not thrown yet.
+  ///
+  /// Separate from [announceNextPlayer] because that method is the hook which
+  /// STARTS the shot clock — reusing it here would restart the turn forever.
+  /// It also ignores the next-player TTS preference: someone who turned the
+  /// shot clock on asked for this specific reminder.
+  void announceShotClock(String name) => _tts.speak(name);
+
   void announceThrow(String label) {
     if (_throwResult) _tts.speak(label);
   }

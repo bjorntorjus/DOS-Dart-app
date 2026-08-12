@@ -163,6 +163,34 @@ class AppSettings {
     await prefs.setInt(_eloThresholdKey, value);
   }
 
+  // Shot clock
+  static const String _shotClockEnabledKey = 'shot_clock_enabled';
+  static const String _shotClockSecondsKey = 'shot_clock_seconds';
+
+  /// Off by default: an app that nags uninvited is worse than the problem it
+  /// solves. The COUNTER is unaffected by this — see `kSlowTurnSeconds`, which
+  /// is fixed so the stat stays comparable between players.
+  static Future<bool> getShotClockEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_shotClockEnabledKey) ?? false;
+  }
+
+  static Future<void> setShotClockEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_shotClockEnabledKey, value);
+  }
+
+  /// When the nudge fires, in seconds. Default 60.
+  static Future<int> getShotClockSeconds() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_shotClockSecondsKey) ?? 60;
+  }
+
+  static Future<void> setShotClockSeconds(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_shotClockSecondsKey, value);
+  }
+
   // Seasons
   static const String _seasonNumberKey = 'season_number';
   static const String _seasonStartKey = 'season_start';
