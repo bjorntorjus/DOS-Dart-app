@@ -44,12 +44,12 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 3));
 
     // PostGameScreen should now be visible. The Undo button is labelled
-    // '↶ Back' in lib/screens/post_game_screen.dart.
-    expect(find.text('↶ Back'), findsOneWidget,
+    // '↶ BACK' in lib/screens/post_game_screen.dart.
+    expect(find.text('↶ BACK'), findsOneWidget,
         reason: 'PostGameScreen should show the Undo/Back button');
 
     // Tap Undo.
-    await tester.tap(find.text('↶ Back').first);
+    await tester.tap(find.text('↶ BACK').first);
     await tester.pumpAndSettle(const Duration(seconds: 3));
 
     // Back in ShanghaiGameScreen — verify engine state was restored.
