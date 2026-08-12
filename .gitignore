@@ -56,3 +56,14 @@ app.*.map.json
 # This repo is PUBLIC — these files contain player names, ratings and the
 # full game history, and must never be committed.
 data/backups/
+
+# Designer deliveries under docs/design/dossedart-handoff/.
+# The briefs we WRITE (HANDOVER-*.md, PROPOSAL-*.html) are tracked; the
+# bundles we RECEIVE back are not — they are large, partly binary, and
+# regenerated on every design round. Ignored so a wide `git add docs`
+# cannot sweep them in.
+docs/design/dossedart-handoff/**/design_handoff_*/
+docs/design/dossedart-handoff/**/*.zip
+# Two deliveries that arrived without the design_handoff_ prefix.
+docs/design/dossedart-handoff/1up/
+docs/design/dossedart-handoff/wildcard/
