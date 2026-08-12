@@ -17,6 +17,7 @@ import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/game_logger.dart';
@@ -307,6 +308,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
     setState(() {
       throwHistory.add(dartThrow);
+      ShotClock.instance.registerDart();
 
       if (isHit) {
         final steps = widget.config.countMultiples

@@ -13,6 +13,7 @@ import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
@@ -189,6 +190,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
     setState(() {
       throwHistory.add(dartThrow);
+      ShotClock.instance.registerDart();
 
       // All scoring / overflow / cutthroat / mark bookkeeping happens in the
       // engine. applyHit also pushes its own undo snapshot, runs the winner

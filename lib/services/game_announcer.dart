@@ -1,4 +1,5 @@
 import 'tts_service.dart';
+import 'shot_clock.dart';
 import 'sound_service.dart';
 import 'video_service.dart';
 import 'app_settings.dart';
@@ -25,6 +26,10 @@ class GameAnnouncer {
   }
 
   void announceNextPlayer(String name) {
+    // The universal turn-change hook: every mode calls this on every turn
+    // change. Placed ABOVE the TTS gate on purpose — the shot clock must run
+    // whether or not this player has announcements switched on.
+    ShotClock.instance.startTurn(name);
     if (_nextPlayer) _tts.speak(name);
   }
 

@@ -12,6 +12,7 @@ import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/game_logger.dart';
@@ -312,6 +313,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
     setState(() {
       throwHistory.add(dartThrow);
+      ShotClock.instance.registerDart();
 
       final myNumber = assignedNumbers[currentPlayerIndex];
 

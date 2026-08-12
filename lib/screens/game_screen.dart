@@ -20,6 +20,7 @@ import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
@@ -384,6 +385,7 @@ class _GameScreenState extends State<GameScreen> {
       final outcome = _classifyThrow(newScore, multiplier);
       setState(() {
         throwHistory.add(dartThrow);
+        ShotClock.instance.registerDart();
 
         if (outcome == _ThrowOutcome.finish) {
           isTurnEnd = true;
@@ -480,6 +482,7 @@ class _GameScreenState extends State<GameScreen> {
       // ─────── Standard X01 path (existing code, UNCHANGED) ───────
       setState(() {
         throwHistory.add(dartThrow);
+        ShotClock.instance.registerDart();
 
         if (isBust) {
           isTurnEnd = true;

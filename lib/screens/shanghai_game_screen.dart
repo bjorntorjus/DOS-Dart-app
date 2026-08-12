@@ -13,6 +13,7 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
@@ -232,6 +233,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       roundNumber: roundNo,
     );
     throwHistory.add(dartThrow);
+    ShotClock.instance.registerDart();
 
     // Play core sound (miss/nice) before meme so meme can mark and skip TTS.
     if (type == HitType.miss) {

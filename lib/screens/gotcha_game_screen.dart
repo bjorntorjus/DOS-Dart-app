@@ -15,6 +15,7 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
@@ -172,6 +173,8 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       roundNumber: _roundNumber,
       isBust: result.isBust,
     ));
+
+    ShotClock.instance.registerDart();
 
     _log.logThrow(
       roundNumber: _roundNumber,

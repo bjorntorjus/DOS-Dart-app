@@ -17,6 +17,7 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
@@ -277,6 +278,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         roundNumber: roundNo,
       ),
     );
+
+    ShotClock.instance.registerDart();
     // Golf deliberately reaches ONLY tryMissSound, unlike the other nine
     // modes (audit 2026-08-10, F3 — parity was attempted and reverted).
     // Every meme path MemeService offers is structurally dead here:
