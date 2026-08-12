@@ -4,6 +4,7 @@ import '../models/dart_throw.dart';
 import '../models/earned_feat.dart';
 import '../services/game_history_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 
 class StatsRecorder {
   /// Call after EloService.updateRatings to record per-mode stats,
@@ -64,6 +65,12 @@ class StatsRecorder {
         sp.currentWinStreak = 0;
       }
 
+      // Slow turns are collected by ShotClock during the game rather than
+      // passed in by each screen — one merge point instead of ten cockpits
+      // each remembering to forward the same counter.
+      final slow = ShotClock.instance.slowTurnsFor(playerNames[i]);
+      if (slow > 0) mode.inc('slowTurns', slow);
+
       // Merge mode-specific counters
       if (modeCounters != null && modeCounters.containsKey(playerId)) {
         final counters = modeCounters[playerId]!;
@@ -102,6 +109,11 @@ class StatsRecorder {
       sp.ratingHistory.add(RatingSnapshot(
           date: now, rating: sp.rating, placement: ratingPlacement));
     }
+
+    // The shot-clock tally is per game. Clearing it here also restores the
+    // first-turn grace for the next game, so this is the only reset the
+    // feature needs anywhere.
+    ShotClock.instance.resetGame();
 
     // Record to game history (fire-and-forget)
     final entry = buildEntry(

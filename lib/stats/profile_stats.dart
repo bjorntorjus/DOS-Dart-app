@@ -59,6 +59,13 @@ ModeStats? _firstMode(SavedPlayer p, List<String> keys) {
 /// the underlying counter exists (> 0) so unplayed modes are skipped.
 List<RecordTile> careerRecords(SavedPlayer p) {
   final out = <RecordTile>[];
+  // Cross-cutting, so no mode key — the grid resolves an unknown key to
+  // phosphor. Hidden at zero: an empty shame counter is not worth a tile.
+  final slowTurns =
+      p.modeStats.values.fold<int>(0, (sum, m) => sum + m.get('slowTurns'));
+  if (slowTurns > 0) {
+    out.add(RecordTile(mode: '', value: '$slowTurns', label: 'slow turns'));
+  }
   final x01 = _firstMode(p, ['x01']);
   if (x01 != null && x01.get('highestTurn') > 0) {
     out.add(RecordTile(mode: 'x01', value: '${x01.get('highestTurn')}', label: 'highest turn'));
