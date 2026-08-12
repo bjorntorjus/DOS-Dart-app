@@ -54,11 +54,16 @@ before anybody records a sound.
 
 - **The game's first turn never counts.** People are finding darts, fetching a beer and agreeing
   who starts. Nagging then is unfair, and the number would be polluted by setup on every game.
-- **The clock stops** on the turn's first dart, on game end, on undo, when the screen is disposed,
-  and while a dialog or overlay is open. Without that last one, an app left on the table collects
-  slow turns all night.
+- **The clock stops** on the turn's first dart, on game end, on undo, and when the screen is
+  disposed. Nothing may outlive the screen: `flutter_test_config.dart` fails any test that leaves
+  a timer pending, which is the enforcement rather than a promise.
 - **A turn that never gets a dart** — the player is removed mid-game, or the game ends on someone
   else's checkout — records nothing. There is no turn to be slow in.
+- **An abandoned game costs at most one slow turn.** *(Corrected 2026-08-12: an earlier draft
+  claimed a forgotten app "collects slow turns all night" and used that to argue for suppressing
+  the clock behind dialogs and overlays. That was wrong. The counter increments once, when a dart
+  finally arrives — and if nobody ever throws, nothing is recorded at all. The nudge can sound
+  twice into an empty room, which is not worth per-mode overlay plumbing across ten cockpits.)*
 
 ## 5. Storage: none is added
 
@@ -91,6 +96,8 @@ screen every single game would turn a light joke into a nightly verdict.
 - **Cancellation:** a dart, a game end, an undo and a dispose each stop the clock, and no timer
   survives the screen. `flutter_test_config.dart` already fails a test that leaves one pending,
   which is the enforcement.
+- **Abandonment:** a turn left unplayed for hours records exactly one slow turn when a dart
+  finally lands, and nothing at all if none ever does.
 - **Counter plumbing:** a game with two slow turns for one player lands `slowTurns: 2` in that
   player's `modeStats`, and the profile sums two modes into one figure.
 - **Achievement:** `FILIBUSTER` fires at 10 and not at 9.
