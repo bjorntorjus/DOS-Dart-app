@@ -138,6 +138,9 @@ class _GameScreenState extends State<GameScreen> {
   void undoForTest() => _undo();
 
   @visibleForTesting
+  bool get gameFullyOverForTest => _gameFullyOver;
+
+  @visibleForTesting
   int get throwCountForTest => throwHistory.length;
 
   /// Fast-forwards a player's score to [score] for testing.
@@ -1271,6 +1274,20 @@ class _GameScreenState extends State<GameScreen> {
       if (_removedPlayerIndices.contains(currentPlayerIndex)) {
         _advancePlayer();
       }
+      // END GAME → ↶ BACK can strand _gameFullyOver == true when the undone
+      // throw wasn't itself a finisher's checkout (e.g. the round's final
+      // miss by a non-finisher) — the block above only clears it on a
+      // checkout undo. With ≥2 active (non-finished, non-removed) seats left,
+      // the game is NOT actually over, so the next round-resolve must be free
+      // to re-prompt instead of force-finalizing on the stale flag.
+      final activeSeats = List.generate(players.length, (i) => i)
+          .where((i) =>
+              !finishedPlayers.contains(i) &&
+              !_removedPlayerIndices.contains(i))
+          .length;
+      if (activeSeats >= 2) {
+        _gameFullyOver = false;
+      }
       _log.logState({'afterUndo': true, 'round': _roundNumber, 'currentPlayer': currentPlayerIndex, 'dartsInTurn': dartsInTurn, 'completedThisRound': _playersCompletedThisRound, 'finishedBefore': _finishedBeforeRound, 'finishedPlayers': finishedPlayers});
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
@@ -1611,11 +1628,11 @@ class _GameScreenState extends State<GameScreen> {
       if (!earlyTermination) _resumeAfterFinisher();
       return;
     }
-    _log.logGameEnd(
-        playerNames: players.map((p) => p.name).toList(),
-        finishedOrder: finishedPlayers,
-        gameFullyOver: true);
-    BatterySampler.instance.stop();
+    // logGameEnd + BatterySampler.stop() are NOT repeated here: every exit
+    // from the post-game screen this leads to (_showPostGame /
+    // _showEarlyTerminationPostGame) already logs the same gameOver=true
+    // event and stops the sampler on 'again'/'home' — only 'undo' skips
+    // that, and undo is meant to leave no trace (see those functions).
     setState(() => _gameFullyOver = true);
     await _prepareRatingPreview();
     if (!mounted) return;

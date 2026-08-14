@@ -176,6 +176,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   void undoForTest() => _undo();
 
   @visibleForTesting
+  bool get gameFullyOverForTest => _gameFullyOver;
+
+  @visibleForTesting
   GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
@@ -890,6 +893,22 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
       if (_removedPlayerIndices.contains(currentPlayerIndex)) {
         _advancePlayer();
+      }
+
+      // END GAME → ↶ BACK can strand _gameFullyOver == true when the undone
+      // throw wasn't itself a finisher's own throw (e.g. the round's final
+      // miss by a non-finisher) — the block above only clears it when the
+      // undone throw belonged to a finisher. With ≥2 active (non-finished,
+      // non-removed) seats left, the game is NOT actually over, so the next
+      // round-resolve must be free to re-prompt instead of force-finalizing
+      // on the stale flag.
+      final activeSeats = List.generate(players.length, (i) => i)
+          .where((i) =>
+              !finishedPlayers.contains(i) &&
+              !_removedPlayerIndices.contains(i))
+          .length;
+      if (activeSeats >= 2) {
+        _gameFullyOver = false;
       }
     });
   }
