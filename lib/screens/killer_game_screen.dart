@@ -37,6 +37,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_player_avatar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_killer_setup_screen.dart';
 
 enum KillerPhase { assignment, playing }
 
@@ -857,6 +860,22 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo', details: 'user chose undo from post-game');
       _undo();
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again', details: 'rematch');
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartKillerSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.killer,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'exit', details: 'user exited to home');
       // Leaving the game — record stats now. Recording is deferred to this

@@ -35,6 +35,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_splitscore_setup_screen.dart';
 
 class HalveItGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -646,6 +649,22 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again');
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartSplitscoreSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.halveIt,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'exit');
       // Leaving the game — record stats now. Recording is deferred to this

@@ -36,6 +36,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_shanghai_setup_screen.dart';
 
 class ShanghaiGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -504,6 +507,23 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
           // an instant Shanghai) — rebuild it from the engine (F13).
           _rebuildTurnHits();
         });
+        return;
+      }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => widget.useDossedartDesign
+              ? DossedartShanghaiSetupScreen(
+                  initialConfig: widget.config, initialPlayerIds: ids)
+              : PlayerSetupScreen(
+                  gameMode: GameMode.shanghai,
+                  prefill: SetupPrefill(playerIds: ids, config: widget.config),
+                ) as Widget,
+        ));
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
