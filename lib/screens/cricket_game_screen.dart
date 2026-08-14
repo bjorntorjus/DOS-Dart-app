@@ -19,6 +19,7 @@ import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
+import '../widgets/continue_prompt_dialog.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
@@ -320,10 +321,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       _announcer.announceWinner(players[winnerIndex!].name);
       _showPostGame();
     } else if (finishedPlayers.contains(currentPlayerIndex) && !_gameFullyOver) {
-      if (players.length <= 2) {
+      final active = List.generate(players.length, (i) => i)
+          .where((i) => !finishedPlayers.contains(i))
+          .length;
+      if (active > 1) {
+        _promptContinueOrEnd();
+      } else {
+        // One (or zero) active left — the game is decided; skip the question.
         _gameFullyOver = true;
+        _showPostGame();
       }
-      _showPostGame();
     }
   }
 
@@ -332,8 +339,31 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     _registerHit(0, 0);
   }
 
+  /// The finisher's seat is still current when this fires (the engine leaves
+  /// the finisher current so the screen can show them).
+  Future<void> _promptContinueOrEnd() async {
+    final finisherName = players[currentPlayerIndex].name;
+    final remaining = List.generate(players.length, (i) => i)
+        .where((i) => !finishedPlayers.contains(i))
+        .length;
+    final keepPlaying = await showContinuePrompt(
+      context,
+      finisherName: finisherName,
+      remainingCount: remaining,
+      dossedart: widget.useDossedartDesign,
+    );
+    if (!mounted) return;
+    if (keepPlaying) {
+      _log.logPostGame(action: 'continue', details: 'game continues with remaining players');
+      setState(_advanceToNextActivePlayer);
+      return;
+    }
+    setState(() => _gameFullyOver = true);
+    _showPostGame(); // does the rating preview itself when fully over
+  }
+
   /// Advances the engine's current seat to the next active (not finished, not
-  /// removed) player. Used only by the post-game "continue" flow — after an
+  /// removed) player. Used only by the continue-prompt flow — after an
   /// intermediate finish the engine leaves the finisher current so the screen
   /// can show them, so resuming play needs an explicit advance. The engine
   /// exposes no public advance, so this walks its public rotation state.
@@ -679,11 +709,6 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
-    } else if (result == 'continue') {
-      _log.logPostGame(action: 'continue', details: 'game continues with remaining players');
-      setState(() {
-        _advanceToNextActivePlayer();
-      });
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
       // Leaving the game — record stats now. Recording is deferred to this
