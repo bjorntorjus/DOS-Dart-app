@@ -43,6 +43,9 @@ import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../theme/dossedart_tokens.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_x01_setup_screen.dart';
 
 enum _ThrowOutcome { continueTurn, finish, turnEndNoBust, bust }
 
@@ -1396,6 +1399,16 @@ class _GameScreenState extends State<GameScreen> {
       _undo();
       return;
     }
+    if (action == 'again') {
+      _log.logPostGame(action: 'again');
+      _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: true);
+      BatterySampler.instance.stop();
+      _gameFullyOver = true;
+      await _updateStats();
+      if (!mounted) return;
+      _pushRematchSetup();
+      return;
+    }
     // 'home' or null → finalize game
     _log.logPostGame(action: 'newGame');
     _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: true);
@@ -1613,6 +1626,34 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
+  /// PLAY AGAIN: reopen setup prefilled with this game's rules and the
+  /// end-of-game roster. Stats were already recorded by the caller.
+  void _pushRematchSetup() {
+    final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+    final nav = Navigator.of(context);
+    nav.popUntil((route) => route.isFirst);
+    nav.push(MaterialPageRoute(
+      builder: (_) => widget.useDossedartDesign
+          ? DossedartX01SetupScreen(
+              startingScore: widget.startingScore,
+              initialOutRule: widget.masterOut,
+              initialNoBust: widget.noBust,
+              initialHandicap: widget.handicap,
+              initialPlayerIds: ids,
+            )
+          : PlayerSetupScreen(
+              gameMode: GameMode.x01,
+              startingScore: widget.startingScore,
+              prefill: SetupPrefill(
+                playerIds: ids,
+                masterOut: widget.masterOut,
+                handicap: widget.handicap,
+                noBust: widget.noBust,
+              ),
+            ) as Widget,
+    ));
+  }
+
   void _showPostGame() async {
     _log.log('→ PostGame (gameFullyOver=$_gameFullyOver)');
     final result = await Navigator.push<String>(
@@ -1623,6 +1664,14 @@ class _GameScreenState extends State<GameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again');
+      _log.logGameEnd(playerNames: players.map((p) => p.name).toList(), finishedOrder: finishedPlayers, gameFullyOver: _gameFullyOver);
+      BatterySampler.instance.stop();
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
+      if (!mounted) return;
+      _pushRematchSetup();
     } else {
       // Leaving the game — record stats now. Recording is deferred to this
       // point (not done when the game ended) so a post-game Undo never

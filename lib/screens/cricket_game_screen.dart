@@ -39,6 +39,9 @@ import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_player_avatar.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_cricket_setup_screen.dart';
 
 class CricketGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -709,6 +712,23 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again');
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartCricketSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.cricket,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
       // Leaving the game — record stats now. Recording is deferred to this

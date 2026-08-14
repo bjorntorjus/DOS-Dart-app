@@ -36,6 +36,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_atc_setup_screen.dart';
 
 /// Progress arc for the DOSSEDART clock-ring centre: a faint full track with a
 /// green arc covering the fraction of targets the active player has completed.
@@ -1148,6 +1151,23 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again');
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartAtcSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.aroundTheClock,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'newGame');
       // Leaving the game — record stats now. Recording is deferred to this
