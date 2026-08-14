@@ -6,6 +6,7 @@ import '../models/game_config.dart';
 import '../models/saved_player.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/continue_prompt_dialog.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/game_mode.dart';
 import '../utils/join_seed.dart';
@@ -588,7 +589,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       _announcer.announceWinner(players[winnerIndex!].name);
       _prepareRatingPreview().then((_) => _showPostGame());
     } else {
-      _showPostGame();
+      _promptContinueOrEnd();
     }
   }
 
@@ -676,7 +677,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       _prepareRatingPreview().then((_) => _showPostGame());
     } else {
       _announcer.announceWinner(players[sorted.first].name);
-      _showPostGame();
+      _promptContinueOrEnd();
     }
   }
 
@@ -1105,6 +1106,33 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     );
   }
 
+  Future<void> _promptContinueOrEnd() async {
+    final finisherName = players[finishedPlayers.last].name;
+    final remaining = List.generate(players.length, (i) => i)
+        .where((i) =>
+            !finishedPlayers.contains(i) && !_removedPlayerIndices.contains(i))
+        .length;
+    final keepPlaying = await showContinuePrompt(
+      context,
+      finisherName: finisherName,
+      remainingCount: remaining,
+      dossedart: widget.useDossedartDesign,
+    );
+    if (!mounted) return;
+    if (keepPlaying) {
+      _log.logPostGame(action: 'continue', details: 'remaining players: ${players.length - finishedPlayers.length}');
+      setState(() {
+        winnerIndex = null;
+        _advancePlayer();
+      });
+      return;
+    }
+    setState(() => _gameFullyOver = true);
+    await _prepareRatingPreview();
+    if (!mounted) return;
+    _showPostGame();
+  }
+
   void _showPostGame() async {
     _log.logGameEnd(
       playerNames: players.map((p) => p.name).toList(),
@@ -1120,13 +1148,6 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
-    } else if (result == 'continue') {
-      _log.logPostGame(action: 'continue', details: 'remaining players: ${players.length - finishedPlayers.length}');
-      // Continue with remaining players
-      setState(() {
-        winnerIndex = null;
-        _advancePlayer();
-      });
     } else {
       _log.logPostGame(action: 'newGame');
       // Leaving the game — record stats now. Recording is deferred to this
