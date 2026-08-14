@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../wildcard_game_screen.dart';
 
 class DossedartWildcardSetupScreen extends StatefulWidget {
-  const DossedartWildcardSetupScreen({super.key});
+  const DossedartWildcardSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final WildcardConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartWildcardSetupScreen> createState() =>
@@ -15,14 +20,15 @@ class DossedartWildcardSetupScreen extends StatefulWidget {
 
 class _DossedartWildcardSetupScreenState
     extends State<DossedartWildcardSetupScreen> {
-  int _rounds = 10;
-  int _chaos = 5;
+  late int _rounds = widget.initialConfig?.rounds ?? 10;
+  late int _chaos = widget.initialConfig?.startingChaos ?? 5;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'WILDCARD',
       minPlayers: 2,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

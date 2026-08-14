@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../halve_it_game_screen.dart';
 
 class DossedartSplitscoreSetupScreen extends StatefulWidget {
-  const DossedartSplitscoreSetupScreen({super.key});
+  const DossedartSplitscoreSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final HalveItConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartSplitscoreSetupScreen> createState() =>
@@ -15,17 +20,18 @@ class DossedartSplitscoreSetupScreen extends StatefulWidget {
 
 class _DossedartSplitscoreSetupScreenState
     extends State<DossedartSplitscoreSetupScreen> {
-  bool _isRandom = false;
-  int _roundCount = 9;
-  bool _includeDouble = true;
-  bool _includeTriple = true;
-  bool _includeBull = false;
+  late bool _isRandom = widget.initialConfig?.isRandom ?? false;
+  late int _roundCount = widget.initialConfig?.roundCount ?? 9;
+  late bool _includeDouble = widget.initialConfig?.includeDouble ?? true;
+  late bool _includeTriple = widget.initialConfig?.includeTriple ?? true;
+  late bool _includeBull = widget.initialConfig?.includeBull ?? false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'SPLITSCORE',
       minPlayers: 1,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

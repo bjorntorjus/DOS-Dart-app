@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../shanghai_game_screen.dart';
 
 class DossedartShanghaiSetupScreen extends StatefulWidget {
-  const DossedartShanghaiSetupScreen({super.key});
+  const DossedartShanghaiSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final ShanghaiConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartShanghaiSetupScreen> createState() =>
@@ -15,13 +20,14 @@ class DossedartShanghaiSetupScreen extends StatefulWidget {
 
 class _DossedartShanghaiSetupScreenState
     extends State<DossedartShanghaiSetupScreen> {
-  int _targetEnd = 7;
+  late int _targetEnd = widget.initialConfig?.targetEnd ?? 7;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'SHANGHAI',
       minPlayers: 1,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

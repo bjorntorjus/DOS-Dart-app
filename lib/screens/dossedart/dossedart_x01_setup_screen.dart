@@ -7,9 +7,22 @@ import '../game_screen.dart';
 /// DOSSEDART X01 setup — picks players + X01 rules.
 /// Start score is chosen on the home screen and passed in.
 class DossedartX01SetupScreen extends StatefulWidget {
-  const DossedartX01SetupScreen({super.key, required this.startingScore});
+  const DossedartX01SetupScreen({
+    super.key,
+    required this.startingScore,
+    this.initialOutRule,
+    this.initialNoBust,
+    this.initialHandicap,
+    this.initialPlayerIds,
+  });
 
   final int startingScore;
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final String? initialOutRule;
+  final bool? initialNoBust;
+  final bool? initialHandicap;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartX01SetupScreen> createState() =>
@@ -17,15 +30,17 @@ class DossedartX01SetupScreen extends StatefulWidget {
 }
 
 class _DossedartX01SetupScreenState extends State<DossedartX01SetupScreen> {
-  String _outRule = 'none'; // 'none' (free) | 'double' | 'master'
-  bool _noBust = false;
-  bool _handicap = false;
+  late String _outRule =
+      widget.initialOutRule ?? 'none'; // 'none' (free) | 'double' | 'master'
+  late bool _noBust = widget.initialNoBust ?? false;
+  late bool _handicap = widget.initialHandicap ?? false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'NEW MATCH · ${widget.startingScore}',
       minPlayers: 2,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../golf_game_screen.dart';
 
 class DossedartGolfSetupScreen extends StatefulWidget {
-  const DossedartGolfSetupScreen({super.key});
+  const DossedartGolfSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final GolfConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartGolfSetupScreen> createState() =>
@@ -14,13 +19,14 @@ class DossedartGolfSetupScreen extends StatefulWidget {
 }
 
 class _DossedartGolfSetupScreenState extends State<DossedartGolfSetupScreen> {
-  int _holes = 18;
+  late int _holes = widget.initialConfig?.holes ?? 18;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'GOLF',
       minPlayers: 2,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,
