@@ -10,6 +10,7 @@ import '../models/game_result.dart';
 import '../models/golf_engine.dart';
 import '../models/player.dart';
 import '../models/saved_player.dart';
+import '../models/setup_prefill.dart';
 import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/elo_service.dart';
@@ -36,6 +37,7 @@ import '../widgets/dossedart/golf/golf_leaderboard.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
 import '../widgets/dossedart/golf/golf_status_plate.dart' show GolfPlateMode;
 import '../widgets/dossedart/golf/golf_sudden_death_chain.dart';
+import 'dossedart/dossedart_golf_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// Zone label for a single recorded dart, v3 hero chip format: miss → '✗',
@@ -723,6 +725,20 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
           // fire once more when it does.
           _gameEndFired = false;
         });
+        return;
+      }
+      if (action == 'again') {
+        await _updateStats(placements);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartGolfSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd

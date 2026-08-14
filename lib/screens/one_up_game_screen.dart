@@ -10,6 +10,7 @@ import '../models/game_result.dart';
 import '../models/one_up_engine.dart';
 import '../models/player.dart';
 import '../models/saved_player.dart';
+import '../models/setup_prefill.dart';
 import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/elo_service.dart';
@@ -32,6 +33,7 @@ import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/one_up/dossedart_one_up_active_card.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'dossedart/dossedart_one_up_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// Overlay moments the 1UP cockpit shows, one at a time, full-frame on top
@@ -592,6 +594,20 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
           // fire once more when it does.
           _gameEndFired = false;
         });
+        return;
+      }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartOneUpSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd

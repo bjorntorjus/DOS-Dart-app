@@ -23,6 +23,7 @@ import '../theme/dossedart_tokens.dart';
 import '../utils/join_seed.dart';
 import '../utils/earned_feats_builder.dart';
 import '../utils/gotcha_achievement_feats.dart';
+import '../models/setup_prefill.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
@@ -30,6 +31,7 @@ import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/gotcha/dossedart_gotcha_active_card.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'dossedart/dossedart_gotcha_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// The DOSSEDART Gotcha cockpit: race from 0 to an exact target, landing on
@@ -482,6 +484,20 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
             _roundNumber = lastThrow.roundNumber;
           }
         });
+        return;
+      }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartGotchaSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd

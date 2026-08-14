@@ -12,6 +12,7 @@ import '../models/player.dart';
 import '../models/saved_player.dart';
 import '../models/wildcard_engine.dart';
 import '../models/wildcard_events.dart';
+import '../models/setup_prefill.dart';
 import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/battery_sampler.dart';
@@ -35,6 +36,7 @@ import '../widgets/dossedart/wildcard/dossedart_chaos_meter.dart';
 import '../widgets/dossedart/wildcard/dossedart_wildcard_dialogs.dart';
 import '../widgets/dossedart/wildcard/dossedart_wildcard_scorecard.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'dossedart/dossedart_wildcard_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// Overlay moments the WILDCARD cockpit can show, one at a time, layered on
@@ -775,6 +777,20 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         // match.
         if (!engine.canUndo) return;
         setState(_applyUndo);
+        return;
+      }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartWildcardSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
