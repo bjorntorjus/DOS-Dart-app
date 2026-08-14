@@ -29,11 +29,17 @@ class DossedartSetupScaffold extends StatefulWidget {
     required this.minPlayers,
     required this.summaryBuilder,
     required this.onStart,
+    this.initialSelectedIds,
   });
 
   final String title;
   final Widget Function(bool randomOrder, ValueChanged<bool> onRandomOrderChanged) rulesSection;
   final int minPlayers;
+
+  /// Saved-player ids to preselect on load (rematch prefill), in the order
+  /// they should occupy the play order. Archived/unknown ids are dropped.
+  /// Ignored once the user has made their own selection.
+  final List<String>? initialSelectedIds;
 
   /// Builds the trailing summary string shown under the START button.
   /// Receives the current count of selected players so the caller can
@@ -79,6 +85,12 @@ class _DossedartSetupScaffoldState extends State<DossedartSetupScaffold> {
     setState(() {
       _savedPlayers = players;
       _isLoading = false;
+      final initial = widget.initialSelectedIds;
+      if (initial != null && _selectedIds.isEmpty) {
+        final selectable =
+            players.where((p) => !p.archived).map((p) => p.id).toSet();
+        _selectedIds.addAll(initial.where(selectable.contains));
+      }
     });
   }
 
