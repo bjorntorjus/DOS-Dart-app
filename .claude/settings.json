@@ -1,9 +1,0 @@
-{
-  "statusLine": {
-    "type": "command",
-    "command": "bash 'C:/Users/bjorn/Claude-Code/Dart-app/.claude/statusline.sh'"
-  },
-  "enabledPlugins": {
-    "superpowers@claude-plugins-official": true
-  }
-}
