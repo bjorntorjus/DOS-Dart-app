@@ -32,6 +32,7 @@ import '../services/game_logger.dart';
 import '../app_version.dart';
 import 'post_game_screen.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/continue_prompt_dialog.dart';
 import '../services/battery_sampler.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
 import '../widgets/dossedart/x01/dossedart_x01_active_card.dart';
@@ -474,7 +475,9 @@ class _GameScreenState extends State<GameScreen> {
         final leader = _currentLeader();
         if (!_anyoneCanBeat(leader)) {
           if (mounted) {
-            await _showEarlyTerminationPostGame();
+            await _promptContinueOrEnd(
+                finisherName: players[_finishes.last.playerIndex].name,
+                earlyTermination: true);
           }
         }
       }
@@ -927,7 +930,9 @@ class _GameScreenState extends State<GameScreen> {
         _announcer.announceWinner(winner.name);
         _prepareRatingPreview().then((_) => _showPostGame());
       } else {
-        _showPostGame();
+        _promptContinueOrEnd(
+            finisherName: players[newFinishersThisRound.last].name,
+            earlyTermination: false);
       }
       return;
     }
@@ -1022,7 +1027,9 @@ class _GameScreenState extends State<GameScreen> {
       _announcer.announceWinner(winner.name);
       _prepareRatingPreview().then((_) => _showPostGame());
     } else {
-      _showPostGame();
+      _promptContinueOrEnd(
+          finisherName: players[finishedPlayers.last].name,
+          earlyTermination: false);
     }
   }
 
@@ -1123,7 +1130,9 @@ class _GameScreenState extends State<GameScreen> {
       _announcer.announceWinner(winner.name);
       _prepareRatingPreview().then((_) => _showPostGame());
     } else {
-      _showPostGame();
+      _promptContinueOrEnd(
+          finisherName: players[finishedPlayers.last].name,
+          earlyTermination: false);
     }
   }
 
@@ -1382,10 +1391,6 @@ class _GameScreenState extends State<GameScreen> {
     );
 
     if (!mounted) return;
-    if (action == 'continue') {
-      // Resume — round continues normally
-      return;
-    }
     if (action == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
@@ -1547,6 +1552,67 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  /// Resume play after a mid-round finisher when the players chose to keep
+  /// playing: start the next round from the first active seat.
+  void _resumeAfterFinisher() {
+    setState(() {
+      winnerIndex = null;
+      dartsInTurn = 0;
+      _turnIdCounter++;
+      for (int i = 0; i < players.length; i++) {
+        if (!finishedPlayers.contains(i)) {
+          currentPlayerIndex = i;
+          break;
+        }
+      }
+      scoreAtStartOfTurn = players[currentPlayerIndex].score;
+    });
+    _log.logPostGame(action: 'continue', details: 'startPlayer=P$currentPlayerIndex(${players[currentPlayerIndex].name}) score=${players[currentPlayerIndex].score}');
+    _announcer.announceNextPlayer(players[currentPlayerIndex].name);
+    _announcer.announceScore('${players[currentPlayerIndex].score} remaining');
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
+  }
+
+  /// Game-screen dialog shown when a player finishes while ≥2 active players
+  /// remain. KEEP PLAYING resumes; END GAME finalizes and shows the (always
+  /// final) result screen. [earlyTermination] = the no-bust "nobody can beat
+  /// the leader" flow, where play is mid-round and the no-bust ranking screen
+  /// is the end screen.
+  Future<void> _promptContinueOrEnd({
+    required String finisherName,
+    required bool earlyTermination,
+  }) async {
+    final remaining = List.generate(players.length, (i) => i)
+        .where((i) => !finishedPlayers.contains(i))
+        .length;
+    final keepPlaying = await showContinuePrompt(
+      context,
+      finisherName: finisherName,
+      remainingCount: remaining,
+      dossedart: widget.useDossedartDesign,
+      finishVerb: 'CHECKED OUT',
+    );
+    if (!mounted) return;
+    if (keepPlaying) {
+      // Early termination fires mid-round — play just carries on.
+      if (!earlyTermination) _resumeAfterFinisher();
+      return;
+    }
+    _log.logGameEnd(
+        playerNames: players.map((p) => p.name).toList(),
+        finishedOrder: finishedPlayers,
+        gameFullyOver: true);
+    BatterySampler.instance.stop();
+    setState(() => _gameFullyOver = true);
+    await _prepareRatingPreview();
+    if (!mounted) return;
+    if (earlyTermination) {
+      await _showEarlyTerminationPostGame();
+    } else {
+      _showPostGame();
+    }
+  }
+
   void _showPostGame() async {
     _log.log('→ PostGame (gameFullyOver=$_gameFullyOver)');
     final result = await Navigator.push<String>(
@@ -1557,25 +1623,6 @@ class _GameScreenState extends State<GameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
-    } else if (result == 'continue') {
-      // Continue with remaining players — start new round from first active player
-      setState(() {
-        winnerIndex = null;
-        dartsInTurn = 0;
-        _turnIdCounter++;
-        // Find first non-finished player to start the new round
-        for (int i = 0; i < players.length; i++) {
-          if (!finishedPlayers.contains(i)) {
-            currentPlayerIndex = i;
-            break;
-          }
-        }
-        scoreAtStartOfTurn = players[currentPlayerIndex].score;
-      });
-      _log.logPostGame(action: 'continue', details: 'startPlayer=P$currentPlayerIndex(${players[currentPlayerIndex].name}) score=${players[currentPlayerIndex].score}');
-      _announcer.announceNextPlayer(players[currentPlayerIndex].name);
-      _announcer.announceScore('${players[currentPlayerIndex].score} remaining');
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPlayer());
     } else {
       // Leaving the game — record stats now. Recording is deferred to this
       // point (not done when the game ended) so a post-game Undo never
