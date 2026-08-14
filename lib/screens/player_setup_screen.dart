@@ -8,6 +8,7 @@ import '../models/player.dart';
 import '../models/game_mode.dart';
 import '../models/game_config.dart';
 import '../models/saved_player.dart';
+import '../models/setup_prefill.dart';
 import '../services/player_storage.dart';
 import '../services/app_settings.dart';
 import '../utils/player_colors.dart';
@@ -27,11 +28,13 @@ import '../models/one_up_engine.dart';
 class PlayerSetupScreen extends StatefulWidget {
   final GameMode gameMode;
   final int? startingScore; // only for X01
+  final SetupPrefill? prefill;
 
   const PlayerSetupScreen({
     super.key,
     required this.gameMode,
     this.startingScore,
+    this.prefill,
   });
 
   @override
@@ -112,7 +115,43 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
   @override
   void initState() {
     super.initState();
+    _applyPrefillOptions();
     _loadSavedPlayers();
+  }
+
+  void _applyPrefillOptions() {
+    final p = widget.prefill;
+    if (p == null) return;
+    _masterOut = p.masterOut ?? _masterOut;
+    _handicap = p.handicap ?? _handicap;
+    _noBust = p.noBust ?? _noBust;
+    switch (p.config) {
+      case CricketConfig c:
+        _cricketIsRandom = c.isRandom;
+        _cricketTargetCount = c.targetCount;
+        _cricketIncludeBull = c.includeBull;
+        _cricketIsCutthroat = c.isCutthroat;
+      case AroundTheClockConfig c:
+        _clockIncludeBull = c.includeBull;
+        _clockCountMultiples = c.countMultiples;
+        _clockReverse = c.reverse;
+      case KillerConfig c:
+        _killerThrowToPick = c.throwToPick;
+        _killerLives = c.lives;
+        _killerMultiplyHits = c.multiplyHits;
+        _killerShields = c.shields;
+        _killerSuicide = c.suicide;
+      case HalveItConfig c:
+        _halveItIsRandom = c.isRandom;
+        _halveItRoundCount = c.roundCount;
+        _halveItIncludeDouble = c.includeDouble;
+        _halveItIncludeTriple = c.includeTriple;
+        _halveItIncludeBull = c.includeBull;
+      case ShanghaiConfig c:
+        _shanghaiTargetEnd = c.targetEnd;
+      default:
+        break;
+    }
   }
 
   Future<void> _loadSavedPlayers() async {
@@ -124,6 +163,15 @@ class _PlayerSetupScreenState extends State<PlayerSetupScreen> {
       _savedPlayers = players;
       _handicapScale = scale;
       _isLoading = false;
+      final prefillIds = widget.prefill?.playerIds ?? const [];
+      for (final id in prefillIds) {
+        final sp = players
+            .where((s) => s.id == id && !s.archived)
+            .firstOrNull;
+        if (sp != null && !_selectedPlayers.any((sel) => sel.id == sp.id)) {
+          _selectedPlayers.add(sp);
+        }
+      }
     });
     // Auto-open player selection on first entry
     if (mounted && _selectedPlayers.isEmpty) {
