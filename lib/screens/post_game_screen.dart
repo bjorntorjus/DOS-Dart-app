@@ -123,10 +123,10 @@ class PostGameScreen extends StatelessWidget {
                 const Spacer(),
                 DossedartPostGameActions(
                   canUndo: false,
-                  canContinue: false,
+                  canPlayAgain: false,
                   canShowDetails: false,
                   onBack: () {},
-                  onContinue: () {},
+                  onPlayAgain: () {},
                   onDetails: () {},
                   onFinish: () => Navigator.of(context).pop('home'),
                 ),
@@ -143,17 +143,6 @@ class PostGameScreen extends StatelessWidget {
     // WILDCARD never rates; the column still holds its width and dims.
     final rates = result.results.any((p) => p.ratingChange != null);
 
-    // The game is still running: someone finished, but the others may keep
-    // throwing to climb a place (X01, Cricket and ATC are the three modes
-    // that offer this). Statistics belong to a FINISHED game — the ordering
-    // above the fold can still change, and the Elo preview with it — so this
-    // screen answers only "who is out, and where do we stand".
-    //
-    // The heading stays ★ WINNER ★ on purpose: this screen appears only once
-    // it is settled that nobody can pass the leader on fewer darts. What is
-    // still open is whether anyone wants to play on for 2nd or 3rd.
-    final provisional = result.canContinue;
-
     return DossedartCrtFrame(
       child: Scaffold(
         backgroundColor: DossedartTokens.bg,
@@ -168,7 +157,7 @@ class PostGameScreen extends StatelessWidget {
                 avatarPath: winner.avatarPath,
                 ratingChange: winner.ratingChange,
                 showElo: rates,
-                showStats: !provisional,
+                showStats: true,
               ),
               Expanded(
                 child: SingleChildScrollView(
@@ -180,11 +169,8 @@ class PostGameScreen extends StatelessWidget {
                         const _RosterNotice(),
                         const SizedBox(height: 16),
                       ],
-                      PostGameSectionLabel(
-                          provisional ? 'STANDINGS' : 'FINAL STANDINGS',
-                          note: provisional
-                              ? '· game in progress'
-                              : '· ${result.results.length} players'),
+                      PostGameSectionLabel('FINAL STANDINGS',
+                          note: '· ${result.results.length} players'),
                       for (final seat in seats) ...[
                         DossedartPlacementCard(
                           placement: result.results[seat].placement,
@@ -197,7 +183,7 @@ class PostGameScreen extends StatelessWidget {
                           avatarPath: result.results[seat].avatarPath,
                           ratingChange: result.results[seat].ratingChange,
                           showElo: rates,
-                          showStats: !provisional,
+                          showStats: true,
                           isTied: result.results.where((p) =>
                                   p.placement ==
                                   result.results[seat].placement).length >
@@ -205,7 +191,7 @@ class PostGameScreen extends StatelessWidget {
                         ),
                         if (seat != seats.last) const SizedBox(height: 8),
                       ],
-                      if (!provisional && golfExtras != null) ...[
+                      if (golfExtras != null) ...[
                         const SizedBox(height: 16),
                         const PostGameSectionLabel('SCORECARD'),
                         // GolfScoreGrid owns its own horizontal scroll — an
@@ -221,7 +207,7 @@ class PostGameScreen extends StatelessWidget {
                               Set<int>.from(golfExtras['skippedSeats'] as Set),
                         ),
                       ],
-                      if (!provisional && progression != null) ...[
+                      if (progression != null) ...[
                         const SizedBox(height: 16),
                         const PostGameSectionLabel('SCORE PER ROUND'),
                         ProgressionChart(
@@ -232,20 +218,18 @@ class PostGameScreen extends StatelessWidget {
                           ],
                         ),
                       ],
-                      if (!provisional) ...[
-                        const SizedBox(height: 16),
-                        DossedartMatchSummary(summary: summary),
-                      ],
+                      const SizedBox(height: 16),
+                      DossedartMatchSummary(summary: summary),
                     ],
                   ),
                 ),
               ),
               DossedartPostGameActions(
                 canUndo: result.canUndo,
-                canContinue: result.canContinue,
+                canPlayAgain: true,
                 canShowDetails: showDetails,
                 onBack: () => Navigator.of(context).pop('undo'),
-                onContinue: () => Navigator.of(context).pop('continue'),
+                onPlayAgain: () => Navigator.of(context).pop('again'),
                 onDetails: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => GameDetailScreen(entry: result.detailEntry!),

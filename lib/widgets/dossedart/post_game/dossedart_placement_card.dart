@@ -37,17 +37,15 @@ class DossedartPlacementCard extends StatelessWidget {
   final String? avatarPath;
   final double? ratingChange;
 
-  /// False for modes that never rate (WILDCARD), and on the provisional
-  /// screen. For WILDCARD the column still occupies its fixed 86 px and
-  /// renders a dimmed em dash, so standings geometry is the same in every
-  /// mode; [showStats] false drops it entirely instead, since that screen is
-  /// a different thing rather than the same screen missing a value.
+  /// False for modes that never rate (WILDCARD). The column still occupies
+  /// its fixed 86 px and renders a dimmed em dash, so standings geometry is
+  /// the same in every mode; [showStats] false drops it entirely instead,
+  /// since that screen is a different thing rather than the same screen
+  /// missing a value.
   final bool showElo;
 
-  /// False while the game is still running: the card shrinks to rank, name
-  /// and the headline number. Statistics belong to a finished game — the
-  /// "continue?" screen answers who is out and where everyone stands, and
-  /// nothing on it is final yet.
+  /// Always true on the result screen, which is always final; the flag
+  /// remains so the card itself can still render a stats-hidden layout.
   final bool showStats;
   final bool isTied;
 

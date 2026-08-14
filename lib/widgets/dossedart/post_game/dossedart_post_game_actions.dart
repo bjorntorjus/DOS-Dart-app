@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../theme/dossedart_tokens.dart';
 import 'post_game_type.dart';
 
-/// The 134 px pinned action bar: three secondary buttons on row 1, the
+/// The 134 px pinned action bar: BACK / PLAY AGAIN / DETAILS on row 1, the
 /// primary FINISH GAME full width on row 2 (design fasit 2026-08-10).
 ///
 /// Two rules are load-bearing:
@@ -16,19 +16,19 @@ class DossedartPostGameActions extends StatelessWidget {
   const DossedartPostGameActions({
     super.key,
     required this.canUndo,
-    required this.canContinue,
+    required this.canPlayAgain,
     required this.canShowDetails,
     required this.onBack,
-    required this.onContinue,
+    required this.onPlayAgain,
     required this.onDetails,
     required this.onFinish,
   });
 
   final bool canUndo;
-  final bool canContinue;
+  final bool canPlayAgain;
   final bool canShowDetails;
   final VoidCallback onBack;
-  final VoidCallback onContinue;
+  final VoidCallback onPlayAgain;
   final VoidCallback onDetails;
   final VoidCallback onFinish;
 
@@ -59,10 +59,10 @@ class DossedartPostGameActions extends StatelessWidget {
                 Expanded(
                   flex: 125,
                   child: _Btn(
-                      label: '▶ CONTINUE',
+                      label: '↻ PLAY AGAIN',
                       color: DossedartTokens.cyan,
-                      enabled: canContinue,
-                      onTap: onContinue),
+                      enabled: canPlayAgain,
+                      onTap: onPlayAgain),
                 ),
                 const SizedBox(width: 9),
                 Expanded(

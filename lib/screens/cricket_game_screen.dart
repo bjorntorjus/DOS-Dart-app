@@ -646,15 +646,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
             : null,
       ));
     }
-    final active = List.generate(players.length, (i) => i)
-        .where((i) => !finishedPlayers.contains(i))
-        .toList();
     return GameResult(
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'cricket',
       results: results,
-      canContinue:
-          !_gameFullyOver && active.length > 1 && players.length > 2,
       // Chart lines index by seat; a changed roster misaligns them —
       // suppress instead of mislabeling.
       throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),

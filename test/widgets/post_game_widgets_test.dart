@@ -121,27 +121,27 @@ void main() {
 
   testWidgets('an unavailable action is dimmed, never removed',
       (tester) async {
-    var continued = false;
+    var playedAgain = false;
     await host(
       tester,
       DossedartPostGameActions(
         canUndo: true,
-        canContinue: false,
+        canPlayAgain: false,
         canShowDetails: false,
         onBack: () {},
-        onContinue: () => continued = true,
+        onPlayAgain: () => playedAgain = true,
         onDetails: () {},
         onFinish: () {},
       ),
     );
-    expect(find.text('▶ CONTINUE'), findsOneWidget);
+    expect(find.text('↻ PLAY AGAIN'), findsOneWidget);
     expect(find.text('▶ DETAILS'), findsOneWidget);
     expect(find.text('✓ FINISH GAME'), findsOneWidget);
 
     // Visible but inert — a dimmed action must not fire on a stray tap.
-    await tester.tap(find.text('▶ CONTINUE'), warnIfMissed: false);
+    await tester.tap(find.text('↻ PLAY AGAIN'), warnIfMissed: false);
     await tester.pump();
-    expect(continued, isFalse);
+    expect(playedAgain, isFalse);
   });
 
   testWidgets('the primary action fires', (tester) async {
@@ -150,10 +150,10 @@ void main() {
       tester,
       DossedartPostGameActions(
         canUndo: false,
-        canContinue: false,
+        canPlayAgain: false,
         canShowDetails: false,
         onBack: () {},
-        onContinue: () {},
+        onPlayAgain: () {},
         onDetails: () {},
         onFinish: () => finished = true,
       ),

@@ -1369,7 +1369,6 @@ class _GameScreenState extends State<GameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'x01',
       results: results,
-      canContinue: true,
       statsSkipped: _midGamePlayerChanges,
       detailEntry: _buildDetailEntry(),
       // Chart lines index by seat; a changed roster misaligns them —
@@ -1534,17 +1533,10 @@ class _GameScreenState extends State<GameScreen> {
       ));
     }
 
-    final activePlayers = List.generate(players.length, (i) => i)
-        .where((i) => !finishedPlayers.contains(i))
-        .toList();
-
     return GameResult(
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'x01',
       results: results,
-      canContinue: !_gameFullyOver &&
-          activePlayers.length > 1 &&
-          players.length - _removedPlayerIndices.length > 2,
       canUndo: !_hadSuddenDeath,
       statsSkipped: _midGamePlayerChanges,
       detailEntry: _buildDetailEntry(),

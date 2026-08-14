@@ -168,69 +168,43 @@ void main() {
         reason: 'zero conditional stays in place');
   });
 
-  group('provisional screen (canContinue — the game is still running)', () {
-    GameResult running({bool canContinue = true}) => GameResult(
-          gameMode: 'x01',
-          canContinue: canContinue,
-          durationSeconds: 600,
-          results: [
-            PlayerResult(
-                name: 'Jonas',
-                placement: 1,
-                ratingBefore: 1200,
-                ratingAfter: 1212.3,
-                stats: const {
-                  'avgTurn': 62.4,
-                  'highestTurn': 140,
-                  'darts': 24,
-                  'checkout': 'D20',
-                }),
-            PlayerResult(
-                name: 'Mia',
-                placement: 2,
-                ratingBefore: 1200,
-                ratingAfter: 1191.6,
-                stats: const {'avgTurn': 41.8, 'highestTurn': 100}),
-          ],
-        );
-
-    testWidgets('hides the statistics until the game is actually over',
-        (tester) async {
-      await pump(tester, running());
-
-      // Still answers "who won and where do we stand".
-      expect(find.text('★ WINNER ★'), findsOneWidget);
-      expect(find.text('JONAS'), findsNWidgets(2));
-      expect(find.text('62.4'), findsWidgets, reason: 'headline stays');
-      expect(find.text('STANDINGS'), findsOneWidget);
-
-      // But no statistics: the game is not over, so none of this is final.
-      expect(find.text('FINAL STANDINGS'), findsNothing);
-      expect(find.byKey(const Key('statSlot')), findsNothing);
-      expect(find.text('MATCH SUMMARY'), findsNothing);
-      expect(find.text('SCORE PER ROUND'), findsNothing);
-    });
-
-    testWidgets('shows no rating change while players can still climb',
-        (tester) async {
-      await pump(tester, running());
-
-      // Elo is previewed before this screen opens, but nothing is persisted
-      // until FINISH — and the preview can still change if someone continues
-      // and climbs a place. Showing it here would be a promise we cannot keep.
-      expect(find.text('ELO'), findsNothing);
-      expect(find.textContaining('12.3'), findsNothing);
-    });
-
-    testWidgets('the same result, once final, shows everything',
-        (tester) async {
-      await pump(tester, running(canContinue: false));
-
-      expect(find.text('FINAL STANDINGS'), findsOneWidget);
-      expect(find.byKey(const Key('statSlot')), findsWidgets);
-      expect(find.text('MATCH SUMMARY'), findsOneWidget);
-      expect(find.text('ELO'), findsWidgets);
-    });
+  testWidgets('PLAY AGAIN pops the screen with the again action',
+      (tester) async {
+    String? popped;
+    tester.view.physicalSize = const Size(820, 1180);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => ElevatedButton(
+          onPressed: () async {
+            popped = await Navigator.of(context).push<String>(
+              MaterialPageRoute(
+                builder: (_) => PostGameScreen(
+                  result: GameResult(
+                    gameMode: 'x01',
+                    results: [
+                      PlayerResult(name: 'Jonas', placement: 1, stats: const {
+                        'avgTurn': 62.4,
+                        'highestTurn': 140,
+                        'darts': 24,
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+          child: const Text('open'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('↻ PLAY AGAIN'));
+    await tester.pumpAndSettle();
+    expect(popped, 'again');
   });
 
   testWidgets('an empty result list does not crash the screen',

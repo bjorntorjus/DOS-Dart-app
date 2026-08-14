@@ -1093,18 +1093,10 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       ));
     }
 
-    final remainingActive = List.generate(players.length, (i) => i)
-        .where((i) =>
-            !finishedPlayers.contains(i) && !_removedPlayerIndices.contains(i))
-        .toList();
-    final activeCount = players.length - _removedPlayerIndices.length;
-
     return GameResult(
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'aroundTheClock',
       results: results,
-      canContinue:
-          !_gameFullyOver && remainingActive.length > 1 && activeCount > 2,
       canUndo: !_hadSuddenDeath,
       // Chart lines index by seat; a changed roster misaligns them —
       // suppress instead of mislabeling.

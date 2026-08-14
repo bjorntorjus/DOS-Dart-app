@@ -27,7 +27,6 @@ class PlayerResult {
 class GameResult {
   final String gameMode;
   final List<PlayerResult> results;
-  final bool canContinue;
   final bool statsSkipped;
 
   /// Whether the result screen may offer "↶ Back" (undo). False after a
@@ -68,7 +67,6 @@ class GameResult {
   GameResult({
     required this.gameMode,
     required this.results,
-    this.canContinue = false,
     this.statsSkipped = false,
     this.canUndo = true,
     this.throwHistory,
