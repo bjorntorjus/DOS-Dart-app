@@ -389,12 +389,10 @@ void main() {
     state.onDartHitForTest(jokerNumber, 1); // B's first dart of their turn
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-
+    // Joker + instant event = ONE dialog: the overlay jumps straight to the
+    // event, carrying a JOKER header (2026-08-17 direct-to-event flow).
     expect(state.overlayKindForTest, WcOverlayKind.cut);
+    expect(find.textContaining('JOKER · HIDDEN NUMBER'), findsOneWidget);
 
     // Only C (seat 2, the one seat after thrower B) had not yet thrown this
     // round — A already banked, B is the thrower. Asserting the exact
@@ -461,10 +459,8 @@ void main() {
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.cut);
+    expect(state.overlayKindForTest, WcOverlayKind.cut,
+        reason: 'joker with an instant event jumps straight to the event');
 
     // No seat was left to throw — the specific line must be omitted, not
     // rendered empty or with a bogus name.
@@ -521,10 +517,11 @@ void main() {
     state.onDartHitForTest(jokerNumber, 1); // B's first dart hits the joker
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.rewind);
+    expect(state.overlayKindForTest, WcOverlayKind.rewind,
+        reason: 'joker with an instant event jumps straight to the event');
+
+    // The combined dialog carries the joker reveal as a header.
+    expect(find.text('🃏 JOKER · HIDDEN NUMBER $jokerNumber'), findsOneWidget);
 
     // A threw and lost nothing: ±0. B (the thrower) loses the in-progress
     // joker dart. C never threw this round: dimmed NOT THROWN, no delta.
@@ -853,11 +850,8 @@ void main() {
     state.engineForTest.debugForceEvent('freeze');
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.event);
+    expect(state.overlayKindForTest, WcOverlayKind.event,
+        reason: 'joker with an instant event jumps straight to the event');
 
     // Both players are tied at 0 — _highestAmong resolves the tie to the
     // earliest seat, so the victim is always player A regardless of who
@@ -896,11 +890,8 @@ void main() {
     state.engineForTest.debugForceEvent('rewindEvent');
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.rewind);
+    expect(state.overlayKindForTest, WcOverlayKind.rewind,
+        reason: 'joker with an instant event jumps straight to the event');
 
     // A is seat 0, always the current thrower on the engine's very first
     // turn — it hit the joker, so it's the trigger.
@@ -933,11 +924,8 @@ void main() {
     state.engineForTest.debugForceEvent('scoreSwap');
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.event);
+    expect(state.overlayKindForTest, WcOverlayKind.event,
+        reason: 'joker with an instant event jumps straight to the event');
 
     expect(find.byType(WcBeforeAfterRows), findsOneWidget);
     expect(find.textContaining('→'), findsWidgets);
@@ -976,11 +964,8 @@ void main() {
       state.engineForTest.debugForceEvent(eventId);
       state.onDartHitForTest(jokerNumber, 1);
       await tester.pump(const Duration(milliseconds: 50));
-      expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-      state.dismissOverlayForTest();
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(state.overlayKindForTest, WcOverlayKind.event);
+      expect(state.overlayKindForTest, WcOverlayKind.event,
+          reason: 'joker with an instant event jumps straight to the event');
 
       state.dismissOverlayForTest();
       await tester.pump(const Duration(milliseconds: 50));

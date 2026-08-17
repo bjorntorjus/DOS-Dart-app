@@ -337,13 +337,35 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     }
     if (result.jokerHit != null) {
       _pendingResult = result;
+      final event = result.instantEvent;
+      if (event != null) {
+        // Direct-to-event (2026-08-17, Bjørn's feedback): the joker reveal
+        // and its outcome are ONE dialog — no intermediate JOKER! tap. The
+        // event dialog carries the joker header via [_jokerHeaderLine].
+        _logJokerEvent(event);
+        setState(() => _overlay = _overlayKindForEvent(event));
+        // TTS diet (QA 2026-07-09): short sting, then the event line.
+        _announcer.announceChaos('Joker!');
+        _announceEvent(event);
+        return;
+      }
+      // Defensive fallback — the engine draws an event on every joker today.
       setState(() => _overlay = WcOverlayKind.joker);
-      // TTS diet (QA 2026-07-09): short sting only — the joker dialog shows
-      // the hidden-number detail.
       _announcer.announceChaos('Joker!');
       return;
     }
     _finishTurn(result.turnEnded);
+  }
+
+  /// Logs a joker-fired instant event with per-player totals appended when
+  /// the resolution carries scoreChanges (Plan A parity with ROBIN HOOD).
+  void _logJokerEvent(WcInstantEventDef event) {
+    final res = engine.lastEventResolution;
+    final baseDetail = res?.detail ?? '';
+    final detail = (res != null && res.scoreChanges.isNotEmpty)
+        ? '$baseDetail · ${res.scoreChanges.map((c) => 'P${c.playerIndex} ${c.before}→${c.after}').join(', ')}'
+        : baseDetail;
+    _log.logEvent(name: event.name, detail: detail);
   }
 
   void _onBullChoice(int signedDelta) {
@@ -362,30 +384,15 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     _finishTurn(turnEnded);
   }
 
+  /// Dismisses the plain JOKER! dialog — only reachable on the defensive
+  /// no-event fallback since direct-to-event (2026-08-17): an evented joker
+  /// never shows this overlay, [_routeDartResult] jumps straight to the
+  /// event dialog.
   void _onJokerDismiss() {
     final result = _pendingResult;
-    if (result == null) {
-      setState(() => _overlay = null);
-      return;
-    }
-    final event = result.instantEvent;
-    if (event != null) {
-      final res = engine.lastEventResolution;
-      final baseDetail = res?.detail ?? '';
-      // Parity with ROBIN HOOD (whose detail already embeds "before → after"
-      // inline): append per-player totals whenever the resolution carries
-      // scoreChanges (Plan A), so SCORE SWAP/REWIND also show the numbers.
-      final detail = (res != null && res.scoreChanges.isNotEmpty)
-          ? '$baseDetail · ${res.scoreChanges.map((c) => 'P${c.playerIndex} ${c.before}→${c.after}').join(', ')}'
-          : baseDetail;
-      _log.logEvent(name: event.name, detail: detail);
-      setState(() => _overlay = _overlayKindForEvent(event));
-      _announceEvent(event);
-      return; // _pendingResult stays set for the event dismiss below.
-    }
     _pendingResult = null;
     setState(() => _overlay = null);
-    _finishTurn(result.turnEnded);
+    if (result != null) _finishTurn(result.turnEnded);
   }
 
   void _onEventDismiss() {
@@ -1124,6 +1131,28 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
           ),
       ];
 
+  /// Compact joker reveal at the top of an event dialog when the event was
+  /// fired by a joker hit — the joker and its outcome share ONE dialog
+  /// (direct-to-event, 2026-08-17). Empty when no joker is pending (e.g.
+  /// dialogs rebuilt from other paths).
+  List<Widget> _jokerHeaderLine() {
+    final n = _pendingResult?.jokerHit;
+    if (n == null) return const [];
+    return [
+      const SizedBox(height: 6),
+      Text(
+        '🃏 JOKER · HIDDEN NUMBER $n',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontFamily: 'VT323',
+          fontSize: 18,
+          color: DossedartTokens.green,
+          letterSpacing: 1,
+        ),
+      ),
+    ];
+  }
+
   Widget _eventDialog() {
     final res = engine.lastEventResolution;
     final event = res?.event ?? _pendingResult?.instantEvent;
@@ -1136,6 +1165,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       titleSize: 36,
       onTap: _onEventDismiss,
       children: [
+        ..._jokerHeaderLine(),
         const SizedBox(height: 12),
         Text(
           detail,
@@ -1177,6 +1207,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       titleSize: 56,
       onTap: _onEventDismiss,
       children: [
+        ..._jokerHeaderLine(),
         const SizedBox(height: 12),
         const Text(
           'ROUND ENDS NOW · PLAYERS YET TO THROW LOSE THEIR TURN',
@@ -1213,6 +1244,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       spin: true,
       onTap: _onEventDismiss,
       children: [
+        ..._jokerHeaderLine(),
         const SizedBox(height: 12),
         Text(
           'ROUND ${engine.round} SCORES WIPED · RESTART FROM FIRST PLAYER',
