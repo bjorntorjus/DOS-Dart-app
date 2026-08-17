@@ -4,4 +4,4 @@
 /// version) and this constant — the two home screens now derive their
 /// displayed version from here instead of hardcoding it a second and
 /// third time.
-const String kAppVersion = 'v1.21.1';
+const String kAppVersion = 'v1.22.0';
