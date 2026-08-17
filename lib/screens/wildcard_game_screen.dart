@@ -171,6 +171,12 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// who actually had not thrown yet this round.
   int? _cutThrowerSeat;
 
+  /// Same stash-before-reseat trick as [_cutThrowerSeat], for REWIND:
+  /// [_rewindDialog] marks the active seats AFTER the thrower as NOT THROWN
+  /// (rotation is ascending active-seat order), and by dialog-build time
+  /// `engine.currentPlayerIndex` is already the restarted round's first seat.
+  int? _rewindThrowerSeat;
+
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -242,6 +248,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     // get here, so the pre-dart playerIdx captured above is the only place
     // left to learn who actually threw the cut-triggering dart.
     if (result.instantEvent?.id == 'cutEvent') _cutThrowerSeat = playerIdx;
+    if (result.instantEvent?.id == 'rewindEvent') _rewindThrowerSeat = playerIdx;
 
     final label = segment == 0
         ? 'miss'
@@ -1104,13 +1111,16 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// REWIND) to reveal rows for [WcBeforeAfterRows]: resolves each
   /// player's display name + standings accent so the dialog can render
   /// "NAME  before → after" without touching engine internals.
-  List<WcRevealRow> _revealRows(List<WcScoreChange> changes) => [
+  List<WcRevealRow> _revealRows(List<WcScoreChange> changes,
+          {bool Function(int seat)? hasThrown}) =>
+      [
         for (final c in changes)
           WcRevealRow(
             name: players[c.playerIndex].name.toUpperCase(),
             before: c.before,
             after: c.after,
             accent: dossedartAccent(c.playerIndex),
+            hasThrown: hasThrown?.call(c.playerIndex) ?? true,
           ),
       ];
 
@@ -1219,7 +1229,15 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         ],
         const SizedBox(height: 14),
         WcBeforeAfterRows(
-          rows: _revealRows(engine.lastEventResolution?.scoreChanges ?? const []),
+          rows: _revealRows(
+            engine.lastEventResolution?.scoreChanges ?? const [],
+            // Rotation is ascending active-seat order, so the seats after
+            // the joker-thrower had not thrown yet when the round was wiped
+            // — their rows dim with a NOT THROWN tag instead of a delta.
+            hasThrown: _rewindThrowerSeat == null
+                ? null
+                : (seat) => seat <= _rewindThrowerSeat!,
+          ),
         ),
       ],
     );

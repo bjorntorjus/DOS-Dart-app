@@ -475,6 +475,65 @@ void main() {
   });
 
   testWidgets(
+      'REWIND reveal shows the per-player delta and tags seats yet to throw '
+      'as NOT THROWN', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    Future<void> dismissAnnounceIfShown() async {
+      if (state.overlayKindForTest == WcOverlayKind.announce) {
+        state.dismissOverlayForTest();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    await dismissAnnounceIfShown(); // A's turn-1 modifier, if any
+
+    // A (seat 0) banks a zero-score turn — A HAS thrown, which the reveal
+    // must render as `0 → 0 ±0`, distinct from C's NOT THROWN below.
+    for (var i = 0; i < 3; i++) {
+      state.onDartHitForTest(0, 0);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await dismissAnnounceIfShown(); // B's turn modifier, if any
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'B should be up after A banks their 3 darts');
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty,
+        reason: 'wcJokerCount(5) should assign 1 joker at round 1');
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('rewindEvent');
+    state.onDartHitForTest(jokerNumber, 1); // B's first dart hits the joker
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.joker);
+    state.dismissOverlayForTest();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.rewind);
+
+    // A threw and lost nothing: ±0. B (the thrower) loses the in-progress
+    // joker dart. C never threw this round: dimmed NOT THROWN, no delta.
+    expect(find.text('±0'), findsOneWidget);
+    expect(find.text('−$jokerNumber'), findsOneWidget);
+    expect(find.text('NOT THROWN'), findsOneWidget);
+  });
+
+  testWidgets(
       'removing the mid-turn current player advances the turn, and a '
       'roster-changed stats update completes without recording a game',
       (tester) async {
