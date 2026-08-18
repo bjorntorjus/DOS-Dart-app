@@ -253,9 +253,21 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     // Did the engine just advance to the next turn?
     final turnEnded = engine.dartNumber == 0;
     if (turnEnded) {
+      // All 3 darts landed on the round's number (any mix of S/D/T) but not
+      // an instant Shanghai — that path never reaches here, since the
+      // engine leaves dartNumber at 3 (not reset to 0) on an instant win, so
+      // turnEnded is false for it (see ShanghaiGameEngine.recordThrow).
+      final holeCleared =
+          _turnHits.length == 3 && _turnHits.every((h) => h != HitType.miss);
       _meme.onTurnEnd();
       _turnHits.clear();
       _turnIdCounter++;
+      if (holeCleared && _memeEnabled) {
+        SoundService.instance.playRandomMaybe(
+          const ['shanghai/hole_cleared'],
+          chance: _meme.frequencyChance,
+        );
+      }
       if (!engine.gameOver) {
         _log.logTurnStart(
           roundNumber: engine.currentRound,
@@ -342,6 +354,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   Future<void> _fireWinnerCelebration(String winnerName) async {
     _announcer.stop();
     if (engine.isInstantShanghai) {
+      // Plain playRandom (not meme-gated) so this instant-win sting always
+      // layers under the winner flow below, same as the other modes' win
+      // stings.
+      SoundService.instance.playRandom(const ['shanghai/shanghai']);
       _announcer.announceGameEvent('Instant Shanghai!');
     }
     if (!mounted) return;
