@@ -347,6 +347,13 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         // TTS diet (QA 2026-07-09): short sting, then the event line.
         _announcer.announceChaos('Joker!');
         _announceEvent(event);
+        // Event sting layered after the 'Joker!' + event TTS.
+        final folder = switch (event.id) {
+          'rewindEvent' => 'wildcard/rewind',
+          'cutEvent' => 'wildcard/cut',
+          _ => 'wildcard/event',
+        };
+        SoundService.instance.playRandom([folder]);
         return;
       }
       // Defensive fallback — the engine draws an event on every joker today.
