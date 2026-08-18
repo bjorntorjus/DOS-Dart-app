@@ -331,6 +331,23 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
         currentTargets[currentPlayerIndex] = nextTarget;
         players[currentPlayerIndex].score = nextTarget;
 
+        if (steps >= 3 && _memeEnabled) {
+          SoundService.instance.playRandomMaybe(
+              const ['around_the_clock/triple_jump'],
+              chance: _meme.frequencyChance);
+        }
+        // Final target = the last number of the play sequence (20, or bull
+        // when includeBull; reversed sequences end on 1/25) — derived from
+        // the same sequence _atcSequence()/_advanceTarget walk, never
+        // hardcoded, since a game-events moment, no meme gate.
+        final lastTarget = _atcSequence().last;
+        if (target != lastTarget &&
+            nextTarget == lastTarget &&
+            !_isFinished(nextTarget)) {
+          SoundService.instance
+              .playRandom(const ['around_the_clock/final_target']);
+        }
+
         _log.logThrow(
           roundNumber: _roundNumber,
           playerIndex: currentPlayerIndex,
