@@ -90,9 +90,13 @@ void main() {
   testWidgets(
       'a triple advance does NOT play triple_jump when memes are off',
       (tester) async {
-    // Default mock prefs (no override): AppSettings.getMemeEnabled() ->
-    // false, mirroring x01_sound_hooks_test.dart's "memes off" convention.
-    final s = await pumpGame(tester);
+    // meme_enabled unset/false (memes off) is the point of this test, but
+    // meme_frequency is pinned to 10 (frequencyChance == 1) anyway: with the
+    // default frequency (3 -> chance 1/6), an unseeded Random means a broken
+    // gate would still only fire the sound 1/6 of the time, so this negative
+    // would pass ~83% of runs even without the gate. Pinning makes a missing
+    // gate fail deterministically instead of flakily.
+    final s = await pumpGame(tester, prefs: const {'meme_frequency': 10});
     SoundService.instance.playedForTest.clear();
     await s.onDartHitForTest(1, 3); // 3 steps, but memes are off
     await settle(tester);

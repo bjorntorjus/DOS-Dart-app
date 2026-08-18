@@ -71,9 +71,13 @@ void main() {
   testWidgets(
       'a 180 turn does NOT play x01/one_eighty when memes are off',
       (tester) async {
-    // Default mock prefs (no override): AppSettings.getMemeEnabled() ->
-    // false, mirroring x01_meme_gate_test.dart's "memes off" convention.
-    final s = await pumpGame(tester);
+    // meme_enabled unset/false (memes off) is the point of this test, but
+    // meme_frequency is pinned to 10 (frequencyChance == 1) anyway: with the
+    // default frequency (3 -> chance 1/6), an unseeded Random means a broken
+    // gate would still only fire the sound 1/6 of the time, so this negative
+    // would pass ~83% of runs even without the gate. Pinning makes a missing
+    // gate fail deterministically instead of flakily.
+    final s = await pumpGame(tester, prefs: const {'meme_frequency': 10});
     SoundService.instance.playedForTest.clear();
     await s.onDartHitForTest(20, 3);
     await s.onDartHitForTest(20, 3);
