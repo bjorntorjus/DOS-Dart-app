@@ -85,14 +85,19 @@ class GameAnnouncer {
 
   void announceGameEvent(String event) {
     if (_gameEvents) _tts.speak(event);
-    if (event == 'Bust') _tts.callWhenIdle(() => _sound.play('bust'));
-    if (event == 'Out') _tts.callWhenIdle(() => _sound.play('checkout'));
+  }
+
+  /// X01 checkout: layer the checkout sound once TTS finishes the
+  /// "`<name>` checks out!" line. checkout/ ships no recordings yet —
+  /// playRandom is a silent no-op until files are added + declared.
+  void announceCheckout(String phrase) {
+    if (_gameEvents) _tts.speak(phrase);
+    _tts.callWhenIdle(() => _sound.playRandom(['checkout']));
   }
 
   /// WILDCARD moment text (modifier announcement, joker reveal, instant
-  /// event, CUT!/REWIND) — a plain speak, mirroring [announceGameEvent]'s
-  /// TTS path without its 'Bust'/'Out' sound side effects, which chaos copy
-  /// should never trigger.
+  /// event, CUT!/REWIND) — a plain speak, identical to [announceGameEvent]'s
+  /// TTS path (kept separate so chaos copy has its own semantic name).
   void announceChaos(String text) {
     if (_gameEvents) _tts.speak(text);
   }

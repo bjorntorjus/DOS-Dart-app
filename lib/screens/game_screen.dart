@@ -507,7 +507,7 @@ class _GameScreenState extends State<GameScreen> {
           if (_memeEnabled && !bustShowVideo) {
             _meme.markSoundPlayed();
             SoundService.instance.playRandomMaybe([
-              'x01/negative/out',
+              'bust',
               if (_offensiveEnabled) 'x01/offensive/end of round',
             ], chance: vc);
           }
@@ -523,7 +523,7 @@ class _GameScreenState extends State<GameScreen> {
           lastThrowLabel = dartThrow.label;
           _log.logThrow(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, label: dartThrow.label, points: points, scoreBefore: scoreBefore, scoreAfter: 0, dartNumber: dartsInTurn, extra: 'CHECKOUT');
           _log.logCheckout(roundNumber: _roundNumber, playerIndex: currentPlayerIndex, playerName: player.name, dartsUsed: dartsInTurn + 1, checkoutScore: scoreAtStartOfTurn);
-          _announcer.announceGameEvent('${player.name} checks out!');
+          _announcer.announceCheckout('${player.name} checks out!');
           _meme.onThrow(dartThrow, remainingScore: 0);
           if (videoRoll) _meme.markSoundPlayed();
           _meme.onTurnEnd();

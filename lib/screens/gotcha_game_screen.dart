@@ -194,6 +194,11 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       _onGameEnd();
     } else if (result.isBust) {
       _announcer.announceGameEvent('Bust');
+      // Explicit bust sound — announceGameEvent no longer carries it
+      // (double-play fix, sound spec 2026-08-18). Reuses the same
+      // frequency-derived chance as the miss-meme roll above.
+      SoundService.instance
+          .playRandomMaybe(const ['bust'], chance: _meme.frequencyChance);
     } else if (result.killed.isNotEmpty) {
       _announcer.announceKill(_killPhrase(result.killed));
       // Signature-moment video hook — folder has no assets in v1, silent
