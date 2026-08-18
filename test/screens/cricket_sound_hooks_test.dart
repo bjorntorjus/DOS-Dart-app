@@ -60,6 +60,18 @@ void main() {
         contains('cricket/closed'));
   });
 
+  testWidgets('closing a number does NOT play cricket/closed when memes are off',
+      (tester) async {
+    // Default mock prefs (no override): AppSettings.getMemeEnabled() ->
+    // false, mirroring x01_sound_hooks_test.dart's "memes off" convention.
+    final s = await pumpGame(tester);
+    SoundService.instance.playedForTest.clear();
+    await s.registerHitForTest(20, 3); // T20 = 3 marks = closed
+    await settle(tester);
+    expect(SoundService.instance.playedForTest.join(','),
+        isNot(contains('cricket/closed')));
+  });
+
   testWidgets('two marks do NOT play cricket/closed', (tester) async {
     final s = await pumpGame(tester,
         prefs: const {'meme_enabled': true, 'meme_frequency': 10});

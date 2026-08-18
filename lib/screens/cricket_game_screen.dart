@@ -224,9 +224,10 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         if (result.closedTarget) {
           _announcer.announceGameEvent('Closed');
           if (engine.allClosedByPlayer(playerIdxBefore)) {
-            // Big moment: every target closed — full-volume, no chance gate.
+            // Big moment: every target closed — full-volume, no chance gate,
+            // no meme toggle (game-events moment, not a meme).
             SoundService.instance.playRandom(const ['cricket/closed_all']);
-          } else {
+          } else if (_memeEnabled) {
             SoundService.instance.playRandomMaybe(const ['cricket/closed'],
                 chance: _meme.frequencyChance);
           }
