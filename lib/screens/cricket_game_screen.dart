@@ -223,6 +223,13 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         lastThrowLabel = '${dartThrow.label} $markStr';
         if (result.closedTarget) {
           _announcer.announceGameEvent('Closed');
+          if (engine.allClosedByPlayer(playerIdxBefore)) {
+            // Big moment: every target closed — full-volume, no chance gate.
+            SoundService.instance.playRandom(const ['cricket/closed_all']);
+          } else {
+            SoundService.instance.playRandomMaybe(const ['cricket/closed'],
+                chance: _meme.frequencyChance);
+          }
         } else {
           _announcer.announceThrow(dartThrow.spokenLabel);
         }
