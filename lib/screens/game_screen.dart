@@ -580,6 +580,12 @@ class _GameScreenState extends State<GameScreen> {
             isTurnEnd = true;
             // Turn-end video events
             final turnTotal = scoreAtStartOfTurn - player.score;
+            if (turnTotal == 180) {
+              // ONE HUNDRED AND EIGHTY — dedicated folder trumps the
+              // generic triple sting. Ships no recordings yet.
+              _meme.markSoundPlayed();
+              SoundService.instance.playRandom(const ['x01/one_eighty']);
+            }
             if (turnTotal >= 120) {
               _pendingVideoEvent ??= 'high_round';
             } else if (turnTotal < 10) {
@@ -1063,6 +1069,9 @@ class _GameScreenState extends State<GameScreen> {
     });
 
     _announcer.announceGameEvent('Sudden death!');
+
+    // sudden_death/ ships no recordings yet — silent until files land.
+    SoundService.instance.playRandom(const ['x01/sudden_death']);
   }
 
   Future<void> _resolveSuddenDeath() async {
