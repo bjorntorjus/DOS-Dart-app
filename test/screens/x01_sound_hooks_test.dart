@@ -14,7 +14,6 @@ void main() {
   // surfaces on a LATER test (see x01_meme_gate_test.dart). Each test clears
   // the spy after pumping instead.
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
     VideoService.instance.setEnabled(false);
   });
 
@@ -23,7 +22,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  Future<dynamic> pumpGame(WidgetTester tester, {int players = 2}) async {
+  Future<dynamic> pumpGame(WidgetTester tester,
+      {int players = 2, Map<String, Object> prefs = const {}}) async {
+    SharedPreferences.setMockInitialValues(prefs);
     tester.view.physicalSize = const Size(1200, 2000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -42,8 +43,10 @@ void main() {
     return tester.state<State<GameScreen>>(find.byType(GameScreen));
   }
 
-  testWidgets('a 180 turn plays x01/one_eighty', (tester) async {
-    final s = await pumpGame(tester);
+  testWidgets('a 180 turn plays x01/one_eighty when memes are on',
+      (tester) async {
+    final s = await pumpGame(tester,
+        prefs: const {'meme_enabled': true, 'meme_frequency': 10});
     SoundService.instance.playedForTest.clear();
     await s.onDartHitForTest(20, 3);
     await s.onDartHitForTest(20, 3);
@@ -54,11 +57,27 @@ void main() {
   });
 
   testWidgets('a 174 turn does NOT play x01/one_eighty', (tester) async {
-    final s = await pumpGame(tester);
+    final s = await pumpGame(tester,
+        prefs: const {'meme_enabled': true, 'meme_frequency': 10});
     SoundService.instance.playedForTest.clear();
     await s.onDartHitForTest(20, 3);
     await s.onDartHitForTest(20, 3);
     await s.onDartHitForTest(18, 3); // 174
+    await settle(tester);
+    expect(SoundService.instance.playedForTest.join(','),
+        isNot(contains('x01/one_eighty')));
+  });
+
+  testWidgets(
+      'a 180 turn does NOT play x01/one_eighty when memes are off',
+      (tester) async {
+    // Default mock prefs (no override): AppSettings.getMemeEnabled() ->
+    // false, mirroring x01_meme_gate_test.dart's "memes off" convention.
+    final s = await pumpGame(tester);
+    SoundService.instance.playedForTest.clear();
+    await s.onDartHitForTest(20, 3);
+    await s.onDartHitForTest(20, 3);
+    await s.onDartHitForTest(20, 3); // 180!
     await settle(tester);
     expect(SoundService.instance.playedForTest.join(','),
         isNot(contains('x01/one_eighty')));

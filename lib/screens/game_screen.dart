@@ -580,7 +580,7 @@ class _GameScreenState extends State<GameScreen> {
             isTurnEnd = true;
             // Turn-end video events
             final turnTotal = scoreAtStartOfTurn - player.score;
-            if (turnTotal == 180) {
+            if (_memeEnabled && turnTotal == 180) {
               // ONE HUNDRED AND EIGHTY — dedicated folder trumps the
               // generic triple sting. Ships no recordings yet.
               _meme.markSoundPlayed();
