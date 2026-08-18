@@ -449,6 +449,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isKiller[pi] = true;
       lastThrowLabel = '${dartThrow.label} - KILLER!';
       _announcer.announceGameEvent('Killer');
+      SoundService.instance.playRandom(const ['killer/became_killer']);
     } else {
       // Already a Killer — hitting own number costs lives
       final damage = widget.config.multiplyHits && multiplier >= 2
@@ -456,6 +457,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           : 1;
       final dmgLabel = damage > 1 ? '$damage lives' : 'a life';
       lastThrowLabel = '${dartThrow.label} - Self hit! Lost $dmgLabel!';
+      SoundService.instance.playRandom(const ['killer/self_hit']);
       _applyDamage(pi, damage);
       _checkForWinner();
     }
