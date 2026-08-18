@@ -248,6 +248,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       if (hit) {
         if (dartsInTurn == 2 && !turnHasHit) {
           _clutchSavers.add(currentPlayerIndex); // first two missed, 3rd saves it
+          SoundService.instance.playRandom(const ['halve_it/clutch']);
         }
         turnPoints += points;
         turnHasHit = true;
@@ -318,6 +319,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       totalScores[pi] = halved;
       roundScores[currentRoundIndex][pi] = -lost; // negative = halved
       _announcer.announceGameEvent('Halved');
+      SoundService.instance.playRandom(const ['halve_it/halved']);
       _log.log('HALVED P$pi(${players[pi].name}) score $before → $halved');
     }
     players[pi].score = totalScores[pi];
