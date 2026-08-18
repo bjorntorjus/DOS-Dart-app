@@ -290,12 +290,15 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       momentAnnounced = true;
     } else if (result.lostLife) {
       _announcer.announceOneUp('$name loses a life!',
-          soundFolders: const ['one_up/life_lost']);
+          soundFolders: engine.livesLeft[seat] == 1
+              ? const ['one_up/last_life']
+              : const ['one_up/life_lost']);
       _showOverlay(_OuOverlay.lifeLost,
           momentName: name, momentTarget: _failedTarget);
       momentAnnounced = true;
     } else if (engine.targetSetBy == seat && (engine.target ?? 0) >= 100) {
-      _announcer.announceOneUp('${engine.target}! Beat that!');
+      _announcer.announceOneUp('${engine.target}! Beat that!',
+          soundFolders: const ['one_up/target_set']);
       momentAnnounced = true;
     }
     // SURVIVOR: the round winner is announced via TTS only — the overlay
