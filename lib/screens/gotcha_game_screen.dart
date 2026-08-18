@@ -108,6 +108,11 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   final MemeService _meme = MemeService();
   final GameAnnouncer _announcer = GameAnnouncer();
 
+  // MemeService._enabled is private (no getter), so the explicit bust sound
+  // hook below — which bypasses MemeService entirely — needs its own copy of
+  // the toggle, loaded the same way as around_the_clock/cricket_game_screen.
+  bool _memeEnabled = false;
+
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -133,6 +138,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     );
     BatterySampler.instance.start('Gotcha');
     _meme.init();
+    AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getSoundEffectsEnabled()
         .then((v) => SoundService.instance.setEnabled(v));
     _announcer.init();
@@ -196,9 +202,13 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       _announcer.announceGameEvent('Bust');
       // Explicit bust sound — announceGameEvent no longer carries it
       // (double-play fix, sound spec 2026-08-18). Reuses the same
-      // frequency-derived chance as the miss-meme roll above.
-      SoundService.instance
-          .playRandomMaybe(const ['bust'], chance: _meme.frequencyChance);
+      // frequency-derived chance as the miss-meme roll above. Gated on the
+      // meme toggle: assets/sounds/bust/ already ships 15 real files, so an
+      // ungated call here is audible today even with memes off.
+      if (_memeEnabled) {
+        SoundService.instance
+            .playRandomMaybe(const ['bust'], chance: _meme.frequencyChance);
+      }
     } else if (result.killed.isNotEmpty) {
       _announcer.announceKill(_killPhrase(result.killed));
       // Signature-moment video hook — folder has no assets in v1, silent

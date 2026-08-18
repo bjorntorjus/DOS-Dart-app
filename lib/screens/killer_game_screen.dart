@@ -458,7 +458,13 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       final dmgLabel = damage > 1 ? '$damage lives' : 'a life';
       lastThrowLabel = '${dartThrow.label} - Self hit! Lost $dmgLabel!';
       SoundService.instance.playRandom(const ['killer/self_hit']);
-      _applyDamage(pi, damage);
+      // self_hit already announced this dart's damage sound — suppress the
+      // generic killer/hit _applyDamage would otherwise also queue so a
+      // single dart doesn't stack two sounds (replacement, not addition,
+      // matching the one_up last_life/life_lost pattern). If this self-hit
+      // is also the killing blow, the death sound still plays: elimination
+      // is a distinct, bigger moment than the routine hit sound it replaces.
+      _applyDamage(pi, damage, suppressHitSound: true);
       _checkForWinner();
     }
   }
@@ -495,7 +501,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   }
 
   /// Apply damage to a player, consuming shields first
-  void _applyDamage(int playerIndex, int damage) {
+  void _applyDamage(int playerIndex, int damage,
+      {bool suppressHitSound = false}) {
     var remaining = damage;
 
     // Consume shields first
@@ -518,7 +525,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           if (_offensiveEnabled) 'killer/offensive/death',
         ]);
       }
-    } else if (remaining > 0) {
+    } else if (remaining > 0 && !suppressHitSound) {
       if (_memeEnabled) {
         SoundService.instance.playRandom([
           'killer/hit',

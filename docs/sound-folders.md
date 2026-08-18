@@ -49,7 +49,7 @@ flutter/assets i pubspec.yaml.
 | `killer/death` | A player is eliminated | har filer |
 | `killer/offensive/hit` | Offensive-mode hit variant | venter på filer (deklarert i pubspec) |
 | `killer/offensive/death` | Offensive-mode death variant | venter på filer (deklarert i pubspec) |
-| `killer/became_killer` | Player hits their own double and becomes a Killer | venter på filer — udeklarert i pubspec |
+| `killer/became_killer` | Player hits any own-number segment and becomes a Killer | venter på filer — udeklarert i pubspec |
 | `killer/self_hit` | A Killer hits their own number (suicide rule) | venter på filer — udeklarert i pubspec |
 | `halve_it/positive/end of round` | Positive end-of-round line (Splitscore) | venter på filer (deklarert i pubspec) |
 | `halve_it/negative/end of round` | Negative end-of-round line (Splitscore) | venter på filer (deklarert i pubspec) |

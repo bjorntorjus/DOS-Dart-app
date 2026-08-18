@@ -102,8 +102,10 @@ void main() {
   testWidgets('Gotcha bust plays the global bust folder exactly once',
       (tester) async {
     // Pin meme frequency so the explicit bust hook's chance roll (reusing
-    // MemeService.frequencyChance) always fires.
-    SharedPreferences.setMockInitialValues({'meme_frequency': 10});
+    // MemeService.frequencyChance) always fires, and turn memes on — the
+    // hook is now gated on the toggle (sound-hooks final review, F1).
+    SharedPreferences.setMockInitialValues(
+        {'meme_enabled': true, 'meme_frequency': 10});
     tester.view.physicalSize = const Size(1200, 2000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -130,5 +132,35 @@ void main() {
         .where((f) => f == 'bust')
         .length;
     expect(bustHits, 1);
+  });
+
+  testWidgets('Gotcha bust plays no sound when memes are off', (tester) async {
+    // meme_enabled unset/false (memes off) is the point of this test, but
+    // meme_frequency is still pinned to 10 (frequencyChance == 1): with the
+    // default frequency an unseeded Random would let a broken gate slip
+    // through most of the time anyway, so pinning makes a missing gate fail
+    // deterministically instead of flakily (same reasoning as
+    // atc_sound_hooks_test.dart's memes-off test).
+    SharedPreferences.setMockInitialValues({'meme_frequency': 10});
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+      home: GotchaGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const GotchaConfig(targetScore: 301),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+    final dynamic s =
+        tester.state<State<GotchaGameScreen>>(find.byType(GotchaGameScreen));
+
+    s.engineForTest.totals[0] = 290;
+    SoundService.instance.playedForTest.clear();
+    s.onDartHitForTest(20, 3); // 290 + 60 = 350 > 301 -> BUST
+    await settle(tester);
+
+    expect(SoundService.instance.playedForTest, isNot(contains('bust')));
   });
 }
