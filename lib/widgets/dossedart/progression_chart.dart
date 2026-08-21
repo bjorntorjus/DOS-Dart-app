@@ -3,18 +3,17 @@ import 'package:flutter/material.dart';
 import '../../models/dart_throw.dart';
 import '../../stats/mode_progression.dart';
 import '../../theme/dossedart_tokens.dart';
+import '../../utils/dossedart_player_accents.dart';
 
 /// Palette cycling for per-player lines/legends across the DOSSEDART match
 /// history views (chart lines + legend here; the round-by-round log's player
 /// column headers in `game_detail_screen.dart` reuse the same list).
-const dossedartPlayerPalette = [
-  DossedartTokens.cyan,
-  DossedartTokens.silver,
-  DossedartTokens.green,
-  DossedartTokens.orange,
-  DossedartTokens.yellow,
-  DossedartTokens.magenta,
-];
+///
+/// Aliases the in-game per-player accent cycle so a player's line is the same
+/// color as their accent everywhere. The chart used to carry its own list
+/// with silver in seat 2 — under the line glow on the dark background it was
+/// indistinguishable from seat 1's cyan (tester feedback 2026-08-21).
+const dossedartPlayerPalette = dossedartAccents;
 
 /// The MATCH FLOW / SCORE PER ROUND line chart — extracted from
 /// `game_detail_screen.dart` (2026-07-09) so both the MATCH DETAILS

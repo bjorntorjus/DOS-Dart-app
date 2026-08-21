@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dart_scoring/models/dart_throw.dart';
 import 'package:dart_scoring/stats/mode_progression.dart';
+import 'package:dart_scoring/utils/dossedart_player_accents.dart';
 import 'package:dart_scoring/widgets/dossedart/progression_chart.dart';
 
 /// Post-game v2 Task 3: `_LegPainter` computed its y-range as `[0, top]`
@@ -12,6 +13,15 @@ import 'package:dart_scoring/widgets/dossedart/progression_chart.dart';
 /// `padT + plotH` — outside the 200px plot box entirely. `yRange` now spans
 /// `[min(0, dataMin) .. max(1, dataMax)]` so negative values stay inside.
 void main() {
+  test(
+      'chart lines use the per-player accent cycle — same color as the '
+      'player\'s in-game accent, no near-identical silver/cyan pair '
+      '(tester feedback 2026-08-21)', () {
+    expect(dossedartPlayerPalette, dossedartAccents,
+        reason: 'the old chart-only palette gave seat 2 silver, which was '
+            'indistinguishable from seat 1\'s glowing cyan on the tablet');
+  });
+
   group('yRange', () {
     test('spans negative golf data instead of clamping the bottom at 0', () {
       final progression = GolfProgression(maxValue: 0);
