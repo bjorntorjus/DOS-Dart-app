@@ -723,7 +723,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // DOSSEDART arcade cockpit — scorecard hero + red jeopardy bar + adaptive
+  // DOSSEDART arcade cockpit — hero-target strip + scorecard + adaptive
   // input (S/D/T cells for number/bull rounds, a 1–20 keypad for double/triple
   // rounds). Every tap feeds the same _onDartHit; halving stays in _finishTurn.
   // ---------------------------------------------------------------------------
@@ -740,25 +740,25 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 onExit: _confirmExit,
                 trailing: 'RND ${currentRoundIndex + 1}/${rounds.length}',
               ),
+              // Design B (2026-08-21): the target IS the strip's hero — the
+              // jeopardy bar and the red MISS HALVES sub-line are gone, and
+              // with them all "what a miss costs" copy (decided with Bjørn).
+              // 176px is the one approved deviation from the 132px family
+              // zone; halving still shows in the scorecard when it happens.
               DossedartActiveStrip(
+                height: 176,
                 playerName: players[currentPlayerIndex].name,
                 avatarPath: players[currentPlayerIndex].avatarPath,
                 accentColor: dossedartAccent(currentPlayerIndex),
                 dartsInTurn: dartsInTurn,
-                modeSlot: DossedartStripSlot(
-                  label: 'TARGET',
-                  value: rounds[currentRoundIndex].label.toUpperCase(),
-                  subLine:
-                      'MISS HALVES ${totalScores[currentPlayerIndex]} › ${totalScores[currentPlayerIndex] ~/ 2}',
-                  subLineColor: DossedartTokens.red,
-                ),
+                modeSlot: _splitHeroTarget(),
                 scoreLabel: 'POINTS',
                 scoreValue: '${totalScores[currentPlayerIndex]}',
                 smallScore: true,
               ),
-              // Jeopardy bar + scorecard + input area share one flexible,
-              // scrollable slot; only TopBar/Strip/ActionBar are genuinely
-              // fixed-height chrome. This matters because the input area is
+              // Scorecard + input area share one flexible, scrollable slot;
+              // only TopBar/Strip/ActionBar are genuinely fixed-height
+              // chrome. This matters because the input area is
               // NOT actually fixed-height: an "any double" round renders a
               // 5-row keypad (S/D/T rows plus a D-BULL row) that's taller
               // than "any triple"'s 4-row keypad or the single-row
@@ -787,13 +787,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _splitJeopardyBar(),
-                                _splitScorecard(),
-                              ],
-                            ),
+                            _splitScorecard(),
                             _splitInput(),
                           ],
                         ),
@@ -820,46 +814,56 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
-  Widget _splitJeopardyBar() {
-    final round = rounds[currentRoundIndex];
-    final total = totalScores[currentPlayerIndex];
-    final safe = turnHasHit;
-    final c = safe ? DossedartTokens.green : DossedartTokens.red;
-    final text = safe
-        ? '✓ SECURED · +$turnPoints THIS ROUND'
-        : '⚠ HIT ${round.label.toUpperCase()} OR HALVE · $total → ${total ~/ 2}';
+  /// Design B hero target: rotated TARGET label + the round's target huge in
+  /// yellow. FittedBox scales long labels (DOUBLE/TRIPLE/BULL) down inside
+  /// the strip's 212px mode-slot cap instead of overflowing.
+  Widget _splitHeroTarget() {
+    const yellow = DossedartTokens.yellow;
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.only(left: 16),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.10),
-        border: Border.all(color: c, width: 2),
-        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.35), blurRadius: 12)],
-      ),
-      // FittedBox + maxLines: 1 pins this bar to a single, constant text-line
-      // height no matter what the message says. Without it, the sentence's
-      // length rides on the round label ("HIT TRIPLE OR HALVE" vs. "HIT 7 OR
-      // HALVE") and on the score digit count, so it could silently wrap from
-      // one line to two — growing the bar by ~19px and overflowing the
-      // cockpit Column below, since every other element in that Column is
-      // genuinely fixed-height. Scaling down (not truncating) keeps the full
-      // message readable even if it would otherwise be too wide.
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          softWrap: false,
-          style: TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 10,
-            color: c,
-            letterSpacing: 1,
-            height: 1.4,
-          ),
+        border: Border(
+          left: BorderSide(
+              color: Colors.white.withValues(alpha: 0.12), width: 1),
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RotatedBox(
+            quarterTurns: 3,
+            child: Text(
+              'TARGET',
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 8,
+                color: Colors.white.withValues(alpha: 0.45),
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                rounds[currentRoundIndex].label.toUpperCase(),
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 72,
+                  height: 1,
+                  letterSpacing: 2,
+                  color: yellow,
+                  shadows: [
+                    Shadow(
+                        color: yellow.withValues(alpha: 0.5), blurRadius: 24)
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1085,17 +1089,20 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   Widget _splitCellRow(List<(String, int, int)> subs) {
     const c = DossedartTokens.cyan;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
       child: Row(
         children: [
+          // Enlarged with design B (2026-08-21): the single-row inputs sat
+          // small and lost at the bottom of the freed-up screen. The 4/5-row
+          // keypads (any-double/any-triple rounds) keep their compact size.
           for (final (label, seg, mult) in subs)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
                 child: GestureDetector(
                   onTap: () => _onDartHit(seg, mult),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 26),
                     decoration: BoxDecoration(
                       color: c.withValues(alpha: 0.07),
                       border: Border.all(color: c, width: 2),
@@ -1107,7 +1114,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         label,
                         style: const TextStyle(
                           fontFamily: 'PressStart2P',
-                          fontSize: 16,
+                          fontSize: 22,
                           color: c,
                         ),
                       ),

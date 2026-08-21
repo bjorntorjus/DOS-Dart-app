@@ -144,54 +144,63 @@ void main() {
   });
 
   testWidgets(
-      'Splitscore strip MISS HALVES preview matches the engine\'s '
-      'truncating halving exactly (~/ 2, not .ceil()) and only moves at '
-      'turn boundaries', (tester) async {
+      'Splitscore hero strip: 176px zone, big TARGET in the strip, and no '
+      'MISS HALVES / OR HALVE threat copy anywhere (design B, 2026-08-21)',
+      (tester) async {
     final dynamic state = await _pumpSplitscore(tester);
 
-    // Round 1 target is 15 (fixed rounds), fresh totals start at 40.
-    expect(_modeSlot(tester).value, '15');
-    expect(_modeSlot(tester).subLine, 'MISS HALVES 40 › 20');
+    // Taller hero variant of the family strip — Splitscore only.
+    expect(tester.getSize(find.byType(DossedartActiveStrip)).height, 176);
+
+    // The target is the strip's hero element, not a StripSlot preview.
+    expect(find.byType(DossedartStripSlot), findsNothing);
+    expect(
+        find.descendant(
+            of: find.byType(DossedartActiveStrip),
+            matching: find.text('TARGET')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byType(DossedartActiveStrip), matching: find.text('15')),
+        findsOneWidget,
+        reason: 'round 1 of the fixed config targets 15');
+
+    // The jeopardy bar and the red sub-line are both gone — and with them
+    // all "what a miss costs" copy (decided 2026-08-21).
+    expect(find.textContaining('MISS HALVES'), findsNothing);
+    expect(find.textContaining('OR HALVE'), findsNothing);
     expect(_scoreValue(tester), '40');
 
-    // P0 hits S15 then misses — turnPoints accrue internally, but totals
-    // (and therefore the preview) must not move until the turn ends.
+    // Engine behavior is untouched: P0 scores 15, P1 misses out and halves
+    // 40 ~/ 2 = 20; round 2 opens on P0 with the hero target now 16.
     await state.onDartHitForTest(15, 1);
     await state.onDartHitForTest(0, 0);
-    await tester.pumpAndSettle();
-    expect(_modeSlot(tester).subLine, 'MISS HALVES 40 › 20',
-        reason: 'the preview must track the committed total, not the '
-            'in-progress turn — otherwise it lies');
-
-    // Third dart ends the turn: 40 + 15 = 55 (deliberately odd).
+    await state.onDartHitForTest(0, 0);
+    await state.onDartHitForTest(0, 0);
+    await state.onDartHitForTest(0, 0);
     await state.onDartHitForTest(0, 0);
     await tester.pumpAndSettle();
     expect(state.totalScores[0], 55);
-
-    // Turn passed to P1 — the strip now shows P1's own, still-untouched 40.
-    expect(_modeSlot(tester).subLine, 'MISS HALVES 40 › 20');
-    expect(_scoreValue(tester), '40');
-
-    // Finish P1's round-1 turn with three misses — halves 40 → 20 — which
-    // closes round 1 and opens round 2 (target 16) back on P0.
-    await state.onDartHitForTest(0, 0);
-    await state.onDartHitForTest(0, 0);
-    await state.onDartHitForTest(0, 0);
-    await tester.pumpAndSettle();
     expect(state.totalScores[1], 20, reason: 'P1 halved: 40 ~/ 2 = 20');
+    expect(
+        find.descendant(
+            of: find.byType(DossedartActiveStrip), matching: find.text('16')),
+        findsOneWidget,
+        reason: 'the hero target must follow the round');
+    expect(_scoreValue(tester), '55');
+  });
 
-    expect(_modeSlot(tester).value, '16');
-    expect(_modeSlot(tester).subLine, 'MISS HALVES 55 › 27',
-        reason: 'truncating division: 55 ~/ 2 = 27, NOT 28 (.ceil())');
+  testWidgets(
+      'Splitscore number-round input cells are enlarged tap targets '
+      '(design B revision, 2026-08-21)', (tester) async {
+    await _pumpSplitscore(tester);
 
-    // Miss all three on round 2 — halve the odd 55 exactly like the engine.
-    await state.onDartHitForTest(0, 0);
-    await state.onDartHitForTest(0, 0);
-    await state.onDartHitForTest(0, 0);
-    await tester.pumpAndSettle();
-    expect(state.totalScores[0], 27,
-        reason: 'the preview promised 27 — the engine must deliver exactly '
-            'that, not 28');
+    final cell = find
+        .ancestor(of: find.text('D15'), matching: find.byType(GestureDetector))
+        .first;
+    expect(tester.getSize(cell).height, greaterThanOrEqualTo(64),
+        reason: 'the bottom input row must not sit small and lost — '
+            'bigger padding + type than the old 14px/16px cells');
   });
 
   testWidgets(
