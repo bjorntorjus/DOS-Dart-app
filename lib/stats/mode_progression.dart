@@ -81,9 +81,7 @@ class CricketProgression implements ModeProgression {
   String get finishLabel => '✓';
 }
 
-/// Shanghai & Splitscore: cumulative points per round. Splitscore's halving is
-/// engine state absent from throwHistory, so this line climbs monotonically —
-/// the round log shows the actual per-round (incl. halved) totals.
+/// Shanghai: cumulative points per round.
 class CumulativeScoreProgression implements ModeProgression {
   CumulativeScoreProgression({required this.maxValue});
   @override
@@ -93,6 +91,41 @@ class CumulativeScoreProgression implements ModeProgression {
   List<num> seriesFor(List<DartThrow> throws, {required int playerIndex}) =>
       _cumulativeByRound(throws, playerIndex, (t) => t.points);
 
+  @override
+  bool get descending => false;
+  @override
+  String get finishLabel => '✓';
+}
+
+/// Splitscore: replays the running total from the fixed 40-point start. The
+/// halving itself is engine state absent from throwHistory, but it is fully
+/// derivable: a hit always scores > 0, so a round whose darts sum to 0 is
+/// exactly a no-hit round — the total halves (integer division, matching
+/// _finishTurn in halve_it_game_screen.dart). This makes the MATCH FLOW line
+/// dip on halved rounds instead of climbing monotonically.
+class SplitscoreProgression implements ModeProgression {
+  static const int _startScore = 40;
+
+  @override
+  List<num> seriesFor(List<DartThrow> throws, {required int playerIndex}) {
+    final mine = throws.where((t) => t.playerIndex == playerIndex);
+    final byRound = <int, int>{};
+    for (final t in mine) {
+      byRound[t.roundNumber] = (byRound[t.roundNumber] ?? 0) + t.points;
+    }
+    final rounds = byRound.keys.toList()..sort();
+    final out = <num>[_startScore];
+    var total = _startScore;
+    for (final r in rounds) {
+      final sum = byRound[r]!;
+      total = sum > 0 ? total + sum : total ~/ 2;
+      out.add(total);
+    }
+    return out;
+  }
+
+  @override
+  num get maxValue => 0;
   @override
   bool get descending => false;
   @override
@@ -217,8 +250,9 @@ ModeProgression? progressionForMode(String modeKey, List<DartThrow> throws) {
     case 'golf':
       return GolfProgression(maxValue: 0);
     case 'shanghai':
-    case 'halveIt':
       return CumulativeScoreProgression(maxValue: 0);
+    case 'halveIt':
+      return SplitscoreProgression();
     case 'gotcha':
       // Gotcha counts up like Shanghai/Splitscore, and DartThrow.points is the
       // thrower's true delta for every dart (bust darts carry the negative
@@ -226,8 +260,9 @@ ModeProgression? progressionForMode(String modeKey, List<DartThrow> throws) {
       // the thrower's real running total exactly. What it can't show: a kill
       // resets the *victim's* total on the victim's own line, which this
       // series (built from the victim's own throws) has no way to see —
-      // the same accepted limitation as Splitscore's halving above; the round
-      // log carries the true per-round totals.
+      // an accepted limitation (unlike Splitscore's halving, a kill is not
+      // derivable from the victim's own throws); the round log carries the
+      // true per-round totals.
       return CumulativeScoreProgression(maxValue: 0);
     case 'wildcard':
       // Wildcard is a points race and DartThrow.points is the effective
@@ -235,7 +270,7 @@ ModeProgression? progressionForMode(String modeKey, List<DartThrow> throws) {
       // own cumulative line is faithful. What it can't show: swap/steal/
       // rewind events change OTHER players' totals, and those effects are
       // invisible to per-throw data on the affected player's line — the same
-      // accepted limitation as Splitscore's halving and Gotcha's kills above.
+      // accepted limitation as Gotcha's kills above.
       return CumulativeScoreProgression(maxValue: 0);
     default:
       return null; // Killer & unknown → round log only
