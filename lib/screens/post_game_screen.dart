@@ -207,7 +207,10 @@ class PostGameScreen extends StatelessWidget {
                               Set<int>.from(golfExtras['skippedSeats'] as Set),
                         ),
                       ],
-                      if (progression != null) ...[
+                      // Golf's scorecard IS its per-round zone — the curve
+                      // would repeat it here, and lives in DETAILS as MATCH
+                      // FLOW for anyone digging deeper.
+                      if (progression != null && golfExtras == null) ...[
                         const SizedBox(height: 16),
                         const PostGameSectionLabel('SCORE PER ROUND'),
                         ProgressionChart(
