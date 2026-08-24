@@ -999,6 +999,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       onMenu: () => showDossedartCockpitMenu(
         context,
         meme: _meme,
+        activePlayerCount: players.length - _removedPlayerIndices.length,
         onTtsChanged: (v) => setState(() => _ttsEnabled = v),
         onPlayerOverview: _openDossedartPlayerSheet,
         onExit: _confirmExit,

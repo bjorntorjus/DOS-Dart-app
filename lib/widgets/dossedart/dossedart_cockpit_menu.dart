@@ -7,15 +7,23 @@ import '../../services/video_service.dart';
 import '../../theme/dossedart_tokens.dart';
 import 'x01/dossedart_menu_sheet.dart';
 
-/// Shows the shared DOSSEDART in-game menu bottom sheet (sound / video / memes /
-/// voice toggles + player overview + exit). Identical across every cockpit, so
-/// each mode wires its own [onPlayerOverview]/[onExit] and passes its live
-/// [meme] service; everything else maps 1:1 to the existing service singletons.
+/// Shows the shared DOSSEDART in-game menu bottom sheet (design A, 2026-08-24:
+/// players card on top, AUDIO & FX toggles with inline meme sub-settings,
+/// shot-clock toggle, exit). Identical across every cockpit, so each mode
+/// wires its own [onPlayerOverview]/[onExit] and passes its live [meme]
+/// service; everything else maps 1:1 to the existing service singletons.
+///
+/// [activePlayerCount] is the mode's current non-removed player count, shown
+/// as "N ACTIVE" on the players card (null hides the counter).
+///
+/// The shot-clock toggle only flips the persisted setting — ShotClock re-reads
+/// it at every turn start, so a mid-game flip takes effect from the next turn.
 Future<void> showDossedartCockpitMenu(
   BuildContext context, {
   required MemeService meme,
   required VoidCallback onPlayerOverview,
   required VoidCallback onExit,
+  int? activePlayerCount,
   ValueChanged<bool>? onSoundChanged,
   ValueChanged<bool>? onTtsChanged,
 }) async {
@@ -23,6 +31,10 @@ Future<void> showDossedartCockpitMenu(
   final video = await AppSettings.getVideoEventsEnabled();
   final memes = await AppSettings.getMemeEnabled();
   final tts = await AppSettings.getTtsEnabled();
+  final memeFrequency = await AppSettings.getMemeFrequency();
+  final offensive = await AppSettings.getMemeOffensive();
+  final shotClock = await AppSettings.getShotClockEnabled();
+  final shotClockSeconds = await AppSettings.getShotClockSeconds();
   if (!context.mounted) return;
   await showModalBottomSheet(
     context: context,
@@ -34,6 +46,11 @@ Future<void> showDossedartCockpitMenu(
           initialVideo: video,
           initialMemes: memes,
           initialTts: tts,
+          initialMemeFrequency: memeFrequency,
+          initialOffensive: offensive,
+          initialShotClock: shotClock,
+          shotClockSeconds: shotClockSeconds,
+          activePlayerCount: activePlayerCount,
           onSoundChanged: (v) {
             SoundService.instance.setEnabled(v);
             AppSettings.setSoundEffectsEnabled(v);
@@ -51,6 +68,17 @@ Future<void> showDossedartCockpitMenu(
             TtsService.instance.setEnabled(v);
             AppSettings.setTtsEnabled(v);
             onTtsChanged?.call(v);
+          },
+          onMemeFrequencyChanged: (v) {
+            meme.setFrequency(v);
+            AppSettings.setMemeFrequency(v);
+          },
+          onOffensiveChanged: (v) {
+            meme.setOffensive(v);
+            AppSettings.setMemeOffensive(v);
+          },
+          onShotClockChanged: (v) {
+            AppSettings.setShotClockEnabled(v);
           },
           onPlayerOverview: () {
             Navigator.pop(sheetCtx);

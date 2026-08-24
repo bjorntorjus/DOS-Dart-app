@@ -1874,6 +1874,7 @@ class _GameScreenState extends State<GameScreen> {
     return showDossedartCockpitMenu(
       outerContext,
       meme: _meme,
+      activePlayerCount: players.length - _removedPlayerIndices.length,
       onSoundChanged: (v) => setState(() => _soundEnabled = v),
       onTtsChanged: (v) => setState(() => _ttsEnabled = v),
       onPlayerOverview: _openPlayerOverview,

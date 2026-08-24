@@ -759,6 +759,9 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
                 onMenu: () => showDossedartCockpitMenu(
                   context,
                   meme: _meme,
+                  activePlayerCount: Iterable<int>.generate(players.length)
+                      .where((i) => !engine.isSkipped(i))
+                      .length,
                   onPlayerOverview: _openDossedartPlayerSheet,
                   onExit: _confirmExit,
                 ),

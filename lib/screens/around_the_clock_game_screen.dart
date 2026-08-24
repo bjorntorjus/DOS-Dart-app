@@ -1303,6 +1303,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 onMenu: () => showDossedartCockpitMenu(
                   context,
                   meme: _meme,
+                  activePlayerCount:
+                      players.length - _removedPlayerIndices.length,
                   onTtsChanged: (v) => setState(() => _ttsEnabled = v),
                   onPlayerOverview: _openDossedartPlayerSheet,
                   onExit: _confirmExit,

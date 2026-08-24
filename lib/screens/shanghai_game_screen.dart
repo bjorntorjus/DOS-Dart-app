@@ -866,6 +866,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 onMenu: () => showDossedartCockpitMenu(
                   context,
                   meme: _meme,
+                  activePlayerCount: Iterable<int>.generate(players.length)
+                      .where((i) => !engine.isSkipped(i))
+                      .length,
                   onTtsChanged: (v) => setState(() => _ttsEnabled = v),
                   onPlayerOverview: _openDossedartPlayerSheet,
                   onExit: _confirmExit,

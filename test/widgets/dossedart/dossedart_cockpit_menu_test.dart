@@ -54,6 +54,7 @@ void main() {
               onPressed: () => showDossedartCockpitMenu(
                 context,
                 meme: MemeService(),
+                activePlayerCount: 3,
                 onSoundChanged: onSoundChanged,
                 onPlayerOverview: () {},
                 onExit: () {},
@@ -66,17 +67,47 @@ void main() {
     );
   }
 
-  testWidgets('opens the shared menu sheet with all rows', (tester) async {
+  testWidgets('opens the design-A sheet with all rows', (tester) async {
     await tester.pumpWidget(harness());
     await tester.tap(find.text('OPEN'));
     await tester.pumpAndSettle();
 
+    expect(find.text('PLAYERS · ADD / REMOVE'), findsOneWidget);
+    expect(find.text('3 ACTIVE'), findsOneWidget);
+    expect(find.text('AUDIO & FX'), findsOneWidget);
     expect(find.text('SOUND'), findsOneWidget);
     expect(find.text('VIDEO EVENTS'), findsOneWidget);
     expect(find.text('MEMES'), findsOneWidget);
     expect(find.text('VOICE (TTS)'), findsOneWidget);
-    expect(find.text('PLAYER OVERVIEW'), findsOneWidget);
+    expect(find.text('SHOT CLOCK'), findsOneWidget);
     expect(find.text('EXIT MATCH'), findsOneWidget);
+    expect(find.text('PLAYER OVERVIEW'), findsNothing);
+  });
+
+  testWidgets('toggling SHOT CLOCK persists to AppSettings', (tester) async {
+    await tester.pumpWidget(harness());
+    await tester.tap(find.text('OPEN'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('SHOT CLOCK'));
+    await tester.pump();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('shot_clock_enabled'), isTrue);
+  });
+
+  testWidgets('tapping a frequency chip persists to AppSettings',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({'meme_enabled': true});
+    await tester.pumpWidget(harness());
+    await tester.tap(find.text('OPEN'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('ALWAYS'));
+    await tester.pump();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('meme_frequency'), 10);
   });
 
   testWidgets('toggling SOUND forwards the new value to onSoundChanged',
