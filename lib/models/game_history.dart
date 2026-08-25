@@ -12,6 +12,11 @@ class GameHistoryEntry {
   final int? durationSeconds;
   final List<DartThrow>? throwHistory;
 
+  /// Set when the game was played inside an event (see EventService). Event
+  /// games are recorded for history, stats and achievements like any other,
+  /// but seasonStatsFrom/replayRatings skip them — they are not season games.
+  final String? eventId;
+
   GameHistoryEntry({
     required this.id,
     required this.gameMode,
@@ -20,6 +25,7 @@ class GameHistoryEntry {
     this.gameConfig,
     this.durationSeconds,
     this.throwHistory,
+    this.eventId,
   });
 
   /// Max round in the recorded throws, or null when no throw history.
@@ -36,6 +42,7 @@ class GameHistoryEntry {
         if (durationSeconds != null) 'durationSeconds': durationSeconds,
         if (throwHistory != null)
           'throws': throwHistory!.map((t) => t.toJson()).toList(),
+        if (eventId != null) 'eventId': eventId,
       };
 
   factory GameHistoryEntry.fromJson(Map<String, dynamic> json) =>
@@ -51,6 +58,7 @@ class GameHistoryEntry {
         throwHistory: (json['throws'] as List?)
             ?.map((t) => DartThrow.fromJson(t as Map<String, dynamic>))
             .toList(),
+        eventId: json['eventId'] as String?,
       );
 
   static String encodeList(List<GameHistoryEntry> entries) =>
