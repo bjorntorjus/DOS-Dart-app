@@ -6,6 +6,7 @@ import '../services/game_logger.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../widgets/backup_tile.dart';
+import '../widgets/event_tile.dart';
 import 'meme_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -282,6 +283,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 24),
+
+                // Event section
+                Text('EVENT',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55), letterSpacing: 1.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                const EventTile(),
 
                 const SizedBox(height: 24),
 
