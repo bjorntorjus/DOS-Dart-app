@@ -7,8 +7,8 @@ again. Everything *else* the evening produces — game history, per-mode stats, 
 should be recorded as usual.
 
 **Scope:** a manually started/ended **event** that swaps the live rating out for an event rating,
-keeps event games out of the season table, and archives a named event table with a winner. No
-change to the Elo formula, no new achievements, no timer.
+keeps event games out of the season table, and archives a named event table with a winner — plus
+seven event badges (§9). No change to the Elo formula, no timer.
 
 Decisions taken in the brainstorm (all Bjørn's):
 
@@ -232,9 +232,44 @@ guard reads `EventService.active`.
 - **Restore from backup taken *during* an event:** `events` is captured by the generic settings
   sweep in `BackupService`, so an open event round-trips with the ratings that belong to it.
 
-## 9. Testing
+## 9. Event achievements
 
-- `event_service_test.dart`: start snapshots + resets; end restores (incl. `?? 1200` for a player
+Bjørn (mid-plan): *"man må hedres for å vinne et slikt event."* Same mechanism as the season badges:
+`EventService.end()` hands every player with a row an `EventStanding`, and
+`AchievementService.evaluateEventClose` runs the `x_event_*` entries against it. Lifetime unlocks,
+unique names, one evaluation path — every event badge tests `ctx.event` first so it stays inert at
+game end, exactly like the season badges test `ctx.season`.
+
+```dart
+class EventStanding {
+  final EventRecord event;
+  final SeasonPlayerRow row;
+  final int rank;                 // 1-based among ranked (everyone with a game is ranked)
+  final int eventsWon;            // events this player has won, this one included
+  final bool isFirstEvent;        // no row in any earlier closed event
+  final double? seasonRatingAtStart;  // event.savedRatings[playerId]; null if created mid-event
+}
+```
+
+| id | name | tier | test |
+|---|---|---|---|
+| `x_event_champion` | LIFE OF THE PARTY | gold | `rank == 1` |
+| `x_event_serial` | SERIAL PARTIER | gold | `rank == 1 && eventsWon >= 2` |
+| `x_event_crasher` | PARTY CRASHER | silver | `rank == 1 && (seasonRatingAtStart ?? 1200) < 1200` — won the night while below par in the season |
+| `x_event_closing_time` | CLOSING TIME | silver | `row.games >= 8` — still throwing when the lights come on |
+| `x_event_runner_up` | DESIGNATED DRIVER | bronze | `rank == 2` |
+| `x_event_wallflower` | WALLFLOWER | bronze | last of ≥3 ranked |
+| `x_event_plus_one` | PLUS ONE | bronze | `isFirstEvent` — your first event |
+
+Category `milestone` for the top four, `quirky` for the last three. Glyphs from Material icons via
+the catalog's `_g(...)` helper. Banners emit on the same stream as season badges — the moment the
+event ends is the moment to celebrate.
+
+## 10. Testing
+
+- `event_achievements_test.dart`: each of the seven badges fires on its condition and not otherwise;
+  none fires from `evaluateMilestones` (game-end path).
+- `event_service_test.dart`: end awards LIFE OF THE PARTY to the winner; start snapshots + resets; end restores (incl. `?? 1200` for a player
   created mid-event); end computes rows only from event entries; start twice throws; end without
   open throws; end calls `closeDueSeason` (a due boundary closes after end, not before).
 - `season_stats_test.dart` additions: event entries excluded in season mode; only matching
@@ -247,9 +282,8 @@ guard reads `EventService.active`.
 - Widget: seasons tab renders an event card above season cards; settings EVENT card toggles
   between start/end states; home header shows the event name.
 
-## 10. Out of scope (parked, not designed)
+## 11. Out of scope (parked, not designed)
 
-- Event achievements ("party animal", event winner badge).
 - Per-event mode restriction or per-event player list.
 - Re-opening a closed event; editing a name after the fact.
 - Setup-screen banner.
