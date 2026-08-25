@@ -6,6 +6,7 @@ import 'screens/home_screen.dart';
 import 'services/achievement_service.dart';
 import 'services/app_settings.dart';
 import 'services/elo_service.dart';
+import 'services/event_service.dart';
 import 'services/season_service.dart';
 import 'screens/season_migration_screen.dart';
 import 'services/game_logger.dart';
@@ -60,11 +61,13 @@ void main() async {
     return true;
   };
 
-  // Seasons, in this order and never during a game:
+  // Events, then seasons, in this order and never during a game:
+  //  0. rehydrate the open event (if any) — closeDueSeason's guard reads it;
   //  1. close a season whose quarter ended while the app was shut — cheap,
-  //     and a no-op the rest of the time;
+  //     and a no-op the rest of the time (and while an event is open);
   //  2. decide whether the one-time migration gate has to show instead of
   //     the home screen.
+  await EventService.load();
   await SeasonService.closeDueSeason();
   final needsSeasonMigration = await SeasonService.needsMigration();
 
