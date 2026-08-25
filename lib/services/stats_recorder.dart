@@ -2,6 +2,7 @@ import '../models/saved_player.dart';
 import '../models/game_history.dart';
 import '../models/dart_throw.dart';
 import '../models/earned_feat.dart';
+import '../services/event_service.dart';
 import '../services/game_history_service.dart';
 import '../services/player_storage.dart';
 import '../services/shot_clock.dart';
@@ -101,13 +102,18 @@ class StatsRecorder {
         }
       }
 
-      // Rating history snapshot — compute placement among ALL saved players
-      final sortedByRating = List<SavedPlayer>.from(savedPlayers)
-        ..sort((a, b) => b.rating.compareTo(a.rating));
-      final ratingPlacement =
-          sortedByRating.indexWhere((s) => s.id == sp.id) + 1;
-      sp.ratingHistory.add(RatingSnapshot(
-          date: now, rating: sp.rating, placement: ratingPlacement));
+      // Rating history snapshot — compute placement among ALL saved players.
+      // Skipped during an event: the profile graph is the SEASON graph, and
+      // the 1200 reset plus event swings would show up as a dip that never
+      // happened to the season rating.
+      if (EventService.active == null) {
+        final sortedByRating = List<SavedPlayer>.from(savedPlayers)
+          ..sort((a, b) => b.rating.compareTo(a.rating));
+        final ratingPlacement =
+            sortedByRating.indexWhere((s) => s.id == sp.id) + 1;
+        sp.ratingHistory.add(RatingSnapshot(
+            date: now, rating: sp.rating, placement: ratingPlacement));
+      }
     }
 
     // The shot-clock tally is per game. Clearing it here also restores the
@@ -188,6 +194,7 @@ class StatsRecorder {
       gameConfig: gameConfig,
       durationSeconds: durationSeconds,
       throwHistory: throwHistory,
+      eventId: EventService.active?.id,
     );
   }
 

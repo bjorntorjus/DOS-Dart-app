@@ -10,6 +10,7 @@ import '../stats/season_stats.dart';
 import 'achievement_service.dart';
 import 'app_settings.dart';
 import 'elo_service.dart';
+import 'event_service.dart';
 import 'game_history_service.dart';
 import 'player_storage.dart';
 
@@ -254,6 +255,10 @@ class SeasonService {
   /// [now] exists for tests; production calls this with no argument.
   /// Returns true when a season was actually closed.
   static Future<bool> closeDueSeason({DateTime? now}) async {
+    // Never mid-event: the live ratings are the EVENT's, and closing would
+    // archive them as the season's. EventService.end() calls this again once
+    // the season ratings are back.
+    if (EventService.active != null) return false;
     final today = now ?? DateTime.now();
     final start = await AppSettings.getSeasonStart();
     if (start == null) return false;

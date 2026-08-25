@@ -1,6 +1,7 @@
 import 'dart:math';
 import '../models/saved_player.dart';
 import 'app_settings.dart';
+import 'event_service.dart';
 
 /// Modes that never touch the rating. WILDCARD is chaos by design; Killer is
 /// decided in large part by who gets attacked rather than who throws best.
@@ -111,8 +112,12 @@ class EloService {
         }
         final actualJ = 1.0 - actualI;
 
-        final kI = kFactor(indexToSaved[i]!.gamesPlayed);
-        final kJ = kFactor(indexToSaved[j]!.gamesPlayed);
+        // During an event everyone moves at the new-player K: the table was
+        // just reset to 1200 and an evening holds a handful of games, so the
+        // experienced K would barely separate anyone. The formula is untouched.
+        final eventK = EventService.active != null;
+        final kI = eventK ? _kNew : kFactor(indexToSaved[i]!.gamesPlayed);
+        final kJ = eventK ? _kNew : kFactor(indexToSaved[j]!.gamesPlayed);
 
         deltas[i] = deltas[i]! + kI * (actualI - expectedI) * scale;
         deltas[j] = deltas[j]! + kJ * (actualJ - expectedJ) * scale;
