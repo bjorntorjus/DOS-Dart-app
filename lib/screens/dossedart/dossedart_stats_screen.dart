@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/game_history.dart';
 import '../../models/saved_player.dart';
+import '../../models/event.dart';
+import '../../services/event_service.dart';
 import '../../services/game_history_service.dart';
 import '../../services/player_storage.dart';
 import '../../services/season_service.dart';
@@ -63,6 +65,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   List<SavedPlayer> _players = [];
   List<GameHistoryEntry> _history = [];
   List<SeasonRecord> _seasons = [];
+  List<EventRecord> _events = [];
+  EventRecord? _liveEvent;
   bool _loading = true;
 
   /// Players shown in selectors, leaderboards and rank computations.
@@ -95,6 +99,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     final players = await PlayerStorage.loadPlayers();
     final history = await GameHistoryService.load();
     final seasons = await SeasonService.loadSeasons();
+    final events = await EventService.loadEvents();
+    final liveEvent = await EventService.livePreview();
     players.sort((a, b) => b.rating.compareTo(a.rating));
     if (!mounted) return;
     final visible = players.where((p) => !p.archived).toList();
@@ -102,6 +108,8 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
       _players = players;
       _history = history;
       _seasons = seasons;
+      _events = events;
+      _liveEvent = liveEvent;
       _selectedPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
       _heatmapPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
       _loading = false;
@@ -154,7 +162,10 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
                               _buildModus(),
                               _buildHeatmap(),
                               _buildHistorikk(),
-                              SeasonsTab(seasons: _seasons),
+                              SeasonsTab(
+                                  seasons: _seasons,
+                                  events: _events,
+                                  liveEvent: _liveEvent),
                             ],
                           ),
               ),
@@ -992,6 +1003,20 @@ class _HistoryRow extends StatelessWidget {
                     style: const TextStyle(
                         fontFamily: 'PressStart2P', fontSize: 9, color: DossedartTokens.yellow)),
               ),
+              if (entry.eventId != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: DossedartTokens.yellow, width: 1),
+                  ),
+                  child: const Text('EVENT',
+                      style: TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 7,
+                          color: DossedartTokens.yellow)),
+                ),
               Text(
                 '${entry.date.day}.${entry.date.month}.${entry.date.year}',
                 style: const TextStyle(color: DossedartTokens.phosphor, fontSize: 11),
