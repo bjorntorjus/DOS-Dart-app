@@ -26,9 +26,15 @@ class _AchievementsGalleryScreenState extends State<AchievementsGalleryScreen> {
   @override
   Widget build(BuildContext context) {
     final all = achievementCatalog;
-    final shown = _tierFilter == null
+    final filtered = _tierFilter == null
         ? all
         : all.where((a) => a.tier == _tierFilter).toList();
+    // Unlocked first, then locked — each group keeps catalog order so the
+    // tiers still read top-down within it.
+    final shown = [
+      ...filtered.where(_isUnlocked),
+      ...filtered.where((a) => !_isUnlocked(a)),
+    ];
     final unlockedCount = all.where(_isUnlocked).length;
 
     return Scaffold(
