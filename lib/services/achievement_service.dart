@@ -1,6 +1,7 @@
 import 'dart:async';
 import '../models/achievement.dart';
 import '../models/achievement_event.dart';
+import '../models/event.dart';
 import '../models/game_mode.dart';
 import '../models/game_outcome.dart';
 import '../models/saved_player.dart';
@@ -52,6 +53,20 @@ class AchievementService {
     final newly = <Achievement>[];
     for (final a in _catalog) {
       if (!a.id.startsWith('x_season_')) continue;
+      if (!(a.milestoneTest?.call(ctx) ?? false)) continue;
+      if (_unlock(player, a, emit: true)) newly.add(a);
+    }
+    return newly;
+  }
+
+  /// An event closed → unlock the event badges this player just earned.
+  /// Mirrors [evaluateSeasonClose]; only the `x_event_` prefix differs.
+  List<Achievement> evaluateEventClose(
+      SavedPlayer player, EventStanding standing) {
+    final ctx = AchievementContext(player: player, event: standing);
+    final newly = <Achievement>[];
+    for (final a in _catalog) {
+      if (!a.id.startsWith('x_event_')) continue;
       if (!(a.milestoneTest?.call(ctx) ?? false)) continue;
       if (_unlock(player, a, emit: true)) newly.add(a);
     }

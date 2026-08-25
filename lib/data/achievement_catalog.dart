@@ -926,6 +926,83 @@ List<Achievement> _build() => [
           return r != null && r.games > 0 && !r.qualified;
         },
       ),
+
+      // ── Events (party nights on their own table) ──────────────────────
+      Achievement(
+        id: 'x_event_champion',
+        name: 'LIFE OF THE PARTY',
+        description: 'Win an event',
+        tier: AchievementTier.gold,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.celebration),
+        milestoneTest: (ctx) => ctx.event?.rank == 1,
+      ),
+      Achievement(
+        id: 'x_event_serial',
+        name: 'SERIAL PARTIER',
+        description: 'Win two events',
+        tier: AchievementTier.gold,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.nightlife),
+        milestoneTest: (ctx) {
+          final e = ctx.event;
+          return e != null && e.rank == 1 && e.eventsWon >= 2;
+        },
+      ),
+      Achievement(
+        id: 'x_event_crasher',
+        name: 'PARTY CRASHER',
+        description: 'Win an event while below 1200 in the season',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.door_front_door),
+        milestoneTest: (ctx) {
+          final e = ctx.event;
+          final before = e?.seasonRatingAtStart;
+          return e != null && e.rank == 1 && before != null && before < 1200;
+        },
+      ),
+      Achievement(
+        id: 'x_event_closing_time',
+        name: 'CLOSING TIME',
+        description: 'Play 8 games in one event',
+        tier: AchievementTier.silver,
+        category: AchievementCategory.milestone,
+        glyph: _g(Icons.bedtime),
+        milestoneTest: (ctx) => (ctx.event?.row.games ?? 0) >= 8,
+      ),
+      Achievement(
+        id: 'x_event_runner_up',
+        name: 'DESIGNATED DRIVER',
+        description: 'Finish second in an event',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.directions_car),
+        milestoneTest: (ctx) => ctx.event?.rank == 2,
+      ),
+      Achievement(
+        id: 'x_event_wallflower',
+        name: 'WALLFLOWER',
+        description: 'Finish last in an event of three or more',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.local_florist),
+        milestoneTest: (ctx) {
+          final e = ctx.event;
+          if (e == null) return false;
+          final field = e.event.ranked.length;
+          return field >= 3 && e.rank == field;
+        },
+      ),
+      Achievement(
+        id: 'x_event_plus_one',
+        name: 'PLUS ONE',
+        description: 'Play your first event',
+        tier: AchievementTier.bronze,
+        category: AchievementCategory.quirky,
+        glyph: _g(Icons.person_add),
+        milestoneTest: (ctx) => ctx.event?.isFirstEvent ?? false,
+      ),
     ];
 
 List<Achievement>? _cache;

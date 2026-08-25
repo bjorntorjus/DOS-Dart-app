@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'achievement_event.dart';
+import 'event.dart';
 import 'game_outcome.dart';
 import 'saved_player.dart';
 import 'season.dart';
@@ -30,10 +31,15 @@ class AchievementContext {
   /// so one evaluation path serves both without a parallel system.
   final SeasonStanding? season;
 
+  /// Set only when an event closes — same trick as [season]: the event badges
+  /// all test `ctx.event` first and stay inert at game end.
+  final EventStanding? event;
+
   const AchievementContext({
     required this.player,
     this.outcome,
     this.season,
+    this.event,
   });
 }
 
