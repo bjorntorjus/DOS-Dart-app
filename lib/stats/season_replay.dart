@@ -47,6 +47,7 @@ void replayRatings({
       : DateTime(to.year, to.month, to.day, 23, 59, 59, 999);
 
   final games = history.where((e) {
+    if (e.eventId != null) return false; // event games never touch the season
     if (!EloService.isRatedMode(e.gameMode)) return false;
     if (lower != null && e.date.isBefore(lower)) return false;
     if (upper != null && e.date.isAfter(upper)) return false;

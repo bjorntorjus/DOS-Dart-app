@@ -130,6 +130,7 @@ class SeasonService {
             !e.date.isAfter(DateTime(season.end.year, season.end.month,
                 season.end.day, 23, 59, 59, 999)) &&
             EloService.isRatedMode(e.gameMode) &&
+            e.eventId == null &&
             e.players.any((p) => p.savedPlayerId == row.playerId))
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));

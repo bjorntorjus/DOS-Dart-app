@@ -12,12 +12,18 @@ import '../services/elo_service.dart';
 /// already happened and one that just closed, with no separate code path.
 ///
 /// [start] and [end] are inclusive whole days.
+///
+/// [eventId] selects the table being built. Null is season mode: entries that
+/// carry ANY eventId are skipped, because event games are not season games.
+/// A value is event mode: only entries with exactly that id count. Date bounds
+/// apply either way — one function, no fork.
 List<SeasonPlayerRow> seasonStatsFrom({
   required List<GameHistoryEntry> history,
   required DateTime start,
   required DateTime end,
   required Map<String, double> finalRatings,
   required Map<String, String> names,
+  String? eventId,
 }) {
   final from = DateTime(start.year, start.month, start.day);
   final to = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
@@ -30,6 +36,9 @@ List<SeasonPlayerRow> seasonStatsFrom({
 
   for (final entry in history) {
     if (entry.date.isBefore(from) || entry.date.isAfter(to)) continue;
+    if (eventId == null ? entry.eventId != null : entry.eventId != eventId) {
+      continue;
+    }
     if (!EloService.isRatedMode(entry.gameMode)) continue;
 
     final placements = entry.players.map((p) => p.placement).toList();
