@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../app_version.dart';
 import '../../models/game_mode.dart';
 import '../../models/saved_player.dart';
+import '../../services/event_service.dart';
 import '../../services/player_storage.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
@@ -186,7 +187,10 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
               Text('━━━━',
                   style: _vt(16, color: DossedartTokens.magenta)),
               const SizedBox(width: 12),
-              Text('★ HIGH SCORES ★',
+              Text(
+                  EventService.active == null
+                      ? '★ HIGH SCORES ★'
+                      : '★ ${EventService.active!.name.toUpperCase()} ★',
                   style: _press(11,
                       color: DossedartTokens.cyan, letterSpacing: 1.5)),
               const SizedBox(width: 12),

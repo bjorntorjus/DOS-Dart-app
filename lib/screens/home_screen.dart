@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../models/game_mode.dart';
 import '../models/saved_player.dart';
+import '../services/event_service.dart';
 import '../services/player_storage.dart';
 import '../widgets/player_avatar.dart';
 import 'player_setup_screen.dart';
@@ -245,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       children: [
         Text(
-          'Leaderboard',
+          EventService.active?.name ?? 'Leaderboard',
           style: TextStyle(
             fontSize: 13,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
