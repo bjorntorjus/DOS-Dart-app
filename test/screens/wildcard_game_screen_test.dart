@@ -7,6 +7,7 @@ import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/models/wildcard_events.dart';
 import 'package:dart_scoring/screens/wildcard_game_screen.dart';
+import 'package:dart_scoring/services/game_history_service.dart';
 import 'package:dart_scoring/services/sound_service.dart';
 import 'package:dart_scoring/services/tts_service.dart';
 import 'package:dart_scoring/theme/dossedart_tokens.dart';
@@ -564,12 +565,26 @@ void main() {
             'seat');
     expect(state.midGamePlayerChangesForTest, isTrue);
 
-    // Roster changed -> the removed seat is excluded (not the whole game
-    // skipped, spec 2026-08-26). The bar here is simply that this completes
-    // without error.
+    // Roster changed -> the removed seat is excluded, not the whole game
+    // skipped (spec 2026-08-26): the entry is still written, seat 0 stays in
+    // `players` so throws line up, but it is flagged `removed` and drops out
+    // of `activePlayers` — the list every ranking/crediting consumer reads.
     await state.updateStatsForTest();
     await tester.pump();
     expect(tester.takeException(), isNull);
+
+    final history = await GameHistoryService.load();
+    expect(history.length, 1, reason: 'one game-history entry is written');
+    final entry = history.first;
+    expect(entry.players.length, 3,
+        reason: 'the removed seat is skipped, not dropped — throwHistory '
+            'indexes by seat');
+    expect(entry.players[0].removed, isTrue,
+        reason: 'seat 0 (A) left mid-game');
+    expect(entry.players[1].removed, isFalse);
+    expect(entry.players[2].removed, isFalse);
+    expect(entry.activePlayers.map((p) => p.name), ['B', 'C'],
+        reason: 'activePlayers excludes the removed seat');
   });
 
   testWidgets(

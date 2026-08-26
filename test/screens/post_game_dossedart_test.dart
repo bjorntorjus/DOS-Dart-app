@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:dart_scoring/models/game_history.dart';
 import 'package:dart_scoring/models/game_result.dart';
+import 'package:dart_scoring/screens/dossedart/game_detail_screen.dart';
 import 'package:dart_scoring/screens/post_game_screen.dart';
 import 'package:dart_scoring/widgets/dossedart/post_game/dossedart_placement_card.dart';
 import 'package:dart_scoring/widgets/dossedart/post_game/dossedart_winner_spotlight.dart';
@@ -180,6 +182,68 @@ void main() {
     await tester.tap(find.text('↻ PLAY AGAIN'));
     await tester.pumpAndSettle();
     expect(popped, 'again');
+  });
+
+  testWidgets(
+      'a roster-changed result: no chart, DURATION still reads, summary is '
+      'flagged partly unavailable, and DETAILS is offered', (tester) async {
+    // Spec 2026-08-26: a mid-game roster change no longer skips stats. Only
+    // the progression chart stays suppressed (its lines index by seat and
+    // would mislabel a changed roster), so the screen arrives with
+    // throwHistory == null but a real durationSeconds and a real
+    // detailEntry — the same flagged entry every other consumer reads.
+    await pump(
+      tester,
+      GameResult(
+        gameMode: 'cricket',
+        durationSeconds: 1122,
+        throwHistory: null,
+        progressionMode: null,
+        detailEntry: GameHistoryEntry(
+          id: 'e1',
+          gameMode: 'cricket',
+          date: DateTime(2026, 8, 26),
+          durationSeconds: 1122,
+          players: [
+            GameHistoryPlayer(
+                name: 'Jonas', placement: 1, stats: const {'points': 80}),
+            GameHistoryPlayer(
+                name: 'Mia', placement: 2, stats: const {'points': 41}),
+            GameHistoryPlayer(
+                name: 'Ghost',
+                placement: 0,
+                stats: const {'points': 12},
+                removed: true),
+          ],
+        ),
+        results: [
+          PlayerResult(name: 'Jonas', placement: 1, stats: const {
+            'points': 80,
+            'darts': 24,
+          }),
+          PlayerResult(name: 'Mia', placement: 2, stats: const {
+            'points': 41,
+            'darts': 24,
+          }),
+        ],
+      ),
+    );
+
+    expect(find.text('SCORE PER ROUND'), findsNothing,
+        reason: 'the chart stays suppressed on a roster change');
+    expect(find.text('18:42'), findsOneWidget,
+        reason: 'DURATION is the one summary value that survives a null '
+            'throwHistory');
+    expect(find.text('MATCH SUMMARY'), findsOneWidget);
+    expect(find.text('· partly unavailable'), findsOneWidget,
+        reason: 'the summary owns up to the cells it cannot fill');
+
+    // DETAILS is enabled, not just painted: tapping it must open the
+    // drill-down on the flagged entry.
+    await tester.tap(find.text('▶ DETAILS'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GameDetailScreen), findsOneWidget);
+    expect(find.text('MATCH DETAILS'), findsOneWidget);
   });
 
   testWidgets('an empty result list does not crash the screen',
