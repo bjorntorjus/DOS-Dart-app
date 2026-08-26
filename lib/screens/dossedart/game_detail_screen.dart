@@ -24,12 +24,12 @@ class GameDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ranked = [...entry.players]
+    final ranked = [...entry.activePlayers]
       ..sort((a, b) => a.placement.compareTo(b.placement));
     final hasThrows =
         entry.throwHistory != null && entry.throwHistory!.isNotEmpty;
-    final hasFeats =
-        entry.players.any((p) => (p.earnedFeats ?? const []).isNotEmpty);
+    final hasFeats = entry.activePlayers
+        .any((p) => (p.earnedFeats ?? const []).isNotEmpty);
 
     return Scaffold(
       backgroundColor: DossedartTokens.bg,
@@ -69,7 +69,7 @@ class GameDetailScreen extends StatelessWidget {
                       const _SectionLabel('ACHIEVEMENTS THIS MATCH',
                           color: DossedartTokens.yellow,
                           right: 'what each player achieved'),
-                      _FeatsGrid(players: entry.players),
+                      _FeatsGrid(players: entry.activePlayers),
                     ],
 
                     if (hasThrows) ...[

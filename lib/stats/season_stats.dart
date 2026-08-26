@@ -41,7 +41,7 @@ List<SeasonPlayerRow> seasonStatsFrom({
     }
     if (!EloService.isRatedMode(entry.gameMode)) continue;
 
-    final placements = entry.players.map((p) => p.placement).toList();
+    final placements = entry.activePlayers.map((p) => p.placement).toList();
     if (placements.isEmpty) continue;
     final best = placements.reduce((a, b) => a < b ? a : b);
     // A shared best placement is a draw — nobody gets win credit. Same rule
@@ -52,6 +52,7 @@ List<SeasonPlayerRow> seasonStatsFrom({
     final hasThrows = throws != null && throws.isNotEmpty;
 
     for (var seat = 0; seat < entry.players.length; seat++) {
+      if (entry.players[seat].removed) continue;
       final id = entry.players[seat].savedPlayerId;
       if (id == null) continue; // guests contribute nothing, as they do live
 

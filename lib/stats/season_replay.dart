@@ -61,6 +61,10 @@ void replayRatings({
       playerIds: entry.players.map((p) => p.savedPlayerId).toList(),
       placements: entry.players.map((p) => p.placement).toList(),
       savedPlayers: players,
+      excludedSeats: {
+        for (var i = 0; i < entry.players.length; i++)
+          if (entry.players[i].removed) i,
+      },
     );
   }
 }

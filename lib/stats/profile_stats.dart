@@ -20,11 +20,14 @@ List<FormResult> recentForm(
   final sorted = [...history]..sort((a, b) => b.date.compareTo(a.date));
   final out = <FormResult>[];
   for (final e in sorted) {
-    final me =
-        e.players.where((p) => p.savedPlayerId == savedPlayerId).firstOrNull;
+    final me = e.activePlayers
+        .where((p) => p.savedPlayerId == savedPlayerId)
+        .firstOrNull;
     if (me == null) continue;
-    final best = e.players.map((p) => p.placement).reduce((a, b) => a < b ? a : b);
-    final sharedBest = e.players.where((p) => p.placement == best).length > 1;
+    final best =
+        e.activePlayers.map((p) => p.placement).reduce((a, b) => a < b ? a : b);
+    final sharedBest =
+        e.activePlayers.where((p) => p.placement == best).length > 1;
     final FormOutcome o;
     if (me.placement == best && !sharedBest) {
       o = FormOutcome.win;

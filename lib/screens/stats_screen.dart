@@ -1106,7 +1106,7 @@ class _StatsScreenState extends State<StatsScreen>
 
     // Current win/loss streak — iterate history chronologically (oldest → newest)
     final playerGames = _history
-        .where((e) => e.players.any((gp) => gp.savedPlayerId == p.id))
+        .where((e) => e.activePlayers.any((gp) => gp.savedPlayerId == p.id))
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
@@ -1114,9 +1114,11 @@ class _StatsScreenState extends State<StatsScreen>
       int streak = 0;
       bool? streakIsWin;
       for (final game in playerGames.reversed) {
-        final gp = game.players.firstWhere((x) => x.savedPlayerId == p.id);
-        final bestPlacement =
-            game.players.map((x) => x.placement).reduce((a, b) => a < b ? a : b);
+        final gp =
+            game.activePlayers.firstWhere((x) => x.savedPlayerId == p.id);
+        final bestPlacement = game.activePlayers
+            .map((x) => x.placement)
+            .reduce((a, b) => a < b ? a : b);
         final won = gp.placement == bestPlacement;
         if (streakIsWin == null) {
           streakIsWin = won;
@@ -1161,7 +1163,8 @@ class _StatsScreenState extends State<StatsScreen>
     // Top 3 X01 checkouts
     final checkouts = <int>[];
     for (final game in _history.where((e) => e.gameMode == 'x01')) {
-      final gp = game.players.where((x) => x.savedPlayerId == p.id).firstOrNull;
+      final gp =
+          game.activePlayers.where((x) => x.savedPlayerId == p.id).firstOrNull;
       if (gp == null) continue;
       final co = gp.stats['max:bestCheckout'] ?? 0;
       if (co > 0) checkouts.add(co);

@@ -132,7 +132,7 @@ class SeasonService {
                 season.end.day, 23, 59, 59, 999)) &&
             EloService.isRatedMode(e.gameMode) &&
             e.eventId == null &&
-            e.players.any((p) => p.savedPlayerId == row.playerId))
+            e.activePlayers.any((p) => p.savedPlayerId == row.playerId))
         .toList()
       ..sort((a, b) => a.date.compareTo(b.date));
     if (theirs.length < kSeasonQualifyingGames) return false;
