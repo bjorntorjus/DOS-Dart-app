@@ -51,7 +51,7 @@ class OneUpStanding {
 /// header + BEAT/SET THE TARGET primary block · rule line (SURVIVOR round
 /// label + hairline) · left column THIS TURN row + [OneUpStatusPlate]
 /// (always rendered, the dedicated state channel) · standings rail with
-/// per-row life pips / OUT / ROUND OUT and the TARGET BY bottom row. The
+/// per-row life pips / OUT and the TARGET BY bottom row. The
 /// frame stays player accent regardless of state — identity and state never
 /// share a channel.
 class DossedartOneUpActiveCard extends StatelessWidget {
@@ -367,9 +367,10 @@ class DossedartOneUpActiveCard extends StatelessWidget {
     return Opacity(opacity: currentDartIndex == 0 ? 0.34 : 1, child: content);
   }
 
-  /// The standings rail's per-row trailing widget: eliminated wins over
-  /// out-of-round (same precedence the engine uses — an elimination also
-  /// flags outOfRound as a side effect), otherwise life pips.
+  /// The standings rail's per-row trailing widget: eliminated shows OUT;
+  /// otherwise life pips — also for a player who is out of the current round
+  /// (the row itself is dimmed for that; what people want to read there is
+  /// how many lives are left, not that the round is over for them).
   Widget _railTrailing(OneUpStanding s) {
     if (s.eliminated) {
       return Text(
@@ -379,22 +380,6 @@ class DossedartOneUpActiveCard extends StatelessWidget {
           fontSize: 7,
           color: Colors.white.withValues(alpha: 0.3),
           letterSpacing: 0.5,
-        ),
-      );
-    }
-    if (s.outOfRound) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          border: Border.all(color: DossedartTokens.red.withValues(alpha: 0.4), width: 1),
-        ),
-        child: Text(
-          'ROUND OUT',
-          style: TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 6,
-            color: DossedartTokens.red.withValues(alpha: 0.8),
-          ),
         ),
       );
     }
