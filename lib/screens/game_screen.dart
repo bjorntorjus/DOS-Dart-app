@@ -626,11 +626,16 @@ class _GameScreenState extends State<GameScreen> {
   /// "↶ Back" never leaves stats behind — the double-record fix from the
   /// 2026-07-06 audit (F2).
   Future<void> _prepareRatingPreview() async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    // Removed seats are excluded, not dropped — same rule the persisted
+    // Finish path uses (spec 2026-08-26), so the preview matches what
+    // Finish will actually record.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -641,10 +646,13 @@ class _GameScreenState extends State<GameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -1383,9 +1391,16 @@ class _GameScreenState extends State<GameScreen> {
     final ranking = _noBustRankIndices();
 
     final results = <PlayerResult>[];
+    // A removed seat is skipped, not just hidden — placements must stay
+    // contiguous (1, 2, 3, …) over the seats actually shown, not leave a
+    // gap where the removed seat's rank used to be. Mirrors
+    // _buildGameResult's rankedFinished.indexOf(i) + 1 approach, adapted to
+    // this loop's full (finished + unfinished) ranking.
+    int emittedRank = 0;
     for (int rank = 0; rank < ranking.length; rank++) {
       final i = ranking[rank];
       if (_removedPlayerIndices.contains(i)) continue;
+      emittedRank++;
       final p = players[i];
       final playerThrows = _statThrows.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
@@ -1404,7 +1419,7 @@ class _GameScreenState extends State<GameScreen> {
       results.add(PlayerResult(
         name: p.name,
         avatarPath: p.avatarPath,
-        placement: rank + 1,
+        placement: emittedRank,
         stats: {
           'highestTurn': highestTurn,
           'avgTurn': turnCount > 0 ? totalTurnScore / turnCount : 0.0,
@@ -1459,14 +1474,17 @@ class _GameScreenState extends State<GameScreen> {
   /// EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
   /// the modeCounters shape [_updateStats] assembles for
   /// `StatsRecorder.recordGame`, but built now (before Finish) with no
-  /// ratings yet (Elo computes at Finish) and never persisted. Null on a
-  /// Removed seats are skipped from the aggregate/team totals elsewhere but
-  /// stay in the entry (flagged `removed`) — see [StatsRecorder.buildEntry].
+  /// ratings yet (Elo computes at Finish) and never persisted. Always
+  /// built, including on a roster change: removed seats are skipped from
+  /// the modeCounters loop below (mirroring [_updateStats]) but stay in the
+  /// returned entry's `players` list, flagged `removed` — see
+  /// [StatsRecorder.buildEntry].
   GameHistoryEntry? _buildDetailEntry() {
     final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final placements = _buildPlacements();
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final playerThrows =
