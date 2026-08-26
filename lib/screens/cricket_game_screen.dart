@@ -458,6 +458,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
 
   @visibleForTesting
+  Future<void> updateStatsForTest() => _updateStats();
+
+  @visibleForTesting
   int get currentPlayerIndexForTest => currentPlayerIndex;
 
   @visibleForTesting
@@ -553,13 +556,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) {
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
     _ratingsBefore = {};
     for (final p in players) {
@@ -572,6 +578,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     // players tie on score) is a draw — nobody gets win credit.
     final firstIsShared = placements.where((p) => p == 1).length > 1;
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
@@ -584,6 +591,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     // Compute per-player Cricket stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final playerDarts = throwHistory.where((t) => t.playerIndex == pi).toList();
@@ -623,6 +631,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
     _ratingsAfter = {};
     for (final p in players) {
@@ -647,6 +656,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: achEvents,
+      excludedSeats: excludedSeats,
     );
     StatsRecorder.recordGame(
       gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
@@ -662,6 +672,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex:
           buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
+      excludedSeats: excludedSeats,
     );
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -1847,8 +1858,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1862,8 +1872,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       gameOver: _gameFullyOver,
       colorFor: avatarColor,
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1979,7 +1988,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text("They are left out of this game's statistics and rating. Everyone else still counts."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
