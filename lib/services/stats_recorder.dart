@@ -27,16 +27,29 @@ class StatsRecorder {
     int? durationSeconds,
     List<DartThrow>? throwHistory,
     Map<int, List<EarnedFeat>>? earnedFeatsByIndex,
+    Set<int> excludedSeats = const {},
   }) {
     final now = DateTime.now();
 
-    // Find the best placement (lowest number = winner).
-    // A shared best placement is a draw — nobody gets win credit.
-    final bestPlacement = placements.reduce((a, b) => a < b ? a : b);
+    // Winner is the lowest placement among ACTIVE seats. Removed seats carry
+    // 0 (engine modes) or a stale rank (X01/ATC/…) — either would poison this.
+    final activePlacements = [
+      for (var i = 0; i < placements.length; i++)
+        if (!excludedSeats.contains(i)) placements[i],
+    ];
+    if (activePlacements.isEmpty) {
+      // No active seat to record for (every seat excluded), but the
+      // shot-clock tally is still per game and must not leak into the next
+      // one — same reset the normal path does below, just reached early.
+      ShotClock.instance.resetGame();
+      return;
+    }
+    final bestPlacement = activePlacements.reduce((a, b) => a < b ? a : b);
     final bestIsShared =
-        placements.where((p) => p == bestPlacement).length > 1;
+        activePlacements.where((p) => p == bestPlacement).length > 1;
 
     for (int i = 0; i < playerIds.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       final playerId = playerIds[i];
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
@@ -89,6 +102,7 @@ class StatsRecorder {
       // Head-to-head
       for (int j = 0; j < playerIds.length; j++) {
         if (i == j) continue;
+        if (excludedSeats.contains(j)) continue;
         final opponentId = playerIds[j];
         if (opponentId == null) continue;
 
@@ -118,7 +132,8 @@ class StatsRecorder {
 
     // The shot-clock tally is per game. Clearing it here also restores the
     // first-turn grace for the next game, so this is the only reset the
-    // feature needs anywhere.
+    // feature needs anywhere (the other is the early-return above, for the
+    // all-seats-excluded edge case where this line is never reached).
     ShotClock.instance.resetGame();
 
     // Record to game history (fire-and-forget)
@@ -134,6 +149,7 @@ class StatsRecorder {
       durationSeconds: durationSeconds,
       throwHistory: throwHistory,
       earnedFeatsByIndex: earnedFeatsByIndex,
+      excludedSeats: excludedSeats,
     );
 
     GameHistoryService.record(entry);
@@ -165,6 +181,7 @@ class StatsRecorder {
     int? durationSeconds,
     List<DartThrow>? throwHistory,
     Map<int, List<EarnedFeat>>? earnedFeatsByIndex,
+    Set<int> excludedSeats = const {},
   }) {
     final now = DateTime.now();
 
@@ -183,6 +200,7 @@ class StatsRecorder {
         ratingBefore: rb,
         ratingAfter: ra,
         earnedFeats: earnedFeatsByIndex?[i],
+        removed: excludedSeats.contains(i),
       );
     });
 

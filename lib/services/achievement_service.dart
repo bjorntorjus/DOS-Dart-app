@@ -113,13 +113,19 @@ class AchievementService {
     required Map<String, double> ratingsAfter,
     Map<int, List<AchievementEvent>> eventsByIndex = const {},
     Map<int, Map<String, int>> countersByIndex = const {},
+    Set<int> excludedSeats = const {},
   }) {
-    if (placements.isEmpty) return const {};
-    final best = placements.reduce((a, b) => a < b ? a : b);
+    final active = [
+      for (var i = 0; i < placements.length; i++)
+        if (!excludedSeats.contains(i)) placements[i],
+    ];
+    if (active.isEmpty) return const {};
+    final best = active.reduce((a, b) => a < b ? a : b);
     // A shared best placement is a draw — nobody gets win credit.
-    final bestIsShared = placements.where((p) => p == best).length > 1;
+    final bestIsShared = active.where((p) => p == best).length > 1;
     final unlockedByIndex = <int, List<Achievement>>{};
     for (int i = 0; i < playerIds.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       final id = playerIds[i];
       if (id == null) continue;
       final sp = savedPlayers.where((s) => s.id == id).firstOrNull;
@@ -131,6 +137,7 @@ class AchievementService {
       final opponents = <double>[];
       for (int j = 0; j < playerIds.length; j++) {
         if (j == i) continue;
+        if (excludedSeats.contains(j)) continue;
         final oid = playerIds[j];
         final r = oid == null ? null : ratingsBefore[oid];
         if (r != null) opponents.add(r);
@@ -141,7 +148,8 @@ class AchievementService {
           mode: mode,
           won: placements[i] == best && !bestIsShared,
           placement: placements[i],
-          playerCount: playerIds.length,
+          playerCount: playerIds.length -
+              excludedSeats.where((s) => s < playerIds.length).length,
           ratingBefore: ratingsBefore[id] ?? sp.rating,
           ratingAfter: ratingsAfter[id] ?? sp.rating,
           opponentRatingsBefore: opponents,

@@ -66,14 +66,19 @@ class EloService {
     required List<String?> playerIds,
     required List<int> placements,
     required List<SavedPlayer> savedPlayers,
+    Set<int> excludedSeats = const {},
   }) {
     if (!isRatedMode(gameMode)) return;
-    final n = playerIds.length;
+    // Field size counts ACTIVE seats only; a removed player is not part of
+    // the game being rated and must not shrink everyone's delta.
+    final n = playerIds.length -
+        excludedSeats.where((s) => s < playerIds.length).length;
     if (n < 2) return;
 
     // Build a map of playerIndex -> SavedPlayer for players that have IDs
     final indexToSaved = <int, SavedPlayer>{};
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < playerIds.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       final pid = playerIds[i];
       if (pid == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == pid);

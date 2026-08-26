@@ -33,6 +33,11 @@ class GameHistoryEntry {
       ? null
       : throwHistory!.map((t) => t.roundNumber).reduce((a, b) => a > b ? a : b);
 
+  /// Players who finished the game — the only ones a ranking, a win, a
+  /// season table or a form line may credit.
+  List<GameHistoryPlayer> get activePlayers =>
+      players.where((p) => !p.removed).toList();
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'gameMode': gameMode,
@@ -81,6 +86,11 @@ class GameHistoryPlayer {
   final double? ratingAfter;
   final List<EarnedFeat>? earnedFeats;
 
+  /// True when this player was removed mid-game. They stay in [players] so
+  /// seat indices (throws, feats) line up, but no consumer credits them —
+  /// see GameHistoryEntry.activePlayers.
+  final bool removed;
+
   GameHistoryPlayer({
     required this.name,
     this.savedPlayerId,
@@ -89,6 +99,7 @@ class GameHistoryPlayer {
     this.ratingBefore,
     this.ratingAfter,
     this.earnedFeats,
+    this.removed = false,
   });
 
   double? get ratingDelta => (ratingBefore != null && ratingAfter != null)
@@ -104,6 +115,7 @@ class GameHistoryPlayer {
         if (ratingAfter != null) 'ratingAfter': ratingAfter,
         if (earnedFeats != null)
           'feats': earnedFeats!.map((f) => f.toJson()).toList(),
+        if (removed) 'removed': true,
       };
 
   factory GameHistoryPlayer.fromJson(Map<String, dynamic> json) =>
@@ -119,5 +131,6 @@ class GameHistoryPlayer {
         earnedFeats: (json['feats'] as List?)
             ?.map((f) => EarnedFeat.fromJson(f as Map<String, dynamic>))
             .toList(),
+        removed: json['removed'] as bool? ?? false,
       );
 }
