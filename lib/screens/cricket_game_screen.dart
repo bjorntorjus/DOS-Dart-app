@@ -529,7 +529,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   /// 2026-07-06 audit's F3 (the old _statsRecorded flag was never reset by
   /// undo, so a replayed ending was silently dropped).
   Future<void> _prepareRatingPreview() async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -544,6 +544,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _computeExitPlacements(),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
@@ -642,6 +643,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final achEvents = <int, List<AchievementEvent>>{};
     final targetSet = targets.toSet();
     for (int i = 0; i < players.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       if (cricketMaxMarksInTurn(
               throwHistory, targetSet, i, players.length) >=
           9) {
