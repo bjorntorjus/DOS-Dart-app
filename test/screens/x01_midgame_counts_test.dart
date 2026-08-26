@@ -93,5 +93,20 @@ void main() {
         reason: 'removed seat flagged on the history entry');
     expect(entry.activePlayers.length, 2,
         reason: 'only the two active seats count toward the entry');
+
+    // Placements the removed seat left a hole in are closed up before they
+    // are persisted (spec 2026-08-26 / denseRankActive): the active field
+    // reads 1, 2, 3, … with no gap where the removed seat's rank used to be.
+    final activePlacements =
+        entry.activePlayers.map((p) => p.placement).toList()..sort();
+    expect(activePlacements.first, 1,
+        reason: 'the active field starts at rank 1');
+    for (var i = 1; i < activePlacements.length; i++) {
+      expect(activePlacements[i] - activePlacements[i - 1], lessThanOrEqualTo(1),
+          reason: 'active placements are contiguous (ties may repeat): '
+              '$activePlacements');
+    }
+    expect(entry.players[0].placement, 1,
+        reason: "the winner's own row carries placement 1");
   });
 }

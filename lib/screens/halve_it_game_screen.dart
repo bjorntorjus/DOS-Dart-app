@@ -15,6 +15,7 @@ import '../services/meme_service.dart';
 import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/dense_rank.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
@@ -447,8 +448,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     // Removed seats are excluded, not dropped — same rule the persisted
     // Finish path uses (spec 2026-08-26), so the preview matches what
     // Finish will actually record. (_buildPlacements() itself still ranks
-    // every seat — untouched, per spec — but EloService.updateRatings only
-    // ever reads placements for non-excluded seats, so this is safe.)
+    // every seat — untouched, per spec — so its output is dense-ranked over
+    // the active seats before it is handed on, exactly as Finish does.)
     final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
@@ -464,7 +465,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     EloService.updateRatings(
       gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: _buildPlacements(),
+      // Dense-ranked so the preview sees the same field size and ordering
+      // Finish will persist (see [denseRankActive]).
+      placements: denseRankActive(_buildPlacements(), excludedSeats),
       savedPlayers: savedPlayers,
       excludedSeats: excludedSeats,
     );
@@ -554,7 +557,11 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       }
     }
     // Rank by total score (higher = better placement)
-    final placements = _buildPlacements();
+    // Close the gaps a removed seat leaves behind: _buildPlacements()
+    // ranks every seat by total score, so with a removed seat holding 1st the
+    // actual winner would be persisted as 2. Excluded seats keep their own
+    // (ignored) value; ties among the active seats survive.
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
     // Compute per-player Halve It stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {

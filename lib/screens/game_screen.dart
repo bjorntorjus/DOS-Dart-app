@@ -26,6 +26,7 @@ import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../services/stats_recorder.dart';
 import '../stats/game_detail_stats.dart';
+import '../stats/dense_rank.dart';
 import '../widgets/player_avatar.dart';
 import '../models/game_result.dart';
 import '../services/game_logger.dart';
@@ -644,7 +645,9 @@ class _GameScreenState extends State<GameScreen> {
     EloService.updateRatings(
       gameMode: 'x01',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: _buildPlacements(),
+      // Dense-ranked so the preview sees the same field size and ordering
+      // Finish will persist (see [denseRankActive]).
+      placements: denseRankActive(_buildPlacements(), excludedSeats),
       savedPlayers: savedPlayers,
       excludedSeats: excludedSeats,
     );
@@ -713,8 +716,11 @@ class _GameScreenState extends State<GameScreen> {
       }
     }
 
-    // Build placements from finishedPlayers order
-    final placements = _buildPlacements();
+    // Build placements from finishedPlayers order, then close the gaps a
+    // removed seat leaves behind: _buildPlacements() gives every seat a real
+    // rank, so with a removed seat holding 1st the actual winner would be
+    // persisted as 2. Excluded seats keep their own (ignored) value.
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
     // Build per-player mode counters
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -1481,7 +1487,9 @@ class _GameScreenState extends State<GameScreen> {
   /// [StatsRecorder.buildEntry].
   GameHistoryEntry? _buildDetailEntry() {
     final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
-    final placements = _buildPlacements();
+    // Same compaction the persisted Finish path applies, so DETAILS shows
+    // the ranks the history entry will carry (see [denseRankActive]).
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
       if (excludedSeats.contains(pi)) continue;

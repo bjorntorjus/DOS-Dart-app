@@ -15,6 +15,7 @@ import '../services/meme_service.dart';
 import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/dense_rank.dart';
 import '../services/game_logger.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
@@ -687,7 +688,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     EloService.updateRatings(
       gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: _buildPlacements(),
+      // Dense-ranked so the preview sees the same field size and ordering
+      // Finish will persist (see [denseRankActive]).
+      placements: denseRankActive(_buildPlacements(), excludedSeats),
       savedPlayers: savedPlayers,
       excludedSeats: excludedSeats,
     );
@@ -840,7 +843,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     }
 
     // Rank: winner 1st, others by remaining lives (more = better)
-    final placements = _buildPlacements();
+    // Close the gaps a removed seat leaves behind: _buildPlacements()
+    // ranks every seat (winner 1st, others by lives), so a removed seat
+    // sitting between two survivors would leave a hole in the persisted
+    // ranks. Excluded seats keep their own (ignored) value.
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
     // Compute per-player killer stats from the undo stack since the last
     // roster change, PLUS whatever a roster change carried forward (a
     // roster change clears _undoStack — F8/F9 — but the events it recorded

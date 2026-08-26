@@ -21,6 +21,7 @@ import '../services/meme_service.dart';
 import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/dense_rank.dart';
 import '../services/game_logger.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
@@ -986,7 +987,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     EloService.updateRatings(
       gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: _buildPlacements(),
+      // Dense-ranked so the preview sees the same field size and ordering
+      // Finish will persist (see [denseRankActive]).
+      placements: denseRankActive(_buildPlacements(), excludedSeats),
       savedPlayers: savedPlayers,
       excludedSeats: excludedSeats,
     );
@@ -1045,8 +1048,12 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       if (_winnerIndexExcludingRemoved() == pi) sp.gamesWon++;
     }
 
-    // Build placements from finishedPlayers order, then rank remaining by progress
-    final placements = _buildPlacements();
+    // Build placements from finishedPlayers order, then rank remaining by
+    // progress — and close the gaps a removed seat leaves behind:
+    // _buildPlacements() gives every seat a real rank, so with a removed seat
+    // holding 1st the actual winner would be persisted as 2. Excluded seats
+    // keep their own (ignored) value.
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
     // Compute per-player Clock stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
