@@ -28,7 +28,10 @@ void main() {
 
   testWidgets(
       'Killer: removed seat excluded from stats/history; remaining '
-      'players still count', (tester) async {
+      'players still count; a kill made BEFORE the removal still lands in '
+      "the survivor's persisted counters (fix-round-1 #1 — a roster change "
+      'clears _undoStack, so the pre-removal kill must be carried forward)',
+      (tester) async {
     tester.view.physicalSize = const Size(1200, 2000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -38,6 +41,7 @@ void main() {
       SavedPlayer(id: 'a', name: 'A', createdAt: DateTime(2026, 1, 1)),
       SavedPlayer(id: 'b', name: 'B', createdAt: DateTime(2026, 1, 1)),
       SavedPlayer(id: 'c', name: 'C', createdAt: DateTime(2026, 1, 1)),
+      SavedPlayer(id: 'd', name: 'D', createdAt: DateTime(2026, 1, 1)),
     ]);
 
     await tester.pumpWidget(MaterialApp(
@@ -46,6 +50,7 @@ void main() {
           Player(name: 'A', score: 0, savedPlayerId: 'a'),
           Player(name: 'B', score: 0, savedPlayerId: 'b'),
           Player(name: 'C', score: 0, savedPlayerId: 'c'),
+          Player(name: 'D', score: 0, savedPlayerId: 'd'),
         ],
         config: const KillerConfig(throwToPick: false, lives: 3),
       ),
@@ -55,16 +60,24 @@ void main() {
     final dynamic s =
         tester.state<State<KillerGameScreen>>(find.byType(KillerGameScreen));
 
-    // Remove seat 2 (C) mid-game.
-    s.removePlayerForTest(2);
-    await tester.pump();
-
-    // Arrange A as a killer with B one hit from elimination, then land the
-    // killing blow — A is now the last one standing (C already removed).
+    // A is a killer and lands a kill on B — BEFORE any roster change, so
+    // this event lives only in _undoStack at this point.
     s.isKiller[0] = true;
     s.lives[1] = 1;
     final int bNumber = s.assignedNumbers[1];
-    await s.onDartHitForTest(bNumber, 1);
+    await s.onDartHitForTest(bNumber, 1); // kill #1 (pre-removal)
+    await tester.pump();
+
+    // Remove seat 2 (C) mid-game — this clears _undoStack. Without the
+    // fix, kill #1 above would be lost from A's eventual persisted stats.
+    s.removePlayerForTest(2);
+    await tester.pump();
+
+    // A lands a second kill on D, post-clear — this one is the last alive,
+    // so A wins.
+    s.lives[3] = 1;
+    final int dNumber = s.assignedNumbers[3];
+    await s.onDartHitForTest(dNumber, 1); // kill #2 (post-removal)
     await settle(tester);
 
     expect(find.text('✓ FINISH GAME'), findsOneWidget);
@@ -76,12 +89,20 @@ void main() {
     final a = saved.firstWhere((p) => p.id == 'a');
     final b = saved.firstWhere((p) => p.id == 'b');
     final c = saved.firstWhere((p) => p.id == 'c');
+    final d = saved.firstWhere((p) => p.id == 'd');
 
     expect(a.gamesPlayed, 1, reason: 'winner counts');
     expect(a.gamesWon, 1);
-    expect(b.gamesPlayed, 1, reason: 'runner-up still counts');
+    expect(b.gamesPlayed, 1, reason: 'eliminated-but-not-removed still counts');
+    expect(d.gamesPlayed, 1, reason: 'eliminated-but-not-removed still counts');
     expect(a.modeStats['killer']?.played, 1);
-    expect(b.modeStats['killer']?.played, 1);
+
+    // The carry-forward assertion: both kills — the one before the roster
+    // change and the one after — must be present in A's persisted counters.
+    expect(a.modeStats['killer']?.get('kills'), 2,
+        reason: 'the pre-removal kill (recorded in _undoStack, then '
+            'cleared by the roster change) must be carried forward into '
+            "A's persisted kill count, not lost");
 
     expect(c.gamesPlayed, 0, reason: 'removed seat excluded entirely');
     expect(c.modeStats.containsKey('killer'), isFalse,
@@ -92,7 +113,7 @@ void main() {
     final entry = history.first;
     expect(entry.players[2].removed, isTrue,
         reason: 'removed seat flagged on the history entry');
-    expect(entry.activePlayers.length, 2,
-        reason: 'only the two active seats count toward the entry');
+    expect(entry.activePlayers.length, 3,
+        reason: 'only the three active seats count toward the entry');
   });
 }
