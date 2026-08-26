@@ -102,31 +102,6 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a roster change shows the notice, no chart, dimmed DETAILS',
-      (tester) async {
-    await pump(
-      tester,
-      GameResult(
-        gameMode: 'cricket',
-        statsSkipped: true,
-        durationSeconds: 300,
-        results: [
-          PlayerResult(
-              name: 'Kari', placement: 1, stats: const {'points': 40}),
-          PlayerResult(name: 'Per', placement: 2, stats: const {'points': 12}),
-        ],
-      ),
-    );
-
-    expect(find.textContaining('STATISTICS NOT RECORDED'), findsOneWidget);
-    expect(find.text('SCORE PER ROUND'), findsNothing);
-    // The button is rendered even though it cannot be used.
-    expect(find.text('▶ DETAILS'), findsOneWidget);
-    // Duration survives; the rest of the summary is degraded.
-    expect(find.text('5:00'), findsOneWidget);
-    expect(find.textContaining('partly unavailable'), findsOneWidget);
-  });
-
   testWidgets('a tie tags both cards and shares the placement number',
       (tester) async {
     await pump(

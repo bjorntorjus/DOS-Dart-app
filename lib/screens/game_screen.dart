@@ -1407,7 +1407,6 @@ class _GameScreenState extends State<GameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'x01',
       results: results,
-      statsSkipped: _midGamePlayerChanges,
       detailEntry: _buildDetailEntry(),
       // Chart lines index by seat; a changed roster misaligns them —
       // suppress instead of mislabeling.
@@ -1582,7 +1581,6 @@ class _GameScreenState extends State<GameScreen> {
       gameMode: 'x01',
       results: results,
       canUndo: !_hadSuddenDeath,
-      statsSkipped: _midGamePlayerChanges,
       detailEntry: _buildDetailEntry(),
       // Chart lines index by seat; a changed roster misaligns them —
       // suppress instead of mislabeling.

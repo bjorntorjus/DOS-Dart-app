@@ -96,7 +96,7 @@ class PostGameScreen extends StatelessWidget {
     // Golf's embedded scorecard grid, same shape it feeds the in-game sheet.
     final golfExtras = result.gameMode == 'golf' ? result.modeExtras : null;
 
-    final showDetails = result.detailEntry != null && !result.statsSkipped;
+    final showDetails = result.detailEntry != null;
 
     final summary = matchSummaryFrom(
       durationSeconds: result.durationSeconds,
@@ -165,10 +165,6 @@ class PostGameScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (result.statsSkipped) ...[
-                        const _RosterNotice(),
-                        const SizedBox(height: 16),
-                      ],
                       PostGameSectionLabel('FINAL STANDINGS',
                           note: '· ${result.results.length} players'),
                       for (final seat in seats) ...[
@@ -296,36 +292,6 @@ class _TopBar extends StatelessWidget {
           // Right slot stays empty: mirroring the duration here is PROPOSAL 1
           // in the design round, parked by default.
           const SizedBox(width: 120),
-        ],
-      ),
-    );
-  }
-}
-
-class _RosterNotice extends StatelessWidget {
-  const _RosterNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    const orange = DossedartTokens.orange;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      decoration: BoxDecoration(
-        color: orange.withValues(alpha: 0.07),
-        border: Border.all(color: orange, width: 2),
-      ),
-      child: Row(
-        children: [
-          Text('!',
-              style: PostGameType.psStyle(14, color: orange, glow: orange)),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Text(
-              'STATISTICS NOT RECORDED — PLAYER LIST CHANGED MID-GAME',
-              style: PostGameType.vtStyle(18,
-                  color: orange, letterSpacing: 1, height: 1.2),
-            ),
-          ),
         ],
       ),
     );

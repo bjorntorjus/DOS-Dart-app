@@ -27,7 +27,6 @@ class PlayerResult {
 class GameResult {
   final String gameMode;
   final List<PlayerResult> results;
-  final bool statsSkipped;
 
   /// Whether the result screen may offer "↶ Back" (undo). False after a
   /// sudden-death tiebreak: rewinding a live tiebreak is meaningless and used
@@ -55,7 +54,7 @@ class GameResult {
   /// by `StatsRecorder.buildEntry` from the same locals the mode's
   /// `_updateStats`/`recordGame` call assembles, just with pre-Finish rating
   /// values (usually null — Elo computes at Finish). Null for every mode
-  /// that doesn't opt in, and ignored entirely when [statsSkipped] is true.
+  /// that doesn't opt in.
   final GameHistoryEntry? detailEntry;
 
   /// Wall-clock seconds from the screen's `_gameStart` to game end, for the
@@ -67,7 +66,6 @@ class GameResult {
   GameResult({
     required this.gameMode,
     required this.results,
-    this.statsSkipped = false,
     this.canUndo = true,
     this.throwHistory,
     this.progressionMode,

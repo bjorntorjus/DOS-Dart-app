@@ -25,14 +25,12 @@ void main() {
         ],
       );
 
-  GameResult resultWith({GameHistoryEntry? detailEntry, bool statsSkipped = false}) =>
-      GameResult(
+  GameResult resultWith({GameHistoryEntry? detailEntry}) => GameResult(
         gameMode: 'x01',
         results: [
           PlayerResult(name: 'A', placement: 1, stats: const {'darts': 9}),
           PlayerResult(name: 'B', placement: 2, stats: const {'darts': 12}),
         ],
-        statsSkipped: statsSkipped,
         detailEntry: detailEntry,
       );
 
@@ -61,22 +59,17 @@ void main() {
     expect(find.byType(GameDetailScreen), findsNothing);
   });
 
-  testWidgets(
-      'DETAILS is inert when statsSkipped is true, even with a '
-      'detailEntry', (tester) async {
+  testWidgets('DETAILS is offered whenever a detailEntry exists',
+      (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: PostGameScreen(
-          result: resultWith(detailEntry: entry(), statsSkipped: true),
-        ),
-      ),
+      MaterialApp(home: PostGameScreen(result: resultWith(detailEntry: entry()))),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('▶ DETAILS'), findsOneWidget);
-    await tester.tap(find.text('▶ DETAILS'), warnIfMissed: false);
+    await tester.tap(find.text('▶ DETAILS'));
     await tester.pumpAndSettle();
-    expect(find.byType(GameDetailScreen), findsNothing);
+    expect(find.byType(GameDetailScreen), findsOneWidget);
   });
 
   testWidgets('tapping DETAILS pushes GameDetailScreen with the ephemeral entry',
