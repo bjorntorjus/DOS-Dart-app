@@ -985,7 +985,13 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ranked = [...entry.players]..sort((a, b) => a.placement.compareTo(b.placement));
+    // activePlayers, not players: a seat removed mid-game keeps whatever raw
+    // placement its screen handed it (Family B stores 0), so ranking the full
+    // list would float a player who left to the top and paint them the
+    // winner's yellow. They are excluded from every other consumer too
+    // (spec 2026-08-26).
+    final ranked = [...entry.activePlayers]
+      ..sort((a, b) => a.placement.compareTo(b.placement));
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),

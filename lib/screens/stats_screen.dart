@@ -959,7 +959,12 @@ class _StatsScreenState extends State<StatsScreen>
   Widget _buildHistoryCard(GameHistoryEntry entry) {
     final label = _modeLabels[entry.gameMode] ?? entry.gameMode;
     final date = _formatDate(entry.date);
-    final sorted = List<GameHistoryPlayer>.from(entry.players)
+    // activePlayers, not players: a seat removed mid-game keeps whatever raw
+    // placement its screen handed it (Family B stores 0), so ranking the full
+    // list would put a player who left first in the podium row and hand them
+    // the 🥇. They are excluded from every other consumer too
+    // (spec 2026-08-26).
+    final sorted = List<GameHistoryPlayer>.from(entry.activePlayers)
       ..sort((a, b) => a.placement.compareTo(b.placement));
 
     return Card(
