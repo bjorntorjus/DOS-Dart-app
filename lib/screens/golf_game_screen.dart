@@ -494,7 +494,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// can show them, without persisting anything. Actual recording stays
   /// deferred until the user leaves the result screen.
   Future<void> _prepareRatingPreview(List<int> placements) async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -509,6 +509,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
@@ -529,15 +530,16 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   }
 
   Future<void> _updateStats(List<int> placements) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry, matching the other cockpits (audit 2026-07-06, F10).
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -566,13 +568,12 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       };
     }
 
-    // Reached only when the roster was unchanged (mid-game changes returned
-    // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
       gameMode: 'golf',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
@@ -589,6 +590,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      excludedSeats: excludedSeats,
     );
     final earnedFeats = buildEarnedFeats(
       eventsByIndex: const {},
@@ -608,6 +610,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -619,8 +622,10 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     // EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
     // the modeCounters shape _updateStats assembles for StatsRecorder
     // .recordGame, but built now (before Finish) with no ratings yet (Elo
-    // computes at Finish) and never persisted. Suppressed on a mid-game
-    // roster change, same as throwHistory/progressionMode below.
+    // computes at Finish) and never persisted. Built regardless of a
+    // mid-game roster change — removed seats are excluded via excludedSeats
+    // below, not the whole entry suppressed (spec 2026-08-26).
+    final excludedSeatsForDetail = Set<int>.unmodifiable(engine.skippedIndices);
     final detailModeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
       if (engine.isSkipped(pi)) continue;
@@ -639,18 +644,17 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         'totalGames': 1,
       };
     }
-    final detailEntry = _midGamePlayerChanges
-        ? null
-        : StatsRecorder.buildEntry(
-            gameMode: 'golf',
-            playerIds: players.map((p) => p.savedPlayerId).toList(),
-            playerNames: players.map((p) => p.name).toList(),
-            placements: placements,
-            modeCounters: detailModeCounters,
-            gameConfig: '${widget.config.holes} holes',
-            durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
-            throwHistory: List<DartThrow>.from(throwHistory),
-          );
+    final detailEntry = StatsRecorder.buildEntry(
+      gameMode: 'golf',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      modeCounters: detailModeCounters,
+      gameConfig: '${widget.config.holes} holes',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      excludedSeats: excludedSeatsForDetail,
+    );
 
     final results = <PlayerResult>[
       for (final i in order)
