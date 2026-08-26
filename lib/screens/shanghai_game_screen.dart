@@ -310,7 +310,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   /// can show them, without persisting anything. Actual recording stays
   /// deferred until the user leaves the result screen.
   Future<void> _prepareRatingPreview(List<int> ranking) async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -325,6 +326,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(ranking),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
@@ -367,18 +369,17 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry. Recording a full game here stored placement 0 for removed
-      // players (which sorts above 1st in history) and lost join/leave
-      // counters entirely (audit 2026-07-06, F10). Now matches the other
-      // five modes.
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -402,13 +403,12 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       };
     }
 
-    // Reached only when the roster was unchanged (mid-game changes returned
-    // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
       gameMode: 'shanghai',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
@@ -419,7 +419,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     }
 
     final events = <int, List<AchievementEvent>>{};
-    if (engine.isInstantShanghai && engine.winnerIndex != null) {
+    if (engine.isInstantShanghai &&
+        engine.winnerIndex != null &&
+        !excludedSeats.contains(engine.winnerIndex!)) {
       events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
     }
     final unlocks = AchievementService.instance.awardGameEnd(
@@ -430,6 +432,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: events,
+      excludedSeats: excludedSeats,
     );
     final earnedFeats =
         buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
@@ -447,6 +450,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -666,8 +670,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -681,8 +684,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       gameOver: engine.gameOver,
       colorFor: avatarColor,
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -726,7 +728,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text("They are left out of this game's statistics and rating. Everyone else still counts."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
