@@ -71,12 +71,11 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   int _turnIdCounter = 0;
   final DateTime _gameStart = DateTime.now();
 
-  // Roster-change gating for the deferred-stats protocol (Shanghai/Gotcha
-  // parity). Flipped true by _addSavedPlayerMidGame/_removePlayerMidGame,
-  // which also populate the joined/left id sets below; _updateStats reads
-  // this to divert to StatsRecorder.recordMidGameChanges instead of the
-  // full recordGame path.
-  bool _midGamePlayerChanges = false;
+  // Join/leave id sets populated by _addSavedPlayerMidGame/
+  // _removePlayerMidGame, fed to StatsRecorder.recordMidGameChanges
+  // alongside the full recordGame path (spec 2026-08-26: a roster change no
+  // longer diverts away from stats/Elo/history — removed seats are excluded
+  // via engine.skippedIndices instead).
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
 
@@ -428,7 +427,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   /// can show them, without persisting anything. Actual recording stays
   /// deferred until the user leaves the result screen.
   Future<void> _prepareRatingPreview(List<int> ranking) async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -443,6 +442,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _placementsFromRanking(ranking),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
@@ -455,15 +455,16 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry, matching the other five modes (audit 2026-07-06, F10).
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
@@ -495,13 +496,12 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       };
     }
 
-    // Reached only when the roster was unchanged (mid-game changes returned
-    // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
       gameMode: 'oneUp',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
@@ -518,6 +518,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      excludedSeats: excludedSeats,
     );
     final earnedFeats =
         buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
@@ -537,6 +538,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -707,7 +709,6 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     final seedLives =
         worst == null ? widget.config.lives : engine.livesLeft[worst];
     setState(() {
-      _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
@@ -729,7 +730,6 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   void _removePlayerMidGame(int playerIndex) {
     final removedId = players[playerIndex].savedPlayerId;
     setState(() {
-      _midGamePlayerChanges = true;
       if (removedId != null) _leftMidGameIds.add(removedId);
       engine.removePlayer(playerIndex);
       if (engine.gameOver) _onGameEnd();
