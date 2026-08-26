@@ -533,7 +533,7 @@ void main() {
 
   testWidgets(
       'removing the mid-turn current player advances the turn, and a '
-      'roster-changed stats update completes without recording a game',
+      'roster-changed stats update completes without error',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: WildcardGameScreen(
@@ -564,8 +564,9 @@ void main() {
             'seat');
     expect(state.midGamePlayerChangesForTest, isTrue);
 
-    // Roster changed -> early return: join/leave counters only, no game
-    // recorded. The bar here is simply that this completes without error.
+    // Roster changed -> the removed seat is excluded (not the whole game
+    // skipped, spec 2026-08-26). The bar here is simply that this completes
+    // without error.
     await state.updateStatsForTest();
     await tester.pump();
     expect(tester.takeException(), isNull);

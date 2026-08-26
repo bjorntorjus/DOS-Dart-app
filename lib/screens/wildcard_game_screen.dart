@@ -644,17 +644,17 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry, matching the other five DOSSEDART cockpits (audit 2026-07-06,
-      // F10): a full game record here would misreport removed players'
-      // placement and drop join/leave counters entirely.
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, H2H and badges;
+    // joiners count fully (spec 2026-08-26). Seats are skipped, not dropped
+    // — throws and feats index by seat. (No Elo for WILDCARD, spec §9.)
+    final excludedSeats = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
     final savedPlayers = await PlayerStorage.loadPlayers();
     final placements = _buildPlacements(ranking);
 
@@ -685,6 +685,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       ratingsBefore: const {},
       ratingsAfter: const {},
       eventsByIndex: const {},
+      excludedSeats: excludedSeats,
     );
     final earnedFeats =
         buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
@@ -701,6 +702,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -719,8 +721,11 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     // EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
     // the modeCounters shape _updateStats assembles for StatsRecorder
     // .recordGame, but built now (before Finish) with no ratings (WILDCARD
-    // has none, spec §9) and never persisted. Suppressed on a mid-game
-    // roster change, same as throwHistory/progressionMode below.
+    // has none, spec §9) and never persisted. Built regardless of a mid-game
+    // roster change — removed seats are excluded via excludedSeats below,
+    // not the whole entry suppressed (spec 2026-08-26).
+    final excludedSeatsForDetail = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
     final detailModeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
       if (engine.isSkipped(pi)) continue;
@@ -736,19 +741,18 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         'totalGames': 1,
       };
     }
-    final detailEntry = _midGamePlayerChanges
-        ? null
-        : StatsRecorder.buildEntry(
-            gameMode: 'wildcard',
-            playerIds: players.map((p) => p.savedPlayerId).toList(),
-            playerNames: players.map((p) => p.name).toList(),
-            placements: placements,
-            modeCounters: detailModeCounters,
-            gameConfig:
-                '${widget.config.rounds} rounds · chaos ${widget.config.startingChaos}',
-            durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
-            throwHistory: List<DartThrow>.from(throwHistory),
-          );
+    final detailEntry = StatsRecorder.buildEntry(
+      gameMode: 'wildcard',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      modeCounters: detailModeCounters,
+      gameConfig:
+          '${widget.config.rounds} rounds · chaos ${widget.config.startingChaos}',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      excludedSeats: excludedSeatsForDetail,
+    );
 
     final results = <PlayerResult>[
       for (int i = 0; i < players.length; i++)
@@ -845,8 +849,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -881,7 +884,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text("They are left out of this game's statistics and rating. Everyone else still counts."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
