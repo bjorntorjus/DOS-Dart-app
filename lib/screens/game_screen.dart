@@ -662,22 +662,27 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) {
-      // Rating and stats skipped, but still record mid-game join/leave counters
-      await _recordMidGameCounters();
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await _recordMidGameCounters();
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
 
@@ -705,6 +710,7 @@ class _GameScreenState extends State<GameScreen> {
     // Build per-player mode counters
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final playerThrows = _statThrows.where((t) => t.playerIndex == pi).toList();
@@ -769,17 +775,20 @@ class _GameScreenState extends State<GameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     // Capture ratings after update (before recording history)
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
-    final earnedFeats = _awardMilestones(savedPlayers, placements);
+    final earnedFeats = _awardMilestones(savedPlayers, placements, excludedSeats);
 
     StatsRecorder.recordGame(
       gameMode: 'x01',
@@ -794,6 +803,7 @@ class _GameScreenState extends State<GameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(_statThrows),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -804,12 +814,13 @@ class _GameScreenState extends State<GameScreen> {
   /// the mutated unlock sets.
   /// Evaluates game-end achievements and returns the per-player earned feats
   /// (✦ in-game events + ★ new unlocks) for capture on the game-history entry.
-  Map<int, List<EarnedFeat>> _awardMilestones(
-      List<SavedPlayer> savedPlayers, List<int> placements) {
+  Map<int, List<EarnedFeat>> _awardMilestones(List<SavedPlayer> savedPlayers,
+      List<int> placements, Set<int> excludedSeats) {
     // Reconstruct single-game feats per player from their throws → events.
     final events = <int, List<AchievementEvent>>{};
     final counters = <int, Map<String, int>>{};
     for (int i = 0; i < players.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       final feats =
           X01Feats.analyze(_statThrows.where((t) => t.playerIndex == i));
       final evs = <AchievementEvent>[
@@ -830,6 +841,7 @@ class _GameScreenState extends State<GameScreen> {
       ratingsAfter: _ratingsAfter,
       eventsByIndex: events,
       countersByIndex: counters,
+      excludedSeats: excludedSeats,
     );
     return buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
   }
@@ -1373,6 +1385,7 @@ class _GameScreenState extends State<GameScreen> {
     final results = <PlayerResult>[];
     for (int rank = 0; rank < ranking.length; rank++) {
       final i = ranking[rank];
+      if (_removedPlayerIndices.contains(i)) continue;
       final p = players[i];
       final playerThrows = _statThrows.where((t) => t.playerIndex == i).toList();
       final dartCount = playerThrows.length;
@@ -1447,10 +1460,10 @@ class _GameScreenState extends State<GameScreen> {
   /// the modeCounters shape [_updateStats] assembles for
   /// `StatsRecorder.recordGame`, but built now (before Finish) with no
   /// ratings yet (Elo computes at Finish) and never persisted. Null on a
-  /// mid-game roster change, matching [_updateStats]' own early return for
-  /// that case (no game history entry is ever recorded then either).
+  /// Removed seats are skipped from the aggregate/team totals elsewhere but
+  /// stay in the entry (flagged `removed`) — see [StatsRecorder.buildEntry].
   GameHistoryEntry? _buildDetailEntry() {
-    if (_midGamePlayerChanges) return null;
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final placements = _buildPlacements();
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
@@ -1522,6 +1535,7 @@ class _GameScreenState extends State<GameScreen> {
       gameConfig: _gameConfigLabel,
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(_statThrows),
+      excludedSeats: excludedSeats,
     );
   }
 
@@ -1900,8 +1914,7 @@ class _GameScreenState extends State<GameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -2425,8 +2438,7 @@ class _GameScreenState extends State<GameScreen> {
       gameOver: _gameFullyOver,
       colorFor: avatarColor,
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: (saved) => _addSavedPlayerMidGame(saved),
       onRemove: (i) => _removePlayerMidGame(i),
     );
@@ -2480,7 +2492,8 @@ class _GameScreenState extends State<GameScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
         content: const Text(
-            'Statistics will not be recorded for this game.'),
+            "They are left out of this game's statistics and rating. "
+            'Everyone else still counts.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
