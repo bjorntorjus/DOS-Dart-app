@@ -429,13 +429,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   }
 
   Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) {
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and
+    // _updateStatsInternal holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
     await _updateStatsInternal();
   }
 
@@ -488,30 +487,41 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   }
 
   Future<void> _updateStatsInternal() async {
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
-    // Find winner (highest score)
+    // Find winner (highest score) — removed seats never contend.
     int bestScore = -1;
     int winnerIdx = 0;
     for (int i = 0; i < players.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       if (totalScores[i] > bestScore) {
         bestScore = totalScores[i];
         winnerIdx = i;
       }
     }
     // A shared best score is a draw — nobody gets win credit.
-    final tieForBest =
-        totalScores.where((s) => s == bestScore).length > 1;
+    final tieForBest = List.generate(players.length, (i) => i)
+            .where((i) =>
+                !excludedSeats.contains(i) && totalScores[i] == bestScore)
+            .length >
+        1;
 
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
@@ -538,6 +548,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     // Compute per-player Halve It stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
 
@@ -587,11 +598,14 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     // Capture ratings after update (before recording history)
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -608,6 +622,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: achEvents,
+      excludedSeats: excludedSeats,
     );
 
     StatsRecorder.recordGame(
@@ -624,6 +639,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex:
           buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -1828,8 +1844,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1843,8 +1858,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       gameOver: gameOver,
       colorFor: avatarColor,
       addInfoText:
-          'A new player starts level with whoever is in last place. '
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1929,7 +1943,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text(
+            "They are left out of this game's statistics and rating. "
+            'Everyone else still counts.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
