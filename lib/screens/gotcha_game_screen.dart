@@ -89,8 +89,11 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   @visibleForTesting
   Future<void> updateStatsForTest() => _updateStats(_rankPlayers());
 
-  /// Whether the roster changed mid-game — read by the stats/rating gating
-  /// a later task adds (same contract as Shanghai's `_midGamePlayerChanges`).
+  /// Whether the roster changed mid-game. Since spec 2026-08-26 this no
+  /// longer gates stats or rating — removed seats are excluded via
+  /// `excludedSeats` and everyone else counts — it only suppresses the
+  /// post-game progression chart (same contract as Shanghai's
+  /// `_midGamePlayerChanges`).
   @visibleForTesting
   bool get midGamePlayerChangesForTest => _midGamePlayerChanges;
 
@@ -296,7 +299,14 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -311,7 +321,14 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -370,7 +387,14 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -403,7 +427,14 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;

@@ -97,12 +97,13 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// isn't talked over (same gate as Gotcha/Cricket/X01).
   bool _missSoundPlayed = false;
 
-  // Roster-change gating for the deferred-stats protocol (1UP/Shanghai
-  // parity). Set unconditionally and FIRST by every roster-change path
+  // True once the roster changed mid-game (1UP/Shanghai parity). Set
+  // unconditionally and FIRST by every roster-change path
   // (_addSavedPlayerMidGame / _removePlayerMidGame, including the
-  // removePlayerForTest seam) so a skipped seat can never be misread as the
-  // winner by EloService/AchievementService/StatsRecorder (placement 0 vs.
-  // "best" ambiguity) — see _updateStats' short-circuit below.
+  // removePlayerForTest seam). Since spec 2026-08-26 it no longer gates
+  // stats — removed seats are excluded via `excludedSeats` and everyone else
+  // counts — its one remaining job is suppressing the post-game progression
+  // chart, whose lines index by seat and would mislabel a changed roster.
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -123,10 +124,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   @visibleForTesting
   Set<int> get removedPlayerIndicesForTest => engine.skippedIndices;
 
-  /// Proves the mid-game stats gate got flipped (Task 9 review — a skipped
-  /// seat's placement 0 must never reach the full recordGame/Elo path via
-  /// EloService/AchievementService/StatsRecorder, since those read
-  /// placement 0 as "best"). Same convention as Wildcard/Gotcha's
+  /// Proves a roster change was seen by the screen — the flag that suppresses
+  /// the post-game progression chart. Same convention as Wildcard/Gotcha's
   /// `midGamePlayerChangesForTest`.
   @visibleForTesting
   bool get midGamePlayerChangesForTest => _midGamePlayerChanges;
@@ -498,7 +497,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -513,7 +519,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -543,7 +556,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -577,7 +597,14 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;

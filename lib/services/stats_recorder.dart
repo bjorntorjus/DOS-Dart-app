@@ -216,7 +216,11 @@ class StatsRecorder {
     );
   }
 
-  /// Records mid-game join/leave counters for a game whose stats are skipped.
+  /// Bumps the `gamesJoinedMidway` / `gamesLeftMidway` career counters for a
+  /// game whose roster changed. Independent of [recordGame], which every mode
+  /// still calls for the same game (spec 2026-08-26: a roster change no longer
+  /// skips stats — the removed seats are excluded via `excludedSeats`). No-ops
+  /// on empty sets, so screens can call it unconditionally.
   static Future<void> recordMidGameChanges({
     required Set<String> joinedIds,
     required Set<String> leftIds,
