@@ -1169,6 +1169,12 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       // suppress instead of mislabeling.
       throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(_statThrows),
       progressionMode: _midGamePlayerChanges ? null : 'aroundTheClock',
+      // The summary's BEST ROUND counts targets cleared per turn — it needs
+      // the step rule and the sequence to clamp the finishing dart.
+      modeExtras: {
+        'countMultiples': widget.config.countMultiples,
+        'sequence': _atcSequence(),
+      },
     );
   }
 

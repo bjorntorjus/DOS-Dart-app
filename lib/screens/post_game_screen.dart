@@ -102,6 +102,8 @@ class PostGameScreen extends StatelessWidget {
       durationSeconds: result.durationSeconds,
       throws: result.throwHistory,
       playerNames: [for (final p in result.results) p.name],
+      gameMode: result.gameMode,
+      modeExtras: result.modeExtras,
       // BIGGEST LEAD reads the same series the chart draws, so the number can
       // never disagree with the picture above it. Null for 1UP and Killer,
       // which have no series — that dims one cell, not the zone.

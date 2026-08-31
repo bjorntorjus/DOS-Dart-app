@@ -736,6 +736,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       // suppress instead of mislabeling.
       throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
       progressionMode: _midGamePlayerChanges ? null : 'cricket',
+      // The summary's BEST TURN replay needs the real target list — random
+      // cricket plays other numbers than 15-20.
+      modeExtras: {'targets': List<int>.from(targets)},
     );
   }
 

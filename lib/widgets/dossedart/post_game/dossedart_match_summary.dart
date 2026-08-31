@@ -26,7 +26,7 @@ class DossedartMatchSummary extends StatelessWidget {
       _Cell('DURATION', s.duration),
       _Cell('ROUNDS', s.rounds),
       _Cell('DARTS THROWN', s.darts),
-      _Cell('BEST TURN', s.bestTurn,
+      _Cell(s.bestTurnLabel, s.bestTurn,
           sub: s.degraded ? 'NOT RECORDED' : s.bestTurnBy),
       _Cell('HIT DISTRIBUTION', s.hitDistribution),
       _Cell('BIGGEST LEAD', s.biggestLead),
