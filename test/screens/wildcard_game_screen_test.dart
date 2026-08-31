@@ -499,6 +499,13 @@ void main() {
 
     await dismissAnnounceIfShown(); // A's turn-1 modifier, if any
 
+    // B's modifier roll happens when A banks. The screen's RNG is unseeded,
+    // and a randomly rolled restriction (ODDS ONLY, DIVIDE BY THREE, …) can
+    // zero B's joker dart — turning B's delta into a second ±0 and flaking
+    // the exactly-one assert below. Force BULL'S FORTUNE: consumes the roll
+    // deterministically and never touches a single on 1-20.
+    state.engineForTest.debugForceModifier('bullsFortune');
+
     // A (seat 0) banks a zero-score turn — A HAS thrown, which the reveal
     // must render as `0 → 0 ±0`, distinct from C's NOT THROWN below.
     for (var i = 0; i < 3; i++) {
