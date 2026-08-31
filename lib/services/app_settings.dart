@@ -163,6 +163,92 @@ class AppSettings {
     await prefs.setInt(_eloThresholdKey, value);
   }
 
+  // Shot clock
+  static const String _shotClockEnabledKey = 'shot_clock_enabled';
+  static const String _shotClockSecondsKey = 'shot_clock_seconds';
+
+  /// Off by default: an app that nags uninvited is worse than the problem it
+  /// solves. The COUNTER is unaffected by this — see `kSlowTurnSeconds`, which
+  /// is fixed so the stat stays comparable between players.
+  static Future<bool> getShotClockEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_shotClockEnabledKey) ?? false;
+  }
+
+  static Future<void> setShotClockEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_shotClockEnabledKey, value);
+  }
+
+  /// When the nudge fires, in seconds. Default 60.
+  static Future<int> getShotClockSeconds() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_shotClockSecondsKey) ?? 60;
+  }
+
+  static Future<void> setShotClockSeconds(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_shotClockSecondsKey, value);
+  }
+
+  // Seasons
+  static const String _seasonNumberKey = 'season_number';
+  static const String _seasonStartKey = 'season_start';
+  static const String _seasonsMigratedKey = 'seasons_migrated';
+
+  /// The open season's number. 1 until the migration runs, which closes
+  /// season 1 and opens season 2.
+  static Future<int> getSeasonNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_seasonNumberKey) ?? 1;
+  }
+
+  static Future<void> setSeasonNumber(int value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_seasonNumberKey, value);
+  }
+
+  /// First day of the open season, or null before the migration.
+  static Future<DateTime?> getSeasonStart() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_seasonStartKey);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  static Future<void> setSeasonStart(DateTime value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_seasonStartKey, value.toIso8601String());
+  }
+
+  /// Written LAST by the migration, so an interrupted run resumes rather
+  /// than resetting a season a second time.
+  static Future<bool> getSeasonsMigrated() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_seasonsMigratedKey) ?? false;
+  }
+
+  static Future<void> setSeasonsMigrated(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_seasonsMigratedKey, value);
+  }
+
+  // Backup
+  static const String _lastBackupAtKey = 'last_backup_at';
+
+  /// When a full-data backup was last exported, or null if never. The seasons
+  /// migration refuses to run until this is set — see
+  /// `docs/superpowers/specs/2026-08-11-elo-seasons-design.md` §6.
+  static Future<DateTime?> getLastBackupAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_lastBackupAtKey);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  static Future<void> setLastBackupAt(DateTime value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastBackupAtKey, value.toIso8601String());
+  }
+
   // Memes
   static const String _memeEnabledKey = 'meme_enabled';
   static const String _meme67Key = 'meme_67';
@@ -222,10 +308,14 @@ class AppSettings {
     await prefs.setBool(_memeOffensiveKey, value);
   }
 
-  /// Meme frequency: 1 (rare) to 10 (always). Default 5.
+  /// Meme frequency: 1 (rare) to 10 (always). Default 3 = 1-in-6 throws
+  /// (meme-damping 2026-08-10: lowered from 5 = 1-in-4, offsetting 1UP
+  /// gaining the full meme path). See [MemeService.frequencyChance] for the
+  /// bucketing — the slider's 10 stops map to only 6 distinct rates, so 2 and
+  /// 3 behave identically. Only clean installs move; a stored value wins.
   static Future<int> getMemeFrequency() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_memeFrequencyKey) ?? 5;
+    return prefs.getInt(_memeFrequencyKey) ?? 3;
   }
 
   static Future<void> setMemeFrequency(int value) async {

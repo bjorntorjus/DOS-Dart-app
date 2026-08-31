@@ -42,6 +42,9 @@ Future<void> showDossedartPlayerSheet(
       .where((sp) => !sp.archived && !excludeSavedIds.contains(sp.id))
       .toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  // Archived players count too: a newcomer must not collide with someone who
+  // merely is not in this game.
+  final takenNames = saved.map((p) => p.name.trim().toLowerCase()).toSet();
   if (!context.mounted) return;
   await showModalBottomSheet(
     context: context,
@@ -52,8 +55,18 @@ Future<void> showDossedartPlayerSheet(
         rows: rows,
         gameOver: gameOver,
         available: available,
+        takenNames: takenNames,
         addInfoText: addInfoText,
         onAdd: (sp) {
+          Navigator.pop(ctx);
+          onAdd(sp);
+        },
+        onCreate: (name) async {
+          // A newcomer at the table: persist them and hand them to onAdd
+          // exactly like a saved player picked from the list, so the per-mode
+          // join rules (starting score, handicap) apply unchanged.
+          final sp = await PlayerStorage.addPlayer(name);
+          if (!ctx.mounted) return;
           Navigator.pop(ctx);
           onAdd(sp);
         },
@@ -75,6 +88,8 @@ class DossedartPlayerSheet extends StatelessWidget {
     required this.onAdd,
     required this.onRemove,
     this.addInfoText,
+    this.takenNames = const {},
+    this.onCreate,
   });
 
   final List<DossedartStandingRow> rows;
@@ -83,6 +98,13 @@ class DossedartPlayerSheet extends StatelessWidget {
   final void Function(SavedPlayer saved) onAdd;
   final void Function(int index) onRemove;
   final String? addInfoText;
+
+  /// Lower-cased, trimmed names of every saved player — used to refuse a
+  /// duplicate before anything is written.
+  final Set<String> takenNames;
+
+  /// Called with a validated, trimmed name. Null hides the create row.
+  final Future<void> Function(String name)? onCreate;
 
   int get _activeCount => rows.where((r) => !r.isRemoved).length;
 
@@ -133,6 +155,12 @@ class DossedartPlayerSheet extends StatelessWidget {
           else
             for (final sp in available)
               _AddTile(player: sp, enabled: !gameOver, onTap: () => onAdd(sp)),
+          if (onCreate != null)
+            _CreateRow(
+              enabled: !gameOver,
+              takenNames: takenNames,
+              onCreate: onCreate!,
+            ),
           const SizedBox(height: 12),
         ],
       ),
@@ -282,6 +310,133 @@ class _AddTile extends StatelessWidget {
                 color: enabled ? DossedartTokens.green : DossedartTokens.disabledFg, size: 26),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "New player name" text field + CREATE & ADD, for someone who just walked in.
+class _CreateRow extends StatefulWidget {
+  const _CreateRow({
+    required this.enabled,
+    required this.takenNames,
+    required this.onCreate,
+  });
+  final bool enabled;
+  final Set<String> takenNames;
+  final Future<void> Function(String name) onCreate;
+
+  @override
+  State<_CreateRow> createState() => _CreateRowState();
+}
+
+class _CreateRowState extends State<_CreateRow> {
+  final _controller = TextEditingController();
+  String? _error;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _canCreate =>
+      widget.enabled && !_busy && _controller.text.trim().isNotEmpty;
+
+  Future<void> _submit() async {
+    if (!_canCreate) return;
+    final name = _controller.text.trim();
+    if (widget.takenNames.contains(name.toLowerCase())) {
+      setState(() => _error = 'NAME ALREADY EXISTS');
+      return;
+    }
+    setState(() => _busy = true);
+    await widget.onCreate(name);
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _canCreate ? DossedartTokens.green : DossedartTokens.disabledFg;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  enabled: widget.enabled,
+                  textCapitalization: TextCapitalization.words,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: 'New player name',
+                    hintStyle: TextStyle(color: DossedartTokens.disabledFg),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(
+                          color: DossedartTokens.phosphor,
+                          width: DossedartTokens.borderThin),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(
+                          color: DossedartTokens.cyan,
+                          width: DossedartTokens.borderThin),
+                    ),
+                    disabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(
+                          color: DossedartTokens.disabledBorder,
+                          width: DossedartTokens.borderThin),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() => _error = null),
+                  onSubmitted: (_) => _submit(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              InkWell(
+                onTap: _canCreate ? _submit : null,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+                  decoration: BoxDecoration(
+                      border: Border.all(
+                          color: color, width: DossedartTokens.borderThin)),
+                  child: Text(
+                    'CREATE & ADD',
+                    style: TextStyle(
+                      fontFamily: 'PressStart2P',
+                      fontSize: 8,
+                      color: color,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _error!,
+                style: const TextStyle(
+                  fontFamily: 'PressStart2P',
+                  fontSize: 8,
+                  color: DossedartTokens.red,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

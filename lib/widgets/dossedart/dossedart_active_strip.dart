@@ -112,6 +112,7 @@ class DossedartActiveStrip extends StatelessWidget {
     required this.scoreLabel,
     required this.scoreValue,
     this.smallScore = false,
+    this.height = 132,
   });
 
   final String playerName;
@@ -131,11 +132,15 @@ class DossedartActiveStrip extends StatelessWidget {
   /// PS-22 instead of PS-30, for long values.
   final bool smallScore;
 
+  /// Zone height. 132 is the family default; Splitscore's hero-target strip
+  /// (design B, 2026-08-21) is the one approved 176px deviation.
+  final double height;
+
   @override
   Widget build(BuildContext context) {
     final c = accentColor;
     return SizedBox(
-      height: 132,
+      height: height,
       child: Container(
         margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

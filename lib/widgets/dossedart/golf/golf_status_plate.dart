@@ -95,7 +95,7 @@ class GolfDartChip extends StatelessWidget {
 }
 
 /// The hero's "press-your-luck heartbeat" — tee-off prompt, mid-hole
-/// LYING count + darts-left countdown, or (during the 1s result window)
+/// miss count + darts-left countdown, or (during the 1s result window)
 /// the finished hole's term + who throws next. Always renders the three
 /// per-dart chips first.
 enum GolfPlateMode { teeOff, mid, result }
@@ -224,29 +224,19 @@ class GolfStatusPlate extends StatelessWidget {
     final left = 3 - dartLabels.length;
     Widget leftSide;
     if (lie != null && lie! > 0) {
-      final color = golfTermColor(lie!);
-      leftSide = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'LYING $lie',
-            style: const TextStyle(
-              fontFamily: 'PressStart2P',
-              fontSize: 15,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            golfTerm(lie!),
-            style: TextStyle(
-              fontFamily: 'PressStart2P',
-              fontSize: 12,
-              color: color,
-              shadows: [Shadow(color: color, blurRadius: 8)],
-            ),
-          ),
-        ],
+      // Plain miss count, not golf jargon (2026-08-07 QA): "LYING n" read as
+      // "laying" at the oche, and the term that sat next to it was the term
+      // for the MISS COUNT — not for anything still reachable this hole
+      // (2 misses + a triple scores 3 = PAR, never golfTerm(2) = BIRDIE), so
+      // it was actively misleading. The plate's term colour still tracks the
+      // lie as a heat signal.
+      leftSide = Text(
+        '$lie MISS${lie == 1 ? '' : 'ES'}',
+        style: const TextStyle(
+          fontFamily: 'PressStart2P',
+          fontSize: 15,
+          color: Colors.white,
+        ),
       );
     } else {
       leftSide = Text(
@@ -279,21 +269,19 @@ class GolfStatusPlate extends StatelessWidget {
     final term = golfTerm(lie!) + (wash ? ' · WASH' : '');
     return Row(
       children: [
-        Text(
-          'LYING $lie',
-          style: const TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 15,
-            color: ink,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          term,
-          style: const TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 12,
-            color: ink,
+        // The term alone is the result readout (2026-08-07 QA): the "LYING n"
+        // stroke count that used to lead this row read as "laying" from the
+        // oche and said nothing the term + dart chips don't already.
+        Flexible(
+          child: Text(
+            term,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'PressStart2P',
+              fontSize: 15,
+              color: ink,
+            ),
           ),
         ),
         const Spacer(),

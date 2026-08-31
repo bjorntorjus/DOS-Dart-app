@@ -41,13 +41,21 @@ class GameHistoryService {
     existing.insert(0, entry); // newest first
     final trimmed = existing.take(_maxEntries).toList();
     // Drop throwHistory beyond the newest _maxThrowHistory to bound storage.
+    // Every OTHER field must survive the copy: eventId used to be dropped
+    // here, which silently unlinked older games from their event night (and
+    // handed them back to the season tables, which skip event games).
     for (var i = _maxThrowHistory; i < trimmed.length; i++) {
       final e = trimmed[i];
       if (e.throwHistory == null) continue;
       trimmed[i] = GameHistoryEntry(
-        id: e.id, gameMode: e.gameMode, date: e.date, players: e.players,
-        gameConfig: e.gameConfig, durationSeconds: e.durationSeconds,
+        id: e.id,
+        gameMode: e.gameMode,
+        date: e.date,
+        players: e.players,
+        gameConfig: e.gameConfig,
+        durationSeconds: e.durationSeconds,
         throwHistory: null,
+        eventId: e.eventId,
       );
     }
     await prefs.setString(_key, GameHistoryEntry.encodeList(trimmed));

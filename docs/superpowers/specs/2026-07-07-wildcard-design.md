@@ -100,7 +100,7 @@ Surfaces for Claude design / DOSSEDART artboards. Arcade style per the existing 
 ### 7.2 Setup screen
 
 - Standard player setup + **rounds selector (5/10/15)** + **starting chaos (Mild/Spicy/Total chaos)**.
-- Add/remove mid-game supported; an added player joins with 0 points at the current round.
+- Add/remove mid-game supported; an added player joins at the current round with the **last-placed active player's total**. *(Amended 2026-08-10. This rule originally read "joins with 0 points", written to reject the table AVERAGE the other cockpits used at the time; the last-place rule did not exist yet. Since the lowest active total is always ≥ 0, the amendment can only be more generous. See `2026-08-10-midgame-join-fairness-design.md`.)*
 
 ### 7.3 In-game cockpit
 

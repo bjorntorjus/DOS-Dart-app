@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../app_version.dart';
+import '../utils/join_seed.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_mode.dart';
@@ -9,6 +10,7 @@ import '../models/game_result.dart';
 import '../models/golf_engine.dart';
 import '../models/player.dart';
 import '../models/saved_player.dart';
+import '../models/setup_prefill.dart';
 import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/elo_service.dart';
@@ -16,6 +18,7 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
@@ -34,6 +37,7 @@ import '../widgets/dossedart/golf/golf_leaderboard.dart';
 import '../widgets/dossedart/golf/golf_scorecard.dart';
 import '../widgets/dossedart/golf/golf_status_plate.dart' show GolfPlateMode;
 import '../widgets/dossedart/golf/golf_sudden_death_chain.dart';
+import 'dossedart/dossedart_golf_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// Zone label for a single recorded dart, v3 hero chip format: miss → '✗',
@@ -88,12 +92,18 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   int _turnIdCounter = 0;
   final DateTime _gameStart = DateTime.now();
 
-  // Roster-change gating for the deferred-stats protocol (1UP/Shanghai
-  // parity). Set unconditionally and FIRST by every roster-change path
+  /// True when [MemeService.tryMissSound] actually queued a sting for the
+  /// miss being registered — the spoken "miss" is then skipped so the meme
+  /// isn't talked over (same gate as Gotcha/Cricket/X01).
+  bool _missSoundPlayed = false;
+
+  // True once the roster changed mid-game (1UP/Shanghai parity). Set
+  // unconditionally and FIRST by every roster-change path
   // (_addSavedPlayerMidGame / _removePlayerMidGame, including the
-  // removePlayerForTest seam) so a skipped seat can never be misread as the
-  // winner by EloService/AchievementService/StatsRecorder (placement 0 vs.
-  // "best" ambiguity) — see _updateStats' short-circuit below.
+  // removePlayerForTest seam). Since spec 2026-08-26 it no longer gates
+  // stats — removed seats are excluded via `excludedSeats` and everyone else
+  // counts — its one remaining job is suppressing the post-game progression
+  // chart, whose lines index by seat and would mislabel a changed roster.
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -114,10 +124,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   @visibleForTesting
   Set<int> get removedPlayerIndicesForTest => engine.skippedIndices;
 
-  /// Proves the mid-game stats gate got flipped (Task 9 review — a skipped
-  /// seat's placement 0 must never reach the full recordGame/Elo path via
-  /// EloService/AchievementService/StatsRecorder, since those read
-  /// placement 0 as "best"). Same convention as Wildcard/Gotcha's
+  /// Proves a roster change was seen by the screen — the flag that suppresses
+  /// the post-game progression chart. Same convention as Wildcard/Gotcha's
   /// `midGamePlayerChangesForTest`.
   @visibleForTesting
   bool get midGamePlayerChangesForTest => _midGamePlayerChanges;
@@ -130,6 +138,9 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   @visibleForTesting
   void onUndoForTest() => _onUndo();
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   // ─── Moments (Task 8): hole-result display window + sudden-death overlay ──
   // Both timers are token-guarded (1UP QA pattern, task 14): the token is
@@ -242,6 +253,16 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       dartNumber: dartNo,
     );
 
+    // A miss must be audibly confirmed (2026-08-07 QA): the v1 "TTS diet"
+    // left misses completely silent, so a registered bom looked like a
+    // dropped tap from the oche. Hits stay silent — the hole-result term in
+    // _handleHoleEnd is their confirmation, and it always follows within the
+    // same dart. Skipped when a meme sting already covers the miss.
+    if (multiplier == 0 && !_missSoundPlayed) {
+      _announcer.announceThrow('miss');
+    }
+    _missSoundPlayed = false;
+
     throwHistory.add(
       DartThrow(
         playerIndex: seat,
@@ -258,6 +279,20 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
         roundNumber: roundNo,
       ),
     );
+
+    ShotClock.instance.registerDart();
+    // Golf deliberately reaches ONLY tryMissSound, unlike the other nine
+    // modes (audit 2026-08-10, F3 — parity was attempted and reverted).
+    // Every meme path MemeService offers is structurally dead here:
+    //  - 6-7 needs two consecutive darts on different numbers, but every
+    //    dart in a Golf turn targets the same hole, and the turn ends the
+    //    moment it is hit;
+    //  - the end-of-round stings and "nice" both sum DartThrow.points, which
+    //    is a placeholder in Golf (it scores strokes — see the field comment
+    //    above), so they would fire on a meaningless number.
+    // Wiring onThrow/onTurnEnd here would add calls that can never trigger
+    // and would read as a working feature. If Golf should have memes, it
+    // needs golf-shaped ones (an ACE sting, a wash sting), not these.
     setState(() {});
     if (result.holeEnded) {
       _turnIdCounter++;
@@ -271,7 +306,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   void _onMiss() {
     if (engine.gameOver || _overlaySuddenDeath) return;
-    _meme.tryMissSound();
+    _missSoundPlayed = _meme.tryMissSound();
     _onDartHit(0);
   }
 
@@ -431,7 +466,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
     return [
       for (var i = 0; i < players.length; i++)
         if (placements[i] != 0) i,
-    ]..sort((a, b) => placements[a].compareTo(placements[b]));
+    ]..sort(withSeatTiebreak((a, b) => placements[a].compareTo(placements[b])));
   }
 
   Future<void> _onGameEnd() async {
@@ -458,24 +493,40 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   /// can show them, without persisting anything. Actual recording stays
   /// deferred until the user leaves the result screen.
   Future<void> _prepareRatingPreview(List<int> placements) async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     EloService.updateRatings(
+      gameMode: 'golf',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -492,19 +543,27 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
   }
 
   Future<void> _updateStats(List<int> placements) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry, matching the other cockpits (audit 2026-07-06, F10).
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -529,16 +588,23 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       };
     }
 
-    // Reached only when the roster was unchanged (mid-game changes returned
-    // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
+      gameMode: 'golf',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -551,6 +617,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      excludedSeats: excludedSeats,
     );
     final earnedFeats = buildEarnedFeats(
       eventsByIndex: const {},
@@ -570,6 +637,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -577,6 +645,43 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
 
   void _showPostGame(List<int> placements) {
     final order = _orderByPlacement(placements);
+
+    // EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
+    // the modeCounters shape _updateStats assembles for StatsRecorder
+    // .recordGame, but built now (before Finish) with no ratings yet (Elo
+    // computes at Finish) and never persisted. Built regardless of a
+    // mid-game roster change — removed seats are excluded via excludedSeats
+    // below, not the whole entry suppressed (spec 2026-08-26).
+    final excludedSeatsForDetail = Set<int>.unmodifiable(engine.skippedIndices);
+    final detailModeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      detailModeCounters[playerId] = {
+        'totalStrokes': engine.total(pi),
+        'holesPlayed': engine.holesCompleted(pi),
+        'aces': engine.aces[pi],
+        'bogeys': engine.bogeys[pi],
+        'firstDartHits': engine.firstDartHits[pi],
+        if (engine.bestHole[pi] != null) 'min:bestHole': engine.bestHole[pi]!,
+        if (engine.holesCompleted(pi) == widget.config.holes)
+          'min:bestRound${widget.config.holes}': engine.total(pi),
+        'totalDarts': engine.dartsThrown[pi],
+        'totalGames': 1,
+      };
+    }
+    final detailEntry = StatsRecorder.buildEntry(
+      gameMode: 'golf',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      modeCounters: detailModeCounters,
+      gameConfig: '${widget.config.holes} holes',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      excludedSeats: excludedSeatsForDetail,
+    );
 
     final results = <PlayerResult>[
       for (final i in order)
@@ -592,6 +697,8 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
             'firstDartHits': engine.firstDartHits[i],
             'holesPlayed': engine.holesCompleted(i),
             if (engine.bestHole[i] != null) 'bestHole': engine.bestHole[i],
+            if (golfTermDist(engine.scorecards[i]) != null)
+              'termDist': golfTermDist(engine.scorecards[i]),
           },
           ratingBefore: players[i].savedPlayerId != null
               ? _ratingsBefore[players[i].savedPlayerId!]
@@ -607,10 +714,28 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
           result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
             gameMode: 'golf',
             results: results,
             canUndo: engine.canUndo,
-            throwHistory: List<DartThrow>.from(throwHistory),
+            detailEntry: detailEntry,
+            // Chart lines index by seat; a changed roster misaligns them —
+            // suppress instead of mislabeling.
+            throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+            progressionMode: _midGamePlayerChanges ? null : 'golf',
+            // Same shape _openScoreSheet feeds showGolfScoreSheet in-game,
+            // restricted to `order` (placement-sorted, non-skipped seats
+            // only) — a removed mid-game player must be excluded from the
+            // result screen entirely (same bar as `results` above), not
+            // merely dimmed the way the in-game modal sheet shows them.
+            modeExtras: {
+              'names': [for (final i in order) players[i].name],
+              'scorecards': [for (final i in order) engine.scorecards[i]],
+              'totals': [for (final i in order) engine.total(i)],
+              'vsPars': [for (final i in order) engine.vsPar(i)],
+              'skippedSeats': const <int>{},
+            },
           ),
         ),
       ),
@@ -631,6 +756,20 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
           // fire once more when it does.
           _gameEndFired = false;
         });
+        return;
+      }
+      if (action == 'again') {
+        await _updateStats(placements);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartGolfSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
@@ -783,13 +922,25 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
           .whereType<String>()
           .toSet(),
       addInfoText:
-          'Joins at hole ${engine.holeNumber} — earlier holes count as par.',
+          'Joins at hole ${engine.holeNumber} — earlier holes match the last-placed player.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not PAR (tester feedback
+    // 2026-08-10). Golf is lowest-total-wins, so the HIGHEST stroke total is
+    // the worst position.
+    final activeIndices = [
+      for (var i = 0; i < players.length; i++)
+        if (!engine.isSkipped(i)) i
+    ];
+    final worst = worstSeat(
+      [for (var i = 0; i < players.length; i++) engine.total(i)],
+      activeIndices,
+      higherIsBetter: false,
+    );
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
@@ -801,7 +952,7 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
           avatarPath: sp.avatarPath,
         ),
       );
-      engine.addPlayer();
+      engine.addPlayer(seedTotal: worst == null ? null : engine.total(worst));
     });
     _log.logRoster(
       action: 'ADD',
@@ -913,8 +1064,6 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                     child: GolfInputCells(
                       targetNumber: engine.targetNumber,
                       onHit: _onDartHit,
-                      onMiss: _onMiss,
-                      playoff: engine.inSuddenDeath,
                       enabled: !_overlaySuddenDeath && !engine.gameOver,
                     ),
                   ),
@@ -924,6 +1073,9 @@ class _GolfGameScreenState extends State<GolfGameScreen> {
                     onMenu: () => showDossedartCockpitMenu(
                       context,
                       meme: _meme,
+                      activePlayerCount: Iterable<int>.generate(players.length)
+                          .where((i) => !engine.isSkipped(i))
+                          .length,
                       onPlayerOverview: _openDossedartPlayerSheet,
                       onExit: _confirmExit,
                     ),

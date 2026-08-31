@@ -12,6 +12,11 @@ class GameHistoryEntry {
   final int? durationSeconds;
   final List<DartThrow>? throwHistory;
 
+  /// Set when the game was played inside an event (see EventService). Event
+  /// games are recorded for history, stats and achievements like any other,
+  /// but seasonStatsFrom/replayRatings skip them — they are not season games.
+  final String? eventId;
+
   GameHistoryEntry({
     required this.id,
     required this.gameMode,
@@ -20,12 +25,18 @@ class GameHistoryEntry {
     this.gameConfig,
     this.durationSeconds,
     this.throwHistory,
+    this.eventId,
   });
 
   /// Max round in the recorded throws, or null when no throw history.
   int? get rounds => throwHistory == null || throwHistory!.isEmpty
       ? null
       : throwHistory!.map((t) => t.roundNumber).reduce((a, b) => a > b ? a : b);
+
+  /// Players who finished the game — the only ones a ranking, a win, a
+  /// season table or a form line may credit.
+  List<GameHistoryPlayer> get activePlayers =>
+      players.where((p) => !p.removed).toList();
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -36,6 +47,7 @@ class GameHistoryEntry {
         if (durationSeconds != null) 'durationSeconds': durationSeconds,
         if (throwHistory != null)
           'throws': throwHistory!.map((t) => t.toJson()).toList(),
+        if (eventId != null) 'eventId': eventId,
       };
 
   factory GameHistoryEntry.fromJson(Map<String, dynamic> json) =>
@@ -51,6 +63,7 @@ class GameHistoryEntry {
         throwHistory: (json['throws'] as List?)
             ?.map((t) => DartThrow.fromJson(t as Map<String, dynamic>))
             .toList(),
+        eventId: json['eventId'] as String?,
       );
 
   static String encodeList(List<GameHistoryEntry> entries) =>
@@ -73,6 +86,11 @@ class GameHistoryPlayer {
   final double? ratingAfter;
   final List<EarnedFeat>? earnedFeats;
 
+  /// True when this player was removed mid-game. They stay in [players] so
+  /// seat indices (throws, feats) line up, but no consumer credits them —
+  /// see GameHistoryEntry.activePlayers.
+  final bool removed;
+
   GameHistoryPlayer({
     required this.name,
     this.savedPlayerId,
@@ -81,6 +99,7 @@ class GameHistoryPlayer {
     this.ratingBefore,
     this.ratingAfter,
     this.earnedFeats,
+    this.removed = false,
   });
 
   double? get ratingDelta => (ratingBefore != null && ratingAfter != null)
@@ -96,6 +115,7 @@ class GameHistoryPlayer {
         if (ratingAfter != null) 'ratingAfter': ratingAfter,
         if (earnedFeats != null)
           'feats': earnedFeats!.map((f) => f.toJson()).toList(),
+        if (removed) 'removed': true,
       };
 
   factory GameHistoryPlayer.fromJson(Map<String, dynamic> json) =>
@@ -111,5 +131,6 @@ class GameHistoryPlayer {
         earnedFeats: (json['feats'] as List?)
             ?.map((f) => EarnedFeat.fromJson(f as Map<String, dynamic>))
             .toList(),
+        removed: json['removed'] as bool? ?? false,
       );
 }

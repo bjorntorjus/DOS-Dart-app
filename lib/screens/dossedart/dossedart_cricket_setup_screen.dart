@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../cricket_game_screen.dart';
 
 class DossedartCricketSetupScreen extends StatefulWidget {
-  const DossedartCricketSetupScreen({super.key});
+  const DossedartCricketSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final CricketConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartCricketSetupScreen> createState() =>
@@ -15,16 +20,17 @@ class DossedartCricketSetupScreen extends StatefulWidget {
 
 class _DossedartCricketSetupScreenState
     extends State<DossedartCricketSetupScreen> {
-  bool _isCutthroat = false;
-  bool _isRandom = false;
-  int _targetCount = 7;
-  bool _includeBull = false;
+  late bool _isCutthroat = widget.initialConfig?.isCutthroat ?? false;
+  late bool _isRandom = widget.initialConfig?.isRandom ?? false;
+  late int _targetCount = widget.initialConfig?.targetCount ?? 7;
+  late bool _includeBull = widget.initialConfig?.includeBull ?? false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'CRICKET',
       minPlayers: 2,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

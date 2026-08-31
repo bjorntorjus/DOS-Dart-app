@@ -242,7 +242,9 @@ void main() {
 
     final engine = dyn.engineForTest as OneUpEngine;
     expect(engine.isOutOfRound(1), isTrue);
-    expect(find.textContaining('ROUND OUT'), findsOneWidget);
+    // The rail no longer shows a ROUND OUT badge — an out-of-round row keeps
+    // its (dimmed) life pips instead (Bjørn, 2026-08-26).
+    expect(find.textContaining('ROUND OUT'), findsNothing);
 
     // C (seat 2) also misses the whole turn -> fails -> only A remains
     // in-round -> A wins round 1, round 2 starts (free throw again).

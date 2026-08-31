@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app_version.dart';
+import '../utils/join_seed.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_mode.dart';
@@ -11,6 +12,7 @@ import '../models/player.dart';
 import '../models/saved_player.dart';
 import '../models/wildcard_engine.dart';
 import '../models/wildcard_events.dart';
+import '../models/setup_prefill.dart';
 import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/battery_sampler.dart';
@@ -18,6 +20,7 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
@@ -33,6 +36,7 @@ import '../widgets/dossedart/wildcard/dossedart_chaos_meter.dart';
 import '../widgets/dossedart/wildcard/dossedart_wildcard_dialogs.dart';
 import '../widgets/dossedart/wildcard/dossedart_wildcard_scorecard.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'dossedart/dossedart_wildcard_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// Overlay moments the WILDCARD cockpit can show, one at a time, layered on
@@ -167,6 +171,12 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// who actually had not thrown yet this round.
   int? _cutThrowerSeat;
 
+  /// Same stash-before-reseat trick as [_cutThrowerSeat], for REWIND:
+  /// [_rewindDialog] marks the active seats AFTER the thrower as NOT THROWN
+  /// (rotation is ascending active-seat order), and by dialog-build time
+  /// `engine.currentPlayerIndex` is already the restarted round's first seat.
+  int? _rewindThrowerSeat;
+
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
@@ -238,6 +248,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     // get here, so the pre-dart playerIdx captured above is the only place
     // left to learn who actually threw the cut-triggering dart.
     if (result.instantEvent?.id == 'cutEvent') _cutThrowerSeat = playerIdx;
+    if (result.instantEvent?.id == 'rewindEvent') _rewindThrowerSeat = playerIdx;
 
     final label = segment == 0
         ? 'miss'
@@ -259,6 +270,8 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       roundNumber: roundNo,
       isBust: false,
     ));
+
+    ShotClock.instance.registerDart();
 
     _log.logThrow(
       roundNumber: roundNo,
@@ -324,13 +337,42 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     }
     if (result.jokerHit != null) {
       _pendingResult = result;
+      final event = result.instantEvent;
+      if (event != null) {
+        // Direct-to-event (2026-08-17, Bjørn's feedback): the joker reveal
+        // and its outcome are ONE dialog — no intermediate JOKER! tap. The
+        // event dialog carries the joker header via [_jokerHeaderLine].
+        _logJokerEvent(event);
+        setState(() => _overlay = _overlayKindForEvent(event));
+        // TTS diet (QA 2026-07-09): short sting, then the event line.
+        _announcer.announceChaos('Joker!');
+        _announceEvent(event);
+        // Event sting layered after the 'Joker!' + event TTS.
+        final folder = switch (event.id) {
+          'rewindEvent' => 'wildcard/rewind',
+          'cutEvent' => 'wildcard/cut',
+          _ => 'wildcard/event',
+        };
+        SoundService.instance.playRandom([folder]);
+        return;
+      }
+      // Defensive fallback — the engine draws an event on every joker today.
       setState(() => _overlay = WcOverlayKind.joker);
-      // TTS diet (QA 2026-07-09): short sting only — the joker dialog shows
-      // the hidden-number detail.
       _announcer.announceChaos('Joker!');
       return;
     }
     _finishTurn(result.turnEnded);
+  }
+
+  /// Logs a joker-fired instant event with per-player totals appended when
+  /// the resolution carries scoreChanges (Plan A parity with ROBIN HOOD).
+  void _logJokerEvent(WcInstantEventDef event) {
+    final res = engine.lastEventResolution;
+    final baseDetail = res?.detail ?? '';
+    final detail = (res != null && res.scoreChanges.isNotEmpty)
+        ? '$baseDetail · ${res.scoreChanges.map((c) => 'P${c.playerIndex} ${c.before}→${c.after}').join(', ')}'
+        : baseDetail;
+    _log.logEvent(name: event.name, detail: detail);
   }
 
   void _onBullChoice(int signedDelta) {
@@ -349,30 +391,15 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     _finishTurn(turnEnded);
   }
 
+  /// Dismisses the plain JOKER! dialog — only reachable on the defensive
+  /// no-event fallback since direct-to-event (2026-08-17): an evented joker
+  /// never shows this overlay, [_routeDartResult] jumps straight to the
+  /// event dialog.
   void _onJokerDismiss() {
     final result = _pendingResult;
-    if (result == null) {
-      setState(() => _overlay = null);
-      return;
-    }
-    final event = result.instantEvent;
-    if (event != null) {
-      final res = engine.lastEventResolution;
-      final baseDetail = res?.detail ?? '';
-      // Parity with ROBIN HOOD (whose detail already embeds "before → after"
-      // inline): append per-player totals whenever the resolution carries
-      // scoreChanges (Plan A), so SCORE SWAP/REWIND also show the numbers.
-      final detail = (res != null && res.scoreChanges.isNotEmpty)
-          ? '$baseDetail · ${res.scoreChanges.map((c) => 'P${c.playerIndex} ${c.before}→${c.after}').join(', ')}'
-          : baseDetail;
-      _log.logEvent(name: event.name, detail: detail);
-      setState(() => _overlay = _overlayKindForEvent(event));
-      _announceEvent(event);
-      return; // _pendingResult stays set for the event dismiss below.
-    }
     _pendingResult = null;
     setState(() => _overlay = null);
-    _finishTurn(result.turnEnded);
+    if (result != null) _finishTurn(result.turnEnded);
   }
 
   void _onEventDismiss() {
@@ -617,17 +644,17 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry, matching the other five DOSSEDART cockpits (audit 2026-07-06,
-      // F10): a full game record here would misreport removed players'
-      // placement and drop join/leave counters entirely.
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, H2H and badges;
+    // joiners count fully (spec 2026-08-26). Seats are skipped, not dropped
+    // — throws and feats index by seat. (No Elo for WILDCARD, spec §9.)
+    final excludedSeats = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
     final savedPlayers = await PlayerStorage.loadPlayers();
     final placements = _buildPlacements(ranking);
 
@@ -658,6 +685,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       ratingsBefore: const {},
       ratingsAfter: const {},
       eventsByIndex: const {},
+      excludedSeats: excludedSeats,
     );
     final earnedFeats =
         buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
@@ -674,6 +702,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -688,6 +717,43 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
     // after the removed seat — the same accepted limitation as the other
     // DOSSEDART progression charts' documented gaps.
     final placements = _buildPlacements(ranking);
+
+    // EPHEMERAL entry for the "▶ DETAILS" drill-down (post-game v2) — mirrors
+    // the modeCounters shape _updateStats assembles for StatsRecorder
+    // .recordGame, but built now (before Finish) with no ratings (WILDCARD
+    // has none, spec §9) and never persisted. Built regardless of a mid-game
+    // roster change — removed seats are excluded via excludedSeats below,
+    // not the whole entry suppressed (spec 2026-08-26).
+    final excludedSeatsForDetail = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
+    final detailModeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (engine.isSkipped(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      detailModeCounters[playerId] = {
+        'jokersHit': engine.jokersHitCount[pi],
+        'windowPrizes': engine.windowPrizes[pi],
+        'max:chaosPeak': engine.chaosPeak,
+        'pointsStolen': engine.pointsStolen[pi],
+        'max:highestTurn': engine.highestTurn[pi],
+        'totalDarts': throwHistory.where((t) => t.playerIndex == pi).length,
+        'totalGames': 1,
+      };
+    }
+    final detailEntry = StatsRecorder.buildEntry(
+      gameMode: 'wildcard',
+      playerIds: players.map((p) => p.savedPlayerId).toList(),
+      playerNames: players.map((p) => p.name).toList(),
+      placements: placements,
+      modeCounters: detailModeCounters,
+      gameConfig:
+          '${widget.config.rounds} rounds · chaos ${widget.config.startingChaos}',
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      throwHistory: List<DartThrow>.from(throwHistory),
+      excludedSeats: excludedSeatsForDetail,
+    );
+
     final results = <PlayerResult>[
       for (int i = 0; i < players.length; i++)
         if (!engine.isSkipped(i))
@@ -715,8 +781,11 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
           result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
             gameMode: 'wildcard',
             results: results,
+            detailEntry: detailEntry,
             // Chart lines index by seat; a changed roster misaligns them —
             // suppress instead of mislabeling.
             throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
@@ -733,6 +802,20 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         // match.
         if (!engine.canUndo) return;
         setState(_applyUndo);
+        return;
+      }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartWildcardSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
         return;
       }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
@@ -766,15 +849,23 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
-  /// WILDCARD joiners always start at 0 — spec §7.2, deliberately NOT the
-  /// table-average other cockpits (Shanghai/Cricket/Gotcha) use.
+  /// WILDCARD joiners follow the shared last-place rule (spec §7.2, amended
+  /// 2026-08-10). The original "always 0" existed to reject the table AVERAGE
+  /// the other cockpits used; the last-place rule did not exist yet, and the
+  /// lowest active total is always >= 0, so this can only be more generous.
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    final activeIndices = [
+      for (var i = 0; i < players.length; i++)
+        if (!engine.isSkipped(i)) i
+    ];
+    final worst = worstSeat(engine.totals, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 0 : engine.totals[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
@@ -784,7 +875,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer();
+      engine.addPlayer(initialScore: seedScore);
     });
   }
 
@@ -793,7 +884,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text("They are left out of this game's statistics and rating. Everyone else still counts."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1037,15 +1128,40 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
   /// REWIND) to reveal rows for [WcBeforeAfterRows]: resolves each
   /// player's display name + standings accent so the dialog can render
   /// "NAME  before → after" without touching engine internals.
-  List<WcRevealRow> _revealRows(List<WcScoreChange> changes) => [
+  List<WcRevealRow> _revealRows(List<WcScoreChange> changes,
+          {bool Function(int seat)? hasThrown}) =>
+      [
         for (final c in changes)
           WcRevealRow(
             name: players[c.playerIndex].name.toUpperCase(),
             before: c.before,
             after: c.after,
             accent: dossedartAccent(c.playerIndex),
+            hasThrown: hasThrown?.call(c.playerIndex) ?? true,
           ),
       ];
+
+  /// Compact joker reveal at the top of an event dialog when the event was
+  /// fired by a joker hit — the joker and its outcome share ONE dialog
+  /// (direct-to-event, 2026-08-17). Empty when no joker is pending (e.g.
+  /// dialogs rebuilt from other paths).
+  List<Widget> _jokerHeaderLine() {
+    final n = _pendingResult?.jokerHit;
+    if (n == null) return const [];
+    return [
+      const SizedBox(height: 6),
+      Text(
+        '🃏 JOKER · HIDDEN NUMBER $n',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontFamily: 'VT323',
+          fontSize: 18,
+          color: DossedartTokens.green,
+          letterSpacing: 1,
+        ),
+      ),
+    ];
+  }
 
   Widget _eventDialog() {
     final res = engine.lastEventResolution;
@@ -1059,6 +1175,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       titleSize: 36,
       onTap: _onEventDismiss,
       children: [
+        ..._jokerHeaderLine(),
         const SizedBox(height: 12),
         Text(
           detail,
@@ -1100,6 +1217,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       titleSize: 56,
       onTap: _onEventDismiss,
       children: [
+        ..._jokerHeaderLine(),
         const SizedBox(height: 12),
         const Text(
           'ROUND ENDS NOW · PLAYERS YET TO THROW LOSE THEIR TURN',
@@ -1136,6 +1254,7 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
       spin: true,
       onTap: _onEventDismiss,
       children: [
+        ..._jokerHeaderLine(),
         const SizedBox(height: 12),
         Text(
           'ROUND ${engine.round} SCORES WIPED · RESTART FROM FIRST PLAYER',
@@ -1152,7 +1271,15 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
         ],
         const SizedBox(height: 14),
         WcBeforeAfterRows(
-          rows: _revealRows(engine.lastEventResolution?.scoreChanges ?? const []),
+          rows: _revealRows(
+            engine.lastEventResolution?.scoreChanges ?? const [],
+            // Rotation is ascending active-seat order, so the seats after
+            // the joker-thrower had not thrown yet when the round was wiped
+            // — their rows dim with a NOT THROWN tag instead of a delta.
+            hasThrown: _rewindThrowerSeat == null
+                ? null
+                : (seat) => seat <= _rewindThrowerSeat!,
+          ),
         ),
       ],
     );
@@ -1257,6 +1384,9 @@ class _WildcardGameScreenState extends State<WildcardGameScreen> {
                     onMenu: () => showDossedartCockpitMenu(
                       context,
                       meme: _meme,
+                      activePlayerCount: Iterable<int>.generate(players.length)
+                          .where((i) => !engine.isSkipped(i))
+                          .length,
                       onPlayerOverview: _openDossedartPlayerSheet,
                       onExit: _confirmExit,
                     ),

@@ -57,6 +57,19 @@ class _MidGameSheet extends StatefulWidget {
 class _MidGameSheetState extends State<_MidGameSheet> {
   List<SavedPlayer>? _available;
 
+  /// Every saved player's name (archived too) — a newcomer must not collide
+  /// with someone who merely is not in this game.
+  Set<String> _takenNames = {};
+  final _newName = TextEditingController();
+  String? _newNameError;
+  bool _creating = false;
+
+  @override
+  void dispose() {
+    _newName.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -77,7 +90,61 @@ class _MidGameSheetState extends State<_MidGameSheet> {
           a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     setState(() {
       _available = list;
+      _takenNames = saved.map((p) => p.name.trim().toLowerCase()).toSet();
     });
+  }
+
+  /// A newcomer at the table: persist them and hand them to [onAdd] exactly
+  /// like a saved player picked from the list, so the per-mode join rules
+  /// (starting score, handicap) apply unchanged.
+  Future<void> _createAndAdd() async {
+    final name = _newName.text.trim();
+    if (name.isEmpty || _creating) return;
+    if (_takenNames.contains(name.toLowerCase())) {
+      setState(() => _newNameError = 'Name already exists');
+      return;
+    }
+    setState(() => _creating = true);
+    final saved = await PlayerStorage.addPlayer(name);
+    if (!mounted) return;
+    Navigator.pop(context);
+    widget.onAdd(saved);
+  }
+
+  Widget _buildCreateRow() {
+    final canCreate =
+        !widget.gameOver && !_creating && _newName.text.trim().isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _newName,
+              enabled: !widget.gameOver,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: 'New player name',
+                isDense: true,
+                errorText: _newNameError,
+              ),
+              onChanged: (_) => setState(() => _newNameError = null),
+              onSubmitted: (_) => _createAndAdd(),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: FilledButton.icon(
+              onPressed: canCreate ? _createAndAdd : null,
+              icon: const Icon(Icons.person_add),
+              label: const Text('Create & add'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   int get _activeCount {
@@ -167,6 +234,7 @@ class _MidGameSheetState extends State<_MidGameSheet> {
                               widget.onAdd(entry.value);
                             },
                     )),
+              _buildCreateRow(),
               const SizedBox(height: 12),
             ],
           ),

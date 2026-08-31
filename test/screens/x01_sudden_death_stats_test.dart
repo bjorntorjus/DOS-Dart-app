@@ -89,10 +89,16 @@ void main() {
     }
     await settle();
 
-    // Result screen: sudden-death games offer no Back.
-    expect(find.text('Finish Game'), findsOneWidget);
-    expect(find.text('↶ Back'), findsNothing,
-        reason: 'a sudden-death tiebreak cannot be rewound');
+    // Result screen: sudden-death games offer no Back. Since the DOSSEDART
+    // round (2026-08-10) an unavailable action is rendered and dimmed rather
+    // than removed, so the primary action never shifts position — the button
+    // is present but must not do anything.
+    expect(find.text('✓ FINISH GAME'), findsOneWidget);
+    expect(find.text('↶ BACK'), findsOneWidget);
+    await tester.tap(find.text('↶ BACK'), warnIfMissed: false);
+    await settle();
+    expect(find.text('✓ FINISH GAME'), findsOneWidget,
+        reason: 'a sudden-death tiebreak cannot be rewound — Back is inert');
 
     // Displayed checkout must be the real one (40), not the parked 999.
     final result = s.buildGameResultForTest();
@@ -101,7 +107,7 @@ void main() {
     }
 
     // Leave and check persisted stats.
-    await tester.tap(find.text('Finish Game'));
+    await tester.tap(find.text('✓ FINISH GAME'));
     await settle();
     await settle();
 

@@ -55,8 +55,8 @@ void main() {
     expect(find.text('P0'), findsWidgets,
         reason: 'Winner name P0 should appear on PostGameScreen');
 
-    // The Undo button is labelled '↶ Back' in post_game_screen.dart.
-    expect(find.text('↶ Back'), findsOneWidget,
+    // The Undo button is labelled '↶ BACK' in post_game_screen.dart.
+    expect(find.text('↶ BACK'), findsOneWidget,
         reason: 'PostGameScreen should show the Undo/Back button');
   });
 }

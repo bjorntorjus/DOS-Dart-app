@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dart_scoring/widgets/dossedart/one_up/dossedart_one_up_active_card.dart';
+import 'package:dart_scoring/widgets/dossedart/one_up/one_up_life_pips.dart';
 import 'package:dart_scoring/utils/dossedart_player_accents.dart';
 
 Future<void> _loadRealFonts() async {
@@ -129,14 +130,17 @@ void main() {
     expect(find.text('—'), findsWidgets); // TARGET BY dimmed + THIS TURN "/ —"
   });
 
-  testWidgets('rail rows: hearts, ROUND OUT, OUT; TARGET BY bottom',
+  testWidgets('rail rows: hearts (also when out of the round), OUT; TARGET BY bottom',
       (tester) async {
     tester.view.physicalSize = const Size(820, 1180);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(host(card(standings: four(survivorOut: true))));
     expect(find.text('💀 OUT'), findsOneWidget);
-    expect(find.text('ROUND OUT'), findsOneWidget);
+    // Out-of-round rows keep their life pips (dimmed) — no ROUND OUT badge.
+    expect(find.text('ROUND OUT'), findsNothing);
+    // 3 rail rows with pips (the 4th row is OUT) + the header's own pips.
+    expect(find.byType(OneUpLifePips), findsNWidgets(4));
     expect(find.text('BY PER'), findsOneWidget);
     // No sorting: throw order preserved (Jonas row 1, i.e. rank text '1'
     // appears left of JONAS — sufficient to assert both exist unsorted).

@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'achievement_event.dart';
+import 'event.dart';
 import 'game_outcome.dart';
 import 'saved_player.dart';
+import 'season.dart';
 
 enum AchievementTier { bronze, silver, gold }
 
@@ -23,7 +25,22 @@ class AchievementGlyph {
 class AchievementContext {
   final SavedPlayer player;
   final GameOutcome? outcome;
-  const AchievementContext({required this.player, this.outcome});
+
+  /// Set only when a season closes. Null at game end, which is how the season
+  /// badges stay inert on the normal path — they all test `ctx.season` first,
+  /// so one evaluation path serves both without a parallel system.
+  final SeasonStanding? season;
+
+  /// Set only when an event closes — same trick as [season]: the event badges
+  /// all test `ctx.event` first and stay inert at game end.
+  final EventStanding? event;
+
+  const AchievementContext({
+    required this.player,
+    this.outcome,
+    this.season,
+    this.event,
+  });
 }
 
 typedef MilestoneTest = bool Function(AchievementContext ctx);

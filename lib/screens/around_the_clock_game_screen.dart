@@ -6,8 +6,10 @@ import '../models/game_config.dart';
 import '../models/saved_player.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
+import '../widgets/continue_prompt_dialog.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../models/game_mode.dart';
+import '../utils/join_seed.dart';
 import '../utils/earned_feats_builder.dart';
 import '../services/achievement_service.dart';
 import '../services/player_storage.dart';
@@ -16,8 +18,10 @@ import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/dense_rank.dart';
 import '../services/game_logger.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
@@ -33,6 +37,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_atc_setup_screen.dart';
 
 /// Progress arc for the DOSSEDART clock-ring centre: a faint full track with a
 /// green arc covering the fraction of targets the active player has completed.
@@ -170,6 +177,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   void undoForTest() => _undo();
 
   @visibleForTesting
+  bool get gameFullyOverForTest => _gameFullyOver;
+
+  @visibleForTesting
   GameResult buildGameResultForTest() => _buildGameResult();
 
   @visibleForTesting
@@ -193,7 +203,11 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     super.initState();
     players = widget.players;
     final start = _startTarget;
-    currentTargets = List.filled(players.length, start);
+    // growable: _addSavedPlayerMidGame appends a seat. List.filled defaults to
+    // fixed-length, so every mid-game add threw "Cannot add to a fixed-length
+    // list" — the path was unreachable in tests until the 2026-08-10 join-seed
+    // work covered it.
+    currentTargets = List.filled(players.length, start, growable: true);
     for (final p in players) {
       p.score = start;
     }
@@ -282,9 +296,10 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       roundNumber: _roundNumber,
     );
 
-    // Pre-roll video dice and track per-dart events
-    final vc = _meme.frequencyChance;
-    final videoRoll = vc <= 1 || Random().nextInt(vc) == 0;
+    // Video gating lives entirely in VideoService.shouldPlay (video-damping
+    // 2026-07-22). The old meme-frequency pre-roll here meant the meme slider
+    // silently changed how often videos played (audit 2026-08-10, F2).
+    final videoRoll = VideoService.instance.shouldPlay();
 
     if (segment == 0) {
       _consecutiveMisses++;
@@ -301,6 +316,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
     setState(() {
       throwHistory.add(dartThrow);
+      ShotClock.instance.registerDart();
 
       if (isHit) {
         final steps = widget.config.countMultiples
@@ -315,6 +331,23 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
         currentTargets[currentPlayerIndex] = nextTarget;
         players[currentPlayerIndex].score = nextTarget;
+
+        if (steps >= 3 && _memeEnabled) {
+          SoundService.instance.playRandomMaybe(
+              const ['around_the_clock/triple_jump'],
+              chance: _meme.frequencyChance);
+        }
+        // Final target = the last number of the play sequence (20, or bull
+        // when includeBull; reversed sequences end on 1/25) — derived from
+        // the same sequence _atcSequence()/_advanceTarget walk, never
+        // hardcoded, since a game-events moment, no meme gate.
+        final lastTarget = _atcSequence().last;
+        if (target != lastTarget &&
+            nextTarget == lastTarget &&
+            !_isFinished(nextTarget)) {
+          SoundService.instance
+              .playRandom(const ['around_the_clock/final_target']);
+        }
 
         _log.logThrow(
           roundNumber: _roundNumber,
@@ -417,7 +450,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
     // Show video at turn end only (awaited so it doesn't get hidden)
     if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
-      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!,
+          alreadyDecided: true);
     }
     if (isTurnEnd) _pendingVideoEvent = null;
     if (!mounted) return;
@@ -579,7 +613,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       _announcer.announceWinner(players[winnerIndex!].name);
       _prepareRatingPreview().then((_) => _showPostGame());
     } else {
-      _showPostGame();
+      _promptContinueOrEnd();
     }
   }
 
@@ -617,7 +651,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
 
     // Sort by fewest remaining segments (most progress)
     final sorted = _suddenDeathPlayers.toList()
-      ..sort((a, b) => (progress[a] ?? 999).compareTo(progress[b] ?? 999));
+      ..sort(withSeatTiebreak(
+          (a, b) => (progress[a] ?? 999).compareTo(progress[b] ?? 999)));
 
     if (sorted.length > 1 && progress[sorted[0]] == progress[sorted[1]]) {
       // Still tied
@@ -666,7 +701,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       _prepareRatingPreview().then((_) => _showPostGame());
     } else {
       _announcer.announceWinner(players[sorted.first].name);
-      _showPostGame();
+      _promptContinueOrEnd();
     }
   }
 
@@ -877,6 +912,22 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       if (_removedPlayerIndices.contains(currentPlayerIndex)) {
         _advancePlayer();
       }
+
+      // END GAME → ↶ BACK can strand _gameFullyOver == true when the undone
+      // throw wasn't itself a finisher's own throw (e.g. the round's final
+      // miss by a non-finisher) — the block above only clears it when the
+      // undone throw belonged to a finisher. With ≥2 active (non-finished,
+      // non-removed) seats left, the game is NOT actually over, so the next
+      // round-resolve must be free to re-prompt instead of force-finalizing
+      // on the stale flag.
+      final activeSeats = List.generate(players.length, (i) => i)
+          .where((i) =>
+              !finishedPlayers.contains(i) &&
+              !_removedPlayerIndices.contains(i))
+          .length;
+      if (activeSeats >= 2) {
+        _gameFullyOver = false;
+      }
     });
   }
 
@@ -918,24 +969,35 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   /// "↶ Back" never leaves stats behind — the double-record fix from the
   /// 2026-07-06 audit (F2).
   Future<void> _prepareRatingPreview() async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    // Removed seats are excluded, not dropped — same rule the persisted
+    // Finish path uses (spec 2026-08-26), so the preview matches what
+    // Finish will actually record.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     EloService.updateRatings(
+      gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: _buildPlacements(),
+      // Dense-ranked so the preview sees the same field size and ordering
+      // Finish will persist (see [denseRankActive]).
+      placements: denseRankActive(_buildPlacements(), excludedSeats),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -953,24 +1015,30 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
   }
 
   Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) {
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
@@ -980,11 +1048,16 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       if (_winnerIndexExcludingRemoved() == pi) sp.gamesWon++;
     }
 
-    // Build placements from finishedPlayers order, then rank remaining by progress
-    final placements = _buildPlacements();
+    // Build placements from finishedPlayers order, then rank remaining by
+    // progress — and close the gaps a removed seat leaves behind:
+    // _buildPlacements() gives every seat a real rank, so with a removed seat
+    // holding 1st the actual winner would be persisted as 2. Excluded seats
+    // keep their own (ignored) value.
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
     // Compute per-player Clock stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final playerDarts = _statThrows.where((t) => t.playerIndex == pi).toList();
@@ -1010,14 +1083,18 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'aroundTheClock',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     // Capture ratings after update (before recording history)
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -1030,6 +1107,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      excludedSeats: excludedSeats,
     );
 
     StatsRecorder.recordGame(
@@ -1046,6 +1124,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       throwHistory: List<DartThrow>.from(_statThrows),
       earnedFeatsByIndex:
           buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks),
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -1081,19 +1160,49 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       ));
     }
 
-    final remainingActive = List.generate(players.length, (i) => i)
-        .where((i) =>
-            !finishedPlayers.contains(i) && !_removedPlayerIndices.contains(i))
-        .toList();
-    final activeCount = players.length - _removedPlayerIndices.length;
-
     return GameResult(
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'aroundTheClock',
       results: results,
-      canContinue:
-          !_gameFullyOver && remainingActive.length > 1 && activeCount > 2,
       canUndo: !_hadSuddenDeath,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(_statThrows),
+      progressionMode: _midGamePlayerChanges ? null : 'aroundTheClock',
+      // The summary's BEST ROUND counts targets cleared per turn — it needs
+      // the step rule and the sequence to clamp the finishing dart.
+      modeExtras: {
+        'countMultiples': widget.config.countMultiples,
+        'sequence': _atcSequence(),
+      },
     );
+  }
+
+  Future<void> _promptContinueOrEnd() async {
+    final finisherName = players[finishedPlayers.last].name;
+    final remaining = List.generate(players.length, (i) => i)
+        .where((i) =>
+            !finishedPlayers.contains(i) && !_removedPlayerIndices.contains(i))
+        .length;
+    final keepPlaying = await showContinuePrompt(
+      context,
+      finisherName: finisherName,
+      remainingCount: remaining,
+      dossedart: widget.useDossedartDesign,
+    );
+    if (!mounted) return;
+    if (keepPlaying) {
+      _log.logPostGame(action: 'continue', details: 'remaining players: ${players.length - finishedPlayers.length}');
+      setState(() {
+        winnerIndex = null;
+        _advancePlayer();
+      });
+      return;
+    }
+    setState(() => _gameFullyOver = true);
+    await _prepareRatingPreview();
+    if (!mounted) return;
+    _showPostGame();
   }
 
   void _showPostGame() async {
@@ -1111,13 +1220,23 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
-    } else if (result == 'continue') {
-      _log.logPostGame(action: 'continue', details: 'remaining players: ${players.length - finishedPlayers.length}');
-      // Continue with remaining players
-      setState(() {
-        winnerIndex = null;
-        _advancePlayer();
-      });
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again');
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartAtcSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.aroundTheClock,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'newGame');
       // Leaving the game — record stats now. Recording is deferred to this
@@ -1217,6 +1336,8 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
                 onMenu: () => showDossedartCockpitMenu(
                   context,
                   meme: _meme,
+                  activePlayerCount:
+                      players.length - _removedPlayerIndices.length,
                   onTtsChanged: (v) => setState(() => _ttsEnabled = v),
                   onPlayerOverview: _openDossedartPlayerSheet,
                   onExit: _confirmExit,
@@ -1779,7 +1900,7 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1793,37 +1914,32 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       gameOver: _gameFullyOver,
       colorFor: avatarColor,
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
-  /// Compute new player's starting target from average remaining segments
-  /// of active players. Standard rounding (0.5 up).
-  int _computeJoinTarget() {
+  @visibleForTesting
+  List<int> get currentTargetsForTest => currentTargets;
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
+  void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). More segments remaining is worse, and the
+    // last-placed player's target IS the position — no conversion needed,
+    // which is why the old average-remaining walk is gone.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !finishedPlayers.contains(i))
         .toList();
-    if (activeIndices.isEmpty) return _startTarget;
-    final avgRemaining = activeIndices
-            .map((i) => _segmentsRemaining(currentTargets[i]))
-            .reduce((a, b) => a + b) /
-        activeIndices.length;
-    final remainingRounded = avgRemaining.round();
-    // Walk forward from start by (totalSegments - remaining) steps
-    int totalSegments = _segmentsRemaining(_startTarget);
-    int stepsTaken = totalSegments - remainingRounded;
-    if (stepsTaken < 0) stepsTaken = 0;
-    int t = _startTarget;
-    for (int s = 0; s < stepsTaken; s++) {
-      t = _advanceTarget(t);
-    }
-    return t;
-  }
-
-  void _addSavedPlayerMidGame(SavedPlayer sp) {
-    final target = _computeJoinTarget();
+    final worst = worstSeatBy(
+      activeIndices,
+      (a, b) => _segmentsRemaining(currentTargets[a])
+          .compareTo(_segmentsRemaining(currentTargets[b])),
+    );
+    final target = worst == null ? _startTarget : currentTargets[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
@@ -1896,8 +2012,9 @@ class _AroundTheClockGameScreenState extends State<AroundTheClockGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content:
-            const Text('Statistics will not be recorded for this game.'),
+        content: const Text(
+            "They are left out of this game's statistics and rating. "
+            'Everyone else still counts.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

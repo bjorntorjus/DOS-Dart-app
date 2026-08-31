@@ -79,6 +79,23 @@ class _GolfUndoEntry {
 /// on to the next target. Roster changes (addPlayer/removePlayer) follow the
 /// Shanghai skip-set pattern: removed seats stay in every index-stable list
 /// but are excluded from rotation, wins, and placements.
+/// Splits [total] strokes across [holes] holes so the sum is EXACT.
+///
+/// Averaging and rounding would let a seeded joiner land better than the
+/// player they were seeded from — 22 over 5 rounds to 4, totalling 20. The
+/// remainder is spread across the first `total % holes` holes instead.
+///
+/// Every value is a legal 1-6 hole score without clamping: a real total lies
+/// between `holes` and `holes * 6`, so `base` is 1-6, and `base + 1` can only
+/// reach 7 when `base` is 6 — which means an exact `holes * 6` total, where
+/// the remainder is zero and nothing is bumped.
+List<int> distributeStrokes(int total, int holes) {
+  if (holes <= 0) return <int>[];
+  final base = total ~/ holes;
+  final remainder = total % holes;
+  return [for (var h = 0; h < holes; h++) h < remainder ? base + 1 : base];
+}
+
 class GolfEngine {
   GolfEngine({required int playerCount, required this.holes})
       : scorecards = List.generate(
@@ -434,11 +451,17 @@ class GolfEngine {
   /// stats start empty (it hasn't actually thrown those holes). During
   /// sudden death every regulation hole is backfilled as par and the seat
   /// does not join the playoff — it re-enters the field on the next game.
-  void addPlayer() {
+  /// Adds a seat mid-game. [seedTotal] backfills the holes already played so
+  /// the joiner's total matches the last-placed active player (tester feedback
+  /// 2026-08-10); null keeps the original PAR backfill.
+  void addPlayer({int? seedTotal}) {
     final row = List<int?>.filled(holes, null, growable: true);
     final backfillHoles = inSuddenDeath ? holes : currentHole;
+    final backfill = seedTotal == null
+        ? List<int>.filled(backfillHoles, 3)
+        : distributeStrokes(seedTotal, backfillHoles);
     for (var h = 0; h < backfillHoles; h++) {
-      row[h] = 3;
+      row[h] = backfill[h];
     }
     scorecards.add(row);
     aces.add(0);

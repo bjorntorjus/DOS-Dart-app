@@ -15,12 +15,15 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
 import '../theme/dossedart_tokens.dart';
+import '../utils/join_seed.dart';
 import '../utils/earned_feats_builder.dart';
 import '../utils/gotcha_achievement_feats.dart';
+import '../models/setup_prefill.dart';
 import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_crt_frame.dart';
@@ -28,6 +31,7 @@ import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/gotcha/dossedart_gotcha_active_card.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'dossedart/dossedart_gotcha_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// The DOSSEDART Gotcha cockpit: race from 0 to an exact target, landing on
@@ -80,10 +84,16 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   @visibleForTesting
+  List<int> rankPlayersForTest() => _rankPlayers();
+
+  @visibleForTesting
   Future<void> updateStatsForTest() => _updateStats(_rankPlayers());
 
-  /// Whether the roster changed mid-game — read by the stats/rating gating
-  /// a later task adds (same contract as Shanghai's `_midGamePlayerChanges`).
+  /// Whether the roster changed mid-game. Since spec 2026-08-26 this no
+  /// longer gates stats or rating — removed seats are excluded via
+  /// `excludedSeats` and everyone else counts — it only suppresses the
+  /// post-game progression chart (same contract as Shanghai's
+  /// `_midGamePlayerChanges`).
   @visibleForTesting
   bool get midGamePlayerChangesForTest => _midGamePlayerChanges;
 
@@ -100,6 +110,11 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
 
   final MemeService _meme = MemeService();
   final GameAnnouncer _announcer = GameAnnouncer();
+
+  // MemeService._enabled is private (no getter), so the explicit bust sound
+  // hook below — which bypasses MemeService entirely — needs its own copy of
+  // the toggle, loaded the same way as around_the_clock/cricket_game_screen.
+  bool _memeEnabled = false;
 
   bool _midGamePlayerChanges = false;
   final Set<String> _joinedMidGameIds = {};
@@ -126,6 +141,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     );
     BatterySampler.instance.start('Gotcha');
     _meme.init();
+    AppSettings.getMemeEnabled().then((v) => setState(() => _memeEnabled = v));
     AppSettings.getSoundEffectsEnabled()
         .then((v) => SoundService.instance.setEnabled(v));
     _announcer.init();
@@ -169,6 +185,8 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       isBust: result.isBust,
     ));
 
+    ShotClock.instance.registerDart();
+
     _log.logThrow(
       roundNumber: _roundNumber,
       playerIndex: playerIdx,
@@ -185,6 +203,15 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       _onGameEnd();
     } else if (result.isBust) {
       _announcer.announceGameEvent('Bust');
+      // Explicit bust sound — announceGameEvent no longer carries it
+      // (double-play fix, sound spec 2026-08-18). Reuses the same
+      // frequency-derived chance as the miss-meme roll above. Gated on the
+      // meme toggle: assets/sounds/bust/ already ships 15 real files, so an
+      // ungated call here is audible today even with memes off.
+      if (_memeEnabled) {
+        SoundService.instance
+            .playRandomMaybe(const ['bust'], chance: _meme.frequencyChance);
+      }
     } else if (result.killed.isNotEmpty) {
       _announcer.announceKill(_killPhrase(result.killed));
       // Signature-moment video hook — folder has no assets in v1, silent
@@ -268,24 +295,40 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   /// can show them, without persisting anything. Actual recording stays
   /// deferred until the user leaves the result screen.
   Future<void> _prepareRatingPreview(List<int> ranking) async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     EloService.updateRatings(
+      gameMode: 'gotcha',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(ranking),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -331,22 +374,27 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry. Recording a full game here stored placement 0 for removed
-      // players (which sorts above 1st in history) and lost join/leave
-      // counters entirely (audit 2026-07-06, F10). Now matches the other
-      // five modes.
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -370,22 +418,30 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       };
     }
 
-    // Reached only when the roster was unchanged (mid-game changes returned
-    // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
+      gameMode: 'gotcha',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
-    final events = gotchaEventsFromKillLog(engine.killLog);
+    final events = gotchaEventsFromKillLog(engine.killLog)
+      ..removeWhere((pi, _) => excludedSeats.contains(pi));
     final unlocks = AchievementService.instance.awardGameEnd(
       mode: GameMode.gotcha,
       playerIds: players.map((p) => p.savedPlayerId).toList(),
@@ -394,6 +450,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: events,
+      excludedSeats: excludedSeats,
     );
     final earnedFeats =
         buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
@@ -411,6 +468,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -446,7 +504,16 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
-          result: GameResult(gameMode: 'gotcha', results: results),
+          result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
+            gameMode: 'gotcha',
+            results: results,
+            // Chart lines index by seat; a changed roster misaligns them —
+            // suppress instead of mislabeling.
+            throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+            progressionMode: _midGamePlayerChanges ? null : 'gotcha',
+          ),
         ),
       ),
     ).then((action) async {
@@ -466,6 +533,20 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
         });
         return;
       }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartGotchaSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
+        return;
+      }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
       // so Undo doesn't strand the user with stats they didn't confirm),
       // then leave the game-screen entirely.
@@ -479,7 +560,8 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
     final indices = List<int>.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    indices.sort((a, b) => engine.totals[b].compareTo(engine.totals[a]));
+    indices.sort(withSeatTiebreak(
+        (a, b) => engine.totals[b].compareTo(engine.totals[a])));
     if (engine.winnerIndex != null && !engine.isSkipped(engine.winnerIndex!)) {
       indices.remove(engine.winnerIndex!);
       indices.insert(0, engine.winnerIndex!);
@@ -534,34 +616,31 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Gotcha races up to a target, so the
+    // LOWEST total is the worst position.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    int avgScore = 0;
-    if (activeIndices.isNotEmpty) {
-      avgScore = (activeIndices
-                  .map((i) => engine.totals[i])
-                  .reduce((a, b) => a + b) /
-              activeIndices.length)
-          .round();
-    }
+    final worst = worstSeat(engine.totals, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 0 : engine.totals[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgScore,
+        score: seedScore,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer(initialScore: avgScore);
+      engine.addPlayer(initialScore: seedScore);
     });
   }
 
@@ -570,7 +649,7 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text("They are left out of this game's statistics and rating. Everyone else still counts."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -711,6 +790,9 @@ class _GotchaGameScreenState extends State<GotchaGameScreen> {
                 onMenu: () => showDossedartCockpitMenu(
                   context,
                   meme: _meme,
+                  activePlayerCount: Iterable<int>.generate(players.length)
+                      .where((i) => !engine.isSkipped(i))
+                      .length,
                   onPlayerOverview: _openDossedartPlayerSheet,
                   onExit: _confirmExit,
                 ),

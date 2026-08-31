@@ -28,6 +28,7 @@ void main() {
     test('winner +16, loser -16 at default K (zero-sum)', () {
       final a = sp('a'), b = sp('b');
       EloService.updateRatings(
+        gameMode: 'x01',
         playerIds: ['a', 'b'],
         placements: [1, 2],
         savedPlayers: [a, b],
@@ -39,6 +40,7 @@ void main() {
     test('draw moves nothing', () {
       final a = sp('a'), b = sp('b');
       EloService.updateRatings(
+        gameMode: 'x01',
         playerIds: ['a', 'b'],
         placements: [1, 1],
         savedPlayers: [a, b],
@@ -52,6 +54,7 @@ void main() {
     final newbie = sp('n', games: 0); // K=32
     final vet = sp('v', games: 100); // K=16
     EloService.updateRatings(
+        gameMode: 'x01',
       playerIds: ['n', 'v'],
       placements: [1, 2],
       savedPlayers: [newbie, vet],
@@ -65,6 +68,7 @@ void main() {
     // that would land at ~88.8, which the floor clamps to 100.
     final low = sp('low', rating: 105), weak = sp('weak', rating: 100);
     EloService.updateRatings(
+        gameMode: 'x01',
       playerIds: ['low', 'weak'],
       placements: [2, 1],
       savedPlayers: [low, weak],
@@ -77,6 +81,7 @@ void main() {
     test('a game with fewer than two saved players changes nothing', () {
       final a = sp('a');
       EloService.updateRatings(
+        gameMode: 'x01',
         playerIds: ['a', null, null],
         placements: [1, 2, 3],
         savedPlayers: [a],
@@ -92,6 +97,7 @@ void main() {
       // If that product decision changes, flip this expectation.
       final a = sp('a'), b = sp('b');
       EloService.updateRatings(
+        gameMode: 'x01',
         playerIds: ['a', null, 'b', null],
         placements: [1, 2, 3, 4],
         savedPlayers: [a, b],
@@ -104,6 +110,7 @@ void main() {
   test('unknown ids are treated as guests', () {
     final a = sp('a');
     EloService.updateRatings(
+        gameMode: 'x01',
       playerIds: ['a', 'ghost'],
       placements: [1, 2],
       savedPlayers: [a],

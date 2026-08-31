@@ -8,15 +8,18 @@ import '../models/cricket_engine.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
 import '../utils/player_colors.dart';
+import '../utils/join_seed.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
+import '../widgets/continue_prompt_dialog.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/mid_game_player_sheet.dart';
 import '../widgets/dossedart/dossedart_player_sheet.dart';
@@ -36,6 +39,9 @@ import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/dossedart_player_avatar.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_cricket_setup_screen.dart';
 
 class CricketGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -160,11 +166,18 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       turnNumber: engine.dartsInTurn,
       scoreAtStartOfTurn: scoreBefore,
       turnId: _turnIdCounter,
+      // Without this every dart lands in round 0, so the MATCH FLOW chart
+      // groups the whole game into one bucket and collapses to two points —
+      // start and finish (tester feedback 2026-08-10). roundNum is captured
+      // above, before the throw joins throwHistory, because _roundNumber is
+      // derived FROM throwHistory.
+      roundNumber: roundNum,
     );
 
-    // Pre-roll video dice and track per-dart events
-    final vc = _meme.frequencyChance;
-    final videoRoll = vc <= 1 || Random().nextInt(vc) == 0;
+    // Video gating lives entirely in VideoService.shouldPlay (video-damping
+    // 2026-07-22). The old meme-frequency pre-roll here meant the meme slider
+    // silently changed how often videos played (audit 2026-08-10, F2).
+    final videoRoll = VideoService.instance.shouldPlay();
 
     if (segment == 25 && multiplier == 2) _pendingVideoEvent ??= 'bullseye';
     if (segment == 0) {
@@ -181,6 +194,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
 
     setState(() {
       throwHistory.add(dartThrow);
+      ShotClock.instance.registerDart();
 
       // All scoring / overflow / cutthroat / mark bookkeeping happens in the
       // engine. applyHit also pushes its own undo snapshot, runs the winner
@@ -209,6 +223,14 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         lastThrowLabel = '${dartThrow.label} $markStr';
         if (result.closedTarget) {
           _announcer.announceGameEvent('Closed');
+          if (engine.allClosedByPlayer(playerIdxBefore)) {
+            // Big moment: every target closed — full-volume, no chance gate,
+            // no meme toggle (game-events moment, not a meme).
+            SoundService.instance.playRandom(const ['cricket/closed_all']);
+          } else if (_memeEnabled) {
+            SoundService.instance.playRandomMaybe(const ['cricket/closed'],
+                chance: _meme.frequencyChance);
+          }
         } else {
           _announcer.announceThrow(dartThrow.spokenLabel);
         }
@@ -297,7 +319,8 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     // Show video at turn end only
     if (result.turnEnded && _pendingVideoEvent != null && videoRoll) {
       await VideoService.instance
-          .showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+          .showRandomFromFolder(context, _pendingVideoEvent!,
+              alreadyDecided: true);
     }
     if (result.turnEnded) _pendingVideoEvent = null;
     if (!mounted) return;
@@ -309,10 +332,16 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       _announcer.announceWinner(players[winnerIndex!].name);
       _showPostGame();
     } else if (finishedPlayers.contains(currentPlayerIndex) && !_gameFullyOver) {
-      if (players.length <= 2) {
+      final active = List.generate(players.length, (i) => i)
+          .where((i) => !finishedPlayers.contains(i))
+          .length;
+      if (active > 1) {
+        _promptContinueOrEnd();
+      } else {
+        // One (or zero) active left — the game is decided; skip the question.
         _gameFullyOver = true;
+        _showPostGame();
       }
-      _showPostGame();
     }
   }
 
@@ -321,8 +350,31 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     _registerHit(0, 0);
   }
 
+  /// The finisher's seat is still current when this fires (the engine leaves
+  /// the finisher current so the screen can show them).
+  Future<void> _promptContinueOrEnd() async {
+    final finisherName = players[currentPlayerIndex].name;
+    final remaining = List.generate(players.length, (i) => i)
+        .where((i) => !finishedPlayers.contains(i))
+        .length;
+    final keepPlaying = await showContinuePrompt(
+      context,
+      finisherName: finisherName,
+      remainingCount: remaining,
+      dossedart: widget.useDossedartDesign,
+    );
+    if (!mounted) return;
+    if (keepPlaying) {
+      _log.logPostGame(action: 'continue', details: 'game continues with remaining players');
+      setState(_advanceToNextActivePlayer);
+      return;
+    }
+    setState(() => _gameFullyOver = true);
+    _showPostGame(); // does the rating preview itself when fully over
+  }
+
   /// Advances the engine's current seat to the next active (not finished, not
-  /// removed) player. Used only by the post-game "continue" flow — after an
+  /// removed) player. Used only by the continue-prompt flow — after an
   /// intermediate finish the engine leaves the finisher current so the screen
   /// can show them, so resuming play needs an explicit advance. The engine
   /// exposes no public advance, so this walks its public rotation state.
@@ -406,6 +458,9 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   void removePlayerForTest(int playerIndex) => _performRemovePlayer(playerIndex);
 
   @visibleForTesting
+  Future<void> updateStatsForTest() => _updateStats();
+
+  @visibleForTesting
   int get currentPlayerIndexForTest => currentPlayerIndex;
 
   @visibleForTesting
@@ -434,7 +489,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
         .toList();
     if (remaining.isEmpty) return result;
 
-    remaining.sort((a, b) {
+    remaining.sort(withSeatTiebreak((a, b) {
       final scoreComp = widget.config.isCutthroat
           ? scores[a].compareTo(scores[b])
           : scores[b].compareTo(scores[a]);
@@ -445,7 +500,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       final marksA = targets.fold(0, (s, t) => s + (marks[a][t] ?? 0));
       final marksB = targets.fold(0, (s, t) => s + (marks[b][t] ?? 0));
       return marksB.compareTo(marksA);
-    });
+    }));
 
     final base = rankedFinished.length + 1;
     int place = base;
@@ -474,24 +529,40 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   /// 2026-07-06 audit's F3 (the old _statsRecorded flag was never reset by
   /// undo, so a replayed ending was silently dropped).
   Future<void> _prepareRatingPreview() async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     EloService.updateRatings(
+      gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _computeExitPlacements(),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -500,16 +571,26 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
   }
 
   Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) {
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -519,6 +600,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     // players tie on score) is a draw — nobody gets win credit.
     final firstIsShared = placements.where((p) => p == 1).length > 1;
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
@@ -531,6 +613,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     // Compute per-player Cricket stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final playerDarts = throwHistory.where((t) => t.playerIndex == pi).toList();
@@ -566,12 +649,21 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -579,6 +671,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     final achEvents = <int, List<AchievementEvent>>{};
     final targetSet = targets.toSet();
     for (int i = 0; i < players.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       if (cricketMaxMarksInTurn(
               throwHistory, targetSet, i, players.length) >=
           9) {
@@ -593,6 +686,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: achEvents,
+      excludedSeats: excludedSeats,
     );
     StatsRecorder.recordGame(
       gameMode: widget.config.isCutthroat ? 'cricket_cutthroat' : 'cricket',
@@ -608,6 +702,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex:
           buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
+      excludedSeats: excludedSeats,
     );
     await PlayerStorage.savePlayers(savedPlayers);
   }
@@ -633,14 +728,17 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
             : null,
       ));
     }
-    final active = List.generate(players.length, (i) => i)
-        .where((i) => !finishedPlayers.contains(i))
-        .toList();
     return GameResult(
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       gameMode: 'cricket',
       results: results,
-      canContinue:
-          !_gameFullyOver && active.length > 1 && players.length > 2,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+      progressionMode: _midGamePlayerChanges ? null : 'cricket',
+      // The summary's BEST TURN replay needs the real target list — random
+      // cricket plays other numbers than 15-20.
+      modeExtras: {'targets': List<int>.from(targets)},
     );
   }
 
@@ -666,11 +764,23 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
-    } else if (result == 'continue') {
-      _log.logPostGame(action: 'continue', details: 'game continues with remaining players');
-      setState(() {
-        _advanceToNextActivePlayer();
-      });
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again');
+      if (!_gameFullyOver) _gameFullyOver = true;
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartCricketSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.cricket,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'exit', details: 'gameFullyOver=$_gameFullyOver');
       // Leaving the game — record stats now. Recording is deferred to this
@@ -1182,6 +1292,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
     return showDossedartCockpitMenu(
       outerContext,
       meme: _meme,
+      activePlayerCount: players.length - _removedPlayerIndices.length,
       onTtsChanged: (v) => setState(() => _ttsEnabled = v),
       onPlayerOverview: _openDossedartPlayerSheet,
       onExit: _confirmExit,
@@ -1780,7 +1891,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1794,44 +1905,57 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       gameOver: _gameFullyOver,
       colorFor: avatarColor,
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
-    // Active = not in finishedPlayers. Removed players are always also in
-    // finishedPlayers, so this single check excludes them too — matching the
-    // pre-engine averaging exactly.
+    // Seeded from the LAST-PLACED active player, not the table average — a
+    // joiner should not arrive better off than the player who has been
+    // struggling all game (tester feedback 2026-08-10). Active = not in
+    // finishedPlayers; removed players are always also in finishedPlayers, so
+    // this single check excludes them too.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !finishedPlayers.contains(i))
         .toList();
 
-    int avgPoints = 0;
-    final newMarks = {for (final t in targets) t: 0};
+    // The same ordering _computeExitPlacements uses, so "last" means the same
+    // thing here as it does on the result screen — including cutthroat, where
+    // the highest score is the worst.
+    final worst = worstSeatBy(activeIndices, (a, b) {
+      final scoreComp = widget.config.isCutthroat
+          ? scores[a].compareTo(scores[b])
+          : scores[b].compareTo(scores[a]);
+      if (scoreComp != 0) return scoreComp;
+      final closedA = targets.where((t) => engine.isClosed(t, a)).length;
+      final closedB = targets.where((t) => engine.isClosed(t, b)).length;
+      if (closedB != closedA) return closedB.compareTo(closedA);
+      final marksA = targets.fold(0, (s, t) => s + (marks[a][t] ?? 0));
+      final marksB = targets.fold(0, (s, t) => s + (marks[b][t] ?? 0));
+      return marksB.compareTo(marksA);
+    });
 
-    if (activeIndices.isNotEmpty) {
-      avgPoints = (activeIndices.map((i) => scores[i]).reduce((a, b) => a + b) /
-              activeIndices.length)
-          .round();
+    final seedPoints = worst == null ? 0 : scores[worst];
 
-      // Per-target average marks (rounded), capped at 3 (closed)
-      for (final t in targets) {
-        final avgMarks = activeIndices
-                .map((i) => marks[i][t]!.clamp(0, 3))
-                .reduce((a, b) => a + b) /
-            activeIndices.length;
-        newMarks[t] = avgMarks.round().clamp(0, 3);
-      }
-    }
+    // A target closed by EVERY seat is dead. Copying a last-placed player who
+    // never closed it would bring it back to life and let the whole table farm
+    // it again — so the joiner is given 3 marks there regardless. Evaluated
+    // before the add, or the joiner's own empty marks make isClosedByAll false.
+    final newMarks = {
+      for (final t in targets)
+        t: engine.isClosedByAll(t)
+            ? 3
+            : (worst == null ? 0 : (marks[worst][t] ?? 0).clamp(0, 3))
+    };
 
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgPoints,
+        score: seedPoints,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
@@ -1839,7 +1963,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       // averages) and resets its undo history — an undo snapshot taken before
       // the add has the old list lengths and would RangeError (audit
       // 2026-07-06, F8).
-      engine.addPlayer(initialScore: avgPoints, initialMarks: newMarks);
+      engine.addPlayer(initialScore: seedPoints, initialMarks: newMarks);
     });
     _log.logRoster(
         action: 'ADD',
@@ -1897,7 +2021,7 @@ class _CricketGameScreenState extends State<CricketGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text("They are left out of this game's statistics and rating. Everyone else still counts."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

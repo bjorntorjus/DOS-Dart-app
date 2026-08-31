@@ -85,7 +85,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(PostGameScreen), findsOneWidget);
 
-    await tester.tap(find.textContaining('Back'));
+    await tester.tap(find.text('↶ BACK'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
@@ -173,10 +173,10 @@ void main() {
     // (which would misread the skipped seats' placement 0 as "winner").
     expect(dyn.midGamePlayerChangesForTest, isTrue);
 
-    // "Finish Game" pops 'home', which drives _updateStats(placements) --
+    // "✓ FINISH GAME" pops 'home', which drives _updateStats(placements) --
     // confirm it completes via the mid-game-changes short-circuit without
     // throwing (same bar as the Gotcha/Wildcard equivalents).
-    await tester.tap(find.text('Finish Game'));
+    await tester.tap(find.text('✓ FINISH GAME'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(tester.takeException(), isNull);

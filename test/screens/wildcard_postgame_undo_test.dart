@@ -107,7 +107,7 @@ void main() {
     expect(state.engineForTest.winnerIndex, 0);
     expect(state.overlayKindForTest, isNull,
         reason: 'no winner overlay any more — straight to PostGameScreen');
-    expect(find.text('↶ Back'), findsOneWidget,
+    expect(find.text('↶ BACK'), findsOneWidget,
         reason: 'PostGameScreen with Undo button should already be on top');
 
     return state;
@@ -117,7 +117,7 @@ void main() {
       (tester) async {
     final state = await playToGameOver(tester);
 
-    await tester.tap(find.text('↶ Back'));
+    await tester.tap(find.text('↶ BACK'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -133,7 +133,7 @@ void main() {
   testWidgets('no Elo recorded for a finished wildcard game', (tester) async {
     await playToGameOver(tester);
 
-    expect(find.text('↶ Back'), findsOneWidget);
+    expect(find.text('↶ BACK'), findsOneWidget);
 
     // WILDCARD never touches EloService (spec §9) — PlayerResult always
     // carries ratingBefore/After: null, so PostGameScreen's rating-delta
@@ -142,7 +142,7 @@ void main() {
     expect(find.byIcon(Icons.arrow_downward), findsNothing);
     expect(find.textContaining('±0'), findsNothing);
 
-    await tester.tap(find.text('Finish Game'));
+    await tester.tap(find.text('✓ FINISH GAME'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
@@ -150,7 +150,7 @@ void main() {
     // The test harness's MaterialApp has no route below the game screen, so
     // popUntil(isFirst) lands back on it — assert the PostGameScreen is
     // gone rather than that the game screen itself was removed.
-    expect(find.text('Finish Game'), findsNothing,
+    expect(find.text('✓ FINISH GAME'), findsNothing,
         reason: 'PostGameScreen should be popped after Finish Game');
   });
 

@@ -1,4 +1,5 @@
 import 'tts_service.dart';
+import 'shot_clock.dart';
 import 'sound_service.dart';
 import 'video_service.dart';
 import 'app_settings.dart';
@@ -25,8 +26,20 @@ class GameAnnouncer {
   }
 
   void announceNextPlayer(String name) {
+    // The universal turn-change hook: every mode calls this on every turn
+    // change. Placed ABOVE the TTS gate on purpose — the shot clock must run
+    // whether or not this player has announcements switched on.
+    ShotClock.instance.startTurn(name);
     if (_nextPlayer) _tts.speak(name);
   }
+
+  /// The shot clock's nudge: says the name of a player who has not thrown yet.
+  ///
+  /// Separate from [announceNextPlayer] because that method is the hook which
+  /// STARTS the shot clock — reusing it here would restart the turn forever.
+  /// It also ignores the next-player TTS preference: someone who turned the
+  /// shot clock on asked for this specific reminder.
+  void announceShotClock(String name) => _tts.speak(name);
 
   void announceThrow(String label) {
     if (_throwResult) _tts.speak(label);
@@ -72,14 +85,19 @@ class GameAnnouncer {
 
   void announceGameEvent(String event) {
     if (_gameEvents) _tts.speak(event);
-    if (event == 'Bust') _tts.callWhenIdle(() => _sound.play('bust'));
-    if (event == 'Out') _tts.callWhenIdle(() => _sound.play('checkout'));
+  }
+
+  /// X01 checkout: layer the checkout sound once TTS finishes the
+  /// "`<name>` checks out!" line. checkout/ ships no recordings yet —
+  /// playRandom is a silent no-op until files are added + declared.
+  void announceCheckout(String phrase) {
+    if (_gameEvents) _tts.speak(phrase);
+    _tts.callWhenIdle(() => _sound.playRandom(['checkout']));
   }
 
   /// WILDCARD moment text (modifier announcement, joker reveal, instant
-  /// event, CUT!/REWIND) — a plain speak, mirroring [announceGameEvent]'s
-  /// TTS path without its 'Bust'/'Out' sound side effects, which chaos copy
-  /// should never trigger.
+  /// event, CUT!/REWIND) — a plain speak, identical to [announceGameEvent]'s
+  /// TTS path (kept separate so chaos copy has its own semantic name).
   void announceChaos(String text) {
     if (_gameEvents) _tts.speak(text);
   }

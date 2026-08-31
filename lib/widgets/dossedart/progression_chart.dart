@@ -3,18 +3,17 @@ import 'package:flutter/material.dart';
 import '../../models/dart_throw.dart';
 import '../../stats/mode_progression.dart';
 import '../../theme/dossedart_tokens.dart';
+import '../../utils/dossedart_player_accents.dart';
 
 /// Palette cycling for per-player lines/legends across the DOSSEDART match
 /// history views (chart lines + legend here; the round-by-round log's player
 /// column headers in `game_detail_screen.dart` reuse the same list).
-const dossedartPlayerPalette = [
-  DossedartTokens.cyan,
-  DossedartTokens.silver,
-  DossedartTokens.green,
-  DossedartTokens.orange,
-  DossedartTokens.yellow,
-  DossedartTokens.magenta,
-];
+///
+/// Aliases the in-game per-player accent cycle so a player's line is the same
+/// color as their accent everywhere. The chart used to carry its own list
+/// with silver in seat 2 — under the line glow on the dark background it was
+/// indistinguishable from seat 1's cyan (tester feedback 2026-08-21).
+const dossedartPlayerPalette = dossedartAccents;
 
 /// The MATCH FLOW / SCORE PER ROUND line chart — extracted from
 /// `game_detail_screen.dart` (2026-07-09) so both the MATCH DETAILS
@@ -77,6 +76,30 @@ class ProgressionChart extends StatelessWidget {
   }
 }
 
+/// Computes the y-axis [bottom, top] span for the MATCH FLOW chart from a
+/// mode's data. Race-to-zero modes ([ModeProgression.descending]) always
+/// bottom at 0 (unchanged behavior). Climbing modes bottom at 0 too, unless
+/// the series actually dips negative — e.g. Golf's vs-par when a player is
+/// under par — in which case the range extends down to the lowest value so
+/// negative points still plot inside the 200px box instead of below it.
+/// Extracted (rather than left inline in `_LegPainter.paint`) so the y-range
+/// math is directly unit-testable without a widget pump.
+({num bottom, num top}) yRange(
+    ModeProgression progression, List<List<num>> series) {
+  final values = series.expand((s) => s);
+  final dataMax = values.fold<num>(0, (m, v) => v > m ? v : m);
+  final dataMin = values.fold<num>(0, (m, v) => v < m ? v : m);
+  if (progression.descending) {
+    final top = progression.maxValue > 0
+        ? progression.maxValue
+        : (dataMax > 0 ? dataMax : 1);
+    return (bottom: 0, top: top);
+  }
+  final top = dataMax > 0 ? dataMax : 1;
+  final bottom = dataMin < 0 ? dataMin : 0;
+  return (bottom: bottom, top: top);
+}
+
 class _LegPainter extends CustomPainter {
   _LegPainter({required this.progression, required this.series});
   final ModeProgression progression;
@@ -88,21 +111,25 @@ class _LegPainter extends CustomPainter {
     final plotW = size.width - padL - padR;
     final plotH = size.height - padT - padB;
 
-    final dataMax =
-        series.expand((s) => s).fold<num>(0, (m, v) => v > m ? v : m);
-    final top = progression.descending
-        ? (progression.maxValue > 0 ? progression.maxValue : (dataMax > 0 ? dataMax : 1))
-        : (dataMax > 0 ? dataMax : 1);
+    final range = yRange(progression, series);
+    final top = range.top;
+    final bottom = range.bottom;
+    final span = top - bottom == 0 ? 1 : top - bottom;
     final maxLen = series.fold<int>(1, (m, s) => s.length > m ? s.length : m);
 
     double xAt(int i) => padL + (maxLen > 1 ? i * plotW / (maxLen - 1) : 0);
-    double yAt(num v) => padT + (1 - v / top) * plotH;
+    double yAt(num v) => padT + (top - v) / span * plotH;
 
     // Gridlines + y labels (5 steps).
     for (var g = 0; g <= 4; g++) {
-      final value = top * (4 - g) / 4;
+      final value = bottom + span * (4 - g) / 4;
       final y = padT + plotH * g / 4;
-      final atZero = (4 - g) == 0;
+      // Preserves the pre-existing highlight for the common case (range
+      // bottoms at 0, e.g. X01's race-to-0 or a non-negative climb): the
+      // bottom gridline is the "0" baseline. When the range dips negative
+      // (e.g. Golf's vs-par under par) 0 no longer sits on this 5-step grid,
+      // so it gets its own dedicated line below instead.
+      final atZero = bottom == 0 && (4 - g) == 0;
       canvas.drawLine(
         Offset(padL, y),
         Offset(size.width - padR, y),
@@ -115,6 +142,21 @@ class _LegPainter extends CustomPainter {
       _label(canvas, '${value.round()}', Offset(padL - 6, y),
           align: _Align.right,
           color: atZero ? DossedartTokens.green : const Color(0x66FFFFFF));
+    }
+
+    // Dedicated zero-baseline reference when the range crosses zero (bottom
+    // < 0 < top) — cheap orientation cue for e.g. Golf's under/over-par line.
+    if (bottom < 0) {
+      final zeroY = yAt(0);
+      canvas.drawLine(
+        Offset(padL, zeroY),
+        Offset(size.width - padR, zeroY),
+        Paint()
+          ..color = DossedartTokens.green.withValues(alpha: 0.27)
+          ..strokeWidth = 1.5,
+      );
+      _label(canvas, '0', Offset(padL - 6, zeroY),
+          align: _Align.right, color: DossedartTokens.green);
     }
 
     // x labels.

@@ -7,6 +7,8 @@ import 'package:dart_scoring/models/game_config.dart';
 import 'package:dart_scoring/models/player.dart';
 import 'package:dart_scoring/models/wildcard_events.dart';
 import 'package:dart_scoring/screens/wildcard_game_screen.dart';
+import 'package:dart_scoring/services/game_history_service.dart';
+import 'package:dart_scoring/services/sound_service.dart';
 import 'package:dart_scoring/services/tts_service.dart';
 import 'package:dart_scoring/theme/dossedart_tokens.dart';
 import 'package:dart_scoring/widgets/dossedart/wildcard/dossedart_wildcard_dialogs.dart';
@@ -389,12 +391,10 @@ void main() {
     state.onDartHitForTest(jokerNumber, 1); // B's first dart of their turn
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-
+    // Joker + instant event = ONE dialog: the overlay jumps straight to the
+    // event, carrying a JOKER header (2026-08-17 direct-to-event flow).
     expect(state.overlayKindForTest, WcOverlayKind.cut);
+    expect(find.textContaining('JOKER · HIDDEN NUMBER'), findsOneWidget);
 
     // Only C (seat 2, the one seat after thrower B) had not yet thrown this
     // round — A already banked, B is the thrower. Asserting the exact
@@ -461,10 +461,8 @@ void main() {
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.cut);
+    expect(state.overlayKindForTest, WcOverlayKind.cut,
+        reason: 'joker with an instant event jumps straight to the event');
 
     // No seat was left to throw — the specific line must be omitted, not
     // rendered empty or with a bogus name.
@@ -475,8 +473,75 @@ void main() {
   });
 
   testWidgets(
+      'REWIND reveal shows the per-player delta and tags seats yet to throw '
+      'as NOT THROWN', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    Future<void> dismissAnnounceIfShown() async {
+      if (state.overlayKindForTest == WcOverlayKind.announce) {
+        state.dismissOverlayForTest();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    await dismissAnnounceIfShown(); // A's turn-1 modifier, if any
+
+    // B's modifier roll happens when A banks. The screen's RNG is unseeded,
+    // and a randomly rolled restriction (ODDS ONLY, DIVIDE BY THREE, …) can
+    // zero B's joker dart — turning B's delta into a second ±0 and flaking
+    // the exactly-one assert below. Force BULL'S FORTUNE: consumes the roll
+    // deterministically and never touches a single on 1-20.
+    state.engineForTest.debugForceModifier('bullsFortune');
+
+    // A (seat 0) banks a zero-score turn — A HAS thrown, which the reveal
+    // must render as `0 → 0 ±0`, distinct from C's NOT THROWN below.
+    for (var i = 0; i < 3; i++) {
+      state.onDartHitForTest(0, 0);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await dismissAnnounceIfShown(); // B's turn modifier, if any
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'B should be up after A banks their 3 darts');
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty,
+        reason: 'wcJokerCount(5) should assign 1 joker at round 1');
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('rewindEvent');
+    state.onDartHitForTest(jokerNumber, 1); // B's first dart hits the joker
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.rewind,
+        reason: 'joker with an instant event jumps straight to the event');
+
+    // The combined dialog carries the joker reveal as a header.
+    expect(find.text('🃏 JOKER · HIDDEN NUMBER $jokerNumber'), findsOneWidget);
+
+    // A threw and lost nothing: ±0. B (the thrower) loses the in-progress
+    // joker dart. C never threw this round: dimmed NOT THROWN, no delta.
+    expect(find.text('±0'), findsOneWidget);
+    expect(find.text('−$jokerNumber'), findsOneWidget);
+    expect(find.text('NOT THROWN'), findsOneWidget);
+  });
+
+  testWidgets(
       'removing the mid-turn current player advances the turn, and a '
-      'roster-changed stats update completes without recording a game',
+      'roster-changed stats update completes without error',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: WildcardGameScreen(
@@ -507,11 +572,26 @@ void main() {
             'seat');
     expect(state.midGamePlayerChangesForTest, isTrue);
 
-    // Roster changed -> early return: join/leave counters only, no game
-    // recorded. The bar here is simply that this completes without error.
+    // Roster changed -> the removed seat is excluded, not the whole game
+    // skipped (spec 2026-08-26): the entry is still written, seat 0 stays in
+    // `players` so throws line up, but it is flagged `removed` and drops out
+    // of `activePlayers` — the list every ranking/crediting consumer reads.
     await state.updateStatsForTest();
     await tester.pump();
     expect(tester.takeException(), isNull);
+
+    final history = await GameHistoryService.load();
+    expect(history.length, 1, reason: 'one game-history entry is written');
+    final entry = history.first;
+    expect(entry.players.length, 3,
+        reason: 'the removed seat is skipped, not dropped — throwHistory '
+            'indexes by seat');
+    expect(entry.players[0].removed, isTrue,
+        reason: 'seat 0 (A) left mid-game');
+    expect(entry.players[1].removed, isFalse);
+    expect(entry.players[2].removed, isFalse);
+    expect(entry.activePlayers.map((p) => p.name), ['B', 'C'],
+        reason: 'activePlayers excludes the removed seat');
   });
 
   testWidgets(
@@ -794,11 +874,8 @@ void main() {
     state.engineForTest.debugForceEvent('freeze');
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.event);
+    expect(state.overlayKindForTest, WcOverlayKind.event,
+        reason: 'joker with an instant event jumps straight to the event');
 
     // Both players are tied at 0 — _highestAmong resolves the tie to the
     // earliest seat, so the victim is always player A regardless of who
@@ -837,11 +914,8 @@ void main() {
     state.engineForTest.debugForceEvent('rewindEvent');
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.rewind);
+    expect(state.overlayKindForTest, WcOverlayKind.rewind,
+        reason: 'joker with an instant event jumps straight to the event');
 
     // A is seat 0, always the current thrower on the engine's very first
     // turn — it hit the joker, so it's the trigger.
@@ -874,11 +948,8 @@ void main() {
     state.engineForTest.debugForceEvent('scoreSwap');
     state.onDartHitForTest(jokerNumber, 1);
     await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-    state.dismissOverlayForTest();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(state.overlayKindForTest, WcOverlayKind.event);
+    expect(state.overlayKindForTest, WcOverlayKind.event,
+        reason: 'joker with an instant event jumps straight to the event');
 
     expect(find.byType(WcBeforeAfterRows), findsOneWidget);
     expect(find.textContaining('→'), findsWidgets);
@@ -917,11 +988,8 @@ void main() {
       state.engineForTest.debugForceEvent(eventId);
       state.onDartHitForTest(jokerNumber, 1);
       await tester.pump(const Duration(milliseconds: 50));
-      expect(state.overlayKindForTest, WcOverlayKind.joker);
-
-      state.dismissOverlayForTest();
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(state.overlayKindForTest, WcOverlayKind.event);
+      expect(state.overlayKindForTest, WcOverlayKind.event,
+          reason: 'joker with an instant event jumps straight to the event');
 
       state.dismissOverlayForTest();
       await tester.pump(const Duration(milliseconds: 50));
@@ -932,5 +1000,140 @@ void main() {
     }
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a joker-fired REWIND plays wildcard/rewind', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    Future<void> dismissAnnounceIfShown() async {
+      if (state.overlayKindForTest == WcOverlayKind.announce) {
+        state.dismissOverlayForTest();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    await dismissAnnounceIfShown(); // A's turn-1 modifier, if any
+
+    for (var i = 0; i < 3; i++) {
+      state.onDartHitForTest(0, 0);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await dismissAnnounceIfShown(); // B's turn modifier, if any
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'B should be up after A banks their 3 darts');
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty,
+        reason: 'wcJokerCount(5) should assign 1 joker at round 1');
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('rewindEvent');
+    SoundService.instance.playedForTest.clear();
+    state.onDartHitForTest(jokerNumber, 1); // B's first dart hits the joker
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.rewind,
+        reason: 'joker with an instant event jumps straight to the event');
+    expect(SoundService.instance.playedForTest.join(','),
+        contains('wildcard/rewind'));
+  });
+
+  testWidgets('a joker-fired CUT! plays wildcard/cut', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [
+          Player(name: 'A', score: 0),
+          Player(name: 'B', score: 0),
+          Player(name: 'C', score: 0),
+        ],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    Future<void> dismissAnnounceIfShown() async {
+      if (state.overlayKindForTest == WcOverlayKind.announce) {
+        state.dismissOverlayForTest();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    await dismissAnnounceIfShown(); // A's turn-1 modifier, if any
+
+    for (var i = 0; i < 3; i++) {
+      state.onDartHitForTest(0, 0);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await dismissAnnounceIfShown(); // B's turn modifier, if any
+
+    expect(state.engineForTest.currentPlayerIndex, 1,
+        reason: 'B should be up after A banks their 3 darts');
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty,
+        reason: 'wcJokerCount(5) should assign 1 joker at round 1');
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('cutEvent');
+    SoundService.instance.playedForTest.clear();
+    state.onDartHitForTest(jokerNumber, 1); // B's first dart of their turn
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(state.overlayKindForTest, WcOverlayKind.cut,
+        reason: 'joker with an instant event jumps straight to the event');
+    expect(SoundService.instance.playedForTest.join(','),
+        contains('wildcard/cut'));
+  });
+
+  testWidgets('a joker-fired SCORE SWAP plays wildcard/event (not rewind/cut)',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: WildcardGameScreen(
+        players: [Player(name: 'A', score: 0), Player(name: 'B', score: 0)],
+        config: const WildcardConfig(startingChaos: 5),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final dynamic state = tester
+        .state<State<WildcardGameScreen>>(find.byType(WildcardGameScreen));
+
+    if (state.overlayKindForTest == WcOverlayKind.announce) {
+      state.dismissOverlayForTest();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    final Set<int> jokers = state.engineForTest.jokers as Set<int>;
+    expect(jokers, isNotEmpty);
+    final jokerNumber = jokers.first;
+
+    state.engineForTest.debugForceEvent('scoreSwap');
+    SoundService.instance.playedForTest.clear();
+    state.onDartHitForTest(jokerNumber, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(state.overlayKindForTest, WcOverlayKind.event,
+        reason: 'joker with an instant event jumps straight to the event');
+
+    final played = SoundService.instance.playedForTest.join(',');
+    expect(played, contains('wildcard/event'));
+    expect(played, isNot(contains('wildcard/rewind')));
+    expect(played, isNot(contains('wildcard/cut')));
   });
 }

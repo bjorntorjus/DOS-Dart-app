@@ -158,5 +158,58 @@ void main() {
       expect(find.textContaining('100'), findsWidgets);
       expect(find.textContaining('→'), findsWidgets);
     });
+
+    testWidgets('negative delta renders a red −N chip', (tester) async {
+      await tester.pumpWidget(wrap(const WcBeforeAfterRows(rows: [
+        WcRevealRow(
+            name: 'KIRSTI', before: 99, after: 69, accent: DossedartTokens.cyan),
+      ])));
+
+      final chip = find.text('−30');
+      expect(chip, findsOneWidget);
+      expect(tester.widget<Text>(chip).style?.color, DossedartTokens.red);
+    });
+
+    testWidgets('positive delta renders a green +N chip', (tester) async {
+      await tester.pumpWidget(wrap(const WcBeforeAfterRows(rows: [
+        WcRevealRow(
+            name: 'AA', before: 100, after: 123, accent: DossedartTokens.cyan),
+      ])));
+
+      final chip = find.text('+23');
+      expect(chip, findsOneWidget);
+      expect(tester.widget<Text>(chip).style?.color, DossedartTokens.green);
+    });
+
+    testWidgets('zero delta renders a dim ±0 chip', (tester) async {
+      await tester.pumpWidget(wrap(const WcBeforeAfterRows(rows: [
+        WcRevealRow(
+            name: 'AA', before: 88, after: 88, accent: DossedartTokens.cyan),
+      ])));
+
+      expect(find.text('±0'), findsOneWidget);
+    });
+
+    testWidgets(
+        'hasThrown: false dims the row, drops the arrow and tags NOT THROWN',
+        (tester) async {
+      await tester.pumpWidget(wrap(const WcBeforeAfterRows(rows: [
+        WcRevealRow(
+            name: 'SIMEN',
+            before: 166,
+            after: 166,
+            accent: DossedartTokens.magenta,
+            hasThrown: false),
+      ])));
+
+      expect(find.text('NOT THROWN'), findsOneWidget);
+      expect(find.textContaining('→'), findsNothing);
+      expect(find.text('±0'), findsNothing);
+      // The whole row is dimmed so thrown rows stand out.
+      final opacities = tester
+          .widgetList<Opacity>(find.byType(Opacity))
+          .where((o) => o.opacity < 1.0);
+      expect(opacities, isNotEmpty);
+    });
   });
 }

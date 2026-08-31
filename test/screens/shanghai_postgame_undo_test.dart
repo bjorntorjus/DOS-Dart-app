@@ -13,7 +13,7 @@ import 'package:dart_scoring/services/tts_service.dart';
 ///
 /// Verifies that:
 /// 1. After game-end, PostGameScreen is pushed.
-/// 2. Tapping "↶ Back" returns to ShanghaiGameScreen.
+/// 2. Tapping "↶ BACK" returns to ShanghaiGameScreen.
 /// 3. engine.gameOver is restored to false via engine.undo().
 ///
 /// Stats persistence is verified indirectly: the round-trip must not crash,
@@ -106,13 +106,13 @@ void main() {
     await endFuture;
     await tester.pump();
 
-    // PostGameScreen should be on top — the "↶ Back" button is its indicator
+    // PostGameScreen should be on top — the "↶ BACK" button is its indicator
     // (text as declared in lib/screens/post_game_screen.dart line 110).
-    expect(find.text('↶ Back'), findsOneWidget,
+    expect(find.text('↶ BACK'), findsOneWidget,
         reason: 'PostGameScreen with Undo button should be on top');
 
     // Tap Undo and pump to let the setState(() => engine.undo()) + pop execute.
-    await tester.tap(find.text('↶ Back'));
+    await tester.tap(find.text('↶ BACK'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 

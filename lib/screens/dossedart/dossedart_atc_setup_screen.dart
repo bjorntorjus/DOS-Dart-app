@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../around_the_clock_game_screen.dart';
 
 class DossedartAtcSetupScreen extends StatefulWidget {
-  const DossedartAtcSetupScreen({super.key});
+  const DossedartAtcSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final AroundTheClockConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartAtcSetupScreen> createState() =>
@@ -14,15 +19,16 @@ class DossedartAtcSetupScreen extends StatefulWidget {
 }
 
 class _DossedartAtcSetupScreenState extends State<DossedartAtcSetupScreen> {
-  bool _includeBull = false;
-  bool _countMultiples = true;
-  bool _reverse = false;
+  late bool _includeBull = widget.initialConfig?.includeBull ?? false;
+  late bool _countMultiples = widget.initialConfig?.countMultiples ?? true;
+  late bool _reverse = widget.initialConfig?.reverse ?? false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'AROUND THE CLOCK',
       minPlayers: 1,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

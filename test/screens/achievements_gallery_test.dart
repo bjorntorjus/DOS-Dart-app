@@ -35,4 +35,23 @@ void main() {
     expect(find.text('ROOKIE'), findsNothing);
     expect(find.byType(AchievementMedal), findsWidgets);
   });
+
+  testWidgets('unlocked achievements are listed before locked ones',
+      (tester) async {
+    // Pick a badge that is NOT first in the catalog so the sort is observable.
+    final late = achievementCatalog.last;
+    final player = SavedPlayer(id: '1', name: 'Ada', createdAt: DateTime(2020))
+      ..unlockedAchievementIds.add(late.id);
+    await tester.pumpWidget(MaterialApp(
+      home: AchievementsGalleryScreen(player: player),
+    ));
+    await tester.pumpAndSettle();
+
+    final medals = tester
+        .widgetList<AchievementMedal>(find.byType(AchievementMedal))
+        .toList();
+    expect(medals.first.achievement.id, late.id);
+    expect(medals.first.unlocked, isTrue);
+    expect(medals.skip(1).every((m) => !m.unlocked), isTrue);
+  });
 }

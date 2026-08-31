@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../models/game_history.dart';
 import '../../models/saved_player.dart';
+import '../../models/event.dart';
+import '../../services/event_service.dart';
 import '../../services/game_history_service.dart';
 import '../../services/player_storage.dart';
+import '../../services/season_service.dart';
+import '../../models/season.dart';
+import '../../widgets/dossedart/stats/seasons_tab.dart';
 import '../../stats/profile_stats.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../utils/rating_rank.dart';
@@ -56,9 +61,12 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
     ('golf', 'GOLF'),
   ];
 
-  late final TabController _tabs = TabController(length: 4, vsync: this);
+  late final TabController _tabs = TabController(length: 5, vsync: this);
   List<SavedPlayer> _players = [];
   List<GameHistoryEntry> _history = [];
+  List<SeasonRecord> _seasons = [];
+  List<EventRecord> _events = [];
+  EventRecord? _liveEvent;
   bool _loading = true;
 
   /// Players shown in selectors, leaderboards and rank computations.
@@ -90,12 +98,18 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
   Future<void> _load() async {
     final players = await PlayerStorage.loadPlayers();
     final history = await GameHistoryService.load();
+    final seasons = await SeasonService.loadSeasons();
+    final events = await EventService.loadEvents();
+    final liveEvent = await EventService.livePreview();
     players.sort((a, b) => b.rating.compareTo(a.rating));
     if (!mounted) return;
     final visible = players.where((p) => !p.archived).toList();
     setState(() {
       _players = players;
       _history = history;
+      _seasons = seasons;
+      _events = events;
+      _liveEvent = liveEvent;
       _selectedPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
       _heatmapPlayerId ??= visible.isNotEmpty ? visible.first.id : null;
       _loading = false;
@@ -125,7 +139,13 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
               ),
               if (!_loading && _visiblePlayers.isNotEmpty)
                 _ArcadeTabBar(
-                  labels: const ['PROFILE', 'MODES', 'HEATMAP', 'HISTORY'],
+                  labels: const [
+                    'PROFILE',
+                    'MODES',
+                    'HEATMAP',
+                    'HISTORY',
+                    'SEASONS',
+                  ],
                   index: _tabs.index,
                   onTap: (i) => _tabs.animateTo(i),
                 ),
@@ -142,6 +162,10 @@ class _DossedartStatsScreenState extends State<DossedartStatsScreen>
                               _buildModus(),
                               _buildHeatmap(),
                               _buildHistorikk(),
+                              SeasonsTab(
+                                  seasons: _seasons,
+                                  events: _events,
+                                  liveEvent: _liveEvent),
                             ],
                           ),
               ),
@@ -961,7 +985,13 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ranked = [...entry.players]..sort((a, b) => a.placement.compareTo(b.placement));
+    // activePlayers, not players: a seat removed mid-game keeps whatever raw
+    // placement its screen handed it (Family B stores 0), so ranking the full
+    // list would float a player who left to the top and paint them the
+    // winner's yellow. They are excluded from every other consumer too
+    // (spec 2026-08-26).
+    final ranked = [...entry.activePlayers]
+      ..sort((a, b) => a.placement.compareTo(b.placement));
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -979,6 +1009,20 @@ class _HistoryRow extends StatelessWidget {
                     style: const TextStyle(
                         fontFamily: 'PressStart2P', fontSize: 9, color: DossedartTokens.yellow)),
               ),
+              if (entry.eventId != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: DossedartTokens.yellow, width: 1),
+                  ),
+                  child: const Text('EVENT',
+                      style: TextStyle(
+                          fontFamily: 'PressStart2P',
+                          fontSize: 7,
+                          color: DossedartTokens.yellow)),
+                ),
               Text(
                 '${entry.date.day}.${entry.date.month}.${entry.date.year}',
                 style: const TextStyle(color: DossedartTokens.phosphor, fontSize: 11),

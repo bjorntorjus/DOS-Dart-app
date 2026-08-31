@@ -24,12 +24,12 @@ class GameDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ranked = [...entry.players]
+    final ranked = [...entry.activePlayers]
       ..sort((a, b) => a.placement.compareTo(b.placement));
     final hasThrows =
         entry.throwHistory != null && entry.throwHistory!.isNotEmpty;
-    final hasFeats =
-        entry.players.any((p) => (p.earnedFeats ?? const []).isNotEmpty);
+    final hasFeats = entry.activePlayers
+        .any((p) => (p.earnedFeats ?? const []).isNotEmpty);
 
     return Scaffold(
       backgroundColor: DossedartTokens.bg,
@@ -69,7 +69,7 @@ class GameDetailScreen extends StatelessWidget {
                       const _SectionLabel('ACHIEVEMENTS THIS MATCH',
                           color: DossedartTokens.yellow,
                           right: 'what each player achieved'),
-                      _FeatsGrid(players: entry.players),
+                      _FeatsGrid(players: entry.activePlayers),
                     ],
 
                     if (hasThrows) ...[
@@ -616,21 +616,50 @@ class _StatGrid extends StatelessWidget {
                   for (var i = 0; i < players.length; i++)
                     Expanded(
                       flex: 10,
-                      child: Text(players[i].name.toUpperCase(),
-                          textAlign: TextAlign.right,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontFamily: 'PressStart2P',
-                              fontSize: 9,
-                              color: placementColor(players[i].placement),
-                              letterSpacing: 0.5)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(players[i].name.toUpperCase(),
+                              textAlign: TextAlign.right,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontFamily: 'PressStart2P',
+                                  fontSize: 9,
+                                  // A seat that left mid-game holds a raw
+                                  // placement nobody credits (spec
+                                  // 2026-08-26) — colouring it by rank would
+                                  // hand them a medal colour they never won.
+                                  color: players[i].removed
+                                      ? DossedartTokens.disabledFg
+                                      : placementColor(players[i].placement),
+                                  letterSpacing: 0.5)),
+                          if (players[i].removed)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 3),
+                              child: Text('LEFT',
+                                  textAlign: TextAlign.right,
+                                  style: TextStyle(
+                                      fontFamily: 'PressStart2P',
+                                      fontSize: 6,
+                                      color: DossedartTokens.disabledFg,
+                                      letterSpacing: 0.5)),
+                            ),
+                        ],
+                      ),
                     ),
                 ],
               ),
             ),
             for (var r = 0; r < rows.length; r++)
-              _StatGridRow(row: rows[r], odd: r.isOdd, players: players.length),
+              _StatGridRow(
+                  row: rows[r],
+                  odd: r.isOdd,
+                  removedSeats: {
+                    for (var i = 0; i < players.length; i++)
+                      if (players[i].removed) i,
+                  }),
           ],
         ),
       ),
@@ -640,14 +669,22 @@ class _StatGrid extends StatelessWidget {
 
 class _StatGridRow extends StatelessWidget {
   const _StatGridRow(
-      {required this.row, required this.odd, required this.players});
+      {required this.row, required this.odd, required this.removedSeats});
   final _GridRowData row;
   final bool odd;
-  final int players;
+
+  /// Seats whose player left mid-game. Their column stays (the numbers are
+  /// real throws) but it never wins the row's best-value highlight — nothing
+  /// in this game credits them (spec 2026-08-26).
+  final Set<int> removedSeats;
 
   @override
   Widget build(BuildContext context) {
-    final present = row.values.whereType<num>().toList();
+    final present = <num>[
+      for (var i = 0; i < row.values.length; i++)
+        if (!removedSeats.contains(i))
+          if (row.values[i] != null) row.values[i]!,
+    ];
     num? best;
     if (present.length > 1) {
       best = row.higherIsBetter
@@ -682,7 +719,9 @@ class _StatGridRow extends StatelessWidget {
                   style: TextStyle(
                       fontFamily: 'PressStart2P',
                       fontSize: 11,
-                      color: (best != null && row.values[i] == best)
+                      color: (best != null &&
+                              !removedSeats.contains(i) &&
+                              row.values[i] == best)
                           ? DossedartTokens.green
                           : Colors.white)),
             ),

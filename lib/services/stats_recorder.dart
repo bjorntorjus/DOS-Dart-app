@@ -2,8 +2,10 @@ import '../models/saved_player.dart';
 import '../models/game_history.dart';
 import '../models/dart_throw.dart';
 import '../models/earned_feat.dart';
+import '../services/event_service.dart';
 import '../services/game_history_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 
 class StatsRecorder {
   /// Call after EloService.updateRatings to record per-mode stats,
@@ -25,16 +27,29 @@ class StatsRecorder {
     int? durationSeconds,
     List<DartThrow>? throwHistory,
     Map<int, List<EarnedFeat>>? earnedFeatsByIndex,
+    Set<int> excludedSeats = const {},
   }) {
     final now = DateTime.now();
 
-    // Find the best placement (lowest number = winner).
-    // A shared best placement is a draw — nobody gets win credit.
-    final bestPlacement = placements.reduce((a, b) => a < b ? a : b);
+    // Winner is the lowest placement among ACTIVE seats. Removed seats carry
+    // 0 (engine modes) or a stale rank (X01/ATC/…) — either would poison this.
+    final activePlacements = [
+      for (var i = 0; i < placements.length; i++)
+        if (!excludedSeats.contains(i)) placements[i],
+    ];
+    if (activePlacements.isEmpty) {
+      // No active seat to record for (every seat excluded), but the
+      // shot-clock tally is still per game and must not leak into the next
+      // one — same reset the normal path does below, just reached early.
+      ShotClock.instance.resetGame();
+      return;
+    }
+    final bestPlacement = activePlacements.reduce((a, b) => a < b ? a : b);
     final bestIsShared =
-        placements.where((p) => p == bestPlacement).length > 1;
+        activePlacements.where((p) => p == bestPlacement).length > 1;
 
     for (int i = 0; i < playerIds.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       final playerId = playerIds[i];
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
@@ -64,6 +79,12 @@ class StatsRecorder {
         sp.currentWinStreak = 0;
       }
 
+      // Slow turns are collected by ShotClock during the game rather than
+      // passed in by each screen — one merge point instead of ten cockpits
+      // each remembering to forward the same counter.
+      final slow = ShotClock.instance.slowTurnsFor(playerNames[i]);
+      if (slow > 0) mode.inc('slowTurns', slow);
+
       // Merge mode-specific counters
       if (modeCounters != null && modeCounters.containsKey(playerId)) {
         final counters = modeCounters[playerId]!;
@@ -81,6 +102,7 @@ class StatsRecorder {
       // Head-to-head
       for (int j = 0; j < playerIds.length; j++) {
         if (i == j) continue;
+        if (excludedSeats.contains(j)) continue;
         final opponentId = playerIds[j];
         if (opponentId == null) continue;
 
@@ -94,16 +116,75 @@ class StatsRecorder {
         }
       }
 
-      // Rating history snapshot — compute placement among ALL saved players
-      final sortedByRating = List<SavedPlayer>.from(savedPlayers)
-        ..sort((a, b) => b.rating.compareTo(a.rating));
-      final ratingPlacement =
-          sortedByRating.indexWhere((s) => s.id == sp.id) + 1;
-      sp.ratingHistory.add(RatingSnapshot(
-          date: now, rating: sp.rating, placement: ratingPlacement));
+      // Rating history snapshot — compute placement among ALL saved players.
+      // Skipped during an event: the profile graph is the SEASON graph, and
+      // the 1200 reset plus event swings would show up as a dip that never
+      // happened to the season rating.
+      if (EventService.active == null) {
+        final sortedByRating = List<SavedPlayer>.from(savedPlayers)
+          ..sort((a, b) => b.rating.compareTo(a.rating));
+        final ratingPlacement =
+            sortedByRating.indexWhere((s) => s.id == sp.id) + 1;
+        sp.ratingHistory.add(RatingSnapshot(
+            date: now, rating: sp.rating, placement: ratingPlacement));
+      }
     }
 
+    // The shot-clock tally is per game. Clearing it here also restores the
+    // first-turn grace for the next game, so this is the only reset the
+    // feature needs anywhere (the other is the early-return above, for the
+    // all-seats-excluded edge case where this line is never reached).
+    ShotClock.instance.resetGame();
+
     // Record to game history (fire-and-forget)
+    final entry = buildEntry(
+      gameMode: gameMode,
+      playerIds: playerIds,
+      playerNames: playerNames,
+      placements: placements,
+      modeCounters: modeCounters,
+      ratingsBefore: ratingsBefore,
+      ratingsAfter: ratingsAfter,
+      gameConfig: gameConfig,
+      durationSeconds: durationSeconds,
+      throwHistory: throwHistory,
+      earnedFeatsByIndex: earnedFeatsByIndex,
+      excludedSeats: excludedSeats,
+    );
+
+    GameHistoryService.record(entry);
+  }
+
+  /// Assembles a [GameHistoryEntry] from the same inputs [recordGame] uses to
+  /// persist one — extracted so callers can build an EPHEMERAL entry (never
+  /// passed to [GameHistoryService.record]) for immediate display, e.g. the
+  /// post-game "DETAILS" drill-down. Stats recording is deferred until Finish
+  /// (post-game Undo safety), so no persisted entry exists yet while the
+  /// post-game screen is showing — screens call this directly with
+  /// pre-Finish values (typically null/empty ratings, since Elo computes at
+  /// Finish) to get a stand-in entry for [GameDetailScreen].
+  ///
+  /// Note: [GameHistoryEntry.id] and `date` are derived from `DateTime.now()`
+  /// at call time. An ephemeral entry built here and the "real" entry
+  /// [recordGame] persists later will therefore get different ids/dates —
+  /// this is fine and expected, not a bug: the ephemeral copy is discarded
+  /// once the post-game screen closes.
+  static GameHistoryEntry buildEntry({
+    required String gameMode,
+    required List<String?> playerIds,
+    required List<String> playerNames,
+    required List<int> placements,
+    Map<String, Map<String, int>>? modeCounters,
+    Map<String, double>? ratingsBefore,
+    Map<String, double>? ratingsAfter,
+    String? gameConfig,
+    int? durationSeconds,
+    List<DartThrow>? throwHistory,
+    Map<int, List<EarnedFeat>>? earnedFeatsByIndex,
+    Set<int> excludedSeats = const {},
+  }) {
+    final now = DateTime.now();
+
     final historyPlayers = List.generate(playerIds.length, (i) {
       final stats = (modeCounters != null && playerIds[i] != null)
           ? (modeCounters[playerIds[i]] ?? <String, int>{})
@@ -119,10 +200,11 @@ class StatsRecorder {
         ratingBefore: rb,
         ratingAfter: ra,
         earnedFeats: earnedFeatsByIndex?[i],
+        removed: excludedSeats.contains(i),
       );
     });
 
-    final entry = GameHistoryEntry(
+    return GameHistoryEntry(
       id: '${now.millisecondsSinceEpoch}',
       gameMode: gameMode,
       date: now,
@@ -130,12 +212,15 @@ class StatsRecorder {
       gameConfig: gameConfig,
       durationSeconds: durationSeconds,
       throwHistory: throwHistory,
+      eventId: EventService.active?.id,
     );
-
-    GameHistoryService.record(entry);
   }
 
-  /// Records mid-game join/leave counters for a game whose stats are skipped.
+  /// Bumps the `gamesJoinedMidway` / `gamesLeftMidway` career counters for a
+  /// game whose roster changed. Independent of [recordGame], which every mode
+  /// still calls for the same game (spec 2026-08-26: a roster change no longer
+  /// skips stats — the removed seats are excluded via `excludedSeats`). No-ops
+  /// on empty sets, so screens can call it unconditionally.
   static Future<void> recordMidGameChanges({
     required Set<String> joinedIds,
     required Set<String> leftIds,

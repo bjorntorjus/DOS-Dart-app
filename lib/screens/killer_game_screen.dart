@@ -7,12 +7,15 @@ import '../widgets/active_player_highlight.dart';
 import '../widgets/dart_board.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
+import '../utils/join_seed.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/dense_rank.dart';
 import '../services/game_logger.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
@@ -35,6 +38,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_player_avatar.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_killer_setup_screen.dart';
 
 enum KillerPhase { assignment, playing }
 
@@ -116,11 +122,26 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   Map<String, double> _ratingsBefore = {};
   Map<String, double> _ratingsAfter = {};
 
-  bool _midGamePlayerChanges = false;
   final DateTime _gameStart = DateTime.now();
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
   final Set<int> _removedPlayerIndices = {};
+
+  // Note: unlike X01/ATC/Splitscore, Killer has no _midGamePlayerChanges
+  // flag — its GameResult carries no throwHistory/progressionMode chart to
+  // suppress, and (as of the fix-round-1 pass) _prepareRatingPreview/
+  // _updateStats key off excludedSeats directly rather than an all-or-
+  // nothing flag, so nothing here needed the field.
+
+  /// kills/shieldsGained/attacksDealt/attacksReceived/selfHits earned before
+  /// the most recent roster change, keyed by savedPlayerId. A roster change
+  /// clears [_undoStack] (it can't safely span a length change — F8/F9), but
+  /// the events it recorded are real and must still reach a survivor's
+  /// persisted stats (spec 2026-08-26 §2: "everyone else counts exactly as
+  /// in a game with no roster change"). Folded via [_tallyUndoStack] right
+  /// before every [_undoStack] clear, then added to the fresh post-clear
+  /// tally when [_updateStats] builds modeCounters.
+  final Map<String, Map<String, int>> _carriedCounters = {};
 
   /// Kills the current player has racked up in the in-progress turn, and the
   /// best single-turn kill count per player index (for KILLING SPREE).
@@ -157,6 +178,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
   @visibleForTesting
   List<int> get livesForTest => lives;
+
+  @visibleForTesting
+  List<bool> get isEliminatedForTest => isEliminated;
 
   void _commitKillsThisTurn() {
     final cur = _maxKillsInTurn[currentPlayerIndex] ?? 0;
@@ -308,6 +332,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
     setState(() {
       throwHistory.add(dartThrow);
+      ShotClock.instance.registerDart();
 
       final myNumber = assignedNumbers[currentPlayerIndex];
 
@@ -440,6 +465,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       isKiller[pi] = true;
       lastThrowLabel = '${dartThrow.label} - KILLER!';
       _announcer.announceGameEvent('Killer');
+      SoundService.instance.playRandom(const ['killer/became_killer']);
     } else {
       // Already a Killer — hitting own number costs lives
       final damage = widget.config.multiplyHits && multiplier >= 2
@@ -447,7 +473,14 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           : 1;
       final dmgLabel = damage > 1 ? '$damage lives' : 'a life';
       lastThrowLabel = '${dartThrow.label} - Self hit! Lost $dmgLabel!';
-      _applyDamage(pi, damage);
+      SoundService.instance.playRandom(const ['killer/self_hit']);
+      // self_hit already announced this dart's damage sound — suppress the
+      // generic killer/hit _applyDamage would otherwise also queue so a
+      // single dart doesn't stack two sounds (replacement, not addition,
+      // matching the one_up last_life/life_lost pattern). If this self-hit
+      // is also the killing blow, the death sound still plays: elimination
+      // is a distinct, bigger moment than the routine hit sound it replaces.
+      _applyDamage(pi, damage, suppressHitSound: true);
       _checkForWinner();
     }
   }
@@ -484,7 +517,8 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   }
 
   /// Apply damage to a player, consuming shields first
-  void _applyDamage(int playerIndex, int damage) {
+  void _applyDamage(int playerIndex, int damage,
+      {bool suppressHitSound = false}) {
     var remaining = damage;
 
     // Consume shields first
@@ -507,7 +541,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
           if (_offensiveEnabled) 'killer/offensive/death',
         ]);
       }
-    } else if (remaining > 0) {
+    } else if (remaining > 0 && !suppressHitSound) {
       if (_memeEnabled) {
         SoundService.instance.playRandom([
           'killer/hit',
@@ -635,11 +669,16 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   /// "↶ Back" never leaves stats behind — the double-record fix from the
   /// 2026-07-06 audit (F2).
   Future<void> _prepareRatingPreview() async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    // Removed seats are excluded, not dropped — same rule the persisted
+    // Finish path uses (spec 2026-08-26), so the preview matches what
+    // Finish will actually record.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp =
           savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
@@ -647,13 +686,19 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: _buildPlacements(),
+      // Dense-ranked so the preview sees the same field size and ordering
+      // Finish will persist (see [denseRankActive]).
+      placements: denseRankActive(_buildPlacements(), excludedSeats),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp =
           savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
@@ -662,63 +707,20 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     // savedPlayers are discarded unpersisted — this was display-only.
   }
 
-  /// Rank: winner 1st, others by remaining lives (more = better).
-  List<int> _buildPlacements() {
-    final placements = List.filled(players.length, 0);
-    placements[winnerIndex!] = 1;
-    final nonWinners = List.generate(players.length, (i) => i)
-      ..removeWhere((i) => i == winnerIndex);
-    nonWinners.sort((a, b) => lives[b].compareTo(lives[a]));
-    int rank = 2;
-    for (int i = 0; i < nonWinners.length; i++) {
-      if (i > 0 && lives[nonWinners[i]] < lives[nonWinners[i - 1]]) {
-        rank = i + 2;
-      }
-      placements[nonWinners[i]] = rank;
-    }
-    return placements;
-  }
-
-  Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) {
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
-    final savedPlayers = await PlayerStorage.loadPlayers();
-
-    // Capture ratings before update
-    _ratingsBefore = {};
-    for (final p in players) {
-      if (p.savedPlayerId == null) continue;
-      final sp =
-          savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
-      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
-    }
-
-    for (int pi = 0; pi < players.length; pi++) {
-      final playerId = players[pi].savedPlayerId;
-      if (playerId == null) continue;
-      final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
-      if (idx < 0) continue;
-      final sp = savedPlayers[idx];
-      sp.gamesPlayed++;
-      if (pi == winnerIndex) sp.gamesWon++;
-    }
-
-    // Rank: winner 1st, others by remaining lives (more = better)
-    final placements = _buildPlacements();
-    // Compute per-player killer stats from undo stack and game state
-    final modeCounters = <String, Map<String, int>>{};
+  /// Tallies kills/shieldsGained/attacksDealt/attacksReceived/selfHits from
+  /// the CURRENT [_undoStack] for every seat with a savedPlayerId, using the
+  /// live lives/shields/isEliminated as the "after" state for the most
+  /// recent entry. Deliberately excludes 'livesLeft' — that's a point-in-time
+  /// snapshot, not a delta, so it must never be carried/summed across a
+  /// roster change the way the other counters are.
+  Map<String, Map<String, int>> _tallyUndoStack() {
+    final tally = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
 
       int kills = 0, shieldsGained = 0, attacksDealt = 0, attacksReceived = 0, selfHits = 0;
 
-      // Walk through undo stack to reconstruct events
       for (int u = 0; u < _undoStack.length; u++) {
         final undo = _undoStack[u];
         // Get the state after this action by looking at next undo (or final state)
@@ -764,25 +766,126 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         }
       }
 
-      modeCounters[playerId] = {
+      tally[playerId] = {
         'kills': kills,
         'shieldsGained': shieldsGained,
         'attacksDealt': attacksDealt,
         'attacksReceived': attacksReceived,
         'selfHits': selfHits,
+      };
+    }
+    return tally;
+  }
+
+  /// Folds the current [_undoStack]'s tally into [_carriedCounters]. Must be
+  /// called immediately before every `_undoStack.clear()` a roster change
+  /// triggers, so the events it recorded aren't lost from a survivor's
+  /// eventual persisted stats (F8/F9 — a roster change resets undo history,
+  /// but not the game's actual events).
+  void _foldUndoStackIntoCarry() {
+    final tally = _tallyUndoStack();
+    tally.forEach((playerId, counts) {
+      final acc = _carriedCounters.putIfAbsent(playerId, () => {});
+      counts.forEach((key, value) => acc[key] = (acc[key] ?? 0) + value);
+    });
+  }
+
+  /// Rank: winner 1st, others by remaining lives (more = better).
+  List<int> _buildPlacements() {
+    final placements = List.filled(players.length, 0);
+    placements[winnerIndex!] = 1;
+    final nonWinners = List.generate(players.length, (i) => i)
+      ..removeWhere((i) => i == winnerIndex);
+    nonWinners.sort(withSeatTiebreak((a, b) => lives[b].compareTo(lives[a])));
+    int rank = 2;
+    for (int i = 0; i < nonWinners.length; i++) {
+      if (i > 0 && lives[nonWinners[i]] < lives[nonWinners[i - 1]]) {
+        rank = i + 2;
+      }
+      placements[nonWinners[i]] = rank;
+    }
+    return placements;
+  }
+
+  Future<void> _updateStats() async {
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
+    final savedPlayers = await PlayerStorage.loadPlayers();
+
+    // Capture ratings before update
+    _ratingsBefore = {};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
+      if (p.savedPlayerId == null) continue;
+      final sp =
+          savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
+      if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
+    }
+
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+      final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
+      if (idx < 0) continue;
+      final sp = savedPlayers[idx];
+      sp.gamesPlayed++;
+      if (pi == winnerIndex) sp.gamesWon++;
+    }
+
+    // Rank: winner 1st, others by remaining lives (more = better)
+    // Close the gaps a removed seat leaves behind: _buildPlacements()
+    // ranks every seat (winner 1st, others by lives), so a removed seat
+    // sitting between two survivors would leave a hole in the persisted
+    // ranks. Excluded seats keep their own (ignored) value.
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
+    // Compute per-player killer stats from the undo stack since the last
+    // roster change, PLUS whatever a roster change carried forward (a
+    // roster change clears _undoStack — F8/F9 — but the events it recorded
+    // must still count; see _carriedCounters).
+    final freshTally = _tallyUndoStack();
+    final modeCounters = <String, Map<String, int>>{};
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final playerId = players[pi].savedPlayerId;
+      if (playerId == null) continue;
+
+      final fresh = freshTally[playerId] ?? const {};
+      final carried = _carriedCounters[playerId] ?? const {};
+      int combined(String key) => (fresh[key] ?? 0) + (carried[key] ?? 0);
+
+      modeCounters[playerId] = {
+        'kills': combined('kills'),
+        'shieldsGained': combined('shieldsGained'),
+        'attacksDealt': combined('attacksDealt'),
+        'attacksReceived': combined('attacksReceived'),
+        'selfHits': combined('selfHits'),
         'livesLeft': lives[pi],
       };
     }
 
     EloService.updateRatings(
+      gameMode: 'killer',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     // Capture ratings after update (before recording history)
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp =
           savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
@@ -791,6 +894,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
 
     final achEvents = <int, List<AchievementEvent>>{};
     for (int i = 0; i < players.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       if ((_maxKillsInTurn[i] ?? 0) >= 3) {
         achEvents[i] = [AchievementEvent.multiKill];
       }
@@ -803,6 +907,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: achEvents,
+      excludedSeats: excludedSeats,
     );
 
     StatsRecorder.recordGame(
@@ -819,6 +924,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex:
           buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -849,6 +955,22 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo', details: 'user chose undo from post-game');
       _undo();
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again', details: 'rematch');
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartKillerSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.killer,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'exit', details: 'user exited to home');
       // Leaving the game — record stats now. Recording is deferred to this
@@ -880,7 +1002,11 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
             : null,
       ));
     }
-    return GameResult(gameMode: 'killer', results: results);
+    return GameResult(
+      gameMode: 'killer',
+      results: results,
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+    );
   }
 
   @override
@@ -959,6 +1085,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       onMenu: () => showDossedartCockpitMenu(
         context,
         meme: _meme,
+        activePlayerCount: players.length - _removedPlayerIndices.length,
         onTtsChanged: (v) => setState(() => _ttsEnabled = v),
         onPlayerOverview: _openDossedartPlayerSheet,
         onExit: _confirmExit,
@@ -1788,7 +1915,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1802,7 +1929,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       gameOver: winnerIndex != null,
       colorFor: avatarColor,
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player. '
+          'A new player starts level with whoever is in last place. '
           'New players get a random unused number and must qualify by hitting their double.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
@@ -1814,12 +1941,12 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         .where((i) => !isEliminated[i] && !_removedPlayerIndices.contains(i))
         .toList();
 
-    // Avg lives, standard rounding
-    final avgLives = activeIndices.isEmpty
-        ? widget.config.lives
-        : (activeIndices.map((i) => lives[i]).reduce((a, b) => a + b) /
-                activeIndices.length)
-            .round();
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Fewest lives is the worst position, and
+    // there is deliberately NO floor: joining a game where everyone is nearly
+    // out is a bad deal, and the rule says so honestly.
+    final worst = worstSeat(lives, activeIndices, higherIsBetter: true);
+    final seedLives = worst == null ? widget.config.lives : lives[worst];
 
     // Random unused number
     final usedNumbers = assignedNumbers.toSet();
@@ -1833,7 +1960,10 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
     final number = available[Random().nextInt(available.length)];
 
     setState(() {
-      _midGamePlayerChanges = true;
+      // Fold BEFORE the roster grows: _undoStack entries hold list snapshots
+      // sized to the OLD players.length — tallying after the add would index
+      // past the end of those snapshots.
+      _foldUndoStackIntoCarry();
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
@@ -1842,7 +1972,7 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
         avatarPath: sp.avatarPath,
       ));
       assignedNumbers.add(number);
-      lives.add(avgLives);
+      lives.add(seedLives);
       isKiller.add(false); // must qualify
       isEliminated.add(false);
       shields.add(0);
@@ -1865,11 +1995,17 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
   void _performRemovePlayer(int playerIndex) {
     final removed = players[playerIndex];
     setState(() {
-      _midGamePlayerChanges = true;
       _removedPlayerIndices.add(playerIndex);
       if (removed.savedPlayerId != null) {
         _leftMidGameIds.add(removed.savedPlayerId!);
       }
+      // Fold this stack's events forward BEFORE marking the removed seat
+      // eliminated: _tallyUndoStack() reads the CURRENT isEliminated array
+      // as the "after" state for the stack's last entry, so flipping
+      // isEliminated[playerIndex] first would make the fold misread this
+      // administrative removal as "the last dart's thrower just eliminated
+      // this player" and mint a phantom kill for them.
+      _foldUndoStackIntoCarry();
       // Mark as eliminated so rotation skips
       isEliminated[playerIndex] = true;
       // Undo snapshots predate the removal and would resurrect the player
@@ -1907,7 +2043,9 @@ class _KillerGameScreenState extends State<KillerGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text(
+            "They are left out of this game's statistics and rating. "
+            'Everyone else still counts.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

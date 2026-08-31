@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../app_version.dart';
+import '../utils/join_seed.dart';
 import '../models/dart_throw.dart';
 import '../models/game_config.dart';
 import '../models/game_mode.dart';
@@ -9,6 +10,7 @@ import '../models/game_result.dart';
 import '../models/one_up_engine.dart';
 import '../models/player.dart';
 import '../models/saved_player.dart';
+import '../models/setup_prefill.dart';
 import '../services/achievement_service.dart';
 import '../services/app_settings.dart';
 import '../services/elo_service.dart';
@@ -16,6 +18,7 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/video_service.dart';
@@ -30,6 +33,7 @@ import '../widgets/dossedart/dossedart_player_sheet.dart';
 import '../widgets/dossedart/dossedart_top_bar.dart';
 import '../widgets/dossedart/one_up/dossedart_one_up_active_card.dart';
 import '../widgets/dossedart/x01/dossedart_x01_dartboard.dart';
+import 'dossedart/dossedart_one_up_setup_screen.dart';
 import 'post_game_screen.dart';
 
 /// Overlay moments the 1UP cockpit shows, one at a time, full-frame on top
@@ -67,12 +71,11 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   int _turnIdCounter = 0;
   final DateTime _gameStart = DateTime.now();
 
-  // Roster-change gating for the deferred-stats protocol (Shanghai/Gotcha
-  // parity). Flipped true by _addSavedPlayerMidGame/_removePlayerMidGame,
-  // which also populate the joined/left id sets below; _updateStats reads
-  // this to divert to StatsRecorder.recordMidGameChanges instead of the
-  // full recordGame path.
-  bool _midGamePlayerChanges = false;
+  // Join/leave id sets populated by _addSavedPlayerMidGame/
+  // _removePlayerMidGame, fed to StatsRecorder.recordMidGameChanges
+  // alongside the full recordGame path (spec 2026-08-26: a roster change no
+  // longer diverts away from stats/Elo/history — removed seats are excluded
+  // via engine.skippedIndices instead).
   final Set<String> _joinedMidGameIds = {};
   final Set<String> _leftMidGameIds = {};
 
@@ -100,6 +103,9 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
 
   @visibleForTesting
   void onUndoForTest() => _onUndo();
+
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
 
   // ─── Moment overlays (Task 8; auto-dismiss added task 14) ─────
   _OuOverlay? _overlay;
@@ -214,6 +220,8 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       roundNumber: roundNo,
     ));
 
+    ShotClock.instance.registerDart();
+
     _log.logThrow(
       roundNumber: roundNo,
       playerIndex: playerIdx,
@@ -224,15 +232,25 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       dartNumber: dartNo,
     );
 
+    // Full meme path (audit 2026-08-10, F3): 1UP used to reach tryMissSound
+    // only, so 6-7 and the end-of-turn stings never fired here. Its
+    // DartThrow.points are real turn points, so onTurnEnd's round-score
+    // branch is safe — unlike Golf's placeholder points.
+    final memeTriggered = _meme.onThrow(throwHistory.last);
+
     // Every dart gets a plain throw-result callout (Gotcha parity, task 14
     // QA fix — the mode was near-silent). Unlike Gotcha there's no per-dart
     // competing announcement (bust/kill) to gate this on; the turn-level
     // moments below (life lost/eliminated/etc.) are separate TTS lines that
-    // queue after this one.
-    _announcer.announceThrow(segment == 0 ? 'miss' : '${segment * multiplier}');
+    // queue after this one. Skipped when a meme sting already covers it.
+    if (!memeTriggered) {
+      _announcer.announceThrow(
+          segment == 0 ? 'miss' : '${segment * multiplier}');
+    }
 
     // A completed turn opens a fresh turnId group for the next thrower.
     if (result.turnEnded && !engine.gameOver) _turnIdCounter++;
+    if (result.turnEnded) _meme.onTurnEnd();
 
     setState(() {});
     if (result.turnEnded) _handleTurnEnd(result);
@@ -271,12 +289,15 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       momentAnnounced = true;
     } else if (result.lostLife) {
       _announcer.announceOneUp('$name loses a life!',
-          soundFolders: const ['one_up/life_lost']);
+          soundFolders: engine.livesLeft[seat] == 1
+              ? const ['one_up/last_life']
+              : const ['one_up/life_lost']);
       _showOverlay(_OuOverlay.lifeLost,
           momentName: name, momentTarget: _failedTarget);
       momentAnnounced = true;
     } else if (engine.targetSetBy == seat && (engine.target ?? 0) >= 100) {
-      _announcer.announceOneUp('${engine.target}! Beat that!');
+      _announcer.announceOneUp('${engine.target}! Beat that!',
+          soundFolders: const ['one_up/target_set']);
       momentAnnounced = true;
     }
     // SURVIVOR: the round winner is announced via TTS only — the overlay
@@ -406,24 +427,40 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   /// can show them, without persisting anything. Actual recording stays
   /// deferred until the user leaves the result screen.
   Future<void> _prepareRatingPreview(List<int> ranking) async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     EloService.updateRatings(
+      gameMode: 'oneUp',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _placementsFromRanking(ranking),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -432,19 +469,27 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry, matching the other five modes (audit 2026-07-06, F10).
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(engine.skippedIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -472,16 +517,23 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       };
     }
 
-    // Reached only when the roster was unchanged (mid-game changes returned
-    // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
+      gameMode: 'oneUp',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -494,6 +546,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       placements: placements,
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
+      excludedSeats: excludedSeats,
     );
     final earnedFeats =
         buildEarnedFeats(eventsByIndex: const {}, unlocksByIndex: unlocks);
@@ -513,6 +566,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -548,7 +602,12 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
-          result: GameResult(gameMode: 'oneUp', results: results),
+          result: GameResult(
+            gameMode: 'oneUp',
+            results: results,
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
+          ),
         ),
       ),
     ).then((action) async {
@@ -570,6 +629,20 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
         });
         return;
       }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => DossedartOneUpSetupScreen(
+            initialConfig: widget.config,
+            initialPlayerIds: ids,
+          ),
+        ));
+        return;
+      }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
       // so Undo doesn't strand the user with stats they didn't confirm),
       // then leave the game-screen entirely.
@@ -586,7 +659,8 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
     final w = engine.winnerIndex;
     if (w != null && !engine.isSkipped(w)) ranked.add(w);
     final alive = engine.aliveIndices.where((i) => i != w).toList()
-      ..sort((a, b) => engine.livesLeft[b].compareTo(engine.livesLeft[a]));
+      ..sort(withSeatTiebreak(
+          (a, b) => engine.livesLeft[b].compareTo(engine.livesLeft[a])));
     ranked.addAll(alive);
     for (final i in engine.eliminationOrder.reversed) {
       if (!engine.isSkipped(i) && !ranked.contains(i)) ranked.add(i);
@@ -648,15 +722,21 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
       gameOver: engine.gameOver,
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
-      addInfoText: 'Joins next round with ${widget.config.lives} lives',
+      addInfoText: "Joins next round with the last-placed player's lives",
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not a full set of lives
+    // (tester feedback 2026-08-10). Fewest lives is the worst position, and
+    // there is deliberately no floor.
+    final worst =
+        worstSeat(engine.livesLeft, engine.aliveIndices, higherIsBetter: true);
+    final seedLives =
+        worst == null ? widget.config.lives : engine.livesLeft[worst];
     setState(() {
-      _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
@@ -664,7 +744,7 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer();
+      engine.addPlayer(initialLives: seedLives);
     });
     _log.logRoster(
       action: 'ADD',
@@ -678,7 +758,6 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
   void _removePlayerMidGame(int playerIndex) {
     final removedId = players[playerIndex].savedPlayerId;
     setState(() {
-      _midGamePlayerChanges = true;
       if (removedId != null) _leftMidGameIds.add(removedId);
       engine.removePlayer(playerIndex);
       if (engine.gameOver) _onGameEnd();
@@ -801,6 +880,9 @@ class _OneUpGameScreenState extends State<OneUpGameScreen> {
                     onMenu: () => showDossedartCockpitMenu(
                       context,
                       meme: _meme,
+                      activePlayerCount: Iterable<int>.generate(players.length)
+                          .where((i) => !engine.isSkipped(i))
+                          .length,
                       onPlayerOverview: _openDossedartPlayerSheet,
                       onExit: _confirmExit,
                     ),

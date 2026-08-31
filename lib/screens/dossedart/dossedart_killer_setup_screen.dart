@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../killer_game_screen.dart';
 
 class DossedartKillerSetupScreen extends StatefulWidget {
-  const DossedartKillerSetupScreen({super.key});
+  const DossedartKillerSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final KillerConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartKillerSetupScreen> createState() =>
@@ -15,17 +20,18 @@ class DossedartKillerSetupScreen extends StatefulWidget {
 
 class _DossedartKillerSetupScreenState
     extends State<DossedartKillerSetupScreen> {
-  int _lives = 3;
-  bool _throwToPick = true;
-  bool _multiplyHits = false;
-  bool _shields = false;
-  bool _suicide = false;
+  late int _lives = widget.initialConfig?.lives ?? 3;
+  late bool _throwToPick = widget.initialConfig?.throwToPick ?? true;
+  late bool _multiplyHits = widget.initialConfig?.multiplyHits ?? false;
+  late bool _shields = widget.initialConfig?.shields ?? false;
+  late bool _suicide = widget.initialConfig?.suicide ?? false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'KILLER',
       minPlayers: 2,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

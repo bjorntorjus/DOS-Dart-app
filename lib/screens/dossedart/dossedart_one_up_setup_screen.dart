@@ -7,7 +7,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../one_up_game_screen.dart';
 
 class DossedartOneUpSetupScreen extends StatefulWidget {
-  const DossedartOneUpSetupScreen({super.key});
+  const DossedartOneUpSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final OneUpConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartOneUpSetupScreen> createState() =>
@@ -15,15 +20,17 @@ class DossedartOneUpSetupScreen extends StatefulWidget {
 }
 
 class _DossedartOneUpSetupScreenState extends State<DossedartOneUpSetupScreen> {
-  int _lives = 3;
-  OneUpVariant _variant = OneUpVariant.beatTheLast;
-  bool _shuffleEachRound = false;
+  late int _lives = widget.initialConfig?.lives ?? 3;
+  late OneUpVariant _variant =
+      widget.initialConfig?.variant ?? OneUpVariant.beatTheLast;
+  late bool _shuffleEachRound = widget.initialConfig?.randomOrder ?? false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: '1UP',
       minPlayers: 2,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

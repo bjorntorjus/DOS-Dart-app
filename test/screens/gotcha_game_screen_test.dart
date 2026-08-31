@@ -157,7 +157,7 @@ void main() {
   });
 
   testWidgets(
-      'mid-game add joins at the average of active totals and clears the '
+      'mid-game add joins level with the last-placed player and clears the '
       'undo stack', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: GotchaGameScreen(
@@ -195,8 +195,9 @@ void main() {
     await tester.pump();
 
     expect(state.engineForTest.totals.length, 3);
-    expect(state.engineForTest.totals[2], 50,
-        reason: 'joins at the average of active totals: (60 + 40) / 2');
+    expect(state.engineForTest.totals[2], 40,
+        reason: 'joins level with the LAST-PLACED active player (B on 40), '
+            'not the average of 60 and 40 — join-fairness 2026-08-10');
     expect(state.engineForTest.canUndo, isFalse,
         reason: 'roster changes clear the undo stack');
   });

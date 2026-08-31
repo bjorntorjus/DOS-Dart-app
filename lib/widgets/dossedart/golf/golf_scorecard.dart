@@ -283,8 +283,14 @@ const double _kHoleColWidth = 30;
 const double _kTotalColWidth = 54;
 const double _kVsParColWidth = 46;
 
-class _GolfScoreSheet extends StatelessWidget {
-  const _GolfScoreSheet({
+/// The 18-hole scorecard grid itself: header row, constant PAR row,
+/// per-player rows (TOTAL + vs-par columns) and the term-colour legend.
+/// Self-contained (owns its own horizontal scroll for the row table) so it
+/// can be dropped into any container — the full-screen modal sheet
+/// ([_GolfScoreSheet], via [showGolfScoreSheet]) or a post-game section.
+class GolfScoreGrid extends StatelessWidget {
+  const GolfScoreGrid({
+    super.key,
     required this.names,
     required this.scorecards,
     required this.totals,
@@ -302,59 +308,34 @@ class _GolfScoreSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 8, bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(18, 0, 18, 6),
-            child: Text(
-              'SCORECARD',
-              style: TextStyle(
-                fontFamily: 'PressStart2P',
-                fontSize: 14,
-                color: DossedartTokens.cyan,
-                letterSpacing: 2,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(
+                    color: DossedartTokens.magenta.withValues(alpha: 0.34)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _headerRow(),
+                  _parRow(),
+                  for (var seat = 0; seat < names.length; seat++)
+                    _playerRow(seat),
+                ],
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                      color: DossedartTokens.magenta.withValues(alpha: 0.34)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _headerRow(),
-                    _parRow(),
-                    for (var seat = 0; seat < names.length; seat++)
-                      _playerRow(seat),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          _legend(),
-          const SizedBox(height: 12),
-        ],
-      ),
+        ),
+        const SizedBox(height: 14),
+        _legend(),
+      ],
     );
   }
 
@@ -482,6 +463,66 @@ class _GolfScoreSheet extends StatelessWidget {
       children: [
         for (var stroke = 1; stroke <= 6; stroke++) _LegendSwatch(stroke: stroke),
       ],
+    );
+  }
+}
+
+/// Thin modal-sheet chrome around [GolfScoreGrid]: drag handle + "SCORECARD"
+/// title, the grid itself, and bottom safe-area padding.
+class _GolfScoreSheet extends StatelessWidget {
+  const _GolfScoreSheet({
+    required this.names,
+    required this.scorecards,
+    required this.totals,
+    required this.vsPars,
+    required this.skippedSeats,
+  });
+
+  final List<String> names;
+  final List<List<int?>> scorecards;
+  final List<int> totals;
+  final List<int> vsPars;
+  final Set<int> skippedSeats;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(top: 8, bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(18, 0, 18, 6),
+            child: Text(
+              'SCORECARD',
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 14,
+                color: DossedartTokens.cyan,
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+          GolfScoreGrid(
+            names: names,
+            scorecards: scorecards,
+            totals: totals,
+            vsPars: vsPars,
+            skippedSeats: skippedSeats,
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
     );
   }
 }

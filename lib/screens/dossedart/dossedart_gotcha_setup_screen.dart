@@ -6,7 +6,12 @@ import '../../widgets/dossedart/setup/rules_primitives.dart';
 import '../gotcha_game_screen.dart';
 
 class DossedartGotchaSetupScreen extends StatefulWidget {
-  const DossedartGotchaSetupScreen({super.key});
+  const DossedartGotchaSetupScreen(
+      {super.key, this.initialConfig, this.initialPlayerIds});
+
+  /// Rematch prefill: the previous game's rules and roster (PLAY AGAIN).
+  final GotchaConfig? initialConfig;
+  final List<String>? initialPlayerIds;
 
   @override
   State<DossedartGotchaSetupScreen> createState() =>
@@ -15,14 +20,15 @@ class DossedartGotchaSetupScreen extends StatefulWidget {
 
 class _DossedartGotchaSetupScreenState
     extends State<DossedartGotchaSetupScreen> {
-  int _targetScore = 301;
-  bool _hardcore = false;
+  late int _targetScore = widget.initialConfig?.targetScore ?? 301;
+  late bool _hardcore = widget.initialConfig?.hardcore ?? false;
 
   @override
   Widget build(BuildContext context) {
     return DossedartSetupScaffold(
       title: 'GOTCHA',
       minPlayers: 2,
+      initialSelectedIds: widget.initialPlayerIds,
       rulesSection: _buildRules,
       summaryBuilder: _summary,
       onStart: _startGame,

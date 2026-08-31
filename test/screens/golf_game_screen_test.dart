@@ -119,7 +119,7 @@ void main() {
     final dyn = state as dynamic;
     dyn.onDartHitForTest(0); // miss
     await tester.pump();
-    expect(find.textContaining('LYING 1'), findsOneWidget);
+    expect(find.text('1 MISS'), findsOneWidget);
     dyn.onDartHitForTest(2); // double after 1 miss = 3 = PAR
     await tester.pump();
     final engine = dyn.engineForTest as GolfEngine;
@@ -166,13 +166,13 @@ void main() {
       expect(hero.plateMode, GolfPlateMode.result);
       expect(hero.dartLabels.length, 2); // A's actual darts: 1 miss + 1 hit
       expect(hero.nextPlayerName, 'B');
-      // The term chip inside the hero (not the input console's own PAR
-      // sub-label, nor the constant "PAR 3" text).
+      // The term chip inside the hero (not the constant "PAR 3" text — the
+      // input console no longer carries term sub-labels at all).
       expect(
         find.descendant(of: find.byType(GolfHero), matching: find.text('PAR')),
         findsOneWidget,
       );
-      expect(find.text('LYING 3'), findsOneWidget);
+      expect(find.textContaining('LYING'), findsNothing);
       // The leaderboard is a live readout (not frozen to the hero's window):
       // A's just-earned result and B's now-active status are both visible.
       var board = tester.widget<GolfLeaderboard>(find.byType(GolfLeaderboard));
@@ -457,13 +457,14 @@ void main() {
   );
 
   testWidgets(
-    'TTS diet: hole result speaks only the term, no per-dart callouts, '
-    'and the next-player handoff carries the target hole',
+    'TTS diet: misses are spoken, hits carry no dart callout, the hole '
+    'result speaks the term, and the next-player handoff carries the hole',
     (tester) async {
-      // Spec rev 2026-07-20b (golf-design.md §6): announceThrow is dropped
-      // entirely (no dart-value callouts, misses are TTS-silent), the
-      // hole-result phrase is the golf term alone, and announceNextPlayer
-      // carries the upcoming target so players know what to throw at next.
+      // Spec rev 2026-07-20b (golf-design.md §6): no dart-value callouts on
+      // hits, the hole-result phrase is the golf term alone, and
+      // announceNextPlayer carries the upcoming target so players know what
+      // to throw at next. Revised 2026-08-07 (tablet QA): a miss now speaks
+      // 'miss' — silence read as a dropped tap at the oche.
       // tts_enabled defaults to false in AppSettings, so it must be set
       // explicitly for TTS output to reach the mocked channel.
       useTabletViewport(tester);
@@ -486,20 +487,26 @@ void main() {
               as dynamic;
 
       spoken.clear();
-      dyn.onDartHitForTest(0); // A misses — must stay TTS-silent
+      dyn.onDartHitForTest(0); // A misses — must be audibly confirmed
       await tester.pump(const Duration(milliseconds: 50));
       expect(
         spoken,
-        isEmpty,
-        reason: 'a miss must not produce any TTS utterance',
+        contains('miss'),
+        reason: 'a registered miss must be spoken, not silent',
       );
 
+      spoken.clear();
       dyn.onDartHitForTest(1); // A single after 1 miss -> 4 strokes = BOGEY
       await tester.pump(const Duration(milliseconds: 100));
       expect(
         spoken,
         contains('bogey!'),
         reason: 'hole result must speak the bare term, no Ace!/points',
+      );
+      expect(
+        spoken.any((s) => s == 'S7' || s == 'single 7' || s == '7'),
+        isFalse,
+        reason: 'a hit still gets no dart-value callout',
       );
       expect(
         spoken.any((s) => s == 'B, hole 1'),

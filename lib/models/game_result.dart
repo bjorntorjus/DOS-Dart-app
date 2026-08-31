@@ -1,4 +1,5 @@
 import 'dart_throw.dart';
+import 'game_history.dart';
 
 class PlayerResult {
   final String name;
@@ -26,8 +27,6 @@ class PlayerResult {
 class GameResult {
   final String gameMode;
   final List<PlayerResult> results;
-  final bool canContinue;
-  final bool statsSkipped;
 
   /// Whether the result screen may offer "↶ Back" (undo). False after a
   /// sudden-death tiebreak: rewinding a live tiebreak is meaningless and used
@@ -43,13 +42,35 @@ class GameResult {
   /// from [throwHistory]. Null unless [throwHistory] is also provided.
   final String? progressionMode;
 
+  /// Mode-specific extra data for optional embedded widgets on
+  /// [PostGameScreen] (e.g. Golf's `GolfScoreGrid` scorecard section). Null
+  /// for every mode that doesn't opt in — zero impact elsewhere.
+  final Map<String, dynamic>? modeExtras;
+
+  /// EPHEMERAL [GameHistoryEntry] for the "▶ DETAILS" drill-down
+  /// (`GameDetailScreen`) on [PostGameScreen]. Stats recording is deferred
+  /// until Finish (post-game Undo safety), so no persisted history entry
+  /// exists yet while the post-game screen shows — this is built in memory
+  /// by `StatsRecorder.buildEntry` from the same locals the mode's
+  /// `_updateStats`/`recordGame` call assembles, just with pre-Finish rating
+  /// values (usually null — Elo computes at Finish). Null for every mode
+  /// that doesn't opt in.
+  final GameHistoryEntry? detailEntry;
+
+  /// Wall-clock seconds from the screen's `_gameStart` to game end, for the
+  /// post-game MATCH SUMMARY's DURATION cell. It cannot be derived from
+  /// [throwHistory] — and DURATION is the one summary value that still
+  /// renders when throwHistory is suppressed by a roster change.
+  final int? durationSeconds;
+
   GameResult({
     required this.gameMode,
     required this.results,
-    this.canContinue = false,
-    this.statsSkipped = false,
     this.canUndo = true,
     this.throwHistory,
     this.progressionMode,
+    this.modeExtras,
+    this.detailEntry,
+    this.durationSeconds,
   });
 }

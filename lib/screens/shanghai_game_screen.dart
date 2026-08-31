@@ -13,10 +13,12 @@ import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
 import '../services/player_storage.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
+import '../utils/join_seed.dart';
 import '../utils/player_colors.dart';
 import '../widgets/active_player_highlight.dart';
 import '../widgets/mid_game_player_sheet.dart';
@@ -34,6 +36,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_shanghai_setup_screen.dart';
 
 class ShanghaiGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -82,6 +87,12 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
 
   @visibleForTesting
   List<HitType> get turnHitsForTest => _turnHits;
+
+  @visibleForTesting
+  List<DartThrow> get throwHistoryForTest => throwHistory;
+
+  @visibleForTesting
+  int bestRoundForTest(int playerIndex) => _bestRoundFor(playerIndex);
 
   final GameLogger _log = GameLogger.instance;
 
@@ -187,6 +198,12 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final target = engine.currentTarget;
     final scoreBefore = engine.totalScores[playerIdx];
     final wasTurnStart = dart == 0;
+    // engine.currentRound must be read BEFORE recordThrow, or the last active
+    // player's 3rd dart gets tagged with the round the engine just advanced
+    // to (recordThrow bumps currentRound on that dart), colliding with the
+    // next round's bucket. Same capture-before-apply pattern as
+    // golf_game_screen.dart's roundNo / one_up_game_screen.dart.
+    final roundNo = engine.currentRound;
 
     setState(() {
       engine.recordThrow(type);
@@ -198,7 +215,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final logLabel = _logLabelForHit(type, target);
 
     _log.logThrow(
-      roundNumber: engine.currentRound,
+      roundNumber: roundNo,
       playerIndex: playerIdx,
       label: logLabel,
       points: pointsDelta,
@@ -216,9 +233,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       turnNumber: dart,
       scoreAtStartOfTurn: wasTurnStart ? scoreBefore : (scoreBefore - 0),
       turnId: _turnIdCounter,
-      roundNumber: engine.currentRound,
+      roundNumber: roundNo,
     );
     throwHistory.add(dartThrow);
+    ShotClock.instance.registerDart();
 
     // Play core sound (miss/nice) before meme so meme can mark and skip TTS.
     if (type == HitType.miss) {
@@ -235,9 +253,21 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     // Did the engine just advance to the next turn?
     final turnEnded = engine.dartNumber == 0;
     if (turnEnded) {
+      // All 3 darts landed on the round's number (any mix of S/D/T) but not
+      // an instant Shanghai — that path never reaches here, since the
+      // engine leaves dartNumber at 3 (not reset to 0) on an instant win, so
+      // turnEnded is false for it (see ShanghaiGameEngine.recordThrow).
+      final holeCleared =
+          _turnHits.length == 3 && _turnHits.every((h) => h != HitType.miss);
       _meme.onTurnEnd();
       _turnHits.clear();
       _turnIdCounter++;
+      if (holeCleared && _memeEnabled) {
+        SoundService.instance.playRandomMaybe(
+          const ['shanghai/hole_cleared'],
+          chance: _meme.frequencyChance,
+        );
+      }
       if (!engine.gameOver) {
         _log.logTurnStart(
           roundNumber: engine.currentRound,
@@ -280,24 +310,41 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   /// can show them, without persisting anything. Actual recording stays
   /// deferred until the user leaves the result screen.
   Future<void> _prepareRatingPreview(List<int> ranking) async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    final excludedSeats = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     EloService.updateRatings(
+      gameMode: 'shanghai',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: _buildPlacements(ranking),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -323,6 +370,10 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   Future<void> _fireWinnerCelebration(String winnerName) async {
     _announcer.stop();
     if (engine.isInstantShanghai) {
+      // Plain playRandom (not meme-gated) so this instant-win sting always
+      // layers under the winner flow below, same as the other modes' win
+      // stings.
+      SoundService.instance.playRandom(const ['shanghai/shanghai']);
       _announcer.announceGameEvent('Instant Shanghai!');
     }
     if (!mounted) return;
@@ -332,22 +383,28 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
   }
 
   Future<void> _updateStats(List<int> ranking) async {
-    if (_midGamePlayerChanges) {
-      // Roster changed — record only join/leave counters and write NO game
-      // entry. Recording a full game here stored placement 0 for removed
-      // players (which sorts above 1st in history) and lost join/leave
-      // counters entirely (audit 2026-07-06, F10). Now matches the other
-      // five modes.
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and the
+    // block below holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(
+        {for (int i = 0; i < players.length; i++) if (engine.isSkipped(i)) i});
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
@@ -367,23 +424,32 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       };
     }
 
-    // Reached only when the roster was unchanged (mid-game changes returned
-    // early above), so Elo / achievements / persistence always apply here.
     EloService.updateRatings(
+      gameMode: 'shanghai',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      // A seat that left mid-game is excluded from this game's
+      // rating (spec 2026-08-26), so it must not get a snapshot
+      // either — otherwise buildEntry hands its history row a
+      // ratingBefore == ratingAfter and it renders a +0 delta
+      // where Family A leaves the column blank.
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
     final events = <int, List<AchievementEvent>>{};
-    if (engine.isInstantShanghai && engine.winnerIndex != null) {
+    if (engine.isInstantShanghai &&
+        engine.winnerIndex != null &&
+        !excludedSeats.contains(engine.winnerIndex!)) {
       events[engine.winnerIndex!] = [AchievementEvent.instantShanghai];
     }
     final unlocks = AchievementService.instance.awardGameEnd(
@@ -394,6 +460,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: events,
+      excludedSeats: excludedSeats,
     );
     final earnedFeats =
         buildEarnedFeats(eventsByIndex: events, unlocksByIndex: unlocks);
@@ -411,9 +478,23 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex: earnedFeats,
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
+  }
+
+  /// Max single-round points sum for [playerIndex], grouped by [DartThrow.
+  /// roundNumber] from this screen's [throwHistory]. 0 when the player has no
+  /// throws recorded (never happens post-game, but keeps this total).
+  int _bestRoundFor(int playerIndex) {
+    final byRound = <int, int>{};
+    for (final t in throwHistory) {
+      if (t.playerIndex != playerIndex) continue;
+      byRound[t.roundNumber] = (byRound[t.roundNumber] ?? 0) + t.points;
+    }
+    if (byRound.isEmpty) return 0;
+    return byRound.values.reduce((a, b) => a > b ? a : b);
   }
 
   void _showPostGame(List<int> ranking) {
@@ -424,7 +505,14 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
         name: players[i].name,
         avatarPath: players[i].avatarPath,
         placement: rank + 1,
-        stats: {'score': engine.totalScores[i]},
+        stats: {
+          'score': engine.totalScores[i],
+          'bestRound': _bestRoundFor(i),
+          // Only meaningful for the winner — an early sudden-death win via
+          // an instant Shanghai (all three of a hole in one turn).
+          if (engine.isInstantShanghai && i == engine.winnerIndex)
+            'shanghai': true,
+        },
         ratingBefore: players[i].savedPlayerId != null
             ? _ratingsBefore[players[i].savedPlayerId!]
             : null,
@@ -438,7 +526,16 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => PostGameScreen(
-          result: GameResult(gameMode: 'shanghai', results: results),
+          result: GameResult(
+            durationSeconds:
+                DateTime.now().difference(_gameStart).inSeconds,
+            gameMode: 'shanghai',
+            results: results,
+            // Chart lines index by seat; a changed roster misaligns them —
+            // suppress instead of mislabeling.
+            throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+            progressionMode: _midGamePlayerChanges ? null : 'shanghai',
+          ),
         ),
       ),
     ).then((action) async {
@@ -460,6 +557,23 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
         });
         return;
       }
+      if (action == 'again') {
+        await _updateStats(ranking);
+        if (!mounted) return;
+        final ids = rematchPlayerIds(players, engine.isSkipped);
+        final nav = Navigator.of(context);
+        nav.popUntil((route) => route.isFirst);
+        nav.push(MaterialPageRoute(
+          builder: (_) => widget.useDossedartDesign
+              ? DossedartShanghaiSetupScreen(
+                  initialConfig: widget.config, initialPlayerIds: ids)
+              : PlayerSetupScreen(
+                  gameMode: GameMode.shanghai,
+                  prefill: SetupPrefill(playerIds: ids, config: widget.config),
+                ) as Widget,
+        ));
+        return;
+      }
       // 'home' or back-button: persist stats now (deferred from _onGameEnd
       // so Undo doesn't strand the user with stats they didn't confirm),
       // then leave the game-screen entirely.
@@ -473,7 +587,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final indices = List<int>.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    indices.sort((a, b) => engine.totalScores[b].compareTo(engine.totalScores[a]));
+    indices.sort(withSeatTiebreak(
+        (a, b) => engine.totalScores[b].compareTo(engine.totalScores[a])));
     if (engine.isInstantShanghai && engine.winnerIndex != null) {
       indices.remove(engine.winnerIndex!);
       indices.insert(0, engine.winnerIndex!);
@@ -583,7 +698,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -597,34 +712,35 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       gameOver: engine.gameOver,
       colorFor: avatarColor,
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Shanghai accumulates, so the LOWEST total
+    // is the worst position.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !engine.isSkipped(i))
         .toList();
-    int avgScore = 0;
-    if (activeIndices.isNotEmpty) {
-      avgScore = (activeIndices
-                  .map((i) => engine.totalScores[i])
-                  .reduce((a, b) => a + b) /
-              activeIndices.length)
-          .round();
-    }
+    final worst =
+        worstSeat(engine.totalScores, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 0 : engine.totalScores[worst];
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgScore,
+        score: seedScore,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      engine.addPlayer(initialScore: avgScore);
+      engine.addPlayer(initialScore: seedScore);
     });
     _log.logRoster(
       action: 'ADD',
@@ -640,7 +756,7 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text("They are left out of this game's statistics and rating. Everyone else still counts."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -780,6 +896,9 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
                 onMenu: () => showDossedartCockpitMenu(
                   context,
                   meme: _meme,
+                  activePlayerCount: Iterable<int>.generate(players.length)
+                      .where((i) => !engine.isSkipped(i))
+                      .length,
                   onTtsChanged: (v) => setState(() => _ttsEnabled = v),
                   onPlayerOverview: _openDossedartPlayerSheet,
                   onExit: _confirmExit,
@@ -796,7 +915,8 @@ class _ShanghaiGameScreenState extends State<ShanghaiGameScreen> {
     final order = [
       for (int i = 0; i < players.length; i++)
         if (!engine.isSkipped(i)) i
-    ]..sort((a, b) => engine.totalScores[b].compareTo(engine.totalScores[a]));
+    ]..sort(withSeatTiebreak(
+        (a, b) => engine.totalScores[b].compareTo(engine.totalScores[a])));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(

@@ -1,8 +1,22 @@
 import 'dart:math';
 import '../models/saved_player.dart';
 import 'app_settings.dart';
+import 'event_service.dart';
+
+/// Modes that never touch the rating. WILDCARD is chaos by design; Killer is
+/// decided in large part by who gets attacked rather than who throws best.
+///
+/// This lists EXCLUSIONS on purpose: a mode added later is rated unless
+/// somebody says otherwise, which fails in the direction that keeps the number
+/// complete rather than silently narrow.
+///
+/// Note the keys are history keys, not modes. Cricket writes two of them —
+/// `cricket` and `cricket_cutthroat` — and both are rated.
+const Set<String> kUnratedModes = {'wildcard', 'killer'};
 
 class EloService {
+  static bool isRatedMode(String gameMode) => !kUnratedModes.contains(gameMode);
+
   static double _kNew = AppSettings.defaultEloKNew;
   static double _kExp = AppSettings.defaultEloKExp;
   static int _threshold = AppSettings.defaultEloThreshold;
@@ -44,17 +58,27 @@ class EloService {
   ///
   /// Rating changes are scaled by 1/(N-1) where N is the number of players,
   /// so that a game with many players doesn't cause disproportionate swings.
+  /// [gameMode] is the history key the game will be recorded under. Gating
+  /// here rather than at the ten call sites means a mode cannot become rated
+  /// by a caller forgetting to check.
   static void updateRatings({
+    required String gameMode,
     required List<String?> playerIds,
     required List<int> placements,
     required List<SavedPlayer> savedPlayers,
+    Set<int> excludedSeats = const {},
   }) {
-    final n = playerIds.length;
+    if (!isRatedMode(gameMode)) return;
+    // Field size counts ACTIVE seats only; a removed player is not part of
+    // the game being rated and must not shrink everyone's delta.
+    final n = playerIds.length -
+        excludedSeats.where((s) => s < playerIds.length).length;
     if (n < 2) return;
 
     // Build a map of playerIndex -> SavedPlayer for players that have IDs
     final indexToSaved = <int, SavedPlayer>{};
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < playerIds.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       final pid = playerIds[i];
       if (pid == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == pid);
@@ -93,8 +117,12 @@ class EloService {
         }
         final actualJ = 1.0 - actualI;
 
-        final kI = kFactor(indexToSaved[i]!.gamesPlayed);
-        final kJ = kFactor(indexToSaved[j]!.gamesPlayed);
+        // During an event everyone moves at the new-player K: the table was
+        // just reset to 1200 and an evening holds a handful of games, so the
+        // experienced K would barely separate anyone. The formula is untouched.
+        final eventK = EventService.active != null;
+        final kI = eventK ? _kNew : kFactor(indexToSaved[i]!.gamesPlayed);
+        final kJ = eventK ? _kNew : kFactor(indexToSaved[j]!.gamesPlayed);
 
         deltas[i] = deltas[i]! + kI * (actualI - expectedI) * scale;
         deltas[j] = deltas[j]! + kJ * (actualJ - expectedJ) * scale;

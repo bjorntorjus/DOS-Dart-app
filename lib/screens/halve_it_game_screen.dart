@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../models/player.dart';
@@ -7,13 +6,16 @@ import '../models/game_config.dart';
 import '../models/halve_it_round.dart';
 import '../services/player_storage.dart';
 import '../services/elo_service.dart';
+import '../utils/join_seed.dart';
 import '../utils/player_colors.dart';
 import '../services/app_settings.dart';
 import '../services/game_announcer.dart';
 import '../services/game_logger.dart';
 import '../services/meme_service.dart';
+import '../services/shot_clock.dart';
 import '../services/sound_service.dart';
 import '../services/stats_recorder.dart';
+import '../stats/dense_rank.dart';
 import '../services/tts_service.dart';
 import '../services/video_service.dart';
 import '../models/game_result.dart';
@@ -34,6 +36,9 @@ import '../widgets/dossedart/dossedart_action_bar.dart';
 import '../widgets/dossedart/dossedart_active_strip.dart';
 import '../widgets/dossedart/dossedart_cockpit_menu.dart';
 import '../utils/dossedart_player_accents.dart';
+import '../models/setup_prefill.dart';
+import 'player_setup_screen.dart';
+import 'dossedart/dossedart_splitscore_setup_screen.dart';
 
 class HalveItGameScreen extends StatefulWidget {
   final List<Player> players;
@@ -195,6 +200,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       turnNumber: dartsInTurn,
       scoreAtStartOfTurn: totalScores[currentPlayerIndex],
       turnId: _turnIdCounter,
+      // Without this every dart lands in round 0, so the MATCH FLOW chart
+      // groups the whole game into one bucket and collapses to two points —
+      // start and finish (tester feedback 2026-08-10).
+      roundNumber: currentRoundIndex,
     );
 
     // Save undo data
@@ -214,9 +223,10 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       clutchSaversBefore: Set.of(_clutchSavers),
     ));
 
-    // Pre-roll video dice before setState
-    final vc = _meme.frequencyChance;
-    final videoRoll = vc <= 1 || Random().nextInt(vc) == 0;
+    // Video gating lives entirely in VideoService.shouldPlay (video-damping
+    // 2026-07-22). The old meme-frequency pre-roll here meant the meme slider
+    // silently changed how often videos played (audit 2026-08-10, F2).
+    final videoRoll = VideoService.instance.shouldPlay();
 
     // Track consecutive misses for pending video event
     if (segment == 0) {
@@ -234,10 +244,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
     setState(() {
       throwHistory.add(dartThrow);
+      ShotClock.instance.registerDart();
 
       if (hit) {
         if (dartsInTurn == 2 && !turnHasHit) {
           _clutchSavers.add(currentPlayerIndex); // first two missed, 3rd saves it
+          SoundService.instance.playRandom(const ['halve_it/clutch']);
         }
         turnPoints += points;
         turnHasHit = true;
@@ -279,7 +291,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
 
     // Video triggers at turn end only
     if (isTurnEnd && _pendingVideoEvent != null && videoRoll) {
-      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!, chance: 1);
+      await VideoService.instance.showRandomFromFolder(context, _pendingVideoEvent!,
+          alreadyDecided: true);
       _pendingVideoEvent = null;
       if (!mounted) return;
     }
@@ -307,6 +320,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       totalScores[pi] = halved;
       roundScores[currentRoundIndex][pi] = -lost; // negative = halved
       _announcer.announceGameEvent('Halved');
+      SoundService.instance.playRandom(const ['halve_it/halved']);
       _log.log('HALVED P$pi(${players[pi].name}) score $before → $halved');
     }
     players[pi].score = totalScores[pi];
@@ -416,13 +430,12 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   }
 
   Future<void> _updateStats() async {
-    if (_midGamePlayerChanges) {
-      await StatsRecorder.recordMidGameChanges(
-        joinedIds: _joinedMidGameIds,
-        leftIds: _leftMidGameIds,
-      );
-      return;
-    }
+    // Join/leave counters first: they load+save players themselves, and
+    // _updateStatsInternal holds its own copy of the list.
+    await StatsRecorder.recordMidGameChanges(
+      joinedIds: _joinedMidGameIds,
+      leftIds: _leftMidGameIds,
+    );
     await _updateStatsInternal();
   }
 
@@ -432,24 +445,37 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// "↶ Back" never leaves stats behind — the double-record fix from the
   /// 2026-07-06 audit (F2).
   Future<void> _prepareRatingPreview() async {
-    if (_midGamePlayerChanges) return; // no rating changes to preview
+    // Removed seats are excluded, not dropped — same rule the persisted
+    // Finish path uses (spec 2026-08-26), so the preview matches what
+    // Finish will actually record. (_buildPlacements() itself still ranks
+    // every seat — untouched, per spec — so its output is dense-ranked over
+    // the active seats before it is handed on, exactly as Finish does.)
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
     EloService.updateRatings(
+      gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
-      placements: _buildPlacements(),
+      // Dense-ranked so the preview sees the same field size and ordering
+      // Finish will persist (see [denseRankActive]).
+      placements: denseRankActive(_buildPlacements(), excludedSeats),
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
@@ -460,7 +486,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   /// Rank by total score (higher = better placement); equal scores tie.
   List<int> _buildPlacements() {
     final sorted = List.generate(players.length, (i) => i)
-      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+      ..sort(withSeatTiebreak(
+          (a, b) => totalScores[b].compareTo(totalScores[a])));
     final placements = List.filled(players.length, 0);
     for (int rank = 0; rank < sorted.length; rank++) {
       if (rank > 0 && totalScores[sorted[rank]] == totalScores[sorted[rank - 1]]) {
@@ -473,30 +500,41 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   }
 
   Future<void> _updateStatsInternal() async {
+    // Removed players are excluded from this game's stats, Elo, H2H and
+    // badges; joiners count fully (spec 2026-08-26). Seats are skipped, not
+    // dropped — throws and feats index by seat.
+    final excludedSeats = Set<int>.unmodifiable(_removedPlayerIndices);
     final savedPlayers = await PlayerStorage.loadPlayers();
 
     // Capture ratings before update
     _ratingsBefore = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsBefore[p.savedPlayerId!] = sp.rating;
     }
 
-    // Find winner (highest score)
+    // Find winner (highest score) — removed seats never contend.
     int bestScore = -1;
     int winnerIdx = 0;
     for (int i = 0; i < players.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       if (totalScores[i] > bestScore) {
         bestScore = totalScores[i];
         winnerIdx = i;
       }
     }
     // A shared best score is a draw — nobody gets win credit.
-    final tieForBest =
-        totalScores.where((s) => s == bestScore).length > 1;
+    final tieForBest = List.generate(players.length, (i) => i)
+            .where((i) =>
+                !excludedSeats.contains(i) && totalScores[i] == bestScore)
+            .length >
+        1;
 
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
       final idx = savedPlayers.indexWhere((sp) => sp.id == playerId);
@@ -519,10 +557,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       }
     }
     // Rank by total score (higher = better placement)
-    final placements = _buildPlacements();
+    // Close the gaps a removed seat leaves behind: _buildPlacements()
+    // ranks every seat by total score, so with a removed seat holding 1st the
+    // actual winner would be persisted as 2. Excluded seats keep their own
+    // (ignored) value; ties among the active seats survive.
+    final placements = denseRankActive(_buildPlacements(), excludedSeats);
     // Compute per-player Halve It stats
     final modeCounters = <String, Map<String, int>>{};
     for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
       final playerId = players[pi].savedPlayerId;
       if (playerId == null) continue;
 
@@ -568,21 +611,26 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     }
 
     EloService.updateRatings(
+      gameMode: 'halveIt',
       playerIds: players.map((p) => p.savedPlayerId).toList(),
       placements: placements,
       savedPlayers: savedPlayers,
+      excludedSeats: excludedSeats,
     );
 
     // Capture ratings after update (before recording history)
     _ratingsAfter = {};
-    for (final p in players) {
+    for (int pi = 0; pi < players.length; pi++) {
+      if (excludedSeats.contains(pi)) continue;
+      final p = players[pi];
       if (p.savedPlayerId == null) continue;
       final sp = savedPlayers.where((s) => s.id == p.savedPlayerId).firstOrNull;
       if (sp != null) _ratingsAfter[p.savedPlayerId!] = sp.rating;
     }
 
     final achEvents = <int, List<AchievementEvent>>{
-      for (final i in _clutchSavers) i: [AchievementEvent.clutchSave],
+      for (final i in _clutchSavers)
+        if (!excludedSeats.contains(i)) i: [AchievementEvent.clutchSave],
     };
     final unlocks = AchievementService.instance.awardGameEnd(
       mode: GameMode.halveIt,
@@ -592,6 +640,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       ratingsBefore: _ratingsBefore,
       ratingsAfter: _ratingsAfter,
       eventsByIndex: achEvents,
+      excludedSeats: excludedSeats,
     );
 
     StatsRecorder.recordGame(
@@ -608,6 +657,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       throwHistory: List<DartThrow>.from(throwHistory),
       earnedFeatsByIndex:
           buildEarnedFeats(eventsByIndex: achEvents, unlocksByIndex: unlocks),
+      excludedSeats: excludedSeats,
     );
 
     await PlayerStorage.savePlayers(savedPlayers);
@@ -616,7 +666,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   void _showPostGame() async {
     // Rank players by total score descending
     final indexed = List.generate(players.length, (i) => i);
-    indexed.sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+    indexed.sort(
+        withSeatTiebreak((a, b) => totalScores[b].compareTo(totalScores[a])));
 
     _log.logGameEnd(
       playerNames: players.map((p) => p.name).toList(),
@@ -634,6 +685,22 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     if (result == 'undo') {
       _log.logPostGame(action: 'undo');
       _undo();
+    } else if (result == 'again') {
+      _log.logPostGame(action: 'again');
+      await _updateStats();
+      if (!mounted) return;
+      final ids = rematchPlayerIds(players, _removedPlayerIndices.contains);
+      final nav = Navigator.of(context);
+      nav.popUntil((route) => route.isFirst);
+      nav.push(MaterialPageRoute(
+        builder: (_) => widget.useDossedartDesign
+            ? DossedartSplitscoreSetupScreen(
+                initialConfig: widget.config, initialPlayerIds: ids)
+            : PlayerSetupScreen(
+                gameMode: GameMode.halveIt,
+                prefill: SetupPrefill(playerIds: ids, config: widget.config),
+              ) as Widget,
+      ));
     } else {
       _log.logPostGame(action: 'exit');
       // Leaving the game — record stats now. Recording is deferred to this
@@ -652,7 +719,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     final indexed = List.generate(players.length, (i) => i)
         .where((i) => !_removedPlayerIndices.contains(i))
         .toList()
-      ..sort((a, b) => totalScores[b].compareTo(totalScores[a]));
+      ..sort(withSeatTiebreak(
+          (a, b) => totalScores[b].compareTo(totalScores[a])));
 
     final results = <PlayerResult>[];
     for (int rank = 0; rank < indexed.length; rank++) {
@@ -671,7 +739,15 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
         ratingAfter: players[i].savedPlayerId != null ? _ratingsAfter[players[i].savedPlayerId!] : null,
       ));
     }
-    return GameResult(gameMode: 'halveIt', results: results);
+    return GameResult(
+      durationSeconds: DateTime.now().difference(_gameStart).inSeconds,
+      gameMode: 'halveIt',
+      results: results,
+      // Chart lines index by seat; a changed roster misaligns them —
+      // suppress instead of mislabeling.
+      throwHistory: _midGamePlayerChanges ? null : List<DartThrow>.from(throwHistory),
+      progressionMode: _midGamePlayerChanges ? null : 'halveIt',
+    );
   }
 
   @override
@@ -681,7 +757,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // DOSSEDART arcade cockpit — scorecard hero + red jeopardy bar + adaptive
+  // DOSSEDART arcade cockpit — hero-target strip + scorecard + adaptive
   // input (S/D/T cells for number/bull rounds, a 1–20 keypad for double/triple
   // rounds). Every tap feeds the same _onDartHit; halving stays in _finishTurn.
   // ---------------------------------------------------------------------------
@@ -698,25 +774,25 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 onExit: _confirmExit,
                 trailing: 'RND ${currentRoundIndex + 1}/${rounds.length}',
               ),
+              // Design B (2026-08-21): the target IS the strip's hero — the
+              // jeopardy bar and the red MISS HALVES sub-line are gone, and
+              // with them all "what a miss costs" copy (decided with Bjørn).
+              // 176px is the one approved deviation from the 132px family
+              // zone; halving still shows in the scorecard when it happens.
               DossedartActiveStrip(
+                height: 176,
                 playerName: players[currentPlayerIndex].name,
                 avatarPath: players[currentPlayerIndex].avatarPath,
                 accentColor: dossedartAccent(currentPlayerIndex),
                 dartsInTurn: dartsInTurn,
-                modeSlot: DossedartStripSlot(
-                  label: 'TARGET',
-                  value: rounds[currentRoundIndex].label.toUpperCase(),
-                  subLine:
-                      'MISS HALVES ${totalScores[currentPlayerIndex]} › ${totalScores[currentPlayerIndex] ~/ 2}',
-                  subLineColor: DossedartTokens.red,
-                ),
+                modeSlot: _splitHeroTarget(),
                 scoreLabel: 'POINTS',
                 scoreValue: '${totalScores[currentPlayerIndex]}',
                 smallScore: true,
               ),
-              // Jeopardy bar + scorecard + input area share one flexible,
-              // scrollable slot; only TopBar/Strip/ActionBar are genuinely
-              // fixed-height chrome. This matters because the input area is
+              // Scorecard + input area share one flexible, scrollable slot;
+              // only TopBar/Strip/ActionBar are genuinely fixed-height
+              // chrome. This matters because the input area is
               // NOT actually fixed-height: an "any double" round renders a
               // 5-row keypad (S/D/T rows plus a D-BULL row) that's taller
               // than "any triple"'s 4-row keypad or the single-row
@@ -745,13 +821,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _splitJeopardyBar(),
-                                _splitScorecard(),
-                              ],
-                            ),
+                            _splitScorecard(),
                             _splitInput(),
                           ],
                         ),
@@ -766,6 +836,8 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                 onMenu: () => showDossedartCockpitMenu(
                   context,
                   meme: _meme,
+                  activePlayerCount:
+                      players.length - _removedPlayerIndices.length,
                   onTtsChanged: (v) => setState(() => _ttsEnabled = v),
                   onPlayerOverview: _openDossedartPlayerSheet,
                   onExit: _confirmExit,
@@ -778,46 +850,56 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
     );
   }
 
-  Widget _splitJeopardyBar() {
-    final round = rounds[currentRoundIndex];
-    final total = totalScores[currentPlayerIndex];
-    final safe = turnHasHit;
-    final c = safe ? DossedartTokens.green : DossedartTokens.red;
-    final text = safe
-        ? '✓ SECURED · +$turnPoints THIS ROUND'
-        : '⚠ HIT ${round.label.toUpperCase()} OR HALVE · $total → ${total ~/ 2}';
+  /// Design B hero target: rotated TARGET label + the round's target huge in
+  /// yellow. FittedBox scales long labels (DOUBLE/TRIPLE/BULL) down inside
+  /// the strip's 212px mode-slot cap instead of overflowing.
+  Widget _splitHeroTarget() {
+    const yellow = DossedartTokens.yellow;
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.only(left: 16),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.10),
-        border: Border.all(color: c, width: 2),
-        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.35), blurRadius: 12)],
-      ),
-      // FittedBox + maxLines: 1 pins this bar to a single, constant text-line
-      // height no matter what the message says. Without it, the sentence's
-      // length rides on the round label ("HIT TRIPLE OR HALVE" vs. "HIT 7 OR
-      // HALVE") and on the score digit count, so it could silently wrap from
-      // one line to two — growing the bar by ~19px and overflowing the
-      // cockpit Column below, since every other element in that Column is
-      // genuinely fixed-height. Scaling down (not truncating) keeps the full
-      // message readable even if it would otherwise be too wide.
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          softWrap: false,
-          style: TextStyle(
-            fontFamily: 'PressStart2P',
-            fontSize: 10,
-            color: c,
-            letterSpacing: 1,
-            height: 1.4,
-          ),
+        border: Border(
+          left: BorderSide(
+              color: Colors.white.withValues(alpha: 0.12), width: 1),
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RotatedBox(
+            quarterTurns: 3,
+            child: Text(
+              'TARGET',
+              style: TextStyle(
+                fontFamily: 'PressStart2P',
+                fontSize: 8,
+                color: Colors.white.withValues(alpha: 0.45),
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                rounds[currentRoundIndex].label.toUpperCase(),
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: 'VT323',
+                  fontSize: 72,
+                  height: 1,
+                  letterSpacing: 2,
+                  color: yellow,
+                  shadows: [
+                    Shadow(
+                        color: yellow.withValues(alpha: 0.5), blurRadius: 24)
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1043,17 +1125,20 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
   Widget _splitCellRow(List<(String, int, int)> subs) {
     const c = DossedartTokens.cyan;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
       child: Row(
         children: [
+          // Enlarged with design B (2026-08-21): the single-row inputs sat
+          // small and lost at the bottom of the freed-up screen. The 4/5-row
+          // keypads (any-double/any-triple rounds) keep their compact size.
           for (final (label, seg, mult) in subs)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
                 child: GestureDetector(
                   onTap: () => _onDartHit(seg, mult),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 26),
                     decoration: BoxDecoration(
                       color: c.withValues(alpha: 0.07),
                       border: Border.all(color: c, width: 2),
@@ -1065,7 +1150,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
                         label,
                         style: const TextStyle(
                           fontFamily: 'PressStart2P',
-                          fontSize: 16,
+                          fontSize: 22,
                           color: c,
                         ),
                       ),
@@ -1777,7 +1862,7 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       excludeSavedIds:
           players.map((p) => p.savedPlayerId).whereType<String>().toSet(),
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
@@ -1791,32 +1876,36 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       gameOver: gameOver,
       colorFor: avatarColor,
       addInfoText:
-          'Rating is skipped for this game once you add or remove a player.',
+          'A new player starts level with whoever is in last place.',
       onAdd: _addSavedPlayerMidGame,
       onRemove: _removePlayerMidGame,
     );
   }
 
+  @visibleForTesting
+  void addPlayerForTest(SavedPlayer sp) => _addSavedPlayerMidGame(sp);
+
   void _addSavedPlayerMidGame(SavedPlayer sp) {
+    // Seeded from the LAST-PLACED active player, not the table average
+    // (tester feedback 2026-08-10). Splitscore accumulates, so the LOWEST
+    // total is the worst position. Every player plays every round here, so
+    // "active" is only about removal.
     final activeIndices = List.generate(players.length, (i) => i)
         .where((i) => !_removedPlayerIndices.contains(i))
         .toList();
-    final avgScore = activeIndices.isEmpty
-        ? 40
-        : (activeIndices.map((i) => totalScores[i]).reduce((a, b) => a + b) /
-                activeIndices.length)
-            .round();
+    final worst = worstSeat(totalScores, activeIndices, higherIsBetter: true);
+    final seedScore = worst == null ? 40 : totalScores[worst];
 
     setState(() {
       _midGamePlayerChanges = true;
       _joinedMidGameIds.add(sp.id);
       players.add(Player(
         name: sp.name,
-        score: avgScore,
+        score: seedScore,
         savedPlayerId: sp.id,
         avatarPath: sp.avatarPath,
       ));
-      totalScores.add(avgScore);
+      totalScores.add(seedScore);
       // Backfill roundScores for rounds already played with null (skipped)
       for (int ri = 0; ri < rounds.length; ri++) {
         roundScores[ri].add(null);
@@ -1872,7 +1961,9 @@ class _HalveItGameScreenState extends State<HalveItGameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Remove ${players[playerIndex].name}?'),
-        content: const Text('Statistics will not be recorded for this game.'),
+        content: const Text(
+            "They are left out of this game's statistics and rating. "
+            'Everyone else still counts.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

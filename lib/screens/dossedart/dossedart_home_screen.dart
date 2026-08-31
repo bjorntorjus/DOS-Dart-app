@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../app_version.dart';
 import '../../models/game_mode.dart';
 import '../../models/saved_player.dart';
+import '../../services/event_service.dart';
 import '../../services/player_storage.dart';
 import '../../theme/dossedart_tokens.dart';
 import '../../widgets/dossedart/arcade_frame.dart';
@@ -37,13 +38,12 @@ const _gridTiles = [
   _GridTile(_TileKind.live, '🔪', 'Killer', mode: GameMode.killer),
   _GridTile(_TileKind.live, '✂️', 'Splitscore', mode: GameMode.halveIt),
   _GridTile(_TileKind.live, '🐉', 'Shanghai', mode: GameMode.shanghai),
-  _GridTile(_TileKind.fresh, '💀', 'Gotcha', mode: GameMode.gotcha),
-  // Hardcoded placeholders until the modes exist — no dead enum values.
+  _GridTile(_TileKind.live, '💀', 'Gotcha', mode: GameMode.gotcha),
   // '1UP', not 'Legs': locked terminology decision (collides with X01
   // legs/sets otherwise).
-  _GridTile(_TileKind.fresh, '❤️', '1UP', mode: GameMode.oneUp),
-  _GridTile(_TileKind.fresh, '⛳', 'Golf', mode: GameMode.golf),
-  _GridTile(_TileKind.fresh, '🃏', 'Wildcard', mode: GameMode.wildcard),
+  _GridTile(_TileKind.live, '❤️', '1UP', mode: GameMode.oneUp),
+  _GridTile(_TileKind.live, '⛳', 'Golf', mode: GameMode.golf),
+  _GridTile(_TileKind.live, '🃏', 'Wildcard', mode: GameMode.wildcard),
 ];
 
 /// DOSSEDART arcade home screen — leaderboard variant B (tight list).
@@ -186,7 +186,10 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
               Text('━━━━',
                   style: _vt(16, color: DossedartTokens.magenta)),
               const SizedBox(width: 12),
-              Text('★ HIGH SCORES ★',
+              Text(
+                  EventService.active == null
+                      ? '★ HIGH SCORES ★'
+                      : '★ ${EventService.active!.name.toUpperCase()} ★',
                   style: _press(11,
                       color: DossedartTokens.cyan, letterSpacing: 1.5)),
               const SizedBox(width: 12),
@@ -349,7 +352,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
             children: [
               Expanded(child: _x01Card(301, '🥉', 'SHORT', false)),
               const SizedBox(width: 8),
-              Expanded(child: _x01Card(501, '🍻', 'CLASSIC', true)),
+              Expanded(child: _x01Card(501, '👑', 'CLASSIC', true)),
               const SizedBox(width: 8),
               Expanded(child: _x01Card(701, '🏆', 'LONG', false)),
             ],
@@ -372,7 +375,7 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
         ),
         child: Column(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
+            Text(emoji, style: const TextStyle(fontSize: 36)),
             const SizedBox(height: 6),
             Text('$score',
                 style: _press(22, color: accent, letterSpacing: 1)),
@@ -398,15 +401,6 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
               Text('► OR PICK A LEVEL',
                   style:
                       _press(11, color: DossedartTokens.cyan, letterSpacing: 1)),
-              const SizedBox(width: 10),
-              // Flexible + ellipsis: below tablet width the badge truncates
-              // instead of overflowing the header Row.
-              Flexible(
-                child: Text('NEW: GOTCHA 💀 · WILDCARD 🃏',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _vt(14, color: DossedartTokens.yellow)),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -427,12 +421,11 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
     );
   }
 
-  // Standard tile chrome shared by live modes and fresh (NEW-ribbon) modes —
-  // QA decision 2026-07-09: fresh tiles must look identical to live ones,
-  // the yellow NEW ribbon is the only differentiator.
+  // Standard tile chrome. `_TileKind.fresh` (NEW ribbon) is kept for the next
+  // batch of modes; nothing uses it today — the 2026 modes are not new anymore.
   Widget _tileContainer(_GridTile t) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
       decoration: BoxDecoration(
         color: DossedartTokens.surface,
         border: Border.all(color: DossedartTokens.phosphor, width: 2),
@@ -446,11 +439,11 @@ class _DossedartHomeScreenState extends State<DossedartHomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(t.emoji, style: const TextStyle(fontSize: 28)),
-          const SizedBox(height: 6),
+          Text(t.emoji, style: const TextStyle(fontSize: 40)),
+          const SizedBox(height: 10),
           Text(
             t.label.toUpperCase(),
-            style: _press(9, color: Colors.white),
+            style: _press(10, color: Colors.white),
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
           ),

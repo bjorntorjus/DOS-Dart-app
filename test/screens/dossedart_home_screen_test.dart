@@ -29,8 +29,9 @@ void main() {
 
     expect(find.text('GOTCHA'), findsOneWidget);
     expect(find.text('WILDCARD'), findsOneWidget);
-    expect(find.text('NEW'), findsNWidgets(4),
-        reason: 'NEW ribbon on Gotcha, WILDCARD, 1UP and Golf');
+    expect(find.text('NEW'), findsNothing,
+        reason: 'the 2026 modes are not new anymore — no ribbons');
+    expect(find.textContaining('NEW:'), findsNothing);
     expect(find.text('1UP'), findsOneWidget);
     expect(find.text('GOLF'), findsOneWidget);
     expect(find.text('MORE SOON'), findsNothing);

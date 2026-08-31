@@ -20,11 +20,14 @@ List<FormResult> recentForm(
   final sorted = [...history]..sort((a, b) => b.date.compareTo(a.date));
   final out = <FormResult>[];
   for (final e in sorted) {
-    final me =
-        e.players.where((p) => p.savedPlayerId == savedPlayerId).firstOrNull;
+    final me = e.activePlayers
+        .where((p) => p.savedPlayerId == savedPlayerId)
+        .firstOrNull;
     if (me == null) continue;
-    final best = e.players.map((p) => p.placement).reduce((a, b) => a < b ? a : b);
-    final sharedBest = e.players.where((p) => p.placement == best).length > 1;
+    final best =
+        e.activePlayers.map((p) => p.placement).reduce((a, b) => a < b ? a : b);
+    final sharedBest =
+        e.activePlayers.where((p) => p.placement == best).length > 1;
     final FormOutcome o;
     if (me.placement == best && !sharedBest) {
       o = FormOutcome.win;
@@ -59,6 +62,13 @@ ModeStats? _firstMode(SavedPlayer p, List<String> keys) {
 /// the underlying counter exists (> 0) so unplayed modes are skipped.
 List<RecordTile> careerRecords(SavedPlayer p) {
   final out = <RecordTile>[];
+  // Cross-cutting, so no mode key — the grid resolves an unknown key to
+  // phosphor. Hidden at zero: an empty shame counter is not worth a tile.
+  final slowTurns =
+      p.modeStats.values.fold<int>(0, (sum, m) => sum + m.get('slowTurns'));
+  if (slowTurns > 0) {
+    out.add(RecordTile(mode: '', value: '$slowTurns', label: 'slow turns'));
+  }
   final x01 = _firstMode(p, ['x01']);
   if (x01 != null && x01.get('highestTurn') > 0) {
     out.add(RecordTile(mode: 'x01', value: '${x01.get('highestTurn')}', label: 'highest turn'));

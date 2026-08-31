@@ -1,9 +1,11 @@
 import 'dart:async';
 import '../models/achievement.dart';
 import '../models/achievement_event.dart';
+import '../models/event.dart';
 import '../models/game_mode.dart';
 import '../models/game_outcome.dart';
 import '../models/saved_player.dart';
+import '../models/season.dart';
 
 class AchievementUnlock {
   final SavedPlayer player;
@@ -35,6 +37,40 @@ class AchievementService {
     player.achievementUnlockedAt[a.id] = DateTime.now();
     if (emit) _unlockController.add(AchievementUnlock(player, a));
     return true;
+  }
+
+  /// A season closed → unlock the season badges this player just earned.
+  ///
+  /// These are lifetime unlocks like every other; only the trigger is new.
+  /// One evaluation path serves both because `ctx.season` is null at game end,
+  /// so every season badge tests it first and stays inert there.
+  ///
+  /// Emits on the banner stream like [checkEvent] — a season ending is
+  /// exactly the moment worth celebrating.
+  List<Achievement> evaluateSeasonClose(
+      SavedPlayer player, SeasonStanding standing) {
+    final ctx = AchievementContext(player: player, season: standing);
+    final newly = <Achievement>[];
+    for (final a in _catalog) {
+      if (!a.id.startsWith('x_season_')) continue;
+      if (!(a.milestoneTest?.call(ctx) ?? false)) continue;
+      if (_unlock(player, a, emit: true)) newly.add(a);
+    }
+    return newly;
+  }
+
+  /// An event closed → unlock the event badges this player just earned.
+  /// Mirrors [evaluateSeasonClose]; only the `x_event_` prefix differs.
+  List<Achievement> evaluateEventClose(
+      SavedPlayer player, EventStanding standing) {
+    final ctx = AchievementContext(player: player, event: standing);
+    final newly = <Achievement>[];
+    for (final a in _catalog) {
+      if (!a.id.startsWith('x_event_')) continue;
+      if (!(a.milestoneTest?.call(ctx) ?? false)) continue;
+      if (_unlock(player, a, emit: true)) newly.add(a);
+    }
+    return newly;
   }
 
   /// Live in-game event → unlock matching event badges, emit banner.
@@ -77,13 +113,19 @@ class AchievementService {
     required Map<String, double> ratingsAfter,
     Map<int, List<AchievementEvent>> eventsByIndex = const {},
     Map<int, Map<String, int>> countersByIndex = const {},
+    Set<int> excludedSeats = const {},
   }) {
-    if (placements.isEmpty) return const {};
-    final best = placements.reduce((a, b) => a < b ? a : b);
+    final active = [
+      for (var i = 0; i < placements.length; i++)
+        if (!excludedSeats.contains(i)) placements[i],
+    ];
+    if (active.isEmpty) return const {};
+    final best = active.reduce((a, b) => a < b ? a : b);
     // A shared best placement is a draw — nobody gets win credit.
-    final bestIsShared = placements.where((p) => p == best).length > 1;
+    final bestIsShared = active.where((p) => p == best).length > 1;
     final unlockedByIndex = <int, List<Achievement>>{};
     for (int i = 0; i < playerIds.length; i++) {
+      if (excludedSeats.contains(i)) continue;
       final id = playerIds[i];
       if (id == null) continue;
       final sp = savedPlayers.where((s) => s.id == id).firstOrNull;
@@ -95,6 +137,7 @@ class AchievementService {
       final opponents = <double>[];
       for (int j = 0; j < playerIds.length; j++) {
         if (j == i) continue;
+        if (excludedSeats.contains(j)) continue;
         final oid = playerIds[j];
         final r = oid == null ? null : ratingsBefore[oid];
         if (r != null) opponents.add(r);
@@ -105,7 +148,8 @@ class AchievementService {
           mode: mode,
           won: placements[i] == best && !bestIsShared,
           placement: placements[i],
-          playerCount: playerIds.length,
+          playerCount: playerIds.length -
+              excludedSeats.where((s) => s < playerIds.length).length,
           ratingBefore: ratingsBefore[id] ?? sp.rating,
           ratingAfter: ratingsAfter[id] ?? sp.rating,
           opponentRatingsBefore: opponents,

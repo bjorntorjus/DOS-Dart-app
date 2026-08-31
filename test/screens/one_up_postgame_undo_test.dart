@@ -78,7 +78,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(PostGameScreen), findsOneWidget);
 
-    await tester.tap(find.textContaining('Back'));
+    await tester.tap(find.text('↶ BACK'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));

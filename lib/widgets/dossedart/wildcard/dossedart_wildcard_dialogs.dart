@@ -380,12 +380,19 @@ class WcRevealRow {
     required this.before,
     required this.after,
     required this.accent,
+    this.hasThrown = true,
   });
 
   final String name;
   final int before;
   final int after;
   final Color accent;
+
+  /// False for a REWIND row whose seat had not thrown yet when the joker
+  /// fired: the row dims and shows a NOT THROWN tag instead of the arrow —
+  /// nothing was wiped for them, unlike a thrown seat whose round happened
+  /// to score 0 (that one renders `before → after ±0`).
+  final bool hasThrown;
 }
 
 /// Renders one "NAME  before → after" line per involved player under a
@@ -418,10 +425,20 @@ class _RevealRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final afterColor =
-        row.after >= row.before ? DossedartTokens.green : DossedartTokens.red;
+    final delta = row.after - row.before;
+    final afterColor = delta >= 0 ? DossedartTokens.green : DossedartTokens.red;
+    final deltaColor = delta > 0
+        ? DossedartTokens.green
+        : delta < 0
+            ? DossedartTokens.red
+            : Colors.white38;
+    final deltaLabel = delta > 0
+        ? '+$delta'
+        : delta < 0
+            ? '−${delta.abs()}'
+            : '±0';
 
-    return Padding(
+    final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
@@ -442,25 +459,50 @@ class _RevealRow extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-          const Text(
-            ' → ',
-            style: TextStyle(
-              fontFamily: 'VT323',
-              fontSize: 22,
-              color: Colors.white54,
+          if (row.hasThrown) ...[
+            const Text(
+              ' → ',
+              style: TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 22,
+                color: Colors.white54,
+              ),
             ),
-          ),
-          Text(
-            '${row.after}',
-            style: TextStyle(
-              fontFamily: 'VT323',
-              fontSize: 22,
-              color: afterColor,
+            Text(
+              '${row.after}',
+              style: TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 22,
+                color: afterColor,
+              ),
             ),
-          ),
+            const SizedBox(width: 10),
+            Text(
+              deltaLabel,
+              style: TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 22,
+                color: deltaColor,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(width: 10),
+            const Text(
+              'NOT THROWN',
+              style: TextStyle(
+                fontFamily: 'VT323',
+                fontSize: 17,
+                color: Colors.white54,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
         ],
       ),
     );
+
+    if (row.hasThrown) return content;
+    return Opacity(opacity: 0.45, child: content);
   }
 }
 

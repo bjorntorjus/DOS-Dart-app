@@ -51,7 +51,11 @@ class VideoService {
   /// sites showed their video 100% of the time — the winner video played
   /// after every single game). Rolls the GLOBAL frequency dice (bypassed at
   /// frequency 10 = "always"), then any explicit per-call [chance] on top.
-  @visibleForTesting
+  ///
+  /// Public because the cockpits must know IN ADVANCE whether a video will
+  /// play, so they can mute the meme sound that would otherwise talk over it.
+  /// Those callers pass `alreadyDecided: true` to [showRandomFromFolder] so
+  /// the dice are not rolled a second time (audit 2026-08-10, F2).
   bool shouldPlay({int chance = 1}) {
     if (!_enabled) return false;
     final globalChance = frequencyToChance(_frequency);
@@ -82,9 +86,15 @@ class VideoService {
   /// Show a random video/GIF from [folder] inside assets/videos/.
   /// Only plays with a 1-in-[chance] probability (default: always).
   /// Supports .mp4 and .gif files.
-  Future<void> showRandomFromFolder(BuildContext context, String folder, {int chance = 1}) async {
+  ///
+  /// Pass [alreadyDecided] when the caller has already rolled [shouldPlay]
+  /// itself — rolling again here would re-create the double gate the
+  /// 2026-08-10 audit removed. [chance] is ignored when it is set.
+  Future<void> showRandomFromFolder(BuildContext context, String folder,
+      {int chance = 1, bool alreadyDecided = false}) async {
     if (disableForTest) return;
-    if (!shouldPlay(chance: chance)) return;
+    if (!_enabled) return;
+    if (!alreadyDecided && !shouldPlay(chance: chance)) return;
 
     try {
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);

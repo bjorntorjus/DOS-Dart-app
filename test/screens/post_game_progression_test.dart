@@ -84,8 +84,54 @@ void main() {
 
     expect(find.text('SCORE PER ROUND'), findsOneWidget);
     expect(find.byType(ProgressionChart), findsOneWidget);
-    expect(find.textContaining('Score: 180'), findsOneWidget);
-    expect(find.textContaining('Score: 114'), findsOneWidget);
+    // Headline values now sit in the row header, not a joined stat string.
+    expect(find.text('180'), findsWidgets);
+    expect(find.text('114'), findsOneWidget);
+  });
+
+  testWidgets(
+      'golf result shows the scorecard but no chart — the scorecard is '
+      'golf\'s per-round zone; the curve lives in DETAILS as MATCH FLOW',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final result = GameResult(
+      gameMode: 'golf',
+      results: [
+        PlayerResult(
+          name: 'A',
+          placement: 1,
+          stats: const {'strokes': 9, 'vsPar': 0, 'holesPlayed': 3},
+        ),
+        PlayerResult(
+          name: 'B',
+          placement: 2,
+          stats: const {'strokes': 12, 'vsPar': 3, 'holesPlayed': 3},
+        ),
+      ],
+      throwHistory: threeRoundThrows(),
+      progressionMode: 'golf',
+      modeExtras: {
+        'names': ['A', 'B'],
+        'scorecards': [
+          [3, 3, 3],
+          [4, 4, 4],
+        ],
+        'totals': [9, 12],
+        'vsPars': [0, 3],
+        'skippedSeats': const <int>{},
+      },
+    );
+
+    await tester.pumpWidget(MaterialApp(home: PostGameScreen(result: result)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SCORECARD'), findsOneWidget);
+    expect(find.text('SCORE PER ROUND'), findsNothing);
+    expect(find.byType(ProgressionChart), findsNothing);
   });
 
   testWidgets('result without throwHistory shows no chart', (tester) async {
