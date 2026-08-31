@@ -37,16 +37,18 @@ void main() {
     expect(find.byType(DossedartX01Dartboard), findsOneWidget);
     expect(find.text('⋯ MENU'), findsOneWidget);
 
-    // Open MENU → see "PLAYER OVERVIEW" entry.
+    // Open MENU → design A (2026-08-24) shows the players card on top.
     await tester.tap(find.text('⋯ MENU'));
     await tester.pumpAndSettle(const Duration(seconds: 10));
-    expect(find.text('PLAYER OVERVIEW'), findsOneWidget);
+    expect(find.text('PLAYERS · ADD / REMOVE'), findsOneWidget);
 
-    // Tap PLAYER OVERVIEW → unified player sheet opens over the dimmed
-    // cockpit, listing both players (names also remain in the cockpit behind).
-    await tester.tap(find.text('PLAYER OVERVIEW'));
+    // Tap the players card → unified player sheet ("PLAYER OVERVIEW") opens
+    // over the dimmed cockpit, listing both players (names also remain in
+    // the cockpit behind).
+    await tester.tap(find.text('PLAYERS · ADD / REMOVE'));
     await tester.pumpAndSettle(const Duration(seconds: 10));
     expect(find.byType(DossedartPlayerSheet), findsOneWidget);
+    expect(find.text('PLAYER OVERVIEW'), findsOneWidget);
     expect(find.text('MIA'), findsWidgets);
     expect(find.text('JON'), findsWidgets);
   });
